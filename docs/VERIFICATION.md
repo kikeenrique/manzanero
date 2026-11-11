@@ -24,3 +24,15 @@ Environment remains macOS 27.2.1, Xcode 27.2, Apple Swift 6.4.2; bridge built wi
 - A live read-only `hid-info` check targeted the physical iPhone discoverable through CoreDevice. It returned JSON error `Device not available through usbmuxd: device not found` with exit code 1 and no success payload. No touch, keyboard, or button input was sent. This provides failure-path evidence, not live HID functionality.
 - Current connection support is an in-process CoreDeviceProxy tunnel from usbmuxd. Apple's separately paired CoreDevice-only Wi-Fi path is still missing.
 - Audio/video stream negotiation, stream ownership detection, input dispatch, and cleanup are compiled but have not been verified on a physical device. The metadata and feature-mask values come from the pinned library's upstream example. The bridge checks for a reported active `streamConfig` before starting; simultaneous-controller behavior and cancellation cleanup remain unverified.
+
+
+## 2026-11-11 — explicit Wi-Fi pairing and transport
+
+Environment unchanged; Rust 1.99.1 and Swift 6.4.2.
+
+- Swift tests through xcsift passed: 12 test functions, zero warnings/errors. Added checks cover interactive pairing planning, literal paths with spaces, private-record suffix, invalid host/port input, and restriction of `--pairing-file` to the physical HID backend.
+- Six Rust tests passed with the pinned library and updated lockfile. Added checks cover pairing-record round trips, wrong-device rejection, malformed records/endpoints, removal of uncommitted reservations, mode 0600, and refusal to overwrite an existing record. These test locally generated fixture keys only.
+- A dry run of `--pairing-file <path with spaces> physical <UDID> hid-info` produced the expected helper argument array.
+- Native `remotectl netcat` proxy and direct-HID probes failed before input. That experimental path was removed; see [TRANSPORT.md](TRANSPORT.md).
+- The implemented Wi-Fi path compiles against idevice's remote-pairing and native TLS-PSK APIs and holds its pairing control connection for the tunnel lifetime. No live pairing, trust change, or physical input was attempted. Device-side approval and a PIN are required before that verification can proceed.
+- `dns-sd -h` was checked for the documented Bonjour browse/resolve commands. Endpoint discovery is manual and saved endpoint changes are not automatically handled yet.

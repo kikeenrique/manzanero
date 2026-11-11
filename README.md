@@ -60,4 +60,14 @@ appledevicescmd physical <UDID> button home
 appledevicescmd physical <UDID> key return
 ```
 
-Physical touch coordinates are normalized 0...1; simulator coordinates are interface points. The bridge requires the target UDID to be available through usbmuxd; CoreDevice-only Wi-Fi discovery is not sufficient. These physical input operations have passed build and parser tests but have **not** passed live-device verification. The attempted HID discovery returned device-not-found through usbmuxd. Successful input receipts indicate dispatch, not a verified app outcome.
+Physical touch coordinates are normalized 0...1; simulator coordinates are interface points. The default bridge connection requires the target UDID through usbmuxd. An explicit Wi-Fi pairing and independent tunnel path is also implemented; see [Wi-Fi setup](docs/DEPENDENCIES.md#wi-fi-pairing). CoreDevice-only discovery alone does not provide a tool-specific pairing record. These physical input operations have passed build and parser tests but have **not** passed live-device verification. The attempted HID discovery returned device-not-found through usbmuxd. Successful input receipts indicate dispatch, not a verified app outcome.
+
+
+For a separately paired Wi-Fi connection:
+
+```sh
+appledevicescmd pair wifi <host> <port> tmp/pairings/phone.pairing.plist
+appledevicescmd --pairing-file tmp/pairings/phone.pairing.plist physical <UDID> hid-info
+```
+
+Create the destination directory first. Initial pairing prompts for device approval/PIN and returns the UDID. Pairing records are private and excluded from Git. Wi-Fi setup and physical input are implemented but **not live-verified**. [Transport investigation](docs/TRANSPORT.md) records the unsuccessful attempts to reuse Apple's connection and the reason for the independent tunnel.

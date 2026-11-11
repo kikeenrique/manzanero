@@ -1,16 +1,15 @@
 //! Small process boundary around idevice's private CoreDevice interfaces.
 //! Arguments are supplied by the Swift planner; stdout is JSON only.
 use idevice::{
-    IdeviceService, RsdService,
+    RsdService,
     core_device::{ButtonState, IndigoHidClient, UniversalHidServiceClient},
-    core_device_proxy::CoreDeviceProxy,
-    rsd::RsdHandshake,
-    usbmuxd::UsbmuxdAddr,
 };
 use serde_json::{Value, json};
 use std::time::Duration;
 
+mod pairing;
 mod stream;
+mod transport;
 
 #[derive(Debug, PartialEq)]
 enum Action {
@@ -81,29 +80,17 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
     Ok((&args[0], action))
 }
 
-async fn execute(udid: &str, action: Action) -> Result<Value, String> {
-    let addr = UsbmuxdAddr::from_env_var().map_err(|e| e.to_string())?;
-    let mut mux = addr.connect(0).await.map_err(|e| format!("usbmuxd: {e}"))?;
-    let device = mux
-        .get_device(udid)
-        .await
-        .map_err(|e| format!("Device not available through usbmuxd: {e}"))?;
-    let provider = device.to_provider(addr, "appledevicescmd");
-    let proxy = CoreDeviceProxy::connect(&provider)
-        .await
-        .map_err(|e| format!("CoreDevice proxy: {e}"))?;
-    let port = proxy.tunnel_info().server_rsd_port;
-    let mut adapter = proxy
-        .create_software_tunnel()
-        .map_err(|e| e.to_string())?
-        .to_async_handle();
-    let connection = adapter.connect(port).await.map_err(|e| e.to_string())?;
-    let mut rsd = RsdHandshake::new(connection)
-        .await
-        .map_err(|e| format!("RSD: {e}"))?;
+async fn execute(
+    udid: &str,
+    action: Action,
+    record_path: Option<&std::path::Path>,
+) -> Result<Value, String> {
+    let mut connection = transport::connect(udid, record_path).await?;
+    let adapter = &mut connection.adapter;
+    let rsd = &mut connection.rsd;
 
     if action == Action::Surfaces {
-        let mut hid = UniversalHidServiceClient::connect_rsd(&mut adapter, &mut rsd)
+        let mut hid = UniversalHidServiceClient::connect_rsd(adapter, rsd)
             .await
             .map_err(|e| e.to_string())?;
         let surfaces = hid
@@ -111,19 +98,19 @@ async fn execute(udid: &str, action: Action) -> Result<Value, String> {
             .await
             .map_err(|e| e.to_string())?;
         return Ok(
-            json!({"backend": "idevice", "surfaces": surfaces.iter().map(|s| json!({
+            json!({"backend": "idevice", "transport": connection.name, "surfaces": surfaces.iter().map(|s| json!({
             "serviceID": s.service_id, "product": s.product, "usage": s.primary_usage, "usagePage": s.primary_usage_page
         })).collect::<Vec<_>>()}),
         );
     }
 
     // Keep UDP sockets and display stream alive while input is dispatched.
-    let mut session = stream::start(&mut adapter, &mut rsd).await?;
+    let mut session = stream::start(adapter, rsd).await?;
     tokio::time::sleep(Duration::from_millis(300)).await;
     let result: Result<(), String> = async {
         match action {
             Action::Button(_, _) | Action::Key(_) => {
-                let mut hid = IndigoHidClient::connect_rsd(&mut adapter, &mut rsd)
+                let mut hid = IndigoHidClient::connect_rsd(adapter, rsd)
                     .await
                     .map_err(|e| e.to_string())?;
                 match action {
@@ -148,7 +135,7 @@ async fn execute(udid: &str, action: Action) -> Result<Value, String> {
                 }
             }
             _ => {
-                let mut hid = UniversalHidServiceClient::connect_rsd(&mut adapter, &mut rsd)
+                let mut hid = UniversalHidServiceClient::connect_rsd(adapter, rsd)
                     .await
                     .map_err(|e| e.to_string())?;
                 match action {
@@ -171,7 +158,38 @@ async fn execute(udid: &str, action: Action) -> Result<Value, String> {
         .map_err(|e| format!("Stop media stream: {e}"));
     result?;
     cleanup?;
-    Ok(json!({"backend": "idevice", "status": "dispatched", "verified": false}))
+    Ok(
+        json!({"backend": "idevice", "status": "dispatched", "verified": false, "transport": connection.name}),
+    )
+}
+
+async fn run(args: &[String]) -> Result<Value, String> {
+    if args.first().is_some_and(|a| a == "pair-wifi") {
+        if args.len() != 4 {
+            return Err("Expected pair-wifi HOST PORT DESTINATION".into());
+        }
+        let port: u16 = args[2].parse().map_err(|_| "Invalid Wi-Fi port")?;
+        return tokio::time::timeout(
+            Duration::from_secs(180),
+            pairing::pair(&args[1], port, std::path::Path::new(&args[3])),
+        )
+        .await
+        .map_err(|_| "Wi-Fi pairing timed out".to_string())?;
+    }
+    let (record, args) = if args.first().is_some_and(|a| a == "--pairing-file") {
+        if args.len() < 4 || args[1].is_empty() {
+            return Err("--pairing-file requires a path and device operation".into());
+        }
+        (Some(std::path::Path::new(&args[1])), &args[2..])
+    } else {
+        (None, args)
+    };
+    let (udid, action) = parse(args)?;
+    tokio::time::timeout(Duration::from_secs(60), execute(udid, action, record))
+        .await
+        .map_err(|_| {
+            "CoreDevice operation timed out; inspect device state before retrying input".to_string()
+        })?
 }
 
 #[tokio::main]
@@ -181,18 +199,7 @@ async fn main() {
         println!("appledevices-idevice 0.1.0 (idevice 89702099f4d7552f704f93b4526756abda319ceb)");
         return;
     }
-    let result = match parse(&args) {
-        Ok((udid, action)) => {
-            match tokio::time::timeout(Duration::from_secs(60), execute(udid, action)).await {
-                Ok(result) => result,
-                Err(_) => Err(
-                    "CoreDevice operation timed out; inspect device state before retrying input"
-                        .into(),
-                ),
-            }
-        }
-        Err(error) => Err(error),
-    };
+    let result = run(&args).await;
     match result {
         Ok(value) => println!("{value}"),
         Err(message) => {

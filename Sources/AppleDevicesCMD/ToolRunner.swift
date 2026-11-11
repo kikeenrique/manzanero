@@ -6,7 +6,7 @@ struct CommandFailure: Error, CustomStringConvertible {
 
 /// Uses argument arrays and file-backed output so child processes cannot fill a pipe.
 struct ToolRunner {
-    func run(_ arguments: [String], executable: String = "/usr/bin/xcrun") throws -> Data {
+    func run(_ arguments: [String], executable: String = "/usr/bin/xcrun", interactive: Bool = false) throws -> Data {
         let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("tmp/process-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -21,9 +21,9 @@ struct ToolRunner {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
-        process.standardInput = FileHandle.nullDevice
+        process.standardInput = interactive ? FileHandle.standardInput : FileHandle.nullDevice
         process.standardOutput = output
-        process.standardError = errors
+        process.standardError = interactive ? FileHandle.standardError : errors
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {

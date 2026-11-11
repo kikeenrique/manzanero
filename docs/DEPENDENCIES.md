@@ -21,11 +21,11 @@ swift build
 .build/debug/appledevicescmd physical <UDID> hid-info
 ```
 
-The build script uses the committed lockfile, stores Cargo downloads and build outputs under `tmp/`, and places the helper in `tmp/bin`. `--debug` selects a debug build; `--offline` uses an already populated Cargo cache. It can also use the locally installed toolchain under `tmp/cargo-home` and `tmp/rustup`. The Swift CLI itself builds without Rust; only physical input and HID discovery require the bridge on PATH.
+The build script uses the committed lockfile, stores Cargo downloads and build outputs under `tmp/`, and places the helper in `tmp/bin`. `--debug` selects a debug build; `--offline` uses an already populated Cargo cache. It can also use the locally installed toolchain under `tmp/cargo-home` and `tmp/rustup`. The Swift CLI itself builds without Rust; physical input, HID discovery, and Wi-Fi pairing require the bridge on PATH.
 
 ### Protocol and verification limits
 
-The bridge connects to an exact UDID exposed by usbmuxd, opens a software CoreDeviceProxy tunnel, discovers services through RSD, and uses RemoteXPC. A device visible in `devicectl` is not necessarily available through usbmuxd; Apple remote-pairing-only Wi-Fi devices are not supported by this connection path yet. Trust, Developer Mode, UI Automation authorization, and compatible device services remain prerequisites imposed by the device.
+The bridge connects to an exact UDID exposed by usbmuxd, opens a software CoreDeviceProxy tunnel, discovers services through RSD, and uses RemoteXPC. A device visible in `devicectl` is not necessarily available through usbmuxd; For devices absent from usbmuxd, the optional `--pairing-file` path verifies a tool-specific Wi-Fi record and creates a separate TLS-PSK/software tunnel. That path is implemented but not live-verified; it does not reuse Apple’s existing trust keys or RSD connection. Trust, Developer Mode, UI Automation authorization, and compatible device services remain prerequisites imposed by the device.
 
 Physical `tap`, `multi-tap`, `swipe`, and `drag` take normalized 0...1 coordinates, origin at the top left. The Swift planner converts them to the library's 16-bit touch range. Simulator input uses interface points instead. `multi-tap` sends two to five simultaneous contacts and release, not an arbitrary moving multitouch gesture. `swipe` uses a touch drag rather than the upstream digitizer-swipe example that is marked nonworking. Durations are quantized to 30 samples.
 
@@ -36,3 +36,30 @@ Successful input returns `status: dispatched` and `verified: false`; confirm eff
 ## AXe
 
 Simulator input uses [AXe](https://github.com/cameroncooke/AXe), by Cameron Cooke, licensed under MIT and using Meta IDB. Install AXe separately with its accompanying license notices. This repository neither vendors its source nor redistributes its binaries. Its argument surface was checked against installed AXe 1.9.0-prerelease.1.
+
+
+### Wi-Fi pairing
+
+Use a device-advertised `_remotepairing._tcp` endpoint (hostname and port). Apple's installed Bonjour utility can browse and resolve those endpoints:
+
+```sh
+dns-sd -B _remotepairing._tcp local
+# Stop browsing with Ctrl-C; resolve the selected service instance:
+dns-sd -L '<instance-name>' _remotepairing._tcp local
+```
+
+Both commands stay running; stop them after reading the service information. Pairing requires approval on the device and its displayed PIN. No automatic trust pairing occurs during a normal HID command.
+
+```sh
+mkdir -p tmp/pairings
+appledevicescmd pair wifi <host> <port> tmp/pairings/phone.pairing.plist
+# Enter the device's six-digit PIN when prompted.
+appledevicescmd --pairing-file tmp/pairings/phone.pairing.plist physical <UDID> hid-info
+appledevicescmd --pairing-file tmp/pairings/phone.pairing.plist physical <UDID> tap 0.5 0.5
+```
+
+The pairing result returns the discovered UDID. Keep it for later commands: the record must match the requested UDID, and the bridge also checks the RSD `UniqueDeviceID` when supplied by the device. Records contain private signing keys, are created with mode 0600, and are never overwritten. Failed or cancelled setup removes an unfinished record. `*.pairing.plist` is excluded from Git. A device reset, revoked trust, or changed advertised endpoint may require explicitly pairing to a new record. Endpoint rediscovery is currently manual.
+
+The Wi-Fi protocol path follows the pinned idevice `RemotePairingClient`, `RpPairingSocket`, and native TLS-PSK tunnel APIs. Pairing has a 180-second deadline; HID operations have a 60-second deadline. Device PIN entry is on stdin and prompts are on stderr; JSON command results remain on stdout. A wrong PIN has no all-zero/default fallback.
+
+Live initial pairing, reconnection, HID effects, and cancellation on a physical device remain unverified. Consult [transport investigation](TRANSPORT.md) before attempting to reuse Apple's active tunnel instead.

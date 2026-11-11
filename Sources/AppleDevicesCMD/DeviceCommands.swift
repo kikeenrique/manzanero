@@ -4,10 +4,21 @@ import Foundation
 struct DeviceCommand {
     var executable: String = "/usr/bin/xcrun"
     var actionReceipt: Bool = false
-    let arguments: [String]
+    var interactive: Bool = false
+    var arguments: [String]
     let jsonOutput: Bool
 
-    static func parse(_ args: [String]) throws -> Self? {
+    static func parse(_ arguments: [String]) throws -> Self? {
+        var args = arguments
+        var pairingFile: String?
+        if args.first == "--pairing-file" {
+            guard args.count >= 5, !args[1].isEmpty, args[2] == "physical" else {
+                throw CommandFailure(description: "--pairing-file <path> requires a physical HID operation.")
+            }
+            pairingFile = args[1]
+            args.removeFirst(2)
+        }
+        if let pairing = try PairingCommand.plan(args) { return pairing }
         guard args.first == "physical" || args.first == "simulator" else { return nil }
         guard args.count >= 3 else {
             throw CommandFailure(description: "Expected <physical|simulator> <device> <operation>. See --help.")
@@ -27,8 +38,14 @@ struct DeviceCommand {
         if !physical, let command = try SimulatorInteraction.plan(device: device, operation: operation, operands: operands) {
             return command
         }
-        if physical, let command = try PhysicalInteraction.plan(device: device, operation: operation, operands: operands) {
+        if physical, var command = try PhysicalInteraction.plan(device: device, operation: operation, operands: operands) {
+            if let pairingFile {
+                command.arguments.insert(contentsOf: ["--pairing-file", pairingFile], at: 1)
+            }
             return command
+        }
+        guard pairingFile == nil else {
+            throw CommandFailure(description: "--pairing-file applies only to physical HID operations.")
         }
         let command: [String]
         if physical {

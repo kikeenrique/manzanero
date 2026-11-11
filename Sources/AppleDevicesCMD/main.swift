@@ -6,6 +6,9 @@ appledevicescmd — Apple device tools for terminals and agents
 Usage:
   appledevicescmd devices physical     List CoreDevice devices as JSON
   appledevicescmd devices simulators   List available simulators as JSON
+  appledevicescmd pair wifi <host> <port> <new-record.pairing.plist>
+  appledevicescmd --pairing-file <record> physical <UDID> <HID-operation> ...
+  Pairing prompts for the device's PIN; use its advertised _remotepairing._tcp endpoint.
   appledevicescmd doctor               Check Xcode and device-service access
   appledevicescmd ocr <image-path>     Recognize image text and normalized bounds as JSON
   appledevicescmd physical <device> apps
@@ -51,7 +54,7 @@ do {
             FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject: ["executable": command.executable, "arguments": command.arguments], options: [.prettyPrinted, .sortedKeys]))
             print()
         } else {
-            let data = try runner.run(command.arguments, executable: command.executable)
+            let data = try runner.run(command.arguments, executable: command.executable, interactive: command.interactive)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
             if command.actionReceipt {
                 // AXe writes human-readable dispatch messages. Keep CLI stdout JSON.
