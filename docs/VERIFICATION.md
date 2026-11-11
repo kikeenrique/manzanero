@@ -47,3 +47,16 @@ Environment unchanged; Rust 1.99.1 and Swift 6.4.2.
 - Ten Rust tests passed. Four accessibility tests use synthetic data and an in-memory duplex stream. They cover bad/oversized DTX headers, inconsistent payload lengths, fragment reassembly/order, callback filtering, acknowledgement correlation, and the disable reply. They do not contain captured device payloads.
 - No live `ax-snapshot` was attempted. The service selectors and initial Boolean request were inferred from static inspection. A callback archive is not yet a parsed physical UI tree.
 - Record-drop tests do not establish cleanup after SIGINT/SIGKILL or a host crash. Documentation now distinguishes those cases.
+
+
+## 2026-11-11 — Xcode app-data and process commands
+
+Environment remains macOS 27.2.1 / Xcode 27.2, Swift 6.4.2; target phone on iOS 27.2.1.
+
+- Installed help was checked for `device info files`, `device copy from`, `device copy to`, `device process terminate`, and `device process openURL`. The copy interface scopes operations by domain type and identifier; termination takes a PID, not a bundle ID.
+- `mise tasks validate` passed for all five tasks. `mise run test` passed 17 Swift test functions with zero warnings/errors. New tests cover upload direction/container scoping, literal paths with spaces and shell-sensitive characters, traversal rejection, operand counts, invalid PIDs/process groups, and missing URL schemes. These are planner tests, not device-delivery tests.
+- `mise run build` succeeded. The new Swift build/test tasks run through xcsift with pipefail and project-local caches.
+- Live CLI `physical <UDID> details` returned valid JSON with `info.outcome: success` and command type `devicectl.device.info.details`.
+- Direct devicectl `copy to` and `copy from` on the physical phone's `temporary` domain, identifier `appledevicescmd-verification`, both returned success. The downloaded synthetic text fixture matched all 91 source bytes, including Unicode and shell-sensitive literal text. Outputs and fixtures are under ignored `tmp/app-data-verification/`; no personal app data was accessed. The synthetic fixture remains in that device temporary domain.
+- That round trip verifies Xcode's file-copy mechanism, **not** the CLI's `appDataContainer` permissions or live routing. App-container list/pull/push, physical termination, and physical URL opening are implemented but not live-verified. No app was terminated, no URL was opened, and no app-container data was modified by these checks.
+- Raw copies do not establish Xcode `.xcappdata` export/replacement support.

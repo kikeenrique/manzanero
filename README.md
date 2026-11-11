@@ -6,10 +6,10 @@ See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEP
 
 ## Build and run
 
-Requires macOS 15 or later, Swift 6.2 or later, and Xcode selected as the active developer directory.
+Requires macOS 15 or later, Swift 6.2 or later, and Xcode selected as the active developer directory. Development tasks also require mise and xcsift on PATH.
 
 ```sh
-swift build
+mise run build
 export PATH="$PWD/.build/debug:$PWD/tmp/bin:$PATH"
 appledevicescmd --help
 appledevicescmd devices physical
@@ -36,6 +36,10 @@ Replace placeholders with your device identifier and paths. App management and s
 
 ```sh
 appledevicescmd physical <device> apps
+appledevicescmd physical <device> processes
+appledevicescmd physical <device> details
+appledevicescmd physical <device> terminate <pid>
+appledevicescmd physical <device> open-url 'myapp://profile'
 appledevicescmd physical <device> install 'tmp/My App.app'
 appledevicescmd physical <device> launch com.example.app
 appledevicescmd physical <device> screenshot tmp/screen.png
@@ -43,9 +47,21 @@ appledevicescmd simulator booted screenshot tmp/simulator.png
 appledevicescmd --dry-run physical <device> uninstall com.example.app
 ```
 
+Physical `terminate` takes a positive PID (find it with `processes`); simulator `terminate` takes a bundle identifier. Physical `open-url` requires an absolute URL with a scheme.
+
+App-container file operations use the bundle identifier and a relative path (`.` means the root):
+
+```sh
+appledevicescmd physical <device> files com.example.app Documents
+appledevicescmd physical <device> pull com.example.app Documents/data.json 'tmp/My Data.json'
+appledevicescmd physical <device> push com.example.app 'tmp/My Data.json' Documents/data.json
+```
+
+Listing is nonrecursive. Absolute remote paths and `..` components are rejected. Uploads do not request removal of unrelated destination contents; files at the selected destination may still be replaced according to devicectl's copy semantics. Container access depends on the device and app's permissions, typically development-installed apps. These raw file operations do not implement Xcode `.xcappdata` package export or whole-container replacement.
+
 These physical commands return devicectl JSON. Simulator app/lifecycle/screenshot commands preserve simctl output, which is not always JSON. Errors go to stderr with a nonzero exit status. The Swift CLI's errors are currently text; the protocol bridge writes JSON errors that the CLI can wrap in text. `--dry-run` prints an executable and argument array without executing the operation. See `--help` for all implemented commands.
 
-Physical command planning and screenshot flags were checked against Xcode 27.2. Those checks do not establish live physical app management or capture behavior.
+Physical command planning and screenshot flags were checked against Xcode 27.2. The CLI details query is verified on a physical phone, and direct devicectl copies round-tripped a synthetic fixture in a tool-owned temporary domain. App-container listing/copies, termination, URL opening, and capture are not yet verified live.
 
 ## Simulator input and hierarchy
 
@@ -98,4 +114,4 @@ Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discove
 
 `appledevicescmd ocr <image-path>` uses macOS Vision and returns JSON text, confidence, and bounds normalized to 0...1 with the origin at the top left. It is a standalone image command; automatic screenshot/OCR fallback is not implemented. The initial runtime fixture check failed with `Failed to create CVPixelBuffer`; the cause and recognition accuracy remain unverified.
 
-Recording, user-facing streaming sessions, physical text entry and parsed accessibility, file/container transfers, reports/logs, settings controls, Build & Run, handoff, and MCP remain outstanding. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.
+Recording, user-facing streaming sessions, physical text entry and parsed accessibility, Xcode-format container export/replacement, reports/logs, settings controls, Build & Run, handoff, and MCP remain outstanding. Raw app-container copy commands exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.

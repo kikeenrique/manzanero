@@ -12,6 +12,13 @@ Usage:
   appledevicescmd doctor               Check Xcode and device-service access
   appledevicescmd ocr <image-path>     Recognize image text and normalized bounds as JSON
   appledevicescmd physical <device> apps
+  appledevicescmd physical <device> <processes|details>
+  appledevicescmd physical <device> terminate <pid>
+  appledevicescmd physical <device> open-url <url>
+  appledevicescmd physical <device> files <bundle-id> <relative-path>
+  appledevicescmd physical <device> pull <bundle-id> <remote-path> <local-path>
+  appledevicescmd physical <device> push <bundle-id> <local-path> <remote-path>
+  Remote paths are relative to the app's data container; '.' means its root.
   appledevicescmd physical <device> <launch|uninstall> <bundle-id>
   appledevicescmd physical <device> install <app-path>
   appledevicescmd physical <device> screenshot <output.png>

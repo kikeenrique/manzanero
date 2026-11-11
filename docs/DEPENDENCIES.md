@@ -12,12 +12,12 @@ The bridge's display-stream startup is adapted from the MIT-licensed `tools/src/
 
 ### Build
 
-Install mise (tested with 2026.10.20), then run from the repository root:
+Install mise (tested with 2026.10.20) and xcsift, then run from the repository root:
 
 ```sh
 mise run idevice:build
 export PATH="$PWD/.build/debug:$PWD/tmp/bin:$PATH"
-swift build
+mise run build
 .build/debug/appledevicescmd physical <UDID> hid-info
 ```
 
@@ -67,3 +67,12 @@ Simulator input uses [AXe](https://github.com/cameroncooke/AXe), by Cameron Cook
 ## Experimental accessibility snapshots
 
 `physical <UDID> ax-snapshot` uses the protocol bridge and accepts the same optional `--pairing-file` prefix. It captures the first matching remote-accessibility callback archive as base64 JSON. It does not decode a physical UI hierarchy. The request lifecycle and payload meaning remain unverified on hardware; see [protocol evidence](ACCESSIBILITY-PROTOCOL.md).
+
+
+## Xcode app/data operations
+
+Physical `details`, `processes`, `terminate`, `open-url`, `files`, `pull`, and `push` delegate to the selected Xcode's devicectl. Installed Xcode 27.2 help was checked for these contracts. Termination uses SIGTERM by PID; the CLI does not request `--kill`. URL opening uses `device process openURL`.
+
+File operations specify `appDataContainer` and the caller's bundle identifier. Listing uses `--no-recurse`; copy directions and source/destination operands are explicit. The upload command sets `--remove-existing-content false`, preserving unrelated files, but does not promise no overwrites of conflicts. Device paths are container-relative; host paths are interpreted by devicectl from the CLI's working directory. `.xcappdata` packaging and whole-container replacement are separate missing features.
+
+Run `mise run build` or `mise run test` for the Swift executable and tests. These tasks enable pipefail, pipe build output through xcsift, and keep compiler/package caches in `tmp/`; the executable remains in `.build/debug`.

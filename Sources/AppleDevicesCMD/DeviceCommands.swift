@@ -49,6 +49,9 @@ struct DeviceCommand {
         }
         let command: [String]
         if physical {
+            if let dataCommand = try AppDataCommand.plan(operation: operation, operands: operands) {
+                return Self(arguments: ["devicectl", "device"] + dataCommand + ["--device", device, "--timeout", "60", "--json-output", "-"], jsonOutput: true)
+            }
             switch operation {
             case "apps":
                 try require(0)
@@ -56,6 +59,21 @@ struct DeviceCommand {
             case "launch":
                 try require(1)
                 command = ["process", "launch"] + operands
+            case "processes", "details":
+                try require(0)
+                command = ["info", operation]
+            case "terminate":
+                try require(1)
+                guard let pid = UInt32(operands[0]), pid > 0, pid <= Int32.max else {
+                    throw CommandFailure(description: "Physical terminate requires a positive process ID. Use processes to find it.")
+                }
+                command = ["process", "terminate", "--pid", String(pid)]
+            case "open-url":
+                try require(1)
+                guard URL(string: operands[0])?.scheme != nil else {
+                    throw CommandFailure(description: "open-url requires an absolute URL with a scheme.")
+                }
+                command = ["process", "openURL", operands[0]]
             case "install", "uninstall":
                 try require(1)
                 command = [operation, "app"] + operands

@@ -1,6 +1,21 @@
 [vars]
 rust_version = "1.99.1"
 
+[task_templates.swift]
+dir = "{{ config_root }}"
+env = { CLANG_MODULE_CACHE_PATH = "{{ config_root }}/tmp/clang-cache" }
+shell = "bash -e -o pipefail -c"
+
+[tasks.build]
+extends = "swift"
+description = "Build the Swift CLI through xcsift"
+run = "swift build --cache-path tmp/swift-cache 2>&1 | xcsift -f toon"
+
+[tasks.test]
+extends = "swift"
+description = "Run Swift tests through xcsift"
+run = "swift test --cache-path tmp/swift-cache 2>&1 | xcsift -f toon"
+
 [task_templates.idevice]
 dir = "{{ config_root }}"
 env = { MISE_DATA_DIR = "{{ config_root }}/tmp/mise-data", MISE_CACHE_DIR = "{{ config_root }}/tmp/mise-cache", CARGO_HOME = "{{ config_root }}/tmp/cargo-home", RUSTUP_HOME = "{{ config_root }}/tmp/rustup" }
