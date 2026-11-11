@@ -3,6 +3,12 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct PhysicalInteractionTests {
+    @Test func accessibilitySnapshotUsesProtocolBackend() throws {
+        let command = try #require(try DeviceCommand.parse(["physical", "test-udid", "ax-snapshot"]))
+        #expect(command.arguments == ["appledevices-idevice", "test-udid", "ax-snapshot"])
+        #expect(command.jsonOutput)
+        #expect(command.interactive == false)
+    }
     @Test func convertsNormalizedCoordinateBoundaries() throws {
         let command = try #require(try DeviceCommand.parse(["physical", "test-udid", "multi-tap", "0", "1", "0.5", "0.5"]))
         #expect(command.arguments == ["appledevices-idevice", "test-udid", "multi-tap", "0", "65535", "32768", "32768"])

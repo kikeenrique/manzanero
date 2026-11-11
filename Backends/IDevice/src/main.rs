@@ -7,6 +7,7 @@ use idevice::{
 use serde_json::{Value, json};
 use std::time::Duration;
 
+mod accessibility;
 mod pairing;
 mod stream;
 mod transport;
@@ -14,6 +15,7 @@ mod transport;
 #[derive(Debug, PartialEq)]
 enum Action {
     Surfaces,
+    AccessibilitySnapshot,
     Tap(u16, u16),
     MultiTap(Vec<(u16, u16)>),
     Drag(u16, u16, u16, u16, u64),
@@ -35,6 +37,7 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
     };
     let action = match args[1].as_str() {
         "hid-info" if values.is_empty() => Action::Surfaces,
+        "ax-snapshot" if values.is_empty() => Action::AccessibilitySnapshot,
         "tap" if values.len() == 2 => Action::Tap(number(0)?, number(1)?),
         "multi-tap" if (4..=10).contains(&values.len()) && values.len() % 2 == 0 => {
             let points = (0..values.len())
@@ -88,6 +91,21 @@ async fn execute(
     let mut connection = transport::connect(udid, record_path).await?;
     let adapter = &mut connection.adapter;
     let rsd = &mut connection.rsd;
+
+    if action == Action::AccessibilitySnapshot {
+        let service = rsd
+            .services
+            .get("com.apple.accessibility.axAuditDaemon.remoteAXService")
+            .ok_or("Device does not advertise the iOS 27 remote accessibility service")?;
+        let mut socket = adapter
+            .connect(service.port)
+            .await
+            .map_err(|e| format!("Remote accessibility connect: {e}"))?;
+        let mut snapshot = accessibility::capture(&mut socket).await?;
+        snapshot["backend"] = json!("idevice");
+        snapshot["transport"] = json!(connection.name);
+        return Ok(snapshot);
+    }
 
     if action == Action::Surfaces {
         let mut hid = UniversalHidServiceClient::connect_rsd(adapter, rsd)

@@ -7,7 +7,7 @@ Usage:
   appledevicescmd devices physical     List CoreDevice devices as JSON
   appledevicescmd devices simulators   List available simulators as JSON
   appledevicescmd pair wifi <host> <port> <new-record.pairing.plist>
-  appledevicescmd --pairing-file <record> physical <UDID> <HID-operation> ...
+  appledevicescmd --pairing-file <record> physical <UDID> <bridge-operation> ...
   Pairing prompts for the device's PIN; use its advertised _remotepairing._tcp endpoint.
   appledevicescmd doctor               Check Xcode and device-service access
   appledevicescmd ocr <image-path>     Recognize image text and normalized bounds as JSON
@@ -16,12 +16,13 @@ Usage:
   appledevicescmd physical <device> install <app-path>
   appledevicescmd physical <device> screenshot <output.png>
   appledevicescmd physical <UDID> hid-info
+  appledevicescmd physical <UDID> ax-snapshot  Experimental raw accessibility archive
   appledevicescmd physical <UDID> tap <x> <y>
   appledevicescmd physical <UDID> multi-tap <x1> <y1> <x2> <y2> [<x3> <y3> ...]
   appledevicescmd physical <UDID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
   appledevicescmd physical <UDID> button <home|lock|volume-up|volume-down>
   appledevicescmd physical <UDID> key <return|escape|backspace|tab|space|up|down|left|right>
-  Physical input requires the optional appledevices-idevice bridge on PATH.
+  Physical input and ax-snapshot require the optional appledevices-idevice bridge on PATH.
   Physical coordinates are normalized 0...1, with the origin at the top left.
   appledevicescmd simulator <device> <apps|boot|shutdown>
   appledevicescmd simulator <device> <launch|terminate|uninstall> <bundle-id>
@@ -35,13 +36,14 @@ Usage:
   appledevicescmd simulator <UDID> type <text>
   appledevicescmd simulator <UDID> button <name>
   Simulator input and tree commands require AXe on PATH and an explicit UDID.
-  Prefix a device command with --dry-run to print its invocation without executing.
+  Prefix a planned command with --dry-run to print its invocation without executing.
   appledevicescmd --help
   appledevicescmd --version
 
 Physical input is experimental; accessibility, streaming, and MCP are tracked in docs/ROADMAP.md.
-Physical commands return devicectl JSON; simulator commands return simctl output.
-Temporary command output is created beneath ./tmp and removed after each command.
+Physical Xcode commands return devicectl JSON; bridge commands return bridge JSON.
+Simulator app/lifecycle commands preserve simctl output; AXe tree/input commands return JSON.
+Temporary process output is created beneath ./tmp and normally cleaned up on exit.
 """
 
 do {

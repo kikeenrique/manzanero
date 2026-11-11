@@ -1,5 +1,7 @@
 # Verification records
 
+These are historical, task-specific observations. Earlier counts and limitations describe that revision; they are not the current feature inventory. See [ROADMAP.md](ROADMAP.md) for current status. Unless a live check is explicitly listed, build, parser, and synthetic protocol tests do not establish device behavior.
+
 ## 2026-11-11 — simulator interaction backend
 
 Environment: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Apple Swift 6.4.2, AXe 1.9.0-prerelease.1, iPhone 17 simulator running iOS 27.2.
@@ -20,9 +22,9 @@ Environment remains macOS 27.2.1, Xcode 27.2, Apple Swift 6.4.2; bridge built wi
 
 - Swift tests through xcsift passed: nine test functions with zero warnings/errors, including ten additional invalid physical-input cases. New checks cover normalized endpoint/midpoint conversion, seconds-to-milliseconds conversion, simultaneous-contact counts, nonfinite/out-of-range coordinates, unsupported buttons/keys, and argument arity.
 - Rust bridge build and two unit tests passed. Rust parser tests reject malformed coordinates, durations, multitouch pairs, and keys before connecting to any device. The committed Cargo lockfile was used for the offline repeat build.
-- `python3 scripts/build-idevice.py --debug --offline` successfully built the optional helper into `tmp/bin` using the declared Git dependency. The development clone is not used by this build.
+- The former Python build helper (since replaced by mise tasks) successfully built the optional helper into `tmp/bin` using the declared Git dependency. The development clone is not used by this build.
 - A live read-only `hid-info` check targeted the physical iPhone discoverable through CoreDevice. It returned JSON error `Device not available through usbmuxd: device not found` with exit code 1 and no success payload. No touch, keyboard, or button input was sent. This provides failure-path evidence, not live HID functionality.
-- Current connection support is an in-process CoreDeviceProxy tunnel from usbmuxd. Apple's separately paired CoreDevice-only Wi-Fi path is still missing.
+- At that revision, connection support was an in-process CoreDeviceProxy tunnel from usbmuxd. Apple's separately paired CoreDevice-only Wi-Fi path was missing; the later explicit pairing path uses a separate tool record, not Apple's existing identity.
 - Audio/video stream negotiation, stream ownership detection, input dispatch, and cleanup are compiled but have not been verified on a physical device. The metadata and feature-mask values come from the pinned library's upstream example. The bridge checks for a reported active `streamConfig` before starting; simultaneous-controller behavior and cancellation cleanup remain unverified.
 
 
@@ -31,8 +33,17 @@ Environment remains macOS 27.2.1, Xcode 27.2, Apple Swift 6.4.2; bridge built wi
 Environment unchanged; Rust 1.99.1 and Swift 6.4.2.
 
 - Swift tests through xcsift passed: 12 test functions, zero warnings/errors. Added checks cover interactive pairing planning, literal paths with spaces, private-record suffix, invalid host/port input, and restriction of `--pairing-file` to the physical HID backend.
-- Six Rust tests passed with the pinned library and updated lockfile. Added checks cover pairing-record round trips, wrong-device rejection, malformed records/endpoints, removal of uncommitted reservations, mode 0600, and refusal to overwrite an existing record. These test locally generated fixture keys only.
+- Six Rust tests passed with the pinned library and updated lockfile. Added checks cover pairing-record round trips, wrong-device rejection, malformed records/endpoints, removal when an uncommitted reservation is dropped, mode 0600, and refusal to overwrite an existing record. These test locally generated fixture keys only.
 - A dry run of `--pairing-file <path with spaces> physical <UDID> hid-info` produced the expected helper argument array.
 - Native `remotectl netcat` proxy and direct-HID probes failed before input. That experimental path was removed; see [TRANSPORT.md](TRANSPORT.md).
 - The implemented Wi-Fi path compiles against idevice's remote-pairing and native TLS-PSK APIs and holds its pairing control connection for the tunnel lifetime. No live pairing, trust change, or physical input was attempted. Device-side approval and a PIN are required before that verification can proceed.
 - `dns-sd -h` was checked for the documented Bonjour browse/resolve commands. Endpoint discovery is manual and saved endpoint changes are not automatically handled yet.
+
+
+## 2026-11-11 — experimental accessibility snapshot and mise migration
+
+- Swift tests through xcsift passed: 13 test functions, zero warnings/errors. The additional routing check covers `ax-snapshot`; it sends no device request.
+- `mise tasks validate`, `mise run idevice:build --debug --offline`, `mise run idevice:build --offline` (release), and `mise run idevice:test --offline` passed. The Python build helper was removed. Both build modes copy their binary to `tmp/bin`.
+- Ten Rust tests passed. Four accessibility tests use synthetic data and an in-memory duplex stream. They cover bad/oversized DTX headers, inconsistent payload lengths, fragment reassembly/order, callback filtering, acknowledgement correlation, and the disable reply. They do not contain captured device payloads.
+- No live `ax-snapshot` was attempted. The service selectors and initial Boolean request were inferred from static inspection. A callback archive is not yet a parsed physical UI tree.
+- Record-drop tests do not establish cleanup after SIGINT/SIGKILL or a host crash. Documentation now distinguishes those cases.

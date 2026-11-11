@@ -33,7 +33,9 @@ dependencies = [
 name = "appledevices-idevice"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "idevice",
+ "ns-keyed-archive",
  "plist",
  "serde_json",
  "tokio",
