@@ -63,6 +63,27 @@ These physical commands return devicectl JSON. Simulator app/lifecycle/screensho
 
 Physical command planning and screenshot flags were checked against Xcode 27.2. The CLI details query is verified on a physical phone, and direct devicectl copies round-tripped a synthetic fixture in a tool-owned temporary domain. App-container listing/copies, termination, URL opening, and capture are not yet verified live.
 
+## Reports and diagnostic logs
+
+List saved reports or download a selected relative path through Xcode:
+
+```sh
+appledevicescmd physical <device> reports
+appledevicescmd physical <device> reports Retired
+appledevicescmd physical <device> report 'My App.ips' 'tmp/My App.ips'
+```
+
+These use the `systemCrashLogs` domain and list without recursion. Listing returns devicectl JSON metadata; downloading writes the report to the host destination and returns devicectl JSON. A destination may be overwritten according to Xcode's copy semantics. Listing is verified on a physical phone; downloading is not. Parsing, symbolication, type filters, and deletion are not implemented.
+
+The optional idevice bridge also provides experimental finite OS-log capture, distinct from saved reports:
+
+```sh
+appledevicescmd physical <UDID> logs 5
+appledevicescmd --pairing-file tmp/pairings/phone.pairing.plist physical <UDID> logs 5 123
+```
+
+Duration is 1...30 seconds after trace startup; the optional PID must be positive. JSON includes `entries`, `stopReason`, and `truncated`. Capture stops at the duration, 2000 entries, or 4 MiB of serialized entry data. The byte cap excludes the result envelope and upstream decoder allocations. Service failures return errors rather than partial success. Setup remains within the bridge's 60-second overall deadline. Live capture and device-side subscription cleanup are unverified; the client closes its connection when capture ends.
+
 ## Simulator input and hierarchy
 
 Install [AXe](https://github.com/cameroncooke/AXe) separately and put it on PATH. This repository does not bundle AXe binaries.
@@ -114,4 +135,4 @@ Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discove
 
 `appledevicescmd ocr <image-path>` uses macOS Vision and returns JSON text, confidence, and bounds normalized to 0...1 with the origin at the top left. It is a standalone image command; automatic screenshot/OCR fallback is not implemented. The initial runtime fixture check failed with `Failed to create CVPixelBuffer`; the cause and recognition accuracy remain unverified.
 
-Recording, user-facing streaming sessions, physical text entry and parsed accessibility, Xcode-format container export/replacement, reports/logs, settings controls, Build & Run, handoff, and MCP remain outstanding. Raw app-container copy commands exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.
+Recording, user-facing streaming sessions, physical text entry and parsed accessibility, Xcode-format container export/replacement, complete saved-report management, settings controls, Build & Run, handoff, and MCP remain outstanding. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.

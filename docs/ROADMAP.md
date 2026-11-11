@@ -4,7 +4,7 @@ The user's objective is a Swift CLI named `appledevicescmd` with proprietary dev
 
 This roadmap is an implementation inventory, not a claim that the user explicitly approved each inferred item. Vendor documentation was rechecked on **2026-11-11**. Current public documentation and the inspected device-control tooling 0.9.0/build 90 artifact are different evidence sources; current pages do not establish which release introduced a feature.
 
-The implementation inventory below describes committed baseline `dd01a90`. At this review, the working tree also contains unfinished report/log command changes. Their presence in source/help does not establish a buildable or verified feature; they are excluded from the baseline inventory until completed and validated.
+The implementation inventory includes the completed report/log command work described in [verification records](VERIFICATION.md). Earlier review findings describe their own revision; they do not supersede newer verification entries.
 
 ## Explicit user requirements
 
@@ -27,7 +27,7 @@ The main executable is Swift. Physical private protocols currently use a small R
 | Touch, pinch, keyboard, hardware buttons | [Control]([private reference removed]) | Simulator input plus experimental physical taps, contact-only multitap, drags, selected buttons, and keys. Physical text and moving multitouch are missing; physical delivery is unverified. |
 | Agent screen understanding and text targeting | [MCP]([private reference removed]), [static investigation](ANALYSIS.md) | AXe simulator tree/selectors. Physical `ax-snapshot` returns an experimental raw archive, not a parsed hierarchy. Standalone OCR builds but its initial runtime check failed. Automatic OCR fallback is missing. |
 | App management and development app data | [Apps]([private reference removed]) | App list/install/launch/uninstall, physical termination by PID and URL opening, plus app-container listing and raw pull/push command plans. Simulator termination uses a bundle ID. A physical details query and underlying temporary-domain copy round trip are verified; app-container permissions and the new mutations are not. Xcode-format export/replacement is missing. |
-| Saved crash reports, spins, logs, and diagnostics | [Reports]([private reference removed]) | Missing from the committed baseline. Vendor parity includes listing/reading saved reports and saving/deleting them; the source page does not establish continuous live OS log streaming. |
+| Saved crash reports, spins, logs, and diagnostics | [Reports]([private reference removed]) | Xcode-backed `reports` listing and `report` download. Listing verified on a physical phone; downloads unverified. Parsing, symbolication, type filters, and deletion remain missing. Vendor parity includes listing/reading saved reports and saving/deleting them; the source page does not establish continuous live OS log streaming. |
 | Build and launch from source | [Build & Run]([private reference removed]) | Missing. This is a documented vendor feature, not merely a CLI engineering proposal. |
 | Human handoff | [Human Handoff]([private reference removed]) | Missing. Initial pairing's PIN prompt is not an agent handoff system. |
 | Multiple devices, agent activity, approvals | [Overview]([private reference removed]), [MCP]([private reference removed]) | Explicit per-command targets exist. Coordinated sessions, activity tracking, and an application approval policy are missing. CLI dry-run is not an approval system. |
@@ -45,6 +45,7 @@ These items support the implementation or need further parity evidence. They are
 - Stable snapshot references and ambiguity rules for selector targeting, plus automatic OCR fallback. The exact reference format is a design choice, not an explicitly requested wire format.
 - Appearance, accessibility settings, orientation, and simulated location. Static framework/API evidence makes these candidates; the exact supported vendor operations and CLI contract need a separate baseline.
 - Per-device isolation and lifecycle for recording, streaming, and input sessions.
+- Experimental finite `logs` capture through idevice's OS trace service is an additional diagnostic capability. Duration/entry/byte limits and error propagation are tested synthetically; live capture remains unverified. It does not replace saved-report parity.
 
 No success criterion is satisfied merely by a successful build or a dry run. Live verification must cover the claimed device/platform/transport combination. No proprietary device-control tooling binary is a runtime dependency.
 

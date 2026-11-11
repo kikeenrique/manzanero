@@ -1,5 +1,14 @@
 import Foundation
 
+enum ScopedDevicePath {
+    static func validate(_ path: String) throws {
+        guard !path.isEmpty, !path.hasPrefix("-"), !path.hasPrefix("/"),
+              !path.split(separator: "/").contains("..") else {
+            throw CommandFailure(description: "Remote paths must be relative to the selected domain and cannot contain '..'. Use '.' for its root.")
+        }
+    }
+}
+
 /// App-container operations remain scoped to the bundle identifier given by the caller.
 enum AppDataCommand {
     static func plan(operation: String, operands: [String]) throws -> [String]? {
@@ -9,9 +18,7 @@ enum AppDataCommand {
             throw CommandFailure(description: "\(operation) expects \(expected) operands. See --help.")
         }
         let remotePath = operation == "push" ? operands[2] : operands[1]
-        guard !remotePath.hasPrefix("/"), !remotePath.split(separator: "/").contains("..") else {
-            throw CommandFailure(description: "Remote paths must be relative to the app container and cannot contain '..'. Use '.' for its root.")
-        }
+        try ScopedDevicePath.validate(remotePath)
         let domain = ["--domain-type", "appDataContainer", "--domain-identifier", operands[0]]
         switch operation {
         case "files":

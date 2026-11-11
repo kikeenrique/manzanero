@@ -13,7 +13,7 @@ struct DeviceCommand {
         var pairingFile: String?
         if args.first == "--pairing-file" {
             guard args.count >= 5, !args[1].isEmpty, args[2] == "physical" else {
-                throw CommandFailure(description: "--pairing-file <path> requires a physical HID operation.")
+                throw CommandFailure(description: "--pairing-file <path> requires a physical bridge operation.")
             }
             pairingFile = args[1]
             args.removeFirst(2)
@@ -45,11 +45,11 @@ struct DeviceCommand {
             return command
         }
         guard pairingFile == nil else {
-            throw CommandFailure(description: "--pairing-file applies only to physical HID operations.")
+            throw CommandFailure(description: "--pairing-file applies only to physical bridge operations.")
         }
         let command: [String]
         if physical {
-            if let dataCommand = try AppDataCommand.plan(operation: operation, operands: operands) {
+            if let dataCommand = try (AppDataCommand.plan(operation: operation, operands: operands) ?? ReportCommand.plan(operation: operation, operands: operands)) {
                 return Self(arguments: ["devicectl", "device"] + dataCommand + ["--device", device, "--timeout", "60", "--json-output", "-"], jsonOutput: true)
             }
             switch operation {

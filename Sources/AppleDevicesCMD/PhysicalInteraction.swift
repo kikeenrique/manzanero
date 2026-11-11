@@ -3,7 +3,7 @@ import Foundation
 /// Optional idevice bridge; private protocols stay outside the Swift command surface.
 enum PhysicalInteraction {
     static func plan(device: String, operation: String, operands: [String]) throws -> DeviceCommand? {
-        guard ["hid-info", "ax-snapshot", "tap", "multi-tap", "drag", "swipe", "button", "key"].contains(operation) else { return nil }
+        guard ["hid-info", "ax-snapshot", "logs", "tap", "multi-tap", "drag", "swipe", "button", "key"].contains(operation) else { return nil }
         func require(_ count: Int) throws {
             guard operands.count == count else {
                 throw CommandFailure(description: "\(operation) expects \(count) operands. See --help.")
@@ -20,6 +20,18 @@ enum PhysicalInteraction {
         case "hid-info", "ax-snapshot":
             try require(0)
             arguments = [operation]
+        case "logs":
+            guard (1...2).contains(operands.count), let seconds = UInt32(operands[0]), (1...30).contains(seconds) else {
+                throw CommandFailure(description: "Usage: logs <seconds: 1...30> [positive-pid]")
+            }
+            var values = [operation, String(seconds)]
+            if operands.count == 2 {
+                guard let pid = UInt32(operands[1]), pid > 0, pid <= Int32.max else {
+                    throw CommandFailure(description: "Log filter requires a positive PID.")
+                }
+                values.append(String(pid))
+            }
+            arguments = values
         case "tap":
             try require(2)
             arguments = [operation] + (try operands.map(coordinate))

@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 mod accessibility;
+mod logs;
 mod pairing;
 mod stream;
 mod transport;
@@ -15,6 +16,7 @@ mod transport;
 #[derive(Debug, PartialEq)]
 enum Action {
     Surfaces,
+    Logs(u32, Option<u32>),
     AccessibilitySnapshot,
     Tap(u16, u16),
     MultiTap(Vec<(u16, u16)>),
@@ -36,6 +38,20 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
             .map_err(|_| "Expected integer coordinate 0...65535".into())
     };
     let action = match args[1].as_str() {
+        "logs" if (1..=2).contains(&values.len()) => {
+            let seconds: u32 = values[0].parse().map_err(|_| "Invalid log duration")?;
+            if !(1..=30).contains(&seconds) {
+                return Err("Log duration must be 1...30 seconds".into());
+            }
+            let pid = values
+                .get(1)
+                .map(|s| s.parse::<u32>().map_err(|_| "Invalid log PID"))
+                .transpose()?;
+            if pid.is_some_and(|p| p == 0 || p > i32::MAX as u32) {
+                return Err("Invalid log PID".into());
+            }
+            Action::Logs(seconds, pid)
+        }
         "hid-info" if values.is_empty() => Action::Surfaces,
         "ax-snapshot" if values.is_empty() => Action::AccessibilitySnapshot,
         "tap" if values.len() == 2 => Action::Tap(number(0)?, number(1)?),
@@ -92,6 +108,15 @@ async fn execute(
     let adapter = &mut connection.adapter;
     let rsd = &mut connection.rsd;
 
+    if let Action::Logs(seconds, pid) = action {
+        let client = idevice::os_trace_relay::OsTraceRelayClient::connect_rsd(adapter, rsd)
+            .await
+            .map_err(|e| format!("OS trace relay connect: {e}"))?;
+        let mut result = logs::capture(client, seconds, pid).await?;
+        result["backend"] = json!("idevice");
+        result["transport"] = json!(connection.name);
+        return Ok(result);
+    }
     if action == Action::AccessibilitySnapshot {
         let service = rsd
             .services
@@ -243,6 +268,10 @@ mod tests {
             vec!["test", "drag", "0", "0", "1", "1", "0"],
             vec!["test", "multi-tap", "1", "2", "3"],
             vec!["test", "key", "--help"],
+            vec!["test", "logs", "0"],
+            vec!["test", "logs", "31"],
+            vec!["test", "logs", "1", "0"],
+            vec!["test", "logs", "1", "4294967295"],
         ] {
             assert!(parse(&args(&values)).is_err());
         }

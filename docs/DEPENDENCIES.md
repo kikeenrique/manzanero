@@ -59,6 +59,10 @@ The Wi-Fi protocol path follows the pinned idevice `RemotePairingClient`, `RpPai
 
 Live initial pairing, reconnection, HID effects, and cancellation on a physical device remain unverified. Consult [transport investigation](TRANSPORT.md) before attempting to reuse Apple's active tunnel instead.
 
+### Additional diagnostic service
+
+The bridge enables idevice's `syslog_relay` feature to use `OsTraceRelayClient` over RSD service `com.apple.os_trace_relay.shim.remote`. It does not start a display stream for log capture. Optional `--pairing-file` selection applies to logs as well as HID/accessibility. The pinned library supplies the binary parser and serialized log schema; the CLI adds finite capture bounds. The 4 MiB limit covers serialized entries, not upstream decoder allocations. No live OS trace or device-side subscription cleanup has been verified.
+
 ## AXe
 
 Simulator input uses [AXe](https://github.com/cameroncooke/AXe), by Cameron Cooke, licensed under MIT and using Meta IDB. Install AXe separately with its accompanying license notices. This repository neither vendors its source nor redistributes its binaries. Its argument surface was checked against installed AXe 1.9.0-prerelease.1.
@@ -76,3 +80,5 @@ Physical `details`, `processes`, `terminate`, `open-url`, `files`, `pull`, and `
 File operations specify `appDataContainer` and the caller's bundle identifier. Listing uses `--no-recurse`; copy directions and source/destination operands are explicit. The upload command sets `--remove-existing-content false`, preserving unrelated files, but does not promise no overwrites of conflicts. Device paths are container-relative; host paths are interpreted by devicectl from the CLI's working directory. `.xcappdata` packaging and whole-container replacement are separate missing features.
 
 Run `mise run build` or `mise run test` for the Swift executable and tests. These tasks enable pipefail, pipe build output through xcsift, and keep compiler/package caches in `tmp/`; the executable remains in `.build/debug`.
+
+`reports [relative-directory]` and `report <relative-path> <local-destination>` use the same Xcode file service with domain `systemCrashLogs` and no app identifier. Listing is nonrecursive. Report download uses `copy from`, with no on-device deletion or upload operation. Relative-path validation is shared with app-data commands. Listing is hardware-verified; report contents, download behavior, parsing, and symbolication are not.

@@ -13,12 +13,16 @@ Usage:
   appledevicescmd ocr <image-path>     Recognize image text and normalized bounds as JSON
   appledevicescmd physical <device> apps
   appledevicescmd physical <device> <processes|details>
+  appledevicescmd physical <device> reports [relative-directory]
+  appledevicescmd physical <device> report <relative-report-path> <local-destination>
+  appledevicescmd physical <UDID> logs <seconds: 1...30> [pid]
   appledevicescmd physical <device> terminate <pid>
   appledevicescmd physical <device> open-url <url>
   appledevicescmd physical <device> files <bundle-id> <relative-path>
   appledevicescmd physical <device> pull <bundle-id> <remote-path> <local-path>
   appledevicescmd physical <device> push <bundle-id> <local-path> <remote-path>
-  Remote paths are relative to the app's data container; '.' means its root.
+  App-data paths are relative to the app's container; report paths to systemCrashLogs.
+  '.' means the selected domain's root. Reports are listed without recursion.
   appledevicescmd physical <device> <launch|uninstall> <bundle-id>
   appledevicescmd physical <device> install <app-path>
   appledevicescmd physical <device> screenshot <output.png>
@@ -29,7 +33,8 @@ Usage:
   appledevicescmd physical <UDID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
   appledevicescmd physical <UDID> button <home|lock|volume-up|volume-down>
   appledevicescmd physical <UDID> key <return|escape|backspace|tab|space|up|down|left|right>
-  Physical input and ax-snapshot require the optional appledevices-idevice bridge on PATH.
+  Physical input, ax-snapshot, and logs require the optional appledevices-idevice bridge on PATH.
+  Logs capture a finite experimental OS trace, capped at 2000 entries/4 MiB of entry JSON.
   Physical coordinates are normalized 0...1, with the origin at the top left.
   appledevicescmd simulator <device> <apps|boot|shutdown>
   appledevicescmd simulator <device> <launch|terminate|uninstall> <bundle-id>

@@ -44,3 +44,7 @@ Reviewed the README and all seven documents again against `dd01a90`, current sou
 | Low | The validation paragraph's 13-test count could be read as current. | Bound it to `cd0a1ca` and linked the later verification context. No build/test success is claimed for unfinished source. |
 
 Validation for this second pass: source/document comparison, vendor-page checks, local Markdown target checks, and `git diff --check`. No device operation or new runtime verification was performed. Existing implementation changes remain outside this documentation commit.
+
+### Subsequent implementation follow-up
+
+The missing log module was implemented after this review. The report/log verification entry in [VERIFICATION.md](VERIFICATION.md) records fresh Swift/Rust tests and bridge builds, plus live CLI report listing. The high-priority draft-build finding above is resolved by that work. Report downloads and live OS-log capture remain unverified; saved-report parity remains incomplete.
