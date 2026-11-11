@@ -32,7 +32,7 @@ The main executable is Swift. Physical private protocols currently use a small R
 | Human handoff | [Human Handoff]([private reference removed]) | Missing. Initial pairing's PIN prompt is not an agent handoff system. |
 | Multiple devices, agent activity, approvals | [Overview]([private reference removed]), [MCP]([private reference removed]) | Explicit per-command targets exist. Coordinated sessions, activity tracking, and an application approval policy are missing. CLI dry-run is not an approval system. |
 | Android devices/emulators | [Vendor overview]([private reference removed]) | No implementation. Whether Android belongs in this Apple-focused tool's first parity target remains an open scope question. |
-| MCP interface | [Vendor MCP]([private reference removed]); optional in the user's request | `mcp` serves 22 tools over stdio through the official Swift SDK and the CLI's shared command service. Supports protocol versions through 2025-11-25. No HTTP, handoff, built-in approval policy, general progress, or general cancellation coordination. Backend feature/verification gaps remain. See [MCP contract](MCP.md). |
+| MCP interface | [Vendor MCP]([private reference removed]); optional in the user's request | `mcp` serves 23 tools over stdio through the official Swift SDK and the CLI's shared command service. Supports protocol versions through 2025-11-25. No HTTP, handoff, built-in approval policy, general progress, or general cancellation coordination. Backend feature/verification gaps remain. See [MCP contract](MCP.md). |
 
 GUI windows, menus, and keyboard shortcuts need CLI equivalents where they express a device operation; recreating the vendor's Mac GUI is not part of a CLI deliverable.
 
@@ -40,7 +40,7 @@ GUI windows, menus, and keyboard shortcuts need CLI equivalents where they expre
 
 These items support the implementation or need further parity evidence. They are not all established vendor requirements:
 
-- Consistent machine-readable errors, capability reporting, command deadlines, cancellation, and backend diagnostics. `doctor` and dry-run exist but do not cover these fully.
+- Consistent machine-readable errors, capability reporting, command deadlines, cancellation, and backend diagnostics. `doctor`, dry-run, and [physical readiness](READINESS.md) exist but do not cover these fully. Readiness reports Developer Mode/image state and stops known disabled-mode developer operations; it is not live capability verification.
 - Filter physical discovery: `devices physical` currently forwards an unfiltered CoreDevice inventory that can include simulators.
 - Stable snapshot references and ambiguity rules for selector targeting, plus automatic OCR fallback. The exact reference format is a design choice, not an explicitly requested wire format.
 - Appearance, accessibility settings, orientation, and simulated location. Static framework/API evidence makes these candidates; the exact supported vendor operations and CLI contract need a separate baseline.

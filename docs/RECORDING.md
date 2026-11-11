@@ -15,6 +15,8 @@ Simulator capture uses `simctl io recordVideo`. The controller waits up to 30 se
 
 Physical capture uses Xcode's `devicectl device capture screen-record --duration`, with a command timeout equal to the rounded duration plus 60 seconds. It does not require the Rust bridge. Installed Xcode 27.2 advertises this interface, but device capability is separate: the initial phone tested rejected it as unsupported. That observation is not a recording test on the user's subsequently specified iPhone 13 mini. Physical recording remains unverified; there is no private-protocol fallback yet.
 
+The shared service now checks [readiness](READINESS.md) first. Explicitly disabled Developer Mode returns preparation guidance before capture is dispatched. A missing capability while developer support is unavailable must not be treated as proof of permanent device incompatibility.
+
 Both paths record to a unique `tmp/recording-<UUID>/capture.mp4`. AVFoundation loads its finite positive duration and decodes a video frame near time zero. Only then does the CLI move the movie to the requested destination, refusing an existing file even if it appeared while capture ran. Failed/staged artifacts remain under `tmp/` for investigation. This does not validate every video frame, exact requested duration, audio, or app behavior.
 
 Success is one JSON object containing `status: recorded`, backend, output path, requested duration/codec, and an `artifact` with actual duration, decoded frame dimensions, and `frameDecoded: true`. Encoder progress goes to stderr. A nonzero exit does not publish a successful receipt or replace the destination.

@@ -19,6 +19,8 @@ appledevicescmd doctor
 
 `devices physical` currently returns the unfiltered CoreDevice JSON inventory, which can include simulators. `devices simulators` returns simctl JSON. `doctor` checks whether Xcode and the two discovery commands succeed; it does not verify device trust, UI Automation, input delivery, or optional-backend installation.
 
+For a physical target, run `appledevicescmd physical <device> readiness` to report Developer Mode, developer-image services, connection/pairing, and preparation steps. Known disabled Developer Mode is also reported before developer-operation dispatch. See [readiness checks and limits](docs/READINESS.md).
+
 Build the optional physical protocol bridge with mise (tested with 2026.10.20):
 
 ```sh

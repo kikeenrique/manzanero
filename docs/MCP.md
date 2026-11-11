@@ -19,11 +19,12 @@ This is a configuration example, not an installation into a particular host. Hos
 
 ## Tools
 
-The 22 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
+The 23 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
 
 | Tools | Operations |
 | --- | --- |
 | `list_devices`, `doctor`, `inspect_device` | Discovery, tool checks, apps, physical details/processes/HID information |
+| `device_readiness` | [Physical preparation status](READINESS.md), including Developer Mode and developer-image services |
 | `get_ui_tree`, `get_accessibility_archive`, `ocr_image` | AXe simulator hierarchy, experimental raw physical archive, standalone Vision OCR |
 | `screenshot` | Capture a PNG to a host path; inline MCP image content up to 8 MiB |
 | `record_screen` | [Finite screen recording](RECORDING.md) to a new host MP4, with decoded-artifact metadata |

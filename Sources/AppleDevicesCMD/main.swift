@@ -14,6 +14,7 @@ Usage:
   appledevicescmd ocr <image-path>     Recognize image text and normalized bounds as JSON
   appledevicescmd physical <device> apps
   appledevicescmd physical <device> <processes|details>
+  appledevicescmd physical <device> readiness   Report Developer Mode and developer-image status
   appledevicescmd physical <device> reports [relative-directory]
   appledevicescmd physical <device> report <relative-report-path> <local-destination>
   appledevicescmd physical <UDID> logs <seconds: 1...30> [pid]
@@ -59,7 +60,7 @@ Usage:
   appledevicescmd --version
 
 Physical input is experimental; remaining parity work is tracked in docs/ROADMAP.md.
-Physical Xcode commands return devicectl JSON; bridge commands return bridge JSON.
+Physical single Xcode commands preserve devicectl JSON; readiness/build/record return CLI metadata.
 Simulator app/lifecycle commands preserve simctl output; AXe tree/input commands return JSON.
 Temporary process output is created beneath ./tmp and normally cleaned up on exit.
 """

@@ -9,8 +9,41 @@ struct CommandOutput: Sendable {
 /// have no suspension points, so actor isolation serializes them within a server.
 actor CommandService {
     private let runner = ToolRunner()
+    private let readinessQuery: @Sendable (String) throws -> Data
+
+    init(readinessQuery: @escaping @Sendable (String) throws -> Data = { device in
+        guard let plan = try DeviceCommand.parse(["physical", device, "details"]) else {
+            throw CommandFailure(description: "Cannot plan device readiness query.")
+        }
+        return try ToolRunner().run(plan.arguments + ["--quiet"])
+    }) {
+        self.readinessQuery = readinessQuery
+    }
+
+    private func readiness(_ device: String) throws -> DeviceReadiness {
+        guard !device.isEmpty, !device.hasPrefix("-") else { throw CommandFailure(description: "Provide a valid device identifier.") }
+        return try DeviceReadiness.decode(readinessQuery(device), device: device)
+    }
+
+    private func preflight(_ device: String, operation: String) throws {
+        let report: DeviceReadiness
+        do { report = try readiness(device) }
+        catch {
+            // Independent idevice pairing can work without a CoreDevice identity.
+            FileHandle.standardError.write(Data("Unable to determine CoreDevice readiness: \(error). The selected backend will enforce its own prerequisites.\n".utf8))
+            return
+        }
+        try report.requireDeveloperMode(operation: operation)
+    }
 
     func execute(_ args: [String], dryRun: Bool = false, allowInteractive: Bool = false) async throws -> CommandOutput {
+        if args.count == 3, args[0] == "physical", args[2] == "readiness" {
+            if dryRun {
+                guard let plan = try DeviceCommand.parse(["physical", args[1], "details"]) else { throw CommandFailure(description: "Invalid device.") }
+                return try json(["executable": plan.executable, "arguments": plan.arguments + ["--quiet"]])
+            }
+            return try readiness(args[1]).output()
+        }
         if let recording = try RecordingCommand.parse(args) {
             let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("tmp/recording-\(UUID().uuidString)")
@@ -20,6 +53,7 @@ actor CommandService {
                     "destination": recording.destination.path, "durationSeconds": recording.seconds,
                     "stopPolicy": recording.physical ? "devicectl --duration" : "Wait for first frame, then SIGINT after duration; wait for finalization."])
             }
+            if recording.physical { try preflight(recording.device, operation: "record screen") }
             return CommandOutput(data: try await recording.execute(directory: directory, runner: runner))
         }
         if let command = try BuildRunCommand.parse(args) {
@@ -31,12 +65,18 @@ actor CommandService {
                     "buildArguments": command.xcodeArguments(directory: directory) + ["build"],
                     "deployment": "After a successful build, resolve the application from build settings, install it, and launch its bundle identifier."])
             }
+            if command.physical { try preflight(command.device, operation: "build and run") }
             return CommandOutput(data: try command.execute(directory: directory, run: {
                 try runner.run($0.arguments, executable: $0.executable)
             }, build: { try runner.build($0, log: $1) }))
         }
         if let command = try DeviceCommand.parse(args) {
             if dryRun { return try json(["executable": command.executable, "arguments": command.arguments]) }
+            let targetArgs = args.first == "--pairing-file" ? Array(args.dropFirst(2)) : args
+            if targetArgs.count >= 3, targetArgs[0] == "physical",
+               ["tap", "multi-tap", "drag", "swipe", "button", "key", "hid-info", "ax-snapshot", "launch", "terminate", "processes", "open-url", "screenshot"].contains(targetArgs[2]) {
+                try preflight(targetArgs[1], operation: targetArgs[2])
+            }
             guard allowInteractive || !command.interactive else {
                 throw CommandFailure(description: "Interactive pairing is CLI-only; pair first, then provide the existing pairing file.")
             }
