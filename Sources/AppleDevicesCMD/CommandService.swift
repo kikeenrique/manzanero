@@ -10,6 +10,7 @@ struct CommandOutput: Sendable {
 actor CommandService {
     private let runner = ToolRunner()
     private let readinessQuery: @Sendable (String) throws -> Data
+    private var pendingHandoffs: Set<DeviceTarget> = []
 
     init(readinessQuery: @escaping @Sendable (String) throws -> Data = { device in
         guard let plan = try DeviceCommand.parse(["physical", device, "details"]) else {
@@ -36,7 +37,20 @@ actor CommandService {
         try report.requireDeveloperMode(operation: operation)
     }
 
-    func execute(_ args: [String], dryRun: Bool = false, allowInteractive: Bool = false) async throws -> CommandOutput {
+    func execute(_ args: [String], dryRun: Bool = false, allowInteractive: Bool = false,
+                 handoffConfirmation: (@Sendable (HandoffCommand) async throws -> HandoffStatus)? = nil) async throws -> CommandOutput {
+        if let handoff = try HandoffCommand.parse(args) {
+            if dryRun { return try json(["platform": handoff.platform, "device": handoff.device, "message": handoff.message, "action": "Request human completion; no device action or prompt is executed by this dry run."]) }
+            guard pendingHandoffs.insert(handoff.target).inserted else { throw CommandFailure(description: "A handoff is already pending for this device.") }
+            defer { pendingHandoffs.remove(handoff.target) }
+            if let handoffConfirmation {
+                let status = try await handoffConfirmation(handoff)
+                return try handoff.output(status, mechanism: "mcp-form")
+            }
+            guard allowInteractive else { throw CommandFailure(description: "Handoff requires a terminal or an MCP host with form elicitation.") }
+            return try handoff.output(TerminalHandoff.confirm(handoff), mechanism: "terminal")
+        }
+        if !dryRun { try checkHandoffPause(args) }
         if args.count == 3, args[0] == "physical", args[2] == "readiness" {
             if dryRun {
                 guard let plan = try DeviceCommand.parse(["physical", args[1], "details"]) else { throw CommandFailure(description: "Invalid device.") }
@@ -127,5 +141,18 @@ actor CommandService {
 
     private func json(_ value: Any) throws -> CommandOutput {
         CommandOutput(data: try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]))
+    }
+
+    private func checkHandoffPause(_ args: [String]) throws {
+        let args = args.first == "--pairing-file" ? Array(args.dropFirst(2)) : args
+        guard args.count >= 3, ["physical", "simulator"].contains(args[0]), pendingHandoffs.contains(where: { $0.platform == args[0] }) else { return }
+        let observations = ["readiness", "details", "apps", "processes", "hid-info", "tree", "screenshot", "files", "pull", "reports", "report", "logs"]
+        guard !observations.contains(args[2]) else { return }
+        guard let id = DeviceTarget.identifier(args[1]), args[0] != "physical" || UUID(uuidString: args[1]) == nil else {
+            throw CommandFailure(description: "Use an explicit device ID (physical hardware UDID or simulator UUID) while a handoff is pending; aliases cannot be resolved safely for pause coordination.")
+        }
+        if pendingHandoffs.contains(DeviceTarget(platform: args[0], identifier: id)) {
+            throw CommandFailure(description: "Automation is paused for this device while human handoff is pending. Wait for the person's response.")
+        }
     }
 }

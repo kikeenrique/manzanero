@@ -15,6 +15,8 @@ Usage:
   appledevicescmd physical <device> apps
   appledevicescmd physical <device> <processes|details>
   appledevicescmd physical <device> readiness   Report Developer Mode and developer-image status
+  appledevicescmd <physical|simulator> <UDID> handoff <message> [terminal-timeout-seconds]
+  Handoff asks for a human action on the device, then waits for explicit completion.
   appledevicescmd physical <device> reports [relative-directory]
   appledevicescmd physical <device> report <relative-report-path> <local-destination>
   appledevicescmd physical <UDID> logs <seconds: 1...30> [pid]

@@ -71,6 +71,10 @@ These physical commands return devicectl JSON. Simulator app/lifecycle/screensho
 
 Physical command planning and screenshot flags were checked against Xcode 27.2. The CLI details query is verified on a physical phone, and direct devicectl copies round-tripped a synthetic fixture in a tool-owned temporary domain. App-container listing/copies, termination, URL opening, and capture are not yet verified live.
 
+## Human handoff
+
+`appledevicescmd physical <UDID> handoff 'Complete the step on the phone'` waits in an interactive terminal for `done`, `decline`, or `cancel`. MCP `request_handoff` uses a host completion checkbox and pauses that device's mutation calls while waiting. No credentials are collected; acknowledgement is separate from verified device success. See [handoff behavior and limits](docs/HANDOFF.md).
+
 ## Screen recording
 
 ```sh
@@ -164,4 +168,4 @@ Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discove
 
 `appledevicescmd ocr <image-path>` uses macOS Vision and returns JSON text, confidence, and bounds normalized to 0...1 with the origin at the top left. It is a standalone image command; automatic screenshot/OCR fallback is not implemented. The initial runtime fixture check failed with `Failed to create CVPixelBuffer`; the cause and recognition accuracy remain unverified.
 
-User-facing streaming sessions, verified physical recording/input and parsed accessibility, Unicode physical text entry, Xcode-format container export/replacement, complete saved-report management, settings controls, and handoff remain outstanding. MCP exposes the implemented operations over stdio. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.
+User-facing streaming sessions, verified physical recording/input and parsed accessibility, Unicode physical text entry, Xcode-format container export/replacement, complete saved-report management, settings controls, and automatic human-prompt detection remain outstanding. Explicit handoff and MCP expose the implemented workflow operations. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.

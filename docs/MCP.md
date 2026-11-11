@@ -19,12 +19,13 @@ This is a configuration example, not an installation into a particular host. Hos
 
 ## Tools
 
-The 23 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
+The 24 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
 
 | Tools | Operations |
 | --- | --- |
 | `list_devices`, `doctor`, `inspect_device` | Discovery, tool checks, apps, physical details/processes/HID information |
 | `device_readiness` | [Physical preparation status](READINESS.md), including Developer Mode and developer-image services |
+| `request_handoff` | [Explicit human completion request](HANDOFF.md) using a host form, with per-device mutation pause |
 | `get_ui_tree`, `get_accessibility_archive`, `ocr_image` | AXe simulator hierarchy, experimental raw physical archive, standalone Vision OCR |
 | `screenshot` | Capture a PNG to a host path; inline MCP image content up to 8 MiB |
 | `record_screen` | [Finite screen recording](RECORDING.md) to a new host MP4, with decoded-artifact metadata |
@@ -37,7 +38,7 @@ Physical touch coordinates are normalized; simulator coordinates are interface p
 
 ## Shared execution and output
 
-Tool calls use the same `CommandService`, planners, and backends as the CLI. Device actions are serialized within one server process. OCR can suspend while Vision works, allowing another request during that suspension. Multiple server/CLI processes are not coordinated.
+Tool calls use the same `CommandService`, planners, and backends as the CLI. Device actions are serialized within one server process. OCR and handoff confirmation can suspend, allowing another request during that suspension; handoff explicitly blocks mutations for its pending target. Multiple server/CLI processes are not coordinated.
 
 Results contain text with the CLI output. JSON output is also wrapped under `structuredContent.result`; plain simctl output remains text. A screenshot appends an `image/png` block when the saved PNG is at most 8 MiB. Larger images stay on disk with an omission notice. Other downloaded files are not automatically embedded, parsed, or symbolicated.
 
@@ -53,6 +54,6 @@ The MCP host controls approvals. This server has no approval prompt or policy of
 
 SwiftPM declares the official [Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) at exact version **0.12.1**, revision `a0ae212ebf6eab5f754c3129608bc5557637e605`; `Package.resolved` pins dependencies. Its newest protocol version is `2025-11-25`, with negotiation also supporting `2025-06-18`, `2025-03-26`, and `2024-11-05`. Later protocol revisions are not supported. The [upstream license and transition notice](../ThirdParty/swift-mcp-sdk-LICENSE.txt) are preserved.
 
-Wire handling follows the SDK's strict initialization, the [stdio specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), and the [tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools). HTTP/authentication, resources/prompts, human handoff, progress, and process cancellation coordination are absent. Cancellation or client closure does not promise immediate termination or rollback of an external tool. Backend deadlines and all device-verification limits still apply.
+Wire handling follows the SDK's strict initialization, the [stdio specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), and the [tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools). HTTP/authentication, resources/prompts, automatic human-prompt detection, progress, and process cancellation coordination are absent. Cancellation or client closure does not promise immediate termination or rollback of an external tool. Backend deadlines and all device-verification limits still apply.
 
-The opt-in check `mise run test:mcp-live <booted-simulator-UUID>` launches the real server for initialization, discovery, invalid input, simulator inventory/tree reads, PNG capture, a short video recording, and EOF shutdown. Artifacts stay under `tmp/`. It does not send physical input or establish physical backend support. See [verification records](VERIFICATION.md).
+The opt-in check `mise run test:mcp-live <booted-simulator-UUID>` launches the real server for initialization, discovery, invalid input, simulator inventory/tree reads, PNG/video capture, a synthetic handoff form response, and EOF shutdown. Artifacts stay under `tmp/`. The harness answers its own handoff form; it does not prompt the user or perform a device action. It does not send physical input or establish physical backend support. See [verification records](VERIFICATION.md).
