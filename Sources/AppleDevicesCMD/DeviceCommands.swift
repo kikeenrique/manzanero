@@ -2,6 +2,8 @@ import Foundation
 
 /// Pure command planning keeps backend selection independent of process execution.
 struct DeviceCommand {
+    var executable: String = "/usr/bin/xcrun"
+    var actionReceipt: Bool = false
     let arguments: [String]
     let jsonOutput: Bool
 
@@ -21,6 +23,9 @@ struct DeviceCommand {
             guard operands.count == count, operands.allSatisfy({ !$0.isEmpty && !$0.hasPrefix("-") }) else {
                 throw CommandFailure(description: "\(operation) expects \(count) nonempty operand(s), without a leading '-'.")
             }
+        }
+        if !physical, let command = try SimulatorInteraction.plan(device: device, operation: operation, operands: operands) {
+            return command
         }
         let command: [String]
         if physical {

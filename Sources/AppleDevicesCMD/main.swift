@@ -1,39 +1,5 @@
 import Foundation
 
-struct CommandFailure: Error, CustomStringConvertible {
-    let description: String
-}
-
-/// Uses argument arrays and file-backed output so child processes cannot fill a pipe.
-struct ToolRunner {
-    func run(_ arguments: [String]) throws -> Data {
-        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("tmp/process-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let stdout = directory.appendingPathComponent("stdout")
-        let stderr = directory.appendingPathComponent("stderr")
-        FileManager.default.createFile(atPath: stdout.path, contents: nil)
-        FileManager.default.createFile(atPath: stderr.path, contents: nil)
-        let output = try FileHandle(forWritingTo: stdout)
-        let errors = try FileHandle(forWritingTo: stderr)
-        defer { try? output.close(); try? errors.close() }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = arguments
-        process.standardInput = FileHandle.nullDevice
-        process.standardOutput = output
-        process.standardError = errors
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let detail = String(decoding: try Data(contentsOf: stderr), as: UTF8.self)
-            throw CommandFailure(description: "xcrun \(arguments.joined(separator: " ")) failed (\(process.terminationStatus)): \(detail)")
-        }
-        return try Data(contentsOf: stdout)
-    }
-}
-
 let help = """
 appledevicescmd — Apple device tools for terminals and agents
 
@@ -51,11 +17,18 @@ Usage:
   appledevicescmd simulator <device> install <app-path>
   appledevicescmd simulator <device> open-url <url>
   appledevicescmd simulator <device> screenshot <output.png>
+  appledevicescmd simulator <UDID> tree
+  appledevicescmd simulator <UDID> tap <x> <y>
+  appledevicescmd simulator <UDID> <tap-id|tap-label> <selector>
+  appledevicescmd simulator <UDID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
+  appledevicescmd simulator <UDID> type <text>
+  appledevicescmd simulator <UDID> button <name>
+  Simulator input and tree commands require AXe on PATH and an explicit UDID.
   Prefix a device command with --dry-run to print its invocation without executing.
   appledevicescmd --help
   appledevicescmd --version
 
-HID, accessibility, streaming, and MCP are tracked in docs/ROADMAP.md.
+Physical HID/accessibility, streaming, and MCP are tracked in docs/ROADMAP.md.
 Physical commands return devicectl JSON; simulator commands return simctl output.
 Temporary command output is created beneath ./tmp and removed after each command.
 """
@@ -67,12 +40,20 @@ do {
     if dryRun { args.removeFirst() }
     if let command = try DeviceCommand.parse(args) {
         if dryRun {
-            FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject: ["executable": "/usr/bin/xcrun", "arguments": command.arguments], options: [.prettyPrinted, .sortedKeys]))
+            FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject: ["executable": command.executable, "arguments": command.arguments], options: [.prettyPrinted, .sortedKeys]))
             print()
         } else {
-            let data = try runner.run(command.arguments)
+            let data = try runner.run(command.arguments, executable: command.executable)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
-            FileHandle.standardOutput.write(data)
+            if command.actionReceipt {
+                // AXe writes human-readable dispatch messages. Keep CLI stdout JSON.
+                FileHandle.standardError.write(data)
+                FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject:
+                    ["status": "dispatched", "backend": "axe", "verified": false], options: [.sortedKeys]))
+                print()
+            } else {
+                FileHandle.standardOutput.write(data)
+            }
         }
         exit(0)
     }
