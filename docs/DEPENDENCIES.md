@@ -2,6 +2,12 @@
 
 The main CLI is Swift 6.2+ with strict concurrency. Xcode supplies `devicectl` and `simctl`; macOS supplies Vision. Private protocol implementations stay behind optional backend boundaries.
 
+## Swift MCP SDK
+
+The executable links the official [Swift MCP SDK](https://github.com/modelcontextprotocol/swift-sdk) at exact version 0.12.1, revision `a0ae212ebf6eab5f754c3129608bc5557637e605`. It is declared as a Git-backed Swift package dependency; [Package.resolved](../Package.resolved) records resolved revisions. A research clone in `tmp/mcp-swift-sdk` is not used by the build. The SDK's upstream license is transitioning between MIT and Apache-2.0 by contribution, with separate documentation licensing; its complete [license/transition text](../ThirdParty/swift-mcp-sdk-LICENSE.txt) is retained. Binary distribution must also preserve applicable transitive notices.
+
+MCP mode is optional at runtime via `appledevicescmd mcp`; the dependency is linked in the standard executable. The compiled product uses the SDK's MCP library, not its conformance executables. The SDK manifest also declares packages for other products, so resolution can include dependencies beyond those compiled into this executable. Swift build/test tasks use `tmp/swift-cache` for the package cache; SwiftPM-managed build checkouts remain under ignored `.build/`. See [MCP configuration and protocol limits](MCP.md).
+
 ## idevice
 
 Physical HID uses the open-source [idevice library](https://github.com/jkcoxson/idevice), by Jackson Coxson, under the MIT license. Its source is declared as a Git dependency in [the bridge manifest](../Backends/IDevice/Cargo.toml), pinned to revision `89702099f4d7552f704f93b4526756abda319ceb`. [Cargo.lock](../Backends/IDevice/Cargo.lock) records the transitive dependency versions and registry checksums. A development clone in `tmp/idevice` is investigation material and is not needed to build the shipped backend.

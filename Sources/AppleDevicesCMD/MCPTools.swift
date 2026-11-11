@@ -1,0 +1,147 @@
+import Foundation
+import MCP
+
+struct MCPField: Sendable {
+    enum Kind: String, Sendable { case string, number, integer, array }
+    let name: String
+    var kind: Kind = .string
+    var description: String = ""
+    var required = true
+    var choices: [String] = []
+
+    var schema: Value {
+        var value: [String: Value] = ["type": .string(kind.rawValue), "description": .string(description)]
+        if !choices.isEmpty { value["enum"] = .array(choices.map(Value.string)) }
+        if kind == .array { value["items"] = .object(["type": "number"]) }
+        return .object(value)
+    }
+
+    func validate(_ value: Value?) throws {
+        guard let value else {
+            if required { throw MCPError.invalidParams("Missing parameter: \(name)") }
+            return
+        }
+        let valid: Bool
+        switch (kind, value) {
+        case (.string, .string(let text)): valid = !text.isEmpty && (choices.isEmpty || choices.contains(text))
+        case (.number, .int), (.integer, .int): valid = true
+        case (.number, .double(let number)): valid = number.isFinite
+        case (.array, .array(let values)):
+            valid = values.allSatisfy { if case .int = $0 { return true }; if case .double(let n) = $0 { return n.isFinite }; return false }
+        default: valid = false
+        }
+        guard valid else { throw MCPError.invalidParams("Invalid parameter type or value: \(name)") }
+    }
+}
+
+struct MCPToolDefinition: Sendable {
+    let name: String
+    let description: String
+    let fields: [MCPField]
+    var readOnly = false
+    var imagePath: String? = nil
+    let route: @Sendable ([String: Value]) -> [String]
+
+    var tool: Tool {
+        Tool(name: name, description: description, inputSchema: .object([
+            "type": "object", "properties": .object(Dictionary(uniqueKeysWithValues: fields.map { ($0.name, $0.schema) })),
+            "required": .array(fields.filter(\.required).map { .string($0.name) }), "additionalProperties": false
+        ]), annotations: .init(readOnlyHint: readOnly, destructiveHint: !readOnly))
+    }
+
+    func command(_ arguments: [String: Value]) throws -> [String] {
+        guard Set(arguments.keys).isSubset(of: Set(fields.map(\.name))) else {
+            throw MCPError.invalidParams("Unknown parameters for \(name)")
+        }
+        for field in fields { try field.validate(arguments[field.name]) }
+        return route(arguments)
+    }
+}
+
+private extension Dictionary where Key == String, Value == MCP.Value {
+    func text(_ key: String, default fallback: String = "") -> String { self[key]?.stringValue ?? fallback }
+    func number(_ key: String) -> String {
+        if case .int(let value) = self[key] { return String(value) }
+        if case .double(let value) = self[key] { return String(value) }
+        return ""
+    }
+    func deviceCommand(_ operands: [String], platform: String? = nil) -> [String] {
+        let args = [platform ?? text("platform"), text("device")] + operands
+        if let pairing = self["pairing_file"]?.stringValue { return ["--pairing-file", pairing] + args }
+        return args
+    }
+}
+
+enum MCPTools {
+    private static let platform = MCPField(name: "platform", choices: ["physical", "simulator"])
+    private static let device = MCPField(name: "device", description: "Explicit target identifier; use the UDID from list_devices.")
+    private static let pairing = MCPField(name: "pairing_file", description: "Existing private pairing file for physical idevice operations only; pair using the CLI first.", required: false)
+    private static let x = MCPField(name: "x", kind: .number)
+    private static let y = MCPField(name: "y", kind: .number)
+
+    static let definitions: [MCPToolDefinition] = [
+        .init(name: "list_devices", description: "List CoreDevice or available simulator inventory. Physical inventory may also include simulators.", fields: [platform], readOnly: true) {
+            ["devices", $0.text("platform") == "physical" ? "physical" : "simulators"]
+        },
+        .init(name: "doctor", description: "Check Xcode and discovery services; does not verify input delivery or optional backends.", fields: [], readOnly: true) { _ in ["doctor"] },
+        .init(name: "inspect_device", description: "List apps on either platform, or physical details/processes/HID surfaces. hid-info requires the experimental idevice bridge; pairing_file applies only to hid-info.", fields: [platform, device, .init(name: "query", choices: ["apps", "details", "processes", "hid-info"]), pairing], readOnly: true) { $0.deviceCommand([$0.text("query")]) },
+        .init(name: "get_ui_tree", description: "Read a simulator accessibility tree using AXe. Requires an explicit simulator UUID. No physical parsed tree is available.", fields: [device], readOnly: true) { $0.deviceCommand(["tree"], platform: "simulator") },
+        .init(name: "get_accessibility_archive", description: "Experimental physical callback archive, not a parsed UI tree. Returns parsedHierarchy:false. Requires idevice; unverified on hardware.", fields: [device, pairing]) { $0.deviceCommand(["ax-snapshot"], platform: "physical") },
+        .init(name: "screenshot", description: "Capture a PNG to a local path and return it as MCP image content if at most 8 MiB. May replace an existing local file. Physical capture remains unverified.", fields: [platform, device, .init(name: "path", description: "Local output path ending in .png; prefer ignored tmp/.")], imagePath: "path") { $0.deviceCommand(["screenshot", $0.text("path")]) },
+        .init(name: "tap", description: "Tap coordinates. Physical coordinates are normalized 0...1; simulator coordinates are interface points. Dispatch is not verified delivery.", fields: [platform, device, x, y, pairing]) { $0.deviceCommand(["tap", $0.number("x"), $0.number("y")]) },
+        .init(name: "tap_element", description: "Tap a simulator element by accessibility label or ID using AXe. Inspect a fresh tree to verify its effect.", fields: [device, .init(name: "selector_type", choices: ["label", "id"]), .init(name: "selector")]) { $0.deviceCommand(["tap-" + $0.text("selector_type"), $0.text("selector")], platform: "simulator") },
+        .init(name: "drag", description: "Drag from start to end over seconds. Physical coordinates are normalized; simulator coordinates are interface points. Physical duration 0.03...10 seconds; simulator restrictions come from AXe.", fields: [platform, device, .init(name: "x1", kind: .number), .init(name: "y1", kind: .number), .init(name: "x2", kind: .number), .init(name: "y2", kind: .number), .init(name: "seconds", kind: .number), pairing]) {
+            $0.deviceCommand(["drag"] + ["x1", "y1", "x2", "y2", "seconds"].map($0.number))
+        },
+        .init(name: "multi_tap", description: "Physical simultaneous contact and release at two to five normalized coordinate pairs. Does not implement moving multitouch.", fields: [device, .init(name: "coordinates", kind: .array, description: "Flat numeric array [x1,y1,x2,y2,...], 4...10 values."), pairing]) {
+            let numbers = ($0["coordinates"]?.arrayValue ?? []).map { value -> String in
+                if case .int(let n) = value { return String(n) }; if case .double(let n) = value { return String(n) }; return ""
+            }
+            return $0.deviceCommand(["multi-tap"] + numbers, platform: "physical")
+        },
+        .init(name: "type_text", description: "Type literal text into a simulator using AXe's US keyboard mapping. Physical text entry is not implemented.", fields: [device, .init(name: "text")]) { $0.deviceCommand(["type", $0.text("text")], platform: "simulator") },
+        .init(name: "press_button", description: "Press a hardware button. Physical supports home, lock, volume-up, volume-down; simulator uses AXe button names.", fields: [platform, device, .init(name: "button"), pairing]) { $0.deviceCommand(["button", $0.text("button")]) },
+        .init(name: "press_key", description: "Send one experimental physical key: return, escape, backspace, tab, space, up, down, left, right.", fields: [device, .init(name: "key", choices: ["return", "escape", "backspace", "tab", "space", "up", "down", "left", "right"]), pairing]) { $0.deviceCommand(["key", $0.text("key")], platform: "physical") },
+        .init(name: "app_action", description: "Install, uninstall, launch, terminate an app, or open a URL. Value is a host app path for install, a URL for open-url, a positive PID for physical terminate, otherwise a bundle identifier. Uninstall deletes app data.", fields: [platform, device, .init(name: "operation", choices: ["install", "uninstall", "launch", "terminate", "open-url"]), .init(name: "value")]) { $0.deviceCommand([$0.text("operation"), $0.text("value")]) },
+        .init(name: "app_data", description: "Physical app-container listing or raw pull/push. Remote paths are relative; '.' means root. Listing is nonrecursive. Copies may overwrite selected destinations; app access is permission-dependent and unverified live. Not .xcappdata export/replacement.", fields: [device, .init(name: "operation", choices: ["files", "pull", "push"]), .init(name: "bundle_id"), .init(name: "remote_path"), .init(name: "local_path", required: false)]) {
+            let op = $0.text("operation"), base = [op, $0.text("bundle_id")]
+            let paths = op == "files" ? [$0.text("remote_path")] : (op == "pull" ? [$0.text("remote_path"), $0.text("local_path")] : [$0.text("local_path"), $0.text("remote_path")])
+            return $0.deviceCommand(base + paths, platform: "physical")
+        },
+        .init(name: "list_reports", description: "List saved physical report metadata without recursion. Optional relative directory, default '.'. Live listing verified; does not read contents.", fields: [device, .init(name: "directory", required: false)], readOnly: true) { $0.deviceCommand(["reports", $0.text("directory", default: ".")], platform: "physical") },
+        .init(name: "download_report", description: "Download a selected saved physical report to a host path. May overwrite that destination. Download unverified live; no parsing or symbolication.", fields: [device, .init(name: "remote_path"), .init(name: "local_path")]) { $0.deviceCommand(["report", $0.text("remote_path"), $0.text("local_path")], platform: "physical") },
+        .init(name: "capture_logs", description: "Experimental finite physical OS trace via idevice. 1...30 seconds after startup, max 2000 entries/4 MiB of entry JSON. Optional positive PID. Live capture unverified.", fields: [device, .init(name: "seconds", kind: .integer), .init(name: "pid", kind: .integer, required: false), pairing]) {
+            $0.deviceCommand(["logs", $0.number("seconds")] + ($0["pid"] == nil ? [] : [$0.number("pid")]), platform: "physical")
+        },
+        .init(name: "build_run", description: "Build an iOS Xcode project/workspace, install and restart its app. Executes the project's build scripts. Explicit scheme required; configuration defaults Debug. Physical signing/deployment unverified. Requires xcsift. Does not verify UI health.", fields: [platform, device, .init(name: "project"), .init(name: "scheme"), .init(name: "configuration", required: false), .init(name: "app_target", required: false)]) {
+            var args = $0.deviceCommand(["build-run", $0.text("project"), $0.text("scheme")])
+            if let config = $0["configuration"]?.stringValue { args += ["--configuration", config] }
+            if let target = $0["app_target"]?.stringValue { args += ["--app-target", target] }
+            return args
+        },
+        .init(name: "simulator_state", description: "Boot or shut down a selected simulator. Shutdown interrupts running apps; no erase or delete operation is exposed.", fields: [device, .init(name: "operation", choices: ["boot", "shutdown"])]) { $0.deviceCommand([$0.text("operation")], platform: "simulator") },
+        .init(name: "ocr_image", description: "Recognize text in a local image using Vision. Normalized top-left bounds. Initial runtime check failed; recognition accuracy remains unverified.", fields: [.init(name: "path")], readOnly: true) { ["ocr", $0.text("path")] }
+    ]
+
+    static func call(name: String, arguments: [String: Value], execute: @Sendable ([String]) async throws -> CommandOutput) async throws -> CallTool.Result {
+        guard let definition = definitions.first(where: { $0.name == name }) else { throw MCPError.invalidParams("Unknown tool: \(name)") }
+        let command = try definition.command(arguments)
+        do {
+            let output = try await execute(command)
+            var content: [Tool.Content] = [.text(text: String(decoding: output.data, as: UTF8.self), annotations: nil, _meta: nil)]
+            if output.exitCode == 0, let key = definition.imagePath, let path = arguments[key]?.stringValue {
+                let url = URL(fileURLWithPath: path)
+                let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                if size <= 8 * 1024 * 1024 {
+                    content.append(.image(data: try Data(contentsOf: url).base64EncodedString(), mimeType: "image/png", annotations: nil, _meta: nil))
+                } else {
+                    content.append(.text(text: "PNG saved; image content omitted because it exceeds 8 MiB.", annotations: nil, _meta: nil))
+                }
+            }
+            let value = try? JSONDecoder().decode(Value.self, from: output.data)
+            return .init(content: content, structuredContent: value.map { .object(["result": $0]) }, isError: output.exitCode != 0)
+        } catch {
+            return .init(content: [.text(text: String(describing: error), annotations: nil, _meta: nil)], isError: true)
+        }
+    }
+}

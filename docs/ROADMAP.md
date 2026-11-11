@@ -32,7 +32,7 @@ The main executable is Swift. Physical private protocols currently use a small R
 | Human handoff | [Human Handoff]([private reference removed]) | Missing. Initial pairing's PIN prompt is not an agent handoff system. |
 | Multiple devices, agent activity, approvals | [Overview]([private reference removed]), [MCP]([private reference removed]) | Explicit per-command targets exist. Coordinated sessions, activity tracking, and an application approval policy are missing. CLI dry-run is not an approval system. |
 | Android devices/emulators | [Vendor overview]([private reference removed]) | No implementation. Whether Android belongs in this Apple-focused tool's first parity target remains an open scope question. |
-| MCP interface | [Vendor MCP]([private reference removed]); optional in the user's request | Missing. A reusable operation layer and MCP transport still need implementation. |
+| MCP interface | [Vendor MCP]([private reference removed]); optional in the user's request | `mcp` serves 21 tools over stdio through the official Swift SDK and the CLI's shared command service. Supports protocol versions through 2025-11-25. No HTTP, handoff, built-in approval policy, progress, or cancellation coordination. Backend feature/verification gaps remain. See [MCP contract](MCP.md). |
 
 GUI windows, menus, and keyboard shortcuts need CLI equivalents where they express a device operation; recreating the vendor's Mac GUI is not part of a CLI deliverable.
 

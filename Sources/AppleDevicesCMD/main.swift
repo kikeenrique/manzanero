@@ -4,6 +4,7 @@ let help = """
 appledevicescmd — Apple device tools for terminals and agents
 
 Usage:
+  appledevicescmd mcp                  Serve MCP tools over stdio
   appledevicescmd devices physical     List CoreDevice devices as JSON
   appledevicescmd devices simulators   List available simulators as JSON
   appledevicescmd pair wifi <host> <port> <new-record.pairing.plist>
@@ -55,7 +56,7 @@ Usage:
   appledevicescmd --help
   appledevicescmd --version
 
-Physical input is experimental; accessibility, streaming, and MCP are tracked in docs/ROADMAP.md.
+Physical input is experimental; remaining parity work is tracked in docs/ROADMAP.md.
 Physical Xcode commands return devicectl JSON; bridge commands return bridge JSON.
 Simulator app/lifecycle commands preserve simctl output; AXe tree/input commands return JSON.
 Temporary process output is created beneath ./tmp and normally cleaned up on exit.
@@ -63,89 +64,18 @@ Temporary process output is created beneath ./tmp and normally cleaned up on exi
 
 do {
     var args = Array(CommandLine.arguments.dropFirst())
-    let runner = ToolRunner()
+    if args == ["mcp"] {
+        try await AppleMCPServer.run()
+        exit(0)
+    }
+    if args.isEmpty || args == ["--help"] || args == ["-h"] { print(help); exit(0) }
+    if args == ["--version"] { print("appledevicescmd 0.1.0-dev"); exit(0) }
     let dryRun = args.first == "--dry-run"
     if dryRun { args.removeFirst() }
-    if let command = try BuildRunCommand.parse(args) {
-        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("tmp/build-run-\(UUID().uuidString)")
-        let result: Data
-        if dryRun {
-            result = try JSONSerialization.data(withJSONObject: ["executable": "/usr/bin/xcrun",
-                "buildSettingsArguments": command.xcodeArguments(directory: directory) + ["-showBuildSettings", "-json"],
-                "buildArguments": command.xcodeArguments(directory: directory) + ["build"],
-                "deployment": "After a successful build, resolve the application from build settings, install it, and launch its bundle identifier."], options: [.prettyPrinted, .sortedKeys])
-        } else {
-            result = try command.execute(directory: directory, run: {
-                try runner.run($0.arguments, executable: $0.executable)
-            }, build: { try runner.build($0, log: $1) })
-        }
-        FileHandle.standardOutput.write(result)
-        print()
-        exit(0)
-    }
-    if let command = try DeviceCommand.parse(args) {
-        if dryRun {
-            FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject: ["executable": command.executable, "arguments": command.arguments], options: [.prettyPrinted, .sortedKeys]))
-            print()
-        } else {
-            let data = try runner.run(command.arguments, executable: command.executable, interactive: command.interactive)
-            if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
-            if command.actionReceipt {
-                // AXe writes human-readable dispatch messages. Keep CLI stdout JSON.
-                FileHandle.standardError.write(data)
-                FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject:
-                    ["status": "dispatched", "backend": "axe", "verified": false], options: [.sortedKeys]))
-                print()
-            } else {
-                FileHandle.standardOutput.write(data)
-            }
-        }
-        exit(0)
-    }
-    guard !dryRun else { throw CommandFailure(description: "--dry-run requires a physical or simulator command.") }
-    switch args {
-    case let values where values.first == "ocr":
-        guard values.count == 2 else {
-            throw CommandFailure(description: "Usage: appledevicescmd ocr <image-path>")
-        }
-        let result = try await ScreenText.recognize(path: values[1])
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        FileHandle.standardOutput.write(try encoder.encode(result))
-        print()
-    case [], ["--help"], ["-h"]:
-        print(help)
-    case ["--version"]:
-        print("appledevicescmd 0.1.0-dev")
-    case ["devices", "physical"]:
-        let data = try runner.run(["devicectl", "list", "devices", "--timeout", "15", "--json-output", "-"])
-        _ = try JSONSerialization.jsonObject(with: data)
-        FileHandle.standardOutput.write(data)
-    case ["devices", "simulators"]:
-        let data = try runner.run(["simctl", "list", "devices", "available", "--json"])
-        _ = try JSONSerialization.jsonObject(with: data)
-        FileHandle.standardOutput.write(data)
-    case ["doctor"]:
-        var checks: [[String: String]] = []
-        for (name, command) in [
-            ("Xcode", ["xcodebuild", "-version"]),
-            ("CoreDevice", ["devicectl", "list", "devices", "--timeout", "5", "--json-output", "-"]),
-            ("CoreSimulator", ["simctl", "list", "devices", "available", "--json"])
-        ] {
-            do {
-                _ = try runner.run(command)
-                checks.append(["name": name, "status": "available"])
-            } catch {
-                checks.append(["name": name, "status": "unavailable", "detail": String(describing: error)])
-            }
-        }
-        FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject: checks, options: [.prettyPrinted, .sortedKeys]))
-        print()
-        if checks.contains(where: { $0["status"] == "unavailable" }) { exit(1) }
-    default:
-        throw CommandFailure(description: "Unknown command. Run appledevicescmd --help.")
-    }
+    let result = try await CommandService().execute(args, dryRun: dryRun, allowInteractive: true)
+    FileHandle.standardOutput.write(result.data)
+    if result.data.last != 10 { print() }
+    exit(result.exitCode)
 } catch {
     FileHandle.standardError.write(Data("\(error)\n".utf8))
     exit(1)

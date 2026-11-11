@@ -1,6 +1,6 @@
 # appledevicescmd
 
-A Swift CLI in development for Apple-device device control. The CLI uses Xcode tools, Vision, an optional AXe simulator backend, and an optional Rust bridge to the open-source idevice library. **Full feature parity is not implemented.**
+A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. The CLI uses Xcode tools, Vision, an optional AXe simulator backend, and an optional Rust bridge to the open-source idevice library. **Full feature parity is not implemented.**
 
 See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), [investigation](docs/ANALYSIS.md), and [documentation review findings](docs/DOCUMENTATION-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
@@ -29,6 +29,12 @@ mise run idevice:test --offline
 ```
 
 These tasks use Rust 1.99.1 and keep its toolchain, Cargo downloads, and generated bridge under `tmp/`. `--offline` applies to Cargo dependencies; the pinned toolchain must already be installed. See [dependency details](docs/DEPENDENCIES.md).
+
+## Optional MCP interface
+
+`appledevicescmd mcp` serves device tools over stdio using the official Swift MCP SDK. It shares the CLI's command service and backends. Configure an MCP host with the executable's absolute path and `args: ["mcp"]`; local paths use the server's working directory. The host controls approvals. Initial pairing remains interactive in the CLI.
+
+See [MCP tools, configuration, and limits](docs/MCP.md). Backend availability and hardware-verification limits apply equally to CLI and MCP calls.
 
 ## Device commands
 
@@ -144,4 +150,4 @@ Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discove
 
 `appledevicescmd ocr <image-path>` uses macOS Vision and returns JSON text, confidence, and bounds normalized to 0...1 with the origin at the top left. It is a standalone image command; automatic screenshot/OCR fallback is not implemented. The initial runtime fixture check failed with `Failed to create CVPixelBuffer`; the cause and recognition accuracy remain unverified.
 
-Recording, user-facing streaming sessions, physical text entry and parsed accessibility, Xcode-format container export/replacement, complete saved-report management, settings controls, handoff, and MCP remain outstanding. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.
+Recording, user-facing streaming sessions, physical text entry and parsed accessibility, Xcode-format container export/replacement, complete saved-report management, settings controls, and handoff remain outstanding. MCP exposes the implemented operations over stdio. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.

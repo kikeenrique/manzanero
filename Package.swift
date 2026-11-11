@@ -5,8 +5,9 @@ let package = Package(
     name: "appledevicescmd",
     platforms: [.macOS(.v15)],
     products: [.executable(name: "appledevicescmd", targets: ["AppleDevicesCMD"])],
+    dependencies: [.package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.12.1")],
     targets: [
-        .executableTarget(name: "AppleDevicesCMD"),
+        .executableTarget(name: "AppleDevicesCMD", dependencies: [.product(name: "MCP", package: "swift-sdk")]),
         .testTarget(name: "AppleDevicesCMDTests", dependencies: ["AppleDevicesCMD"])
     ]
 )

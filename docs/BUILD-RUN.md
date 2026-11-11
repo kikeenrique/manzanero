@@ -27,6 +27,6 @@ On success, stdout contains one JSON document with `status: launched`, bundle id
 
 Physical builds use the project's existing signing configuration and locally available signing assets. The CLI does not enable provisioning updates or developer-portal device registration. Xcode signing failures are returned to the caller. Physical Build & Run remains unverified on hardware.
 
-The command does not yet provide streaming build progress, cancellation coordination, a build deadline, incremental reuse of a previous build directory, automatic symbolication, crash monitoring, or an MCP interface. An interrupted command may leave build artifacts or a deployed app; no rollback is promised. Do not infer full vendor Build & Run parity from the verified simulator path.
+The command does not yet provide streaming build progress, cancellation coordination, a build deadline, incremental reuse of a previous build directory, automatic symbolication, or crash monitoring. Its shared operation is also exposed as the MCP `build_run` tool; that does not add those missing behaviors. An interrupted command may leave build artifacts or a deployed app; no rollback is promised. Do not infer full vendor Build & Run parity from the verified simulator path.
 
 See [verification records](VERIFICATION.md) for the exact live checks and [roadmap](ROADMAP.md) for remaining features.
