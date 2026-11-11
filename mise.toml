@@ -1,0 +1,45 @@
+[vars]
+rust_version = "1.99.1"
+
+[task_templates.idevice]
+dir = "{{ config_root }}"
+env = { MISE_DATA_DIR = "{{ config_root }}/tmp/mise-data", MISE_CACHE_DIR = "{{ config_root }}/tmp/mise-cache", CARGO_HOME = "{{ config_root }}/tmp/cargo-home", RUSTUP_HOME = "{{ config_root }}/tmp/rustup" }
+
+[tasks."idevice:setup"]
+extends = "idevice"
+description = "Install the pinned Rust toolchain under tmp"
+run = "mise install rust@{{ vars.rust_version }}"
+
+[tasks."idevice:build"]
+extends = "idevice"
+description = "Build the locked idevice bridge into tmp/bin"
+depends = ["idevice:setup"]
+usage = '''
+flag "--debug" help="Build without release optimization"
+flag "--offline" help="Use cached Cargo dependencies only"
+'''
+shell = "bash -e -o pipefail -c"
+run = '''
+bridge_profile=release
+bridge_args=(build --release --locked --manifest-path Backends/IDevice/Cargo.toml --target-dir tmp/idevice-build)
+if [ "${usage_debug:-false}" = true ]; then
+  bridge_profile=debug
+  bridge_args=(build --locked --manifest-path Backends/IDevice/Cargo.toml --target-dir tmp/idevice-build)
+fi
+if [ "${usage_offline:-false}" = true ]; then bridge_args+=(--offline); fi
+mise exec rust@{{ vars.rust_version }} -- cargo "${bridge_args[@]}"
+mkdir -p tmp/bin
+cp "tmp/idevice-build/$bridge_profile/appledevices-idevice" tmp/bin/appledevices-idevice
+'''
+
+[tasks."idevice:test"]
+extends = "idevice"
+description = "Test the locked idevice bridge"
+depends = ["idevice:setup"]
+usage = 'flag "--offline" help="Use cached Cargo dependencies only"'
+shell = "bash -e -o pipefail -c"
+run = '''
+bridge_args=(test --locked --manifest-path Backends/IDevice/Cargo.toml --target-dir tmp/idevice-build)
+if [ "${usage_offline:-false}" = true ]; then bridge_args+=(--offline); fi
+mise exec rust@{{ vars.rust_version }} -- cargo "${bridge_args[@]}"
+'''

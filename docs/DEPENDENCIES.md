@@ -12,16 +12,16 @@ The bridge's display-stream startup is adapted from the MIT-licensed `tools/src/
 
 ### Build
 
-Install Rust/Cargo (verified with Rust 1.99.1), then run from the repository root:
+Install mise (tested with 2026.10.20), then run from the repository root:
 
 ```sh
-python3 scripts/build-idevice.py
-export PATH="$PWD/tmp/bin:$PATH"
+mise run idevice:build
+export PATH="$PWD/.build/debug:$PWD/tmp/bin:$PATH"
 swift build
 .build/debug/appledevicescmd physical <UDID> hid-info
 ```
 
-The build script uses the committed lockfile, stores Cargo downloads and build outputs under `tmp/`, and places the helper in `tmp/bin`. `--debug` selects a debug build; `--offline` uses an already populated Cargo cache. It can also use the locally installed toolchain under `tmp/cargo-home` and `tmp/rustup`. The Swift CLI itself builds without Rust; physical input, HID discovery, and Wi-Fi pairing require the bridge on PATH.
+`mise run idevice:build` installs Rust 1.99.1 under `tmp/`, builds the bridge with the committed Cargo lockfile, and copies it to `tmp/bin`. Use `mise run idevice:build --debug --offline` for a debug build with cached Cargo dependencies, and `mise run idevice:test --offline` for bridge tests. The toolchain must already be installed for a fully offline first step. Cargo downloads, Rust toolchain files, mise's tool data/cache, and bridge outputs stay under `tmp/`. The Swift CLI itself builds without Rust; physical input, HID discovery, accessibility snapshots, and Wi-Fi pairing require the bridge on PATH.
 
 ### Protocol and verification limits
 
