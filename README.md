@@ -17,6 +17,8 @@ appledevicescmd devices simulators
 appledevicescmd doctor
 ```
 
+After building, `mise run cli <arguments...>` runs the executable with `tmp/bin` on PATH for the optional physical bridge. It does not build or install missing backends automatically.
+
 `devices physical` currently returns the unfiltered CoreDevice JSON inventory, which can include simulators. `devices simulators` returns simctl JSON. `doctor` checks whether Xcode and the two discovery commands succeed; it does not verify device trust, UI Automation, input delivery, or optional-backend installation.
 
 For a physical target, run `appledevicescmd physical <device> readiness` to report Developer Mode, developer-image services, connection/pairing, and preparation steps. Known disabled Developer Mode is also reported before developer-operation dispatch. See [readiness checks and limits](docs/READINESS.md).
@@ -148,13 +150,15 @@ appledevicescmd physical <UDID> button home
 appledevicescmd physical <UDID> key return
 appledevicescmd physical <UDID> type 'Hello from appledevicescmd'
 appledevicescmd physical <UDID> ax-snapshot
+appledevicescmd physical <UDID> ax-snapshot tmp/accessibility.plist
+appledevicescmd decode-ax-archive tmp/accessibility.plist
 ```
 
 Physical touch coordinates are normalized 0...1, unlike simulator interface points. `multi-tap` sends simultaneous contacts and release. Experimental `multi-drag` moves two to five contacts together; `pinch` generates a horizontal two-contact pinch/spread. Input receipts indicate dispatch only, and hardware gesture effects remain unverified. See [multitouch syntax and cleanup limits](docs/MULTITOUCH.md).
 
 Physical `type` is experimental and accepts 1...512 printable US-layout ASCII characters, tab, and LF newline. It uses an owned virtual keyboard, attempts reset/removal after dispatch, and requires the phone's hardware-keyboard layout to match the US mapping. Unicode is unsupported; layout, Caps Lock, and actual entered text remain unverified on hardware. See [physical typing details](docs/PHYSICAL-TYPING.md).
 
-`ax-snapshot` is an experimental protocol probe that returns a base64 accessibility callback archive with `parsedHierarchy: false`. It does not provide a parsed physical UI tree, stable element references, or selector taps. See [protocol evidence and limitations](docs/ACCESSIBILITY-PROTOCOL.md).
+`ax-snapshot` returns an experimental accessibility callback archive with `parsedHierarchy: false`. An optional new `.plist` path saves it privately and returns metadata; `decode-ax-archive` inspects the saved structure offline. USB callback acquisition and correlated cleanup are verified on the iPhone 13 mini. Numeric attribute meanings, a normalized physical UI tree, stable element references, and selector taps remain unfinished. See [protocol evidence and limitations](docs/ACCESSIBILITY-PROTOCOL.md).
 
 The default connection requires the exact UDID through usbmuxd. The earlier phone was absent from usbmuxd; the selected iPhone 13 mini subsequently completed read-only bridge HID discovery over USB after Developer Mode was enabled. This does not verify input delivery. An independent Wi-Fi pairing path is implemented but not verified live:
 
@@ -164,7 +168,7 @@ appledevicescmd pair wifi <host> <port> tmp/pairings/phone.pairing.plist
 appledevicescmd --pairing-file tmp/pairings/phone.pairing.plist physical <UDID> hid-info
 ```
 
-Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discovery and setup](docs/DEPENDENCIES.md#wi-fi-pairing). Pairing records contain private keys and must stay out of version control. Physical input, accessibility snapshots, pairing, and reconnection remain unverified on hardware.
+Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discovery and setup](docs/DEPENDENCIES.md#wi-fi-pairing). Pairing records contain private keys and must stay out of version control. Physical input, Wi-Fi pairing, and reconnection remain unverified on hardware; USB accessibility callback capture is verified as described above.
 
 ## Screen inspection, OCR, and remaining work
 

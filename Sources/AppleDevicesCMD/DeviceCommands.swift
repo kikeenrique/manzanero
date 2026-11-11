@@ -19,6 +19,12 @@ struct DeviceCommand {
             args.removeFirst(2)
         }
         if let pairing = try PairingCommand.plan(args) { return pairing }
+        if args.first == "decode-ax-archive" {
+            guard pairingFile == nil, args.count == 2, !args[1].isEmpty else {
+                throw CommandFailure(description: "Usage: decode-ax-archive <local-plist>")
+            }
+            return Self(executable: "/usr/bin/env", arguments: ["appledevices-idevice", "decode-ax-archive", args[1]], jsonOutput: true)
+        }
         guard args.first == "physical" || args.first == "simulator" else { return nil }
         guard args.count >= 3 else {
             throw CommandFailure(description: "Expected <physical|simulator> <device> <operation>. See --help.")

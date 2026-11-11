@@ -80,7 +80,7 @@ Simulator input uses [AXe](https://github.com/cameroncooke/AXe), by Cameron Cook
 
 ## Experimental accessibility snapshots
 
-`physical <UDID> ax-snapshot` uses the protocol bridge and accepts the same optional `--pairing-file` prefix. It captures the first matching remote-accessibility callback archive as base64 JSON. It does not decode a physical UI hierarchy. The request lifecycle and payload meaning remain unverified on hardware; see [protocol evidence](ACCESSIBILITY-PROTOCOL.md).
+`physical <UDID> ax-snapshot [new-local-archive.plist]` uses the protocol bridge and accepts the same optional `--pairing-file` prefix. It captures the first matching remote-accessibility callback archive as base64 JSON, or saves it privately and returns file metadata. Callback acquisition and correlated disable were verified over USB on the iPhone 13 mini. `decode-ax-archive <local-plist>` performs bounded, data-only structural decoding through the bridge without connecting to a device. Numeric attribute meanings and a normalized physical hierarchy remain unfinished; see [protocol evidence](ACCESSIBILITY-PROTOCOL.md).
 
 
 ## Xcode app/data operations

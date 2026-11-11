@@ -95,8 +95,14 @@ actor CommandService {
             }, build: { try runner.build($0, log: $1) }))
         }
         if let command = try DeviceCommand.parse(args) {
-            if dryRun { return try json(["executable": command.executable, "arguments": command.arguments]) }
             let targetArgs = args.first == "--pairing-file" ? Array(args.dropFirst(2)) : args
+            let archivePath = targetArgs.count == 4 && targetArgs[0] == "physical" && targetArgs[2] == "ax-snapshot" ? targetArgs[3] : nil
+            if dryRun {
+                var plan: [String: Any] = ["executable": command.executable, "arguments": command.arguments]
+                if let archivePath { plan["archiveDestination"] = archivePath }
+                return try json(plan)
+            }
+            if let archivePath { try AccessibilityArchive.validateDestination(archivePath) }
             if targetArgs.count >= 3, targetArgs[0] == "physical",
                ["tap", "multi-tap", "multi-drag", "pinch", "drag", "swipe", "button", "key", "type", "hid-info", "ax-snapshot", "launch", "terminate", "processes", "open-url", "screenshot"].contains(targetArgs[2]) {
                 try preflight(targetArgs[1], operation: targetArgs[2])
@@ -106,6 +112,7 @@ actor CommandService {
             }
             let data = try runner.run(command.arguments, executable: command.executable, interactive: command.interactive)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
+            if let archivePath { return CommandOutput(data: try AccessibilityArchive.save(data, to: archivePath)) }
             if command.actionReceipt {
                 FileHandle.standardError.write(data)
                 return try json(["status": "dispatched", "backend": "axe", "verified": false])

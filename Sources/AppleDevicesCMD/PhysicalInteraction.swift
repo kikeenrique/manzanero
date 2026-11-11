@@ -24,8 +24,13 @@ enum PhysicalInteraction {
                 throw CommandFailure(description: "Physical typing requires 1...512 printable US-layout ASCII characters, tab, or LF newline.")
             }
             arguments = [operation, operands[0]]
-        case "hid-info", "ax-snapshot":
+        case "hid-info":
             try require(0)
+            arguments = [operation]
+        case "ax-snapshot":
+            guard operands.count <= 1, operands.first.map({ !$0.isEmpty && !$0.hasPrefix("-") && $0.lowercased().hasSuffix(".plist") }) ?? true else {
+                throw CommandFailure(description: "Usage: ax-snapshot [new-local-archive.plist]")
+            }
             arguments = [operation]
         case "logs":
             guard (1...2).contains(operands.count), let seconds = UInt32(operands[0]), (1...30).contains(seconds) else {

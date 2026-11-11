@@ -16,6 +16,12 @@ extends = "swift"
 description = "Run Swift tests through xcsift"
 run = "swift test --cache-path tmp/swift-cache 2>&1 | xcsift -f toon"
 
+[tasks.cli]
+dir = "{{ config_root }}"
+description = "Run the built Swift CLI with the local physical bridge on PATH"
+env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
+run = ".build/debug/appledevicescmd"
+
 [tasks."test:mcp-live"]
 extends = "swift"
 description = "Verify MCP stdio tools against a selected booted simulator"

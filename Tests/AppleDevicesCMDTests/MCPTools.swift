@@ -113,6 +113,7 @@ struct MCPToolsTests {
             #expect(tools.contains { $0.name == "get_ui_tree" })
             #expect(tools.contains { $0.name == "multi_drag" })
             #expect(tools.contains { $0.name == "pinch" })
+            #expect(tools.contains { $0.name == "decode_accessibility_archive" })
             let (_, failed) = try await client.callTool(name: "tap", arguments: ["platform": "physical", "device": "fixture", "x": 2, "y": 0])
             #expect(failed == true)
         } catch {

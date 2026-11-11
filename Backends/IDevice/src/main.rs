@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 mod accessibility;
+mod archive;
 mod gesture;
 mod logs;
 mod pairing;
@@ -223,6 +224,12 @@ async fn execute(
 }
 
 async fn run(args: &[String]) -> Result<Value, String> {
+    if args.first().is_some_and(|a| a == "decode-ax-archive") {
+        if args.len() != 2 {
+            return Err("Expected decode-ax-archive LOCAL-PLIST".into());
+        }
+        return archive::decode_file(std::path::Path::new(&args[1]));
+    }
     if args.first().is_some_and(|a| a == "pair-wifi") {
         if args.len() != 4 {
             return Err("Expected pair-wifi HOST PORT DESTINATION".into());

@@ -24,8 +24,23 @@ Frames are checked for the DTX magic, 32-byte header, bounded fragment count/siz
 
 The JSON result identifies `format: nskeyedarchive-base64`, contains `archive`, and explicitly sets `parsedHierarchy: false` and `experimental: true`. It is a raw observation artifact, not stable element references, labels, or a selector-targetable physical hierarchy. Keep saved results under ignored `tmp/`; they may contain device UI data.
 
+## Saving and inspecting a callback
+
+```sh
+mise run build
+# The optional bridge must also have been built with mise run idevice:build.
+mise run cli physical <UDID> ax-snapshot tmp/accessibility.plist
+mise run cli decode-ax-archive tmp/accessibility.plist
+```
+
+The optional `.plist` destination saves the original archive bytes with mode 0600 and returns `archivePath`/`archiveBytes` instead of base64. The parent directory must exist. Existing files and symlinks are refused using exclusive creation; write failure removes the newly created partial file. Destination validation occurs before the device query. Exclusive creation also prevents replacement if another process creates the destination during capture. Without a destination, the existing base64 result remains available. MCP `get_accessibility_archive` accepts the same optional `path`.
+
+`decode-ax-archive` and MCP `decode_accessibility_archive` inspect a local file through the optional bridge, without connecting to a device. This is data-only property-list decoding: it does not instantiate archived Objective-C classes. Known Foundation collection/string/data wrappers are resolved; unknown classes retain `className` and `fields`. Numeric dictionary keys become JSON keys. Nested archive data is decoded, while opaque non-archive data is represented by byte count. Attributed strings and NSValue fields remain structural objects rather than inferred UI properties.
+
+Limits are 16 MiB of input per archive, four archives total, recursion depth 64, 100,000 expanded values, and 32 MiB of expanded strings/keys/class names. Cycles, dangling references, invalid classes, mismatched dictionary arrays, duplicate decoded keys, and non-finite numbers are rejected. These limits bound the custom expansion stage; they are not an audit of the upstream plist parser's allocations. Output retains `parsedHierarchy: false`. It does not identify stable elements, assign meanings to numeric accessibility attributes, or supply selector taps.
+
 ## Verification and remaining work
 
-Synthetic in-memory DTX tests cover framing failures, fragments, callback filtering, acknowledgements, and correlated cleanup. No captured device fixture or live snapshot has validated this implementation. A real callback may require additional startup messages, contain a non-tree event, or use an unsupported archive shape.
+Synthetic in-memory DTX tests cover framing failures, fragments, callback filtering, acknowledgements, and correlated cleanup. A live iPhone 13 mini USB query now completed callback capture and the correlated disable exchange. A subsequent Swift CLI query saved a 7,555-byte archive under ignored `tmp/`; offline decoding found two nested archives, an `AXPTranslatorResponse`, and 27 `treeDump` responses. These are response records, not a count of UI elements. The payload includes numeric attributes, translation-object identities, and Foundation wrappers. No private device data is committed as a fixture.
 
-Next evidence needed: a device-authorized session, a captured callback, its request/result schema, and verified disable behavior. Only then can a parsed hierarchy, generation handling, and stable reference lifetime be claimed. The current probe does not complete physical accessibility parity.
+Next evidence needed: independently verified numeric attribute meanings, initial-versus-update dump semantics, relationships, and comparison with a known visible screen. Generation handling, stable reference lifetime, physical selectors, and normalized hierarchy output remain unimplemented. A different device state may produce a non-tree event or an unsupported archive shape. The current probe and structural decoder do not complete physical accessibility parity.
