@@ -27,6 +27,9 @@ struct DeviceCommand {
         if !physical, let command = try SimulatorInteraction.plan(device: device, operation: operation, operands: operands) {
             return command
         }
+        if physical, let command = try PhysicalInteraction.plan(device: device, operation: operation, operands: operands) {
+            return command
+        }
         let command: [String]
         if physical {
             switch operation {

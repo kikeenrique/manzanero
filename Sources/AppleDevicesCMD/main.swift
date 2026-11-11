@@ -12,6 +12,14 @@ Usage:
   appledevicescmd physical <device> <launch|uninstall> <bundle-id>
   appledevicescmd physical <device> install <app-path>
   appledevicescmd physical <device> screenshot <output.png>
+  appledevicescmd physical <UDID> hid-info
+  appledevicescmd physical <UDID> tap <x> <y>
+  appledevicescmd physical <UDID> multi-tap <x1> <y1> <x2> <y2> [<x3> <y3> ...]
+  appledevicescmd physical <UDID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
+  appledevicescmd physical <UDID> button <home|lock|volume-up|volume-down>
+  appledevicescmd physical <UDID> key <return|escape|backspace|tab|space|up|down|left|right>
+  Physical input requires the optional appledevices-idevice bridge on PATH.
+  Physical coordinates are normalized 0...1, with the origin at the top left.
   appledevicescmd simulator <device> <apps|boot|shutdown>
   appledevicescmd simulator <device> <launch|terminate|uninstall> <bundle-id>
   appledevicescmd simulator <device> install <app-path>
@@ -28,7 +36,7 @@ Usage:
   appledevicescmd --help
   appledevicescmd --version
 
-Physical HID/accessibility, streaming, and MCP are tracked in docs/ROADMAP.md.
+Physical input is experimental; accessibility, streaming, and MCP are tracked in docs/ROADMAP.md.
 Physical commands return devicectl JSON; simulator commands return simctl output.
 Temporary command output is created beneath ./tmp and removed after each command.
 """

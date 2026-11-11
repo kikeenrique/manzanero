@@ -1,6 +1,6 @@
 # appledevicescmd
 
-A Swift command-line project for Apple device control and agent integration. See [the investigation](docs/ANALYSIS.md) and [implementation roadmap](docs/ROADMAP.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
+A Swift command-line project for Apple device control and agent integration. See [the investigation](docs/ANALYSIS.md) and [implementation roadmap](docs/ROADMAP.md). See [backend dependencies and build instructions](docs/DEPENDENCIES.md) and [verification records](docs/VERIFICATION.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
 Requires Swift 6.2 or later and Xcode. Current commands:
 
@@ -46,4 +46,18 @@ appledevicescmd simulator <UDID> button home
 
 These operations require an explicit simulator UUID, not `booted`. Tree output preserves AXe's JSON hierarchy, including identifiers, labels, roles, and frames. Coordinates are interface points. Input returns `{"backend":"axe","status":"dispatched","verified":false}`; backend messages go to stderr. Confirm app behavior with a subsequent tree or screenshot. AXe typing supports US keyboard text, tab, and newline. Platform-specific input restrictions are enforced by AXe.
 
-See [verification records](docs/VERIFICATION.md) for the tested environment and exact coverage. Physical input, multitouch, streaming, and MCP remain outstanding.
+See [verification records](docs/VERIFICATION.md) for the tested environment and exact coverage. Physical input now has an optional idevice bridge; live physical behavior, moving multitouch gestures, streaming capture, and MCP remain outstanding.
+
+
+Physical HID is experimental and uses a source-built `idevice` dependency pinned by revision and lockfile. See [build instructions and connection limits](docs/DEPENDENCIES.md). With `appledevices-idevice` on PATH:
+
+```sh
+appledevicescmd physical <UDID> hid-info
+appledevicescmd physical <UDID> tap 0.5 0.5
+appledevicescmd physical <UDID> multi-tap 0.25 0.5 0.75 0.5
+appledevicescmd physical <UDID> drag 0.5 0.8 0.5 0.2 0.6
+appledevicescmd physical <UDID> button home
+appledevicescmd physical <UDID> key return
+```
+
+Physical touch coordinates are normalized 0...1; simulator coordinates are interface points. The bridge requires the target UDID to be available through usbmuxd; CoreDevice-only Wi-Fi discovery is not sufficient. These physical input operations have passed build and parser tests but have **not** passed live-device verification. The attempted HID discovery returned device-not-found through usbmuxd. Successful input receipts indicate dispatch, not a verified app outcome.

@@ -1,0 +1,54 @@
+import Foundation
+
+/// Optional idevice bridge; private protocols stay outside the Swift command surface.
+enum PhysicalInteraction {
+    static func plan(device: String, operation: String, operands: [String]) throws -> DeviceCommand? {
+        guard ["hid-info", "tap", "multi-tap", "drag", "swipe", "button", "key"].contains(operation) else { return nil }
+        func require(_ count: Int) throws {
+            guard operands.count == count else {
+                throw CommandFailure(description: "\(operation) expects \(count) operands. See --help.")
+            }
+        }
+        func coordinate(_ value: String) throws -> String {
+            guard let number = Double(value), number.isFinite, (0...1).contains(number) else {
+                throw CommandFailure(description: "Physical input coordinates must be normalized numbers from 0 to 1.")
+            }
+            return String(Int((number * 65535).rounded()))
+        }
+        let arguments: [String]
+        switch operation {
+        case "hid-info":
+            try require(0)
+            arguments = [operation]
+        case "tap":
+            try require(2)
+            arguments = [operation] + (try operands.map(coordinate))
+        case "multi-tap":
+            guard (4...10).contains(operands.count), operands.count.isMultiple(of: 2) else {
+                throw CommandFailure(description: "multi-tap expects two to five pairs of normalized coordinates.")
+            }
+            arguments = [operation] + (try operands.map(coordinate))
+        case "drag", "swipe":
+            try require(5)
+            guard let duration = Double(operands[4]), duration.isFinite, (0.03...10).contains(duration) else {
+                throw CommandFailure(description: "Physical drag/swipe duration must be 0.03...10 seconds.")
+            }
+            arguments = ["drag"] + (try operands.prefix(4).map(coordinate)) + [String(Int((duration * 1000).rounded()))]
+        case "button":
+            try require(1)
+            guard ["home", "lock", "volume-up", "volume-down"].contains(operands[0]) else {
+                throw CommandFailure(description: "Supported physical buttons: home, lock, volume-up, volume-down.")
+            }
+            arguments = [operation, operands[0]]
+        case "key":
+            try require(1)
+            guard ["return", "escape", "backspace", "tab", "space", "up", "down", "left", "right"].contains(operands[0]) else {
+                throw CommandFailure(description: "Unknown physical keyboard key. See --help.")
+            }
+            arguments = [operation, operands[0]]
+        default:
+            return nil
+        }
+        return DeviceCommand(executable: "/usr/bin/env", arguments: ["appledevices-idevice", device] + arguments, jsonOutput: true)
+    }
+}

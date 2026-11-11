@@ -12,3 +12,15 @@ Environment: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Apple Swift 6.4.2, AXe 1
 - Physical-device input/accessibility, multitouch, streaming, and MCP are not implemented by this backend.
 
 Installed `axe <command> --help` was checked for every wrapped command. Installed `devicectl help` confirms stdout JSON support via `--json-output -`. AXe attribution and installation link are in the root README; no third-party binaries or source are redistributed by this change.
+
+
+## 2026-11-11 — pinned idevice dependency and physical HID bridge
+
+Environment remains macOS 27.2.1, Xcode 27.2, Apple Swift 6.4.2; bridge built with Rust 1.99.1 (58cf8f9c3). Upstream idevice revision: `89702099f4d7552f704f93b4526756abda319ceb`, version 0.1.68.
+
+- Swift tests through xcsift passed: nine test functions with zero warnings/errors, including ten additional invalid physical-input cases. New checks cover normalized endpoint/midpoint conversion, seconds-to-milliseconds conversion, simultaneous-contact counts, nonfinite/out-of-range coordinates, unsupported buttons/keys, and argument arity.
+- Rust bridge build and two unit tests passed. Rust parser tests reject malformed coordinates, durations, multitouch pairs, and keys before connecting to any device. The committed Cargo lockfile was used for the offline repeat build.
+- `python3 scripts/build-idevice.py --debug --offline` successfully built the optional helper into `tmp/bin` using the declared Git dependency. The development clone is not used by this build.
+- A live read-only `hid-info` check targeted the physical iPhone discoverable through CoreDevice. It returned JSON error `Device not available through usbmuxd: device not found` with exit code 1 and no success payload. No touch, keyboard, or button input was sent. This provides failure-path evidence, not live HID functionality.
+- Current connection support is an in-process CoreDeviceProxy tunnel from usbmuxd. Apple's separately paired CoreDevice-only Wi-Fi path is still missing.
+- Audio/video stream negotiation, stream ownership detection, input dispatch, and cleanup are compiled but have not been verified on a physical device. The metadata and feature-mask values come from the pinned library's upstream example. The bridge checks for a reported active `streamConfig` before starting; simultaneous-controller behavior and cancellation cleanup remain unverified.
