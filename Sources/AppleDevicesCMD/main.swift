@@ -26,6 +26,9 @@ Usage:
   appledevicescmd physical <device> <launch|uninstall> <bundle-id>
   appledevicescmd physical <device> install <app-path>
   appledevicescmd physical <device> screenshot <output.png>
+  appledevicescmd <physical|simulator> <UDID> build-run <project.xcodeproj|workspace.xcworkspace> <scheme>
+      [--configuration <name>] [--app-target <name>]
+  Build & Run targets iOS, defaults to Debug, and requires xcsift on PATH.
   appledevicescmd physical <UDID> hid-info
   appledevicescmd physical <UDID> ax-snapshot  Experimental raw accessibility archive
   appledevicescmd physical <UDID> tap <x> <y>
@@ -63,6 +66,24 @@ do {
     let runner = ToolRunner()
     let dryRun = args.first == "--dry-run"
     if dryRun { args.removeFirst() }
+    if let command = try BuildRunCommand.parse(args) {
+        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("tmp/build-run-\(UUID().uuidString)")
+        let result: Data
+        if dryRun {
+            result = try JSONSerialization.data(withJSONObject: ["executable": "/usr/bin/xcrun",
+                "buildSettingsArguments": command.xcodeArguments(directory: directory) + ["-showBuildSettings", "-json"],
+                "buildArguments": command.xcodeArguments(directory: directory) + ["build"],
+                "deployment": "After a successful build, resolve the application from build settings, install it, and launch its bundle identifier."], options: [.prettyPrinted, .sortedKeys])
+        } else {
+            result = try command.execute(directory: directory, run: {
+                try runner.run($0.arguments, executable: $0.executable)
+            }, build: { try runner.build($0, log: $1) })
+        }
+        FileHandle.standardOutput.write(result)
+        print()
+        exit(0)
+    }
     if let command = try DeviceCommand.parse(args) {
         if dryRun {
             FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject: ["executable": command.executable, "arguments": command.arguments], options: [.prettyPrinted, .sortedKeys]))

@@ -63,6 +63,15 @@ These physical commands return devicectl JSON. Simulator app/lifecycle/screensho
 
 Physical command planning and screenshot flags were checked against Xcode 27.2. The CLI details query is verified on a physical phone, and direct devicectl copies round-tripped a synthetic fixture in a tool-owned temporary domain. App-container listing/copies, termination, URL opening, and capture are not yet verified live.
 
+## Build and run from source
+
+```sh
+appledevicescmd simulator <UDID> build-run 'My App.xcodeproj' 'My App'
+appledevicescmd physical <UDID> build-run 'My App.xcworkspace' 'My App' --configuration Release
+```
+
+Build & Run requires an explicit iOS target, a scheme, and xcsift on PATH. Configuration defaults to Debug; `--app-target` selects one app in a multi-app scheme. It builds, checks the app's metadata, installs it, and restarts it. JSON results go to stdout and build diagnostics to stderr; artifacts/logs stay under `tmp/`. Simulator project and workspace flows are verified; physical signing/deployment is not. See [Build & Run behavior and limits](docs/BUILD-RUN.md).
+
 ## Reports and diagnostic logs
 
 List saved reports or download a selected relative path through Xcode:
@@ -135,4 +144,4 @@ Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discove
 
 `appledevicescmd ocr <image-path>` uses macOS Vision and returns JSON text, confidence, and bounds normalized to 0...1 with the origin at the top left. It is a standalone image command; automatic screenshot/OCR fallback is not implemented. The initial runtime fixture check failed with `Failed to create CVPixelBuffer`; the cause and recognition accuracy remain unverified.
 
-Recording, user-facing streaming sessions, physical text entry and parsed accessibility, Xcode-format container export/replacement, complete saved-report management, settings controls, Build & Run, handoff, and MCP remain outstanding. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.
+Recording, user-facing streaming sessions, physical text entry and parsed accessibility, Xcode-format container export/replacement, complete saved-report management, settings controls, handoff, and MCP remain outstanding. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.

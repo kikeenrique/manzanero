@@ -48,3 +48,5 @@ Validation for this second pass: source/document comparison, vendor-page checks,
 ### Subsequent implementation follow-up
 
 The missing log module was implemented after this review. The report/log verification entry in [VERIFICATION.md](VERIFICATION.md) records fresh Swift/Rust tests and bridge builds, plus live CLI report listing. The high-priority draft-build finding above is resolved by that work. Report downloads and live OS-log capture remain unverified; saved-report parity remains incomplete.
+
+Build & Run was subsequently added with explicit scheme selection and verified project/Debug and workspace/Release simulator flows. The historical missing-feature references above do not describe that later implementation; see its [contract and remaining limits](BUILD-RUN.md) and verification entry. Physical deployment remains unverified.
