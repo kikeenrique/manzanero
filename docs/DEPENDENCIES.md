@@ -81,6 +81,8 @@ Simulator input uses [AXe](https://github.com/cameroncooke/AXe), by Cameron Cook
 
 ## Xcode app/data operations
 
+Finite recording also uses the selected Xcode: simctl's first-frame readiness message and SIGINT finalization for simulators; devicectl's `screen-record --duration` for physical devices. AVFoundation validates a staged movie before it is published. Tool help and device capability are distinct; native physical recording has not been demonstrated. See [recording notes](RECORDING.md).
+
 Physical `details`, `processes`, `terminate`, `open-url`, `files`, `pull`, and `push` delegate to the selected Xcode's devicectl. Installed Xcode 27.2 help was checked for these contracts. Termination uses SIGTERM by PID; the CLI does not request `--kill`. URL opening uses `device process openURL`.
 
 File operations specify `appDataContainer` and the caller's bundle identifier. Listing uses `--no-recurse`; copy directions and source/destination operands are explicit. The upload command sets `--remove-existing-content false`, preserving unrelated files, but does not promise no overwrites of conflicts. Device paths are container-relative; host paths are interpreted by devicectl from the CLI's working directory. `.xcappdata` packaging and whole-container replacement are separate missing features.

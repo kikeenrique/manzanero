@@ -11,6 +11,17 @@ actor CommandService {
     private let runner = ToolRunner()
 
     func execute(_ args: [String], dryRun: Bool = false, allowInteractive: Bool = false) async throws -> CommandOutput {
+        if let recording = try RecordingCommand.parse(args) {
+            let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("tmp/recording-\(UUID().uuidString)")
+            if dryRun {
+                let plan = recording.command(staging: directory.appendingPathComponent("capture.mp4"))
+                return try json(["executable": plan.executable, "arguments": plan.arguments,
+                    "destination": recording.destination.path, "durationSeconds": recording.seconds,
+                    "stopPolicy": recording.physical ? "devicectl --duration" : "Wait for first frame, then SIGINT after duration; wait for finalization."])
+            }
+            return CommandOutput(data: try await recording.execute(directory: directory, runner: runner))
+        }
         if let command = try BuildRunCommand.parse(args) {
             let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("tmp/build-run-\(UUID().uuidString)")

@@ -27,6 +27,8 @@ Usage:
   appledevicescmd physical <device> <launch|uninstall> <bundle-id>
   appledevicescmd physical <device> install <app-path>
   appledevicescmd physical <device> screenshot <output.png>
+  appledevicescmd <physical|simulator> <device> record <output.mp4> <seconds: 1...300> [h264|hevc]
+  Recording refuses an existing destination; its parent directory must exist.
   appledevicescmd <physical|simulator> <UDID> build-run <project.xcodeproj|workspace.xcworkspace> <scheme>
       [--configuration <name>] [--app-target <name>]
   Build & Run targets iOS, defaults to Debug, and requires xcsift on PATH.

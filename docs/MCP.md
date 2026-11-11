@@ -19,13 +19,14 @@ This is a configuration example, not an installation into a particular host. Hos
 
 ## Tools
 
-The 21 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
+The 22 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
 
 | Tools | Operations |
 | --- | --- |
 | `list_devices`, `doctor`, `inspect_device` | Discovery, tool checks, apps, physical details/processes/HID information |
 | `get_ui_tree`, `get_accessibility_archive`, `ocr_image` | AXe simulator hierarchy, experimental raw physical archive, standalone Vision OCR |
 | `screenshot` | Capture a PNG to a host path; inline MCP image content up to 8 MiB |
+| `record_screen` | [Finite screen recording](RECORDING.md) to a new host MP4, with decoded-artifact metadata |
 | `tap`, `tap_element`, `drag`, `multi_tap`, `type_text`, `press_button`, `press_key` | Existing simulator/physical input operations, with their backend limits |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report`, `capture_logs` | Saved physical reports and experimental finite OS trace |
@@ -53,4 +54,4 @@ SwiftPM declares the official [Swift SDK](https://github.com/modelcontextprotoco
 
 Wire handling follows the SDK's strict initialization, the [stdio specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), and the [tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools). HTTP/authentication, resources/prompts, human handoff, progress, and process cancellation coordination are absent. Cancellation or client closure does not promise immediate termination or rollback of an external tool. Backend deadlines and all device-verification limits still apply.
 
-The opt-in check `mise run test:mcp-live <booted-simulator-UUID>` launches the real server for initialization, discovery, invalid input, simulator inventory/tree reads, PNG capture, and EOF shutdown. Artifacts stay under `tmp/`. It does not send physical input or establish physical backend support. See [verification records](VERIFICATION.md).
+The opt-in check `mise run test:mcp-live <booted-simulator-UUID>` launches the real server for initialization, discovery, invalid input, simulator inventory/tree reads, PNG capture, a short video recording, and EOF shutdown. Artifacts stay under `tmp/`. It does not send physical input or establish physical backend support. See [verification records](VERIFICATION.md).
