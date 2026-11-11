@@ -3,7 +3,7 @@ import Foundation
 /// Optional idevice bridge; private protocols stay outside the Swift command surface.
 enum PhysicalInteraction {
     static func plan(device: String, operation: String, operands: [String]) throws -> DeviceCommand? {
-        guard ["hid-info", "ax-snapshot", "logs", "tap", "multi-tap", "drag", "swipe", "button", "key", "type"].contains(operation) else { return nil }
+        guard ["hid-info", "ax-snapshot", "logs", "tap", "multi-tap", "multi-drag", "pinch", "drag", "swipe", "button", "key", "type"].contains(operation) else { return nil }
         func require(_ count: Int) throws {
             guard operands.count == count else {
                 throw CommandFailure(description: "\(operation) expects \(count) operands. See --help.")
@@ -53,6 +53,28 @@ enum PhysicalInteraction {
                 throw CommandFailure(description: "Physical drag/swipe duration must be 0.03...10 seconds.")
             }
             arguments = ["drag"] + (try operands.prefix(4).map(coordinate)) + [String(Int((duration * 1000).rounded()))]
+        case "multi-drag":
+            guard (9...21).contains(operands.count), (operands.count - 1).isMultiple(of: 4),
+                  let duration = Double(operands[0]), duration.isFinite, (0.03...10).contains(duration) else {
+                throw CommandFailure(description: "Usage: multi-drag <seconds: 0.03...10> <start-x> <start-y> <end-x> <end-y> ... (two to five contact paths)")
+            }
+            arguments = [operation, String(Int((duration * 1000).rounded()))] + (try operands.dropFirst().map(coordinate))
+        case "pinch":
+            try require(5)
+            let values = try operands.map { value -> Double in
+                guard let number = Double(value), number.isFinite else { throw CommandFailure(description: "Pinch operands must be finite numbers.") }
+                return number
+            }
+            let (cx, cy, start, end, duration) = (values[0], values[1], values[2], values[3], values[4])
+            guard start > 0, end > 0, start != end, (0.03...10).contains(duration) else {
+                throw CommandFailure(description: "Pinch requires different positive start/end spans and 0.03...10 seconds. Spans are fractions of screen width.")
+            }
+            let points = [cx - start / 2, cy, cx - end / 2, cy, cx + start / 2, cy, cx + end / 2, cy]
+            let converted = try points.map { try coordinate(String($0)) }
+            guard converted[0] != converted[4], converted[2] != converted[6], converted[0] != converted[2], converted[4] != converted[6] else {
+                throw CommandFailure(description: "Pinch spans must remain distinct after 16-bit coordinate conversion.")
+            }
+            arguments = ["multi-drag", String(Int((duration * 1000).rounded()))] + converted
         case "button":
             try require(1)
             guard ["home", "lock", "volume-up", "volume-down"].contains(operands[0]) else {

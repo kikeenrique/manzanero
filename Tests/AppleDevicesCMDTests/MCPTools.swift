@@ -4,6 +4,17 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct MCPToolsTests {
+    @Test func multitouchToolsUseTheSharedPhysicalPlanner() throws {
+        let pinch = try #require(MCPTools.definitions.first { $0.name == "pinch" })
+        let args = try pinch.command(["device": "fixture", "center_x": 0.5, "center_y": 0.5, "start_span": 1, "end_span": 0.5, "seconds": 1])
+        let planned = try #require(try DeviceCommand.parse(args))
+        #expect(planned.arguments[2] == "multi-drag")
+        #expect(planned.arguments[3] == "1000")
+        let multi = try #require(MCPTools.definitions.first { $0.name == "multi_drag" })
+        let multiArgs = try multi.command(["device": "fixture", "paths": [0, 0, 1, 1, 1, 1, 0, 0], "seconds": 1, "pairing_file": "tmp/fixture.pairing.plist"])
+        let multiPlan = try #require(try DeviceCommand.parse(multiArgs))
+        #expect(multiPlan.arguments == ["appledevices-idevice", "--pairing-file", "tmp/fixture.pairing.plist", "fixture", "multi-drag", "1000", "0", "0", "65535", "65535", "65535", "65535", "0", "0"])
+    }
     @Test func catalogHasUniqueNamesAndClosedObjectSchemas() throws {
         let definitions = MCPTools.definitions
         #expect(Set(definitions.map(\.name)).count == definitions.count)
@@ -100,6 +111,8 @@ struct MCPToolsTests {
             let (tools, _) = try await client.listTools()
             #expect(tools.contains { $0.name == "build_run" })
             #expect(tools.contains { $0.name == "get_ui_tree" })
+            #expect(tools.contains { $0.name == "multi_drag" })
+            #expect(tools.contains { $0.name == "pinch" })
             let (_, failed) = try await client.callTool(name: "tap", arguments: ["platform": "physical", "device": "fixture", "x": 2, "y": 0])
             #expect(failed == true)
         } catch {

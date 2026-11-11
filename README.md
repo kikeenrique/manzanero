@@ -141,6 +141,8 @@ With the optional `appledevices-idevice` bridge on PATH:
 appledevicescmd physical <UDID> hid-info
 appledevicescmd physical <UDID> tap 0.5 0.5
 appledevicescmd physical <UDID> multi-tap 0.25 0.5 0.75 0.5
+appledevicescmd physical <UDID> pinch 0.5 0.5 0.5 0.8 0.5
+appledevicescmd physical <UDID> multi-drag 0.5 0.25 0.5 0.1 0.5 0.75 0.5 0.9 0.5
 appledevicescmd physical <UDID> drag 0.5 0.8 0.5 0.2 0.6
 appledevicescmd physical <UDID> button home
 appledevicescmd physical <UDID> key return
@@ -148,7 +150,7 @@ appledevicescmd physical <UDID> type 'Hello from appledevicescmd'
 appledevicescmd physical <UDID> ax-snapshot
 ```
 
-Physical touch coordinates are normalized 0...1, unlike simulator interface points. `multi-tap` sends simultaneous contacts and release; moving multitouch gestures are not implemented. Input receipts indicate dispatch only.
+Physical touch coordinates are normalized 0...1, unlike simulator interface points. `multi-tap` sends simultaneous contacts and release. Experimental `multi-drag` moves two to five contacts together; `pinch` generates a horizontal two-contact pinch/spread. Input receipts indicate dispatch only, and hardware gesture effects remain unverified. See [multitouch syntax and cleanup limits](docs/MULTITOUCH.md).
 
 Physical `type` is experimental and accepts 1...512 printable US-layout ASCII characters, tab, and LF newline. It uses an owned virtual keyboard, attempts reset/removal after dispatch, and requires the phone's hardware-keyboard layout to match the US mapping. Unicode is unsupported; layout, Caps Lock, and actual entered text remain unverified on hardware. See [physical typing details](docs/PHYSICAL-TYPING.md).
 

@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 mod accessibility;
+mod gesture;
 mod logs;
 mod pairing;
 mod stream;
@@ -21,6 +22,7 @@ enum Action {
     AccessibilitySnapshot,
     Tap(u16, u16),
     MultiTap(Vec<(u16, u16)>),
+    MultiDrag(gesture::Gesture),
     Drag(u16, u16, u16, u16, u64),
     Button(u64, u64),
     Key(u64),
@@ -65,6 +67,7 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
                 .collect::<Result<Vec<_>, String>>()?;
             Action::MultiTap(points)
         }
+        "multi-drag" => Action::MultiDrag(gesture::parse(values)?),
         "drag" if values.len() == 5 => {
             let ms: u64 = values[4].parse().map_err(|_| "Invalid drag duration")?;
             if !(30..=10000).contains(&ms) {
@@ -193,6 +196,10 @@ async fn execute(
                 match action {
                     Action::Tap(x, y) => hid.tap(x, y).await,
                     Action::MultiTap(points) => hid.multi_tap(&points).await,
+                    Action::MultiDrag(ref gesture) => {
+                        gesture::dispatch(&mut hid, gesture).await?;
+                        return Ok(());
+                    }
                     Action::Drag(x1, y1, x2, y2, ms) => hid.drag(x1, y1, x2, y2, 30, ms / 30).await,
                     _ => unreachable!(),
                 }
@@ -300,5 +307,23 @@ mod tests {
             .1,
             Action::MultiTap(vec![(0, 65535), (32768, 32768)])
         );
+        assert!(matches!(
+            parse(&args(&[
+                "test",
+                "multi-drag",
+                "30",
+                "0",
+                "0",
+                "65535",
+                "65535",
+                "65535",
+                "65535",
+                "0",
+                "0"
+            ]))
+            .unwrap()
+            .1,
+            Action::MultiDrag(_)
+        ));
     }
 }

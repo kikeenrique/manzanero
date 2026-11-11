@@ -19,7 +19,7 @@ This is a configuration example, not an installation into a particular host. Hos
 
 ## Tools
 
-The 25 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
+The 27 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
 
 | Tools | Operations |
 | --- | --- |
@@ -31,6 +31,7 @@ The 25 tools have object schemas with required fields, enumerated operations whe
 | `get_screen` | [Capture and inspect](SCREEN-UNDERSTANDING.md), preferring simulator accessibility with OCR fallback and an explicit image-only result if automatic analysis fails |
 | `record_screen` | [Finite screen recording](RECORDING.md) to a new host MP4, with decoded-artifact metadata |
 | `tap`, `tap_element`, `drag`, `multi_tap`, `type_text`, `press_button`, `press_key` | Existing simulator/physical input operations, with their backend limits |
+| `multi_drag`, `pinch` | [Experimental physical moving multitouch](MULTITOUCH.md), with two to five coordinated linear paths or a horizontal pinch/spread |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report`, `capture_logs` | Saved physical reports and experimental finite OS trace |
 | `build_run` | The existing [Xcode build/install/restart workflow](BUILD-RUN.md) |

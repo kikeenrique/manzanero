@@ -41,6 +41,8 @@ Usage:
   appledevicescmd physical <UDID> ax-snapshot  Experimental raw accessibility archive
   appledevicescmd physical <UDID> tap <x> <y>
   appledevicescmd physical <UDID> multi-tap <x1> <y1> <x2> <y2> [<x3> <y3> ...]
+  appledevicescmd physical <UDID> multi-drag <seconds> <start-x> <start-y> <end-x> <end-y> ... (2...5 paths)
+  appledevicescmd physical <UDID> pinch <center-x> <center-y> <start-span> <end-span> <seconds>
   appledevicescmd physical <UDID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
   appledevicescmd physical <UDID> button <home|lock|volume-up|volume-down>
   appledevicescmd physical <UDID> key <return|escape|backspace|tab|space|up|down|left|right>

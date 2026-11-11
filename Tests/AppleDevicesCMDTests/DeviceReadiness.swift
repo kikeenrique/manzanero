@@ -83,6 +83,14 @@ struct DeviceReadinessTests {
         } catch {
             #expect(String(describing: error).contains("Developer Mode is disabled"))
         }
+        for operands in [["pinch", "0.5", "0.5", "0.5", "1", "1"], ["multi-drag", "1", "0", "0", "1", "1", "1", "1", "0", "0"]] {
+            do {
+                _ = try await service.execute(["physical", "fixture"] + operands)
+                Issue.record("Disabled device reached moving multitouch")
+            } catch {
+                #expect(String(describing: error).contains("Developer Mode is disabled"))
+            }
+        }
     }
 
     @Test func mcpReadinessPreservesActionableBlockedState() async throws {

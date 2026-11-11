@@ -106,6 +106,15 @@ enum MCPTools {
             }
             return $0.deviceCommand(["multi-tap"] + numbers, platform: "physical")
         },
+        .init(name: "multi_drag", description: "Experimental physical coordinated movement of two to five contacts along straight paths. Normalized top-left coordinates; duration 0.03...10 seconds. Preserves contact identities and attempts release after dispatch/failure. Hardware effects unverified.", fields: [device, .init(name: "paths", kind: .array, description: "Flat array [startX,startY,endX,endY,...], 8...20 numbers, four per contact."), .init(name: "seconds", kind: .number), pairing]) {
+            let paths = ($0["paths"]?.arrayValue ?? []).map { value -> String in
+                if case .int(let n) = value { return String(n) }; if case .double(let n) = value { return String(n) }; return ""
+            }
+            return $0.deviceCommand(["multi-drag", $0.number("seconds")] + paths, platform: "physical")
+        },
+        .init(name: "pinch", description: "Experimental physical horizontal two-contact pinch/spread around a normalized center. Positive start/end spans are fractions of screen width and both endpoints must fit the screen. Smaller end span pinches inward; larger spreads outward. Duration 0.03...10 seconds. Dispatch does not prove zoom; hardware effects unverified.", fields: [device, .init(name: "center_x", kind: .number), .init(name: "center_y", kind: .number), .init(name: "start_span", kind: .number), .init(name: "end_span", kind: .number), .init(name: "seconds", kind: .number), pairing]) {
+            $0.deviceCommand(["pinch"] + ["center_x", "center_y", "start_span", "end_span", "seconds"].map($0.number), platform: "physical")
+        },
         .init(name: "type_text", description: "Type literal text. Platform defaults to simulator, using AXe's US mapping. Experimental physical typing accepts 1...512 printable US-layout ASCII characters, tab, and LF newline through an owned idevice keyboard. Physical output and layout are unverified; Unicode unsupported. pairing_file applies only to physical.", fields: [device, .init(name: "platform", required: false, choices: ["physical", "simulator"]), .init(name: "text"), pairing]) { $0.deviceCommand(["type", $0.text("text")], platform: $0.text("platform", default: "simulator")) },
         .init(name: "press_button", description: "Press a hardware button. Physical supports home, lock, volume-up, volume-down; simulator uses AXe button names.", fields: [platform, device, .init(name: "button"), pairing]) { $0.deviceCommand(["button", $0.text("button")]) },
         .init(name: "press_key", description: "Send one experimental physical key: return, escape, backspace, tab, space, up, down, left, right.", fields: [device, .init(name: "key", choices: ["return", "escape", "backspace", "tab", "space", "up", "down", "left", "right"]), pairing]) { $0.deviceCommand(["key", $0.text("key")], platform: "physical") },
@@ -127,7 +136,7 @@ enum MCPTools {
             return args
         },
         .init(name: "simulator_state", description: "Boot or shut down a selected simulator. Shutdown interrupts running apps; no erase or delete operation is exposed.", fields: [device, .init(name: "operation", choices: ["boot", "shutdown"])]) { $0.deviceCommand([$0.text("operation")], platform: "simulator") },
-        .init(name: "ocr_image", description: "Recognize text in a local image using Vision. Normalized top-left bounds. Initial runtime check failed; recognition accuracy remains unverified.", fields: [.init(name: "path")], readOnly: true) { ["ocr", $0.text("path")] }
+        .init(name: "ocr_image", description: "Recognize text in a local image using Vision. Normalized top-left bounds. Recognition verified on one simulator fixture; broad accuracy remains unverified.", fields: [.init(name: "path")], readOnly: true) { ["ocr", $0.text("path")] }
     ]
 
     static func call(name: String, arguments: [String: Value], execute: @Sendable ([String]) async throws -> CommandOutput) async throws -> CallTool.Result {
