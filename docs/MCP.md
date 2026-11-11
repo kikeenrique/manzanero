@@ -19,7 +19,7 @@ This is a configuration example, not an installation into a particular host. Hos
 
 ## Tools
 
-The 24 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
+The 25 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
 
 | Tools | Operations |
 | --- | --- |
@@ -28,6 +28,7 @@ The 24 tools have object schemas with required fields, enumerated operations whe
 | `request_handoff` | [Explicit human completion request](HANDOFF.md) using a host form, with per-device mutation pause |
 | `get_ui_tree`, `get_accessibility_archive`, `ocr_image` | AXe simulator hierarchy, experimental raw physical archive, standalone Vision OCR |
 | `screenshot` | Capture a PNG to a host path; inline MCP image content up to 8 MiB |
+| `get_screen` | [Capture and inspect](SCREEN-UNDERSTANDING.md), preferring simulator accessibility with OCR fallback and an explicit image-only result if automatic analysis fails |
 | `record_screen` | [Finite screen recording](RECORDING.md) to a new host MP4, with decoded-artifact metadata |
 | `tap`, `tap_element`, `drag`, `multi_tap`, `type_text`, `press_button`, `press_key` | Existing simulator/physical input operations, with their backend limits |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
@@ -40,7 +41,7 @@ Physical touch coordinates are normalized; simulator coordinates are interface p
 
 Tool calls use the same `CommandService`, planners, and backends as the CLI. Device actions are serialized within one server process. OCR and handoff confirmation can suspend, allowing another request during that suspension; handoff explicitly blocks mutations for its pending target. Multiple server/CLI processes are not coordinated.
 
-Results contain text with the CLI output. JSON output is also wrapped under `structuredContent.result`; plain simctl output remains text. A screenshot appends an `image/png` block when the saved PNG is at most 8 MiB. Larger images stay on disk with an omission notice. Other downloaded files are not automatically embedded, parsed, or symbolicated.
+Results contain text with the CLI output. JSON output is also wrapped under `structuredContent.result`; plain simctl output remains text. A screenshot or `get_screen` appends an `image/png` block when the saved PNG is at most 8 MiB. Larger images stay on disk with an omission notice. Other downloaded files are not automatically embedded, parsed, or symbolicated.
 
 Backend/domain validation failures return `isError: true` and diagnostic text. Unknown tools, missing/unknown parameters, and schema type/enum violations return JSON-RPC invalid-parameter errors. An unsuccessful doctor check keeps its structured output and sets `isError: true`. Input and Build & Run receipts retain `verified: false`; follow with a fresh tree, screenshot, or app-specific health check.
 

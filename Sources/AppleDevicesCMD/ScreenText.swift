@@ -1,8 +1,8 @@
 import Foundation
 import Vision
 
-struct ScreenText: Encodable {
-    struct Region: Encodable {
+struct ScreenText: Encodable, Sendable {
+    struct Region: Encodable, Sendable {
         let text: String
         let confidence: Float
         /// Normalized image coordinates, with origin at the top left.

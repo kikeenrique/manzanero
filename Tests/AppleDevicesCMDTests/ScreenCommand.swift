@@ -1,0 +1,138 @@
+import Foundation
+import CoreGraphics
+import ImageIO
+import MCP
+import Testing
+@testable import AppleDevicesCMD
+
+struct ScreenCommandTests {
+    let device = "11111111-2222-3333-4444-555555555555"
+    let tree = Data("[{\"role\":\"AXApplication\",\"children\":[{\"role\":\"AXStaticText\",\"AXLabel\":\"Synthetic label\"}]}]".utf8)
+
+    func fixture(_ body: (URL) async throws -> Void) async throws {
+        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/screen-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try await body(directory)
+    }
+
+    func png(_ url: URL) throws {
+        let context = try #require(CGContext(data: nil, width: 40, height: 20, bitsPerComponent: 8, bytesPerRow: 160, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 40, height: 20))
+        let image = try #require(context.makeImage())
+        let destination = try #require(CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, nil)
+        try #require(CGImageDestinationFinalize(destination))
+    }
+
+    func json(_ data: Data) throws -> [String: Any] { try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any]) }
+    static func text(_ path: String) -> ScreenText {
+        ScreenText(source: path, regions: [.init(text: "Synthetic", confidence: 0.9, x: 0.1, y: 0.2, width: 0.3, height: 0.1)])
+    }
+
+    @Test func validatesModesTargetsAndPhysicalTreeLimit() throws {
+        #expect(try ScreenCommand.parse(["simulator", device, "screen"])?.mode == .automatic)
+        for args in [["simulator", "booted", "screen"], ["simulator", device, "screen", "unknown"], ["physical", "fixture", "screen", "tree"]] {
+            #expect(throws: CommandFailure.self) { try ScreenCommand.parse(args) }
+        }
+    }
+
+    @Test func autoPrefersUsefulHierarchyWithoutInvokingOCR() async throws {
+        try await fixture { directory in
+            let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
+            let result = try await screen.execute(directory: directory, run: { plan in
+                if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data() }
+                #expect(plan.arguments.contains("describe-ui"))
+                return tree
+            }, recognize: { _ in Issue.record("Useful tree should skip OCR"); throw CommandFailure(description: "unexpected OCR") })
+            let value = try json(result)
+            #expect(value["method"] as? String == "accessibility")
+            #expect(value["coordinateSpace"] as? String == "interface-points")
+            #expect((value["image"] as? [String: Any])?["width"] as? Int == 40)
+            #expect(value["textRegions"] == nil)
+        }
+    }
+
+    @Test(arguments: [Data("[]".utf8), Data("{".utf8), Data("{\"role\":\"AXApplication\",\"AXLabel\":\"Only app name\"}".utf8)])
+    func autoFallsBackFromEmptyMalformedOrWrapperOnlyTree(_ hierarchy: Data) async throws {
+        try await fixture { directory in
+            let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
+            let result = try await screen.execute(directory: directory, run: { plan in
+                if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data() }
+                return hierarchy
+            }, recognize: { Self.text($0) })
+            let value = try json(result)
+            #expect(value["method"] as? String == "ocr")
+            #expect(value["coordinateSpace"] as? String == "normalized-top-left")
+            #expect((value["textRegions"] as? [[String: Any]])?.first?["text"] as? String == "Synthetic")
+            #expect((value["diagnostics"] as? [String])?.isEmpty == false)
+        }
+    }
+
+    @Test func autoReturnsImageOnlyWhenBothAnalysisBackendsFail() async throws {
+        try await fixture { directory in
+            let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
+            let result = try await screen.execute(directory: directory, run: { plan in
+                if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data() }
+                throw CommandFailure(description: "fixture AXe unavailable")
+            }, recognize: { _ in throw CommandFailure(description: "fixture OCR unavailable") })
+            let value = try json(result)
+            #expect(value["method"] as? String == "image-only")
+            #expect(value["status"] as? String == "partial")
+            #expect((value["diagnostics"] as? [String])?.count == 2)
+            #expect(value["hierarchy"] == nil && value["textRegions"] == nil)
+        }
+    }
+
+    @Test func forcedOCRSkipsHierarchyAndDoesNotMaskRecognitionFailure() async throws {
+        try await fixture { directory in
+            let screen = ScreenCommand(platform: "simulator", device: device, mode: .ocr)
+            await #expect(throws: CommandFailure.self) {
+                try await screen.execute(directory: directory, run: { plan in
+                    #expect(plan.arguments.contains("screenshot"))
+                    try png(directory.appendingPathComponent("screen.png")); return Data()
+                }, recognize: { _ in throw CommandFailure(description: "fixture OCR unavailable") })
+            }
+        }
+    }
+
+    @Test func invalidCaptureStopsBeforeAnalysis() async throws {
+        try await fixture { directory in
+            let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
+            await #expect(throws: CommandFailure.self) {
+                try await screen.execute(directory: directory, run: { plan in
+                    #expect(plan.arguments.contains("screenshot"))
+                    try Data("not a PNG".utf8).write(to: directory.appendingPathComponent("screen.png")); return Data()
+                }, recognize: { _ in Issue.record("Invalid capture reached OCR"); return Self.text("invalid") })
+            }
+        }
+    }
+
+    @Test func cancellationIsNotConvertedIntoImageOnlySuccess() async throws {
+        try await fixture { directory in
+            let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
+            await #expect(throws: CancellationError.self) {
+                try await screen.execute(directory: directory, run: { plan in
+                    if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data() }
+                    throw CommandFailure(description: "fixture AXe unavailable")
+                }, recognize: { _ in throw CancellationError() })
+            }
+        }
+    }
+
+    @Test func mcpImageContentUsesGeneratedResultPath() async throws {
+        try await fixture { directory in
+            let image = directory.appendingPathComponent("screen.png")
+            try png(image)
+            let output = try JSONSerialization.data(withJSONObject: ["method": "image-only", "status": "partial", "imagePath": image.path])
+            let result = try await MCPTools.call(name: "get_screen", arguments: ["platform": "simulator", "device": .string(device)]) { _ in CommandOutput(data: output) }
+            #expect(result.isError == false)
+            let content = try #require(result.content.first { if case .image = $0 { return true }; return false })
+            if case .image(let base64, let mime, _, _) = content {
+                #expect(mime == "image/png")
+                #expect(Data(base64Encoded: base64) == (try Data(contentsOf: image)))
+            }
+        }
+    }
+}

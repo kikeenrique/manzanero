@@ -51,6 +51,16 @@ actor CommandService {
             return try handoff.output(TerminalHandoff.confirm(handoff), mechanism: "terminal")
         }
         if !dryRun { try checkHandoffPause(args) }
+        if let screen = try ScreenCommand.parse(args) {
+            let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/screen-\(UUID().uuidString)")
+            if dryRun {
+                let plan = try screen.capturePlan(image: directory.appendingPathComponent("screen.png"))
+                return try json(["executable": plan.executable, "arguments": plan.arguments, "analysisMode": screen.mode.rawValue,
+                    "analysis": "Prefer simulator accessibility in auto mode; fall back to Vision OCR, then explicitly report image-only if analysis fails."])
+            }
+            if screen.platform == "physical" { try preflight(screen.device, operation: "capture screen") }
+            return CommandOutput(data: try await screen.execute(directory: directory, run: { try runner.run($0.arguments, executable: $0.executable) }))
+        }
         if args.count == 3, args[0] == "physical", args[2] == "readiness" {
             if dryRun {
                 guard let plan = try DeviceCommand.parse(["physical", args[1], "details"]) else { throw CommandFailure(description: "Invalid device.") }
@@ -146,7 +156,7 @@ actor CommandService {
     private func checkHandoffPause(_ args: [String]) throws {
         let args = args.first == "--pairing-file" ? Array(args.dropFirst(2)) : args
         guard args.count >= 3, ["physical", "simulator"].contains(args[0]), pendingHandoffs.contains(where: { $0.platform == args[0] }) else { return }
-        let observations = ["readiness", "details", "apps", "processes", "hid-info", "tree", "screenshot", "files", "pull", "reports", "report", "logs"]
+        let observations = ["readiness", "details", "apps", "processes", "hid-info", "tree", "screen", "screenshot", "files", "pull", "reports", "report", "logs"]
         guard !observations.contains(args[2]) else { return }
         guard let id = DeviceTarget.identifier(args[1]), args[0] != "physical" || UUID(uuidString: args[1]) == nil else {
             throw CommandFailure(description: "Use an explicit device ID (physical hardware UDID or simulator UUID) while a handoff is pending; aliases cannot be resolved safely for pause coordination.")

@@ -40,6 +40,7 @@ struct MCPToolDefinition: Sendable {
     let fields: [MCPField]
     var readOnly = false
     var imagePath: String? = nil
+    var imageFromResult = false
     let route: @Sendable ([String: Value]) -> [String]
 
     var tool: Tool {
@@ -88,8 +89,9 @@ enum MCPTools {
         .init(name: "request_handoff", description: "Ask a person to complete a step on the device (for example Face ID or a permission). Requires an MCP host supporting form elicitation. Only an explicit completed checkbox acknowledges the request; it does not verify device success. Do not put secrets in the message. Device mutation calls are paused in this server while the response is pending.", fields: [platform, device, .init(name: "message")]) { $0.deviceCommand(["handoff", $0.text("message")]) },
         .init(name: "inspect_device", description: "List apps on either platform, or physical details/processes/HID surfaces. hid-info requires the experimental idevice bridge; pairing_file applies only to hid-info.", fields: [platform, device, .init(name: "query", choices: ["apps", "details", "processes", "hid-info"]), pairing], readOnly: true) { $0.deviceCommand([$0.text("query")]) },
         .init(name: "get_ui_tree", description: "Read a simulator accessibility tree using AXe. Requires an explicit simulator UUID. No physical parsed tree is available.", fields: [device], readOnly: true) { $0.deviceCommand(["tree"], platform: "simulator") },
+        .init(name: "get_screen", description: "Capture a PNG and inspect it. Auto prefers a useful simulator AXe hierarchy, then Vision OCR, then explicitly reports image-only. Physical auto uses OCR because no parsed physical hierarchy exists. Method can force tree (simulator) or ocr. Returns coordinate space, dimensions, diagnostics, and image content up to 8 MiB. Capture/analysis are sequential, not an atomic UI snapshot.", fields: [platform, device, .init(name: "method", required: false, choices: ["auto", "tree", "ocr"])], imagePath: "imagePath", imageFromResult: true) { $0.deviceCommand(["screen", $0.text("method", default: "auto")]) },
         .init(name: "get_accessibility_archive", description: "Experimental physical callback archive, not a parsed UI tree. Returns parsedHierarchy:false. Requires idevice; unverified on hardware.", fields: [device, pairing]) { $0.deviceCommand(["ax-snapshot"], platform: "physical") },
-        .init(name: "screenshot", description: "Capture a PNG to a local path and return it as MCP image content if at most 8 MiB. May replace an existing local file. Physical capture remains unverified.", fields: [platform, device, .init(name: "path", description: "Local output path ending in .png; prefer ignored tmp/.")], imagePath: "path") { $0.deviceCommand(["screenshot", $0.text("path")]) },
+        .init(name: "screenshot", description: "Capture a PNG to a local path and return it as MCP image content if at most 8 MiB. May replace an existing local file. Simulator capture verified. iPhone 13 mini USB capture produced a black PNG; useful physical screen content remains unverified.", fields: [platform, device, .init(name: "path", description: "Local output path ending in .png; prefer ignored tmp/.")], imagePath: "path") { $0.deviceCommand(["screenshot", $0.text("path")]) },
         .init(name: "record_screen", description: "Record a finite screen video to a new host .mp4 path. Parent directory must exist. Duration 1...300 seconds; default h264, optional hevc. Returns duration/dimensions after decoding a frame; no inline video. Uses Xcode capture tools, not the idevice bridge. Simulator capture verified; native physical capture requires device capability and may be unsupported.", fields: [platform, device, .init(name: "path"), .init(name: "seconds", kind: .number), .init(name: "codec", required: false, choices: ["h264", "hevc"])]) {
             $0.deviceCommand(["record", $0.text("path"), $0.number("seconds"), $0.text("codec", default: "h264")])
         },
@@ -133,8 +135,10 @@ enum MCPTools {
         let command = try definition.command(arguments)
         do {
             let output = try await execute(command)
+            let value = try? JSONDecoder().decode(Value.self, from: output.data)
             var content: [Tool.Content] = [.text(text: String(decoding: output.data, as: UTF8.self), annotations: nil, _meta: nil)]
-            if output.exitCode == 0, let key = definition.imagePath, let path = arguments[key]?.stringValue {
+            if output.exitCode == 0, let key = definition.imagePath,
+               let path = (definition.imageFromResult ? value?.objectValue?[key] : arguments[key])?.stringValue {
                 let url = URL(fileURLWithPath: path)
                 let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
                 if size <= 8 * 1024 * 1024 {
@@ -143,7 +147,6 @@ enum MCPTools {
                     content.append(.text(text: "PNG saved; image content omitted because it exceeds 8 MiB.", annotations: nil, _meta: nil))
                 }
             }
-            let value = try? JSONDecoder().decode(Value.self, from: output.data)
             return .init(content: content, structuredContent: value.map { .object(["result": $0]) }, isError: output.exitCode != 0)
         } catch {
             return .init(content: [.text(text: String(describing: error), annotations: nil, _meta: nil)], isError: true)

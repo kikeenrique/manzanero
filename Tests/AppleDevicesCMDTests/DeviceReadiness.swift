@@ -72,6 +72,12 @@ struct DeviceReadinessTests {
         let output = try await service.execute(["physical", "fixture", "readiness"])
         #expect(output.exitCode == 1)
         do {
+            _ = try await service.execute(["physical", "fixture", "screen"])
+            Issue.record("Disabled device reached screen capture")
+        } catch {
+            #expect(String(describing: error).contains("Developer Mode is disabled"))
+        }
+        do {
             _ = try await service.execute(["physical", "fixture", "type", "fixture"])
             Issue.record("Disabled device reached physical typing")
         } catch {

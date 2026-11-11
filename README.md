@@ -69,7 +69,7 @@ Listing is nonrecursive. Absolute remote paths and `..` components are rejected.
 
 These physical commands return devicectl JSON. Simulator app/lifecycle/screenshot commands preserve simctl output, which is not always JSON. Errors go to stderr with a nonzero exit status. The Swift CLI's errors are currently text; the protocol bridge writes JSON errors that the CLI can wrap in text. `--dry-run` prints an executable and argument array without executing the operation. See `--help` for all implemented commands.
 
-Physical command planning and screenshot flags were checked against Xcode 27.2. The CLI details query is verified on a physical phone, and direct devicectl copies round-tripped a synthetic fixture in a tool-owned temporary domain. App-container listing/copies, termination, URL opening, and capture are not yet verified live.
+Physical command planning and screenshot flags were checked against Xcode 27.2. Details are verified on a physical phone; screenshot capture produced a decodable but black PNG on the iPhone 13 mini, so useful physical screen content remains unverified. Direct devicectl copies round-tripped a synthetic fixture in a tool-owned temporary domain. App-container listing/copies, termination, and URL opening are not yet verified live.
 
 ## Human handoff
 
@@ -154,7 +154,7 @@ Physical `type` is experimental and accepts 1...512 printable US-layout ASCII ch
 
 `ax-snapshot` is an experimental protocol probe that returns a base64 accessibility callback archive with `parsedHierarchy: false`. It does not provide a parsed physical UI tree, stable element references, or selector taps. See [protocol evidence and limitations](docs/ACCESSIBILITY-PROTOCOL.md).
 
-The default connection requires the exact UDID through usbmuxd. The phone used for investigation was visible in CoreDevice but absent from usbmuxd; live HID discovery failed before input. An independent Wi-Fi pairing path is implemented but not verified live:
+The default connection requires the exact UDID through usbmuxd. The earlier phone was absent from usbmuxd; the selected iPhone 13 mini subsequently completed read-only bridge HID discovery over USB after Developer Mode was enabled. This does not verify input delivery. An independent Wi-Fi pairing path is implemented but not verified live:
 
 ```sh
 mkdir -p tmp/pairings
@@ -164,8 +164,10 @@ appledevicescmd --pairing-file tmp/pairings/phone.pairing.plist physical <UDID> 
 
 Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discovery and setup](docs/DEPENDENCIES.md#wi-fi-pairing). Pairing records contain private keys and must stay out of version control. Physical input, accessibility snapshots, pairing, and reconnection remain unverified on hardware.
 
-## OCR and remaining work
+## Screen inspection, OCR, and remaining work
 
-`appledevicescmd ocr <image-path>` uses macOS Vision and returns JSON text, confidence, and bounds normalized to 0...1 with the origin at the top left. It is a standalone image command; automatic screenshot/OCR fallback is not implemented. The initial runtime fixture check failed with `Failed to create CVPixelBuffer`; the cause and recognition accuracy remain unverified.
+`appledevicescmd simulator <UUID> screen auto` captures a PNG and prefers a useful accessibility hierarchy, falling back to Vision OCR. Physical `screen auto` selects OCR because a parsed physical hierarchy is unavailable. If automatic analysis fails, the result explicitly reports `method: image-only` and `status: partial`, retaining the screenshot and diagnostics. Use `screen tree` (simulator only) or `screen ocr` to require that analysis method. MCP exposes the same workflow as `get_screen`. See [screen inspection and coordinate limits](docs/SCREEN-UNDERSTANDING.md).
+
+`appledevicescmd ocr <image-path>` also accepts an existing image. Vision returns text, confidence, and bounds normalized to 0...1 with the origin at the top left. A simulator fixture was recognized successfully; the earlier `Failed to create CVPixelBuffer` failure remains unexplained, and broad recognition accuracy is unverified.
 
 User-facing streaming sessions, verified physical recording/input and parsed accessibility, Unicode physical text entry, Xcode-format container export/replacement, complete saved-report management, settings controls, and automatic human-prompt detection remain outstanding. Explicit handoff and MCP expose the implemented workflow operations. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.

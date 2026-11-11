@@ -29,4 +29,4 @@ Dispatch has a 30-second local deadline; keyboard removal has a separate 3-secon
 
 Swift planner/MCP tests cover validation, literal arguments, pairing routing, and disabled-Developer-Mode gating. Rust tests cover ASCII mappings, Shift release, stopping after failed press/release, removal attempts, cleanup failures, and dispatch/cleanup timeouts with synthetic keyboard mocks. These mocks test the bridge's lifecycle calls, not live HID wire behavior.
 
-The iPhone 13 mini still reports Developer Mode disabled. No text was sent to it. Virtual-keyboard registration/removal and actual text output remain unverified on hardware. See [verification records](VERIFICATION.md).
+The iPhone 13 mini now reports Developer Mode enabled, and read-only bridge HID discovery succeeded over USB. No text was sent to it. Virtual-keyboard registration/removal and actual text output remain unverified on hardware. See [verification records](VERIFICATION.md).
