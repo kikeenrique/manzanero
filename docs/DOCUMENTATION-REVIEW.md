@@ -25,8 +25,22 @@ Reviewed the root README and all existing files in `docs/` against the current S
 - OCR's initial fixture execution failed. Automatic screenshot/OCR fallback is not implemented.
 - Internal media negotiation for HID authentication is not a user-facing streaming or recording feature.
 - The vendor's current public feature list and the inspected 0.9.0/build 90 binary are different evidence sources. Static strings and symbols do not prove live invocation order or feature availability on every OS.
-- Several parity features remain absent, including parsed physical accessibility, streaming/recording, physical text entry, app data transfer, reports/logs, Build & Run, agent handoff, and MCP. See [ROADMAP.md](ROADMAP.md).
+- Several parity features remain absent, including parsed physical accessibility, streaming/recording, physical text entry, Xcode-format app-container export/replacement, saved reports, Build & Run, agent handoff, and MCP. Raw app-container listing/pull/push plans were added in `dd01a90`; their app-container behavior remains unverified live. See [ROADMAP.md](ROADMAP.md).
 
 ## Validation
 
-Mise task definitions validated; cached debug and release bridge builds succeeded; the bridge's ten tests and Swift's thirteen test functions passed. Current command examples were compared with the parsers/help, dry-run arguments were checked, and local Markdown file links were checked. These checks validate the instructions and synthetic behavior, not live physical-device functionality.
+The initial review used the `cd0a1ca` baseline: mise task definitions validated; cached debug and release bridge builds succeeded; the bridge's ten tests and Swift's thirteen test functions passed. Command examples were compared with the parsers/help, dry-run arguments were checked, and local Markdown file links were checked. These checks validate the instructions and synthetic behavior, not live physical-device functionality. The later `dd01a90` verification record reports 17 Swift test functions; neither count establishes the current unfinished working tree's build status.
+
+## Second review against committed baseline and working tree
+
+Reviewed the README and all seven documents again against `dd01a90`, current source/manifests, mise tasks, and recorded verification. Rechecked the vendor's [iPhone setup]([private reference removed]), [saved reports]([private reference removed]), and [Build & Run]([private reference removed]) pages on 2026-11-11.
+
+| Priority | Finding | Disposition |
+| --- | --- | --- |
+| High | The working tree advertises report/log commands, but the Rust entry point declares `mod logs` and calls `logs::capture` without a corresponding `src/logs.rs` or `src/logs/mod.rs`. Earlier successful builds cannot substantiate this draft. | Unfinished implementation, left untouched by this documentation task. The roadmap now identifies its committed baseline and excludes draft changes. The optional bridge needs completion and a fresh build/test before these commands can be documented as available. |
+| Medium | This review's outstanding-feature list still described all app-data transfer as absent after `dd01a90` added raw container command plans. | Corrected to distinguish raw file plans from missing `.xcappdata` packaging/replacement and unverified app-container permissions. |
+| Medium | The investigation inferred working OCR fallback from static MCP tool descriptions. | Reworded as intended behavior with no observed runtime fallback. |
+| Medium | “Crash reports and logs” could turn a saved-report parity item into an assumed live log-streaming requirement. | Roadmap now names saved reports, spins, logs, and diagnostics. The vendor page documents list/read/save/delete operations; continuous live OS logs need separate scope/evidence. |
+| Low | The validation paragraph's 13-test count could be read as current. | Bound it to `cd0a1ca` and linked the later verification context. No build/test success is claimed for unfinished source. |
+
+Validation for this second pass: source/document comparison, vendor-page checks, local Markdown target checks, and `git diff --check`. No device operation or new runtime verification was performed. Existing implementation changes remain outside this documentation commit.
