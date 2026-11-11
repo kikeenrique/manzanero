@@ -71,6 +71,12 @@ struct DeviceReadinessTests {
         }
         let output = try await service.execute(["physical", "fixture", "readiness"])
         #expect(output.exitCode == 1)
+        do {
+            _ = try await service.execute(["physical", "fixture", "type", "fixture"])
+            Issue.record("Disabled device reached physical typing")
+        } catch {
+            #expect(String(describing: error).contains("Developer Mode is disabled"))
+        }
     }
 
     @Test func mcpReadinessPreservesActionableBlockedState() async throws {

@@ -40,6 +40,7 @@ Usage:
   appledevicescmd physical <UDID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
   appledevicescmd physical <UDID> button <home|lock|volume-up|volume-down>
   appledevicescmd physical <UDID> key <return|escape|backspace|tab|space|up|down|left|right>
+  appledevicescmd physical <UDID> type <text>   Experimental US-layout ASCII, 1...512 characters
   Physical input, ax-snapshot, and logs require the optional appledevices-idevice bridge on PATH.
   Logs capture a finite experimental OS trace, capped at 2000 entries/4 MiB of entry JSON.
   Physical coordinates are normalized 0...1, with the origin at the top left.

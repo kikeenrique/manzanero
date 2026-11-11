@@ -3,7 +3,7 @@ import Foundation
 /// Optional idevice bridge; private protocols stay outside the Swift command surface.
 enum PhysicalInteraction {
     static func plan(device: String, operation: String, operands: [String]) throws -> DeviceCommand? {
-        guard ["hid-info", "ax-snapshot", "logs", "tap", "multi-tap", "drag", "swipe", "button", "key"].contains(operation) else { return nil }
+        guard ["hid-info", "ax-snapshot", "logs", "tap", "multi-tap", "drag", "swipe", "button", "key", "type"].contains(operation) else { return nil }
         func require(_ count: Int) throws {
             guard operands.count == count else {
                 throw CommandFailure(description: "\(operation) expects \(count) operands. See --help.")
@@ -17,6 +17,13 @@ enum PhysicalInteraction {
         }
         let arguments: [String]
         switch operation {
+        case "type":
+            try require(1)
+            let bytes = operands[0].utf8
+            guard (1...512).contains(bytes.count), bytes.allSatisfy({ (32...126).contains($0) || $0 == 9 || $0 == 10 }) else {
+                throw CommandFailure(description: "Physical typing requires 1...512 printable US-layout ASCII characters, tab, or LF newline.")
+            }
+            arguments = [operation, operands[0]]
         case "hid-info", "ax-snapshot":
             try require(0)
             arguments = [operation]

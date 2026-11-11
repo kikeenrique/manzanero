@@ -54,6 +54,13 @@ struct MCPToolsTests {
         #expect(message.contains("fixture unavailable"))
     }
 
+    @Test func physicalTypingRoutesThroughTheSharedPlanner() throws {
+        let definition = try #require(MCPTools.definitions.first { $0.name == "type_text" })
+        let args = try definition.command(["platform": "physical", "device": "fixture", "text": "Hello!", "pairing_file": "tmp/fixture.pairing.plist"])
+        let command = try #require(try DeviceCommand.parse(args))
+        #expect(command.arguments == ["appledevices-idevice", "--pairing-file", "tmp/fixture.pairing.plist", "fixture", "type", "Hello!"])
+    }
+
     @Test func unknownToolsCannotInvokeExecutor() async {
         await #expect(throws: MCPError.self) {
             try await MCPTools.call(name: "execute_shell", arguments: [:]) { _ in

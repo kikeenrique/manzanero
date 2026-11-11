@@ -74,7 +74,7 @@ actor CommandService {
             if dryRun { return try json(["executable": command.executable, "arguments": command.arguments]) }
             let targetArgs = args.first == "--pairing-file" ? Array(args.dropFirst(2)) : args
             if targetArgs.count >= 3, targetArgs[0] == "physical",
-               ["tap", "multi-tap", "drag", "swipe", "button", "key", "hid-info", "ax-snapshot", "launch", "terminate", "processes", "open-url", "screenshot"].contains(targetArgs[2]) {
+               ["tap", "multi-tap", "drag", "swipe", "button", "key", "type", "hid-info", "ax-snapshot", "launch", "terminate", "processes", "open-url", "screenshot"].contains(targetArgs[2]) {
                 try preflight(targetArgs[1], operation: targetArgs[2])
             }
             guard allowInteractive || !command.interactive else {

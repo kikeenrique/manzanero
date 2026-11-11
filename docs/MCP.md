@@ -33,7 +33,7 @@ The 23 tools have object schemas with required fields, enumerated operations whe
 | `list_reports`, `download_report`, `capture_logs` | Saved physical reports and experimental finite OS trace |
 | `build_run` | The existing [Xcode build/install/restart workflow](BUILD-RUN.md) |
 
-Physical touch coordinates are normalized; simulator coordinates are interface points. Physical text entry and a parsed physical hierarchy remain unavailable. Unsupported device/platform combinations return tool errors; publishing a tool does not establish hardware support.
+Physical touch coordinates are normalized; simulator coordinates are interface points. `type_text` defaults to simulator but accepts `platform: "physical"` for [experimental US-layout ASCII typing](PHYSICAL-TYPING.md). Unicode physical entry and a parsed physical hierarchy remain unavailable. Unsupported device/platform combinations return tool errors; publishing a tool does not establish hardware support.
 
 ## Shared execution and output
 

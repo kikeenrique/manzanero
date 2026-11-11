@@ -37,7 +37,9 @@ Physical `tap`, `multi-tap`, `swipe`, and `drag` take normalized 0...1 coordinat
 
 The library's input examples require a display stream for HID authentication. The bridge holds audio/video sockets while dispatching, then attempts to stop the stream after normal dispatch success or failure. The available stop operation is `stopAll`; the bridge refuses a reported pre-existing `streamConfig`, but concurrent controllers and all possible server-status formats have not been verified. Do not use simultaneous screen controllers for input checks. If setup times out or the process is killed, connection teardown is the remaining cleanup mechanism; stream cleanup after cancellation is unverified.
 
-Successful bridge input returns `status: dispatched` and `verified: false`; confirm effects with a screenshot or other observation. The bridge emits JSON errors on stderr and exits nonzero. The Swift CLI currently wraps subprocess failures in text, so end-to-end CLI errors are not uniformly JSON. Live physical input is **not verified**: the current device was discoverable through CoreDevice but absent from usbmuxd. See [verification records](VERIFICATION.md).
+Successful bridge input returns `status: dispatched` and `verified: false`; confirm effects with a screenshot or other observation. The bridge emits JSON errors on stderr and exits nonzero. The Swift CLI currently wraps subprocess failures in text, so end-to-end CLI errors are not uniformly JSON. Live physical input is **not verified**. The earlier phone was absent from usbmuxd; the subsequently selected iPhone 13 mini is USB-connected but reports Developer Mode disabled. See [verification records](VERIFICATION.md).
+
+Physical `type` uses the pinned library's owned virtual mainKeyboard API and a US-layout ASCII mapping. It releases the complete pressed-key set between characters and attempts reset/removal after normal dispatch or errors. Cleanup failure prevents success; outer timeout/process termination cleanup remains unverified. See [physical typing](PHYSICAL-TYPING.md) for bounds and layout limits.
 
 ### Wi-Fi pairing
 

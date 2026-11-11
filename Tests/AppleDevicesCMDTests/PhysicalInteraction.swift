@@ -3,6 +3,18 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct PhysicalInteractionTests {
+    @Test func physicalTypingPreservesLiteralTextAndPairingPath() throws {
+        let text = "--literal 'text'; $(touch sentinel)\tOK\n"
+        let command = try #require(try DeviceCommand.parse(["--pairing-file", "tmp/My Phone.pairing.plist", "physical", "test-udid", "type", text]))
+        #expect(command.arguments == ["appledevices-idevice", "--pairing-file", "tmp/My Phone.pairing.plist", "test-udid", "type", text])
+        #expect(command.jsonOutput)
+    }
+
+    @Test(arguments: ["", "é", "🙂", "\0", "\r", "\u{1b}", String(repeating: "a", count: 513)])
+    func rejectsUnsupportedPhysicalTextBeforeBackendPlanning(_ text: String) {
+        #expect(throws: CommandFailure.self) { try DeviceCommand.parse(["physical", "test-udid", "type", text]) }
+    }
+
     @Test func accessibilitySnapshotUsesProtocolBackend() throws {
         let command = try #require(try DeviceCommand.parse(["physical", "test-udid", "ax-snapshot"]))
         #expect(command.arguments == ["appledevices-idevice", "test-udid", "ax-snapshot"])

@@ -140,10 +140,13 @@ appledevicescmd physical <UDID> multi-tap 0.25 0.5 0.75 0.5
 appledevicescmd physical <UDID> drag 0.5 0.8 0.5 0.2 0.6
 appledevicescmd physical <UDID> button home
 appledevicescmd physical <UDID> key return
+appledevicescmd physical <UDID> type 'Hello from appledevicescmd'
 appledevicescmd physical <UDID> ax-snapshot
 ```
 
 Physical touch coordinates are normalized 0...1, unlike simulator interface points. `multi-tap` sends simultaneous contacts and release; moving multitouch gestures are not implemented. Input receipts indicate dispatch only.
+
+Physical `type` is experimental and accepts 1...512 printable US-layout ASCII characters, tab, and LF newline. It uses an owned virtual keyboard, attempts reset/removal after dispatch, and requires the phone's hardware-keyboard layout to match the US mapping. Unicode is unsupported; layout, Caps Lock, and actual entered text remain unverified on hardware. See [physical typing details](docs/PHYSICAL-TYPING.md).
 
 `ax-snapshot` is an experimental protocol probe that returns a base64 accessibility callback archive with `parsedHierarchy: false`. It does not provide a parsed physical UI tree, stable element references, or selector taps. See [protocol evidence and limitations](docs/ACCESSIBILITY-PROTOCOL.md).
 
@@ -161,4 +164,4 @@ Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discove
 
 `appledevicescmd ocr <image-path>` uses macOS Vision and returns JSON text, confidence, and bounds normalized to 0...1 with the origin at the top left. It is a standalone image command; automatic screenshot/OCR fallback is not implemented. The initial runtime fixture check failed with `Failed to create CVPixelBuffer`; the cause and recognition accuracy remain unverified.
 
-User-facing streaming sessions, verified physical recording/input and parsed accessibility, physical text entry, Xcode-format container export/replacement, complete saved-report management, settings controls, and handoff remain outstanding. MCP exposes the implemented operations over stdio. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.
+User-facing streaming sessions, verified physical recording/input and parsed accessibility, Unicode physical text entry, Xcode-format container export/replacement, complete saved-report management, settings controls, and handoff remain outstanding. MCP exposes the implemented operations over stdio. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.

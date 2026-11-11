@@ -12,6 +12,7 @@ mod logs;
 mod pairing;
 mod stream;
 mod transport;
+mod typing;
 
 #[derive(Debug, PartialEq)]
 enum Action {
@@ -23,6 +24,7 @@ enum Action {
     Drag(u16, u16, u16, u16, u64),
     Button(u64, u64),
     Key(u64),
+    Type(Vec<typing::Stroke>),
 }
 
 fn parse(args: &[String]) -> Result<(&str, Action), String> {
@@ -38,6 +40,7 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
             .map_err(|_| "Expected integer coordinate 0...65535".into())
     };
     let action = match args[1].as_str() {
+        "type" if values.len() == 1 => Action::Type(typing::parse(&values[0])?),
         "logs" if (1..=2).contains(&values.len()) => {
             let seconds: u32 = values[0].parse().map_err(|_| "Invalid log duration")?;
             if !(1..=30).contains(&seconds) {
@@ -152,6 +155,12 @@ async fn execute(
     tokio::time::sleep(Duration::from_millis(300)).await;
     let result: Result<(), String> = async {
         match action {
+            Action::Type(ref strokes) => {
+                let mut hid = UniversalHidServiceClient::connect_rsd(adapter, rsd)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                typing::dispatch(&mut hid, strokes).await?;
+            }
             Action::Button(_, _) | Action::Key(_) => {
                 let mut hid = IndigoHidClient::connect_rsd(adapter, rsd)
                     .await
