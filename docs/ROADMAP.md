@@ -1,25 +1,49 @@
-# appledevicescmd implementation scope
+# Scope, feature sources, and implementation status
 
-Build a Swift CLI providing proprietary device-control tooling's device capabilities, with a shared core that can also expose MCP. The implementation must use independently written code or appropriately licensed dependencies; the inspected commercial app is research evidence only.
+The user's objective is a Swift CLI named `appledevicescmd` with proprietary device-control tooling's device features, using the same kinds of Apple frameworks/APIs or permitted third-party tools, with optional MCP sharing the operations. This is not yet a complete clone.
 
-## Required capability tracks
+This roadmap is an implementation inventory, not a claim that the user explicitly approved each inferred item. Vendor documentation was rechecked on **2026-11-11**. Current public documentation and the inspected device-control tooling 0.9.0/build 90 artifact are different evidence sources; current pages do not establish which release introduced a feature.
 
-- Device discovery, pairing readiness and useful diagnostics over USB and Wi-Fi.
-- Physical iPhone/iPad and simulator backends; Android scope awaits user preference.
-- Screenshots, recording and a headless stream/session lifecycle.
-- Touch, swipe, drag, multitouch, keyboard and hardware buttons.
-- Accessibility hierarchy, stable element references, text matching and optional OCR fallback.
-- App listing, installation, launch, termination, removal and container transfer.
-- Crash reports and device logs.
-- Appearance, accessibility settings, orientation and location simulation where supported.
-- Build/install/launch orchestration with explicit project, scheme and device selection.
-- Agent handoff and machine-readable errors/capabilities.
-- Optional MCP interface sharing the CLI's operations.
+## Explicit user requirements
 
-## Backend plan and open decisions
+- Swift CLI named `appledevicescmd`.
+- Apple-device feature parity using Apple interfaces and permitted open-source dependencies such as idevice.
+- Optional MCP support based on the same operations.
+- Commit verified tasks separately; keep research and verification in `docs/` and temporary artifacts in `tmp/`.
+- Use mise tasks instead of the former Python build helper.
 
-Use Xcode's devicectl and simctl for operations they expose. CoreDevice remote HID and accessibility need additional investigation and implementation; discovery alone does not establish control. Keep private interfaces behind a backend boundary and report unsupported OS/service combinations explicitly. The user permits open-source third-party backends such as idevice; its existing C bindings at the inspected revision do not expose HID, so a small bridge may be needed. No proprietary binary is a runtime dependency.
+The main executable is Swift. Physical private protocols currently use a small Rust bridge pinned to idevice; that bridge is not a Swift-native protocol implementation.
 
-The CLI provides JSON device discovery, diagnostics, physical/simulator app listing, installation, launch, removal, and screenshots. Simulator lifecycle, app termination, and URL opening are also exposed. A native Swift Vision image OCR command is implemented and builds, but its initial runtime check failed during pixel-buffer creation. Dry-run command planning is verified; live device integration remains unverified. An optional AXe simulator backend now exposes accessibility trees and input commands. A live tree → selector tap → tree check is verified; the remaining input commands have planner checks only. Physical HID now has an optional source-built idevice dependency with HID surface discovery, taps, simultaneous multitouch taps, drag/swipe, buttons, and keyboard keys. Build and parsing checks pass, but the currently discovered phone is absent from usbmuxd, so live input remains unverified. An explicit Wi-Fi pairing and independent TLS-PSK tunnel path is implemented with local record/parser tests; live initial pairing and reconnection remain unverified. Physical accessibility, text entry, moving multitouch gestures, streaming capture, file transfers, logs, settings, build orchestration, and MCP remain outstanding. Full parity remains unimplemented. Physical-device and simulator integration must be verified outside this session's service restrictions if they remain inaccessible here.
+## Vendor-documented parity inventory
 
-Dependency details, pinned revisions, and build instructions are in [DEPENDENCIES.md](DEPENDENCIES.md).
+| Capability | Source | Current implementation and evidence |
+| --- | --- | --- |
+| iPhone/iPad over USB and Wi-Fi | [Device setup]([private reference removed]) | CoreDevice discovery and an optional usbmuxd/independent Wi-Fi protocol path. Live physical input and Wi-Fi pairing remain unverified. |
+| iOS simulators | [Vendor overview]([private reference removed]) | simctl operations and optional AXe input/tree backend. A tree → Settings label tap → tree flow is verified live. |
+| Apple Watch and watch simulators | [Apple Watch]([private reference removed]) | No dedicated support or verification yet. Backend tools accepting a watch identifier do not establish feature parity. |
+| Screen mirroring and recordings | [Vendor overview]([private reference removed]) | Screenshot command plans exist. User-facing streaming/recording and session management are missing. Internal media setup for HID is not a capture feature. |
+| Touch, pinch, keyboard, hardware buttons | [Control]([private reference removed]) | Simulator input plus experimental physical taps, contact-only multitap, drags, selected buttons, and keys. Physical text and moving multitouch are missing; physical delivery is unverified. |
+| Agent screen understanding and text targeting | [MCP]([private reference removed]), [static investigation](ANALYSIS.md) | AXe simulator tree/selectors. Physical `ax-snapshot` returns an experimental raw archive, not a parsed hierarchy. Standalone OCR builds but its initial runtime check failed. Automatic OCR fallback is missing. |
+| App management and development app data | [Apps]([private reference removed]) | App list/install/launch/uninstall command plans; simulator termination. Physical termination and container download/replace are missing. Live physical execution remains unverified. |
+| Crash reports and logs | [Reports]([private reference removed]) | Missing. |
+| Build and launch from source | [Build & Run]([private reference removed]) | Missing. This is a documented vendor feature, not merely a CLI engineering proposal. |
+| Human handoff | [Human Handoff]([private reference removed]) | Missing. Initial pairing's PIN prompt is not an agent handoff system. |
+| Multiple devices, agent activity, approvals | [Overview]([private reference removed]), [MCP]([private reference removed]) | Explicit per-command targets exist. Coordinated sessions, activity tracking, and an application approval policy are missing. CLI dry-run is not an approval system. |
+| Android devices/emulators | [Vendor overview]([private reference removed]) | No implementation. Whether Android belongs in this Apple-focused tool's first parity target remains an open scope question. |
+| MCP interface | [Vendor MCP]([private reference removed]); optional in the user's request | Missing. A reusable operation layer and MCP transport still need implementation. |
+
+GUI windows, menus, and keyboard shortcuts need CLI equivalents where they express a device operation; recreating the vendor's Mac GUI is not part of a CLI deliverable.
+
+## Proposed CLI engineering work and additional candidates
+
+These items support the implementation or need further parity evidence. They are not all established vendor requirements:
+
+- Consistent machine-readable errors, capability reporting, command deadlines, cancellation, and backend diagnostics. `doctor` and dry-run exist but do not cover these fully.
+- Filter physical discovery: `devices physical` currently forwards an unfiltered CoreDevice inventory that can include simulators.
+- Stable snapshot references and ambiguity rules for selector targeting, plus automatic OCR fallback. The exact reference format is a design choice, not an explicitly requested wire format.
+- Appearance, accessibility settings, orientation, and simulated location. Static framework/API evidence makes these candidates; the exact supported vendor operations and CLI contract need a separate baseline.
+- Per-device isolation and lifecycle for recording, streaming, and input sessions.
+
+No success criterion is satisfied merely by a successful build or a dry run. Live verification must cover the claimed device/platform/transport combination. No proprietary device-control tooling binary is a runtime dependency.
+
+See [dependencies](DEPENDENCIES.md), [transport investigation](TRANSPORT.md), [accessibility protocol](ACCESSIBILITY-PROTOCOL.md), and [verification records](VERIFICATION.md).

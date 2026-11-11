@@ -1,21 +1,38 @@
 # appledevicescmd
 
-A Swift command-line project for Apple device control and agent integration. See [the investigation](docs/ANALYSIS.md) and [implementation roadmap](docs/ROADMAP.md). See [backend dependencies and build instructions](docs/DEPENDENCIES.md) and [verification records](docs/VERIFICATION.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
+A Swift CLI in development for Apple-device device control. The CLI uses Xcode tools, Vision, an optional AXe simulator backend, and an optional Rust bridge to the open-source idevice library. **Full feature parity is not implemented.**
 
-Requires Swift 6.2 or later and Xcode. Current commands:
+See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), and [investigation](docs/ANALYSIS.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
+
+## Build and run
+
+Requires macOS 15 or later, Swift 6.2 or later, and Xcode selected as the active developer directory.
 
 ```sh
 swift build
-.build/debug/appledevicescmd --help
-.build/debug/appledevicescmd devices physical
-.build/debug/appledevicescmd devices simulators
-.build/debug/appledevicescmd doctor
-.build/debug/appledevicescmd ocr tmp/screen.png
+export PATH="$PWD/.build/debug:$PWD/tmp/bin:$PATH"
+appledevicescmd --help
+appledevicescmd devices physical
+appledevicescmd devices simulators
+appledevicescmd doctor
 ```
 
-Discovery returns Apple's JSON payload. Failures go to stderr with nonzero exit status. `doctor` returns a JSON array of checks and exits nonzero if a service is unavailable. Device control and MCP are under development.
+`devices physical` currently returns the unfiltered CoreDevice JSON inventory, which can include simulators. `devices simulators` returns simctl JSON. `doctor` checks whether Xcode and the two discovery commands succeed; it does not verify device trust, UI Automation, input delivery, or optional-backend installation.
 
-App management and capture commands accept an explicit device identifier:
+Build the optional physical protocol bridge with mise (tested with 2026.10.20):
+
+```sh
+mise run idevice:build
+# For a cached debug build and bridge tests:
+mise run idevice:build --debug --offline
+mise run idevice:test --offline
+```
+
+These tasks use Rust 1.99.1 and keep its toolchain, Cargo downloads, and generated bridge under `tmp/`. `--offline` applies to Cargo dependencies; the pinned toolchain must already be installed. See [dependency details](docs/DEPENDENCIES.md).
+
+## Device commands
+
+Replace placeholders with your device identifier and paths. App management and screenshot commands use Xcode's tools:
 
 ```sh
 appledevicescmd physical <device> apps
@@ -26,12 +43,13 @@ appledevicescmd simulator booted screenshot tmp/simulator.png
 appledevicescmd --dry-run physical <device> uninstall com.example.app
 ```
 
-See `--help` for simulator boot/shutdown, app termination, and URL opening. Physical-device commands return devicectl JSON; simulator commands preserve simctl's output format. These operations depend on the selected Xcode version; screenshot support was checked against Xcode 27.2's devicectl help. Commands have been built and their generated argument lists checked, but live device execution remains unverified in this environment. The CLI does not overwrite safeguards imposed by the device or Apple tools.
+These physical commands return devicectl JSON. Simulator app/lifecycle/screenshot commands preserve simctl output, which is not always JSON. Errors go to stderr with a nonzero exit status. The Swift CLI's errors are currently text; the protocol bridge writes JSON errors that the CLI can wrap in text. `--dry-run` prints an executable and argument array without executing the operation. See `--help` for all implemented commands.
 
-`ocr <image-path>` uses Apple's Swift Vision `RecognizeTextRequest` (macOS 15+) and returns JSON containing text, confidence and bounding rectangles. Coordinates are normalized to 0–1 with the origin at the top left of the image. OCR finds visible text; it does not supply accessibility roles or off-screen elements. The command builds successfully, but the first runtime fixture check failed inside Vision with `Failed to create CVPixelBuffer` in this restricted session. Recognition accuracy and execution outside the session still need verification. A generated fixture is available at `tmp/ocr-fixture.png` for a Terminal check.
+Physical command planning and screenshot flags were checked against Xcode 27.2. Those checks do not establish live physical app management or capture behavior.
 
+## Simulator input and hierarchy
 
-Simulator input and accessibility use the optional [AXe](https://github.com/cameroncooke/AXe) backend (MIT, by Cameron Cooke; uses Meta IDB). Install AXe separately and put it on PATH; its binaries are not bundled here. AXe uses Xcode simulator interfaces and does not provide physical-device input.
+Install [AXe](https://github.com/cameroncooke/AXe) separately and put it on PATH. This repository does not bundle AXe binaries.
 
 ```sh
 appledevicescmd simulator <UDID> tree
@@ -44,12 +62,13 @@ appledevicescmd simulator <UDID> type 'hello'
 appledevicescmd simulator <UDID> button home
 ```
 
-These operations require an explicit simulator UUID, not `booted`. Tree output preserves AXe's JSON hierarchy, including identifiers, labels, roles, and frames. Coordinates are interface points. Input returns `{"backend":"axe","status":"dispatched","verified":false}`; backend messages go to stderr. Confirm app behavior with a subsequent tree or screenshot. AXe typing supports US keyboard text, tab, and newline. Platform-specific input restrictions are enforced by AXe.
+Input and tree commands require an explicit simulator UUID, not `booted`. Coordinates are interface points. Tree output preserves AXe's JSON. Input returns a JSON dispatch receipt with `verified: false`; confirm the app's response with another tree or screenshot. Typing is limited to US keyboard text, tab, and newline. AXe enforces platform-specific input restrictions.
 
-See [verification records](docs/VERIFICATION.md) for the tested environment and exact coverage. Physical input now has an optional idevice bridge; live physical behavior, moving multitouch gestures, streaming capture, and MCP remain outstanding.
+**Live verified:** the CLI read an iPhone simulator's home-screen tree, tapped Settings by label, and read the Settings tree. Other input commands have not been verified live. See [exact coverage](docs/VERIFICATION.md).
 
+## Experimental physical input and accessibility
 
-Physical HID is experimental and uses a source-built `idevice` dependency pinned by revision and lockfile. See [build instructions and connection limits](docs/DEPENDENCIES.md). With `appledevices-idevice` on PATH:
+With the optional `appledevices-idevice` bridge on PATH:
 
 ```sh
 appledevicescmd physical <UDID> hid-info
@@ -58,16 +77,25 @@ appledevicescmd physical <UDID> multi-tap 0.25 0.5 0.75 0.5
 appledevicescmd physical <UDID> drag 0.5 0.8 0.5 0.2 0.6
 appledevicescmd physical <UDID> button home
 appledevicescmd physical <UDID> key return
+appledevicescmd physical <UDID> ax-snapshot
 ```
 
-Physical touch coordinates are normalized 0...1; simulator coordinates are interface points. The default bridge connection requires the target UDID through usbmuxd. An explicit Wi-Fi pairing and independent tunnel path is also implemented; see [Wi-Fi setup](docs/DEPENDENCIES.md#wi-fi-pairing). CoreDevice-only discovery alone does not provide a tool-specific pairing record. These physical input operations have passed build and parser tests but have **not** passed live-device verification. The attempted HID discovery returned device-not-found through usbmuxd. Successful input receipts indicate dispatch, not a verified app outcome.
+Physical touch coordinates are normalized 0...1, unlike simulator interface points. `multi-tap` sends simultaneous contacts and release; moving multitouch gestures are not implemented. Input receipts indicate dispatch only.
 
+`ax-snapshot` is an experimental protocol probe that returns a base64 accessibility callback archive with `parsedHierarchy: false`. It does not provide a parsed physical UI tree, stable element references, or selector taps. See [protocol evidence and limitations](docs/ACCESSIBILITY-PROTOCOL.md).
 
-For a separately paired Wi-Fi connection:
+The default connection requires the exact UDID through usbmuxd. The phone used for investigation was visible in CoreDevice but absent from usbmuxd; live HID discovery failed before input. An independent Wi-Fi pairing path is implemented but not verified live:
 
 ```sh
+mkdir -p tmp/pairings
 appledevicescmd pair wifi <host> <port> tmp/pairings/phone.pairing.plist
 appledevicescmd --pairing-file tmp/pairings/phone.pairing.plist physical <UDID> hid-info
 ```
 
-Create the destination directory first. Initial pairing prompts for device approval/PIN and returns the UDID. Pairing records are private and excluded from Git. Wi-Fi setup and physical input are implemented but **not live-verified**. [Transport investigation](docs/TRANSPORT.md) records the unsuccessful attempts to reuse Apple's connection and the reason for the independent tunnel.
+Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discovery and setup](docs/DEPENDENCIES.md#wi-fi-pairing). Pairing records contain private keys and must stay out of version control. Physical input, accessibility snapshots, pairing, and reconnection remain unverified on hardware.
+
+## OCR and remaining work
+
+`appledevicescmd ocr <image-path>` uses macOS Vision and returns JSON text, confidence, and bounds normalized to 0...1 with the origin at the top left. It is a standalone image command; automatic screenshot/OCR fallback is not implemented. The initial runtime fixture check failed with `Failed to create CVPixelBuffer`; the cause and recognition accuracy remain unverified.
+
+Recording, user-facing streaming sessions, physical text entry and parsed accessibility, file/container transfers, reports/logs, settings controls, Build & Run, handoff, and MCP remain outstanding. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.
