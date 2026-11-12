@@ -24,7 +24,8 @@ struct CoreDeviceInputTests {
         #expect(try drag.actionPlan(uuid, surface: "257").arguments.suffix(7) == ["cd_uhid_swipe", "257", "0", "1", "1", "0", "0.5"])
         let lock = try input(["button", "lock"])
         #expect(try lock.actionPlan(uuid, surface: nil).arguments.suffix(4) == ["cd_button_click", "12", "48", "0.4"])
-        for op in [["tap", "nan", "0"], ["tap", "1.1", "0"], ["drag", "0", "0", "1", "1", "0"], ["type", "text"], ["button", "unknown"]] {
+        #expect(try input(["type", "text"]).operation == "type")
+        for op in [["tap", "nan", "0"], ["tap", "1.1", "0"], ["drag", "0", "0", "1", "1", "0"], ["type", "é"], ["button", "unknown"]] {
             #expect(throws: CommandFailure.self) { try input(op) }
         }
     }

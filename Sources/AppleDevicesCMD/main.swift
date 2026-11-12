@@ -9,14 +9,14 @@ Usage:
   appledevicescmd devices simulators   List available simulators as JSON
   appledevicescmd pair wifi <host> <port> <new-record.pairing.plist>
   appledevicescmd --pairing-file <record> physical <UDID> <bridge-operation> ...
-  appledevicescmd --physical-backend coredevice physical <device> <button|tap|long-press|gesture|drag|swipe|key|paste|multi-drag|pinch> ...
+  appledevicescmd --physical-backend coredevice physical <device> <button|tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch> ...
   appledevicescmd --physical-backend coredevice physical <device> gesture '<JSON with frames:[{ms,touches:[{id,x,y}]}]>'
   appledevicescmd --recording-backend coredevice physical <device> record <new.mp4> <seconds> [h264|hevc]
   appledevicescmd --physical-backend coredevice physical <device> long-press <x> <y> <seconds: 0.1...10>
   Native paste replaces the device clipboard with Unicode text, then pastes at the focused caret/selection.
   Buttons, tap, long-press, drag, swipe, pinch and two-path multi-drag call Apple CoreDevice in process.
   Named keys and paste keys call Apple CoreDevice in process; paste uses Apple's devicectl clipboard copy.
-  Arbitrary keyboard typing awaits migration.
+  Physical type sends 1...512 printable US-layout ASCII characters, tab or LF in process; no clipboard change.
   Three-to-five-contact input and arbitrary gesture sequences are awaiting migration.
   Non-Apple device helper executables are disabled, including AXe, idevice, and ipb helpers.
   Pairing prompts for the device's PIN; use its advertised _remotepairing._tcp endpoint.

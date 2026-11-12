@@ -2,11 +2,7 @@ import AppleDeviceBridge
 import Foundation
 
 enum DirectPhysicalPaste {
-    struct Dispatch {
-        let uuid: String
-        let version: String
-        let samples: [ADCKeyboardSample]
-    }
+    typealias Dispatch = DirectPhysicalKeyboard.Sequence
 
     static var samples: [ADCKeyboardSample] {
         // Left Command down, V down/up, then Command up. No select-all.
@@ -18,7 +14,7 @@ enum DirectPhysicalPaste {
 
     static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
                         copy: (DeviceCommand, Data) throws -> Data,
-                        send: (Dispatch) throws -> Void = dispatch) throws -> Data {
+                        send: (Dispatch) throws -> Void = DirectPhysicalKeyboard.dispatchSequence) throws -> Data {
         guard input.operation == "paste", input.operands.count == 1,
               let text = input.operands.first, (1...65536).contains(text.utf8.count), !text.contains("\0") else {
             throw CommandFailure(description: "Paste requires 1...65536 UTF-8 bytes without NUL; no clipboard write or input sent.")
@@ -46,13 +42,4 @@ enum DirectPhysicalPaste {
             options: [.prettyPrinted, .sortedKeys])
     }
 
-    private static func dispatch(_ value: Dispatch) throws {
-        var error = [CChar](repeating: 0, count: 1024)
-        let status = value.samples.withUnsafeBufferPointer {
-            ADCPerformKeyboard(value.uuid, value.version, $0.baseAddress, $0.count, &error, error.count)
-        }
-        guard status == 0 else {
-            throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
-        }
-    }
 }

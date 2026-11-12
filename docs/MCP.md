@@ -6,6 +6,8 @@
 
 `paste_text` uses Apple's clipboard command and in-process Command+V, with no helper executable. It replaces the phone clipboard; an iOS paste prompt may remain after a successful dispatch receipt. See [current paste semantics](NATIVE-INPUT.md#direct-unicode-paste). The server does not approve prompts or retry insertion.
 
+`type_text` with `platform: physical` uses in-process US-layout keyboard events without changing the clipboard. It accepts 1...512 printable ASCII characters, tab and LF; focus, keyboard layout and app behavior affect output. See [direct typing and verification limits](PHYSICAL-TYPING.md#current-direct-implementation). The default simulator path remains disabled pending direct replacement.
+
 Configure an MCP host to launch the built executable by absolute path with `args: ["mcp"]`. Set the working directory to this checkout and provide a PATH containing xcsift, AXe, and `tmp/bin` as needed for the selected backend. A common host configuration shape is:
 
 ```json

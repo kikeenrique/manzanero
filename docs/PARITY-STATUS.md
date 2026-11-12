@@ -13,7 +13,8 @@ Checkpoint: direct Apple buttons and single-contact touch, 2026-11-12. Full devi
 | Physical two-contact movement | Direct spread/inward pinch visibly zoomed Maps through CLI and real MCP on USB iPhone 13 mini. Two-path multi-drag implemented/unit-tested; general independent paths, other orientations/families and failure release still unverified. |
 | Physical named keys | Direct in-process implementation for return, escape, backspace, tab, space and arrows. Backspace has scoped Settings search verification; other keys remain hardware-unverified. |
 | Physical Unicode paste | Apple devicectl clipboard copy plus in-process Command+V. Synthetic Unicode insertion visually verified in Settings search after user-authorized Allow Paste. Replaces clipboard; other apps/families and failure release remain unverified. |
-| Physical three-to-five-contact/timed gestures, multi-tap and arbitrary keyboard typing | Unavailable pending direct implementation; no ipb/idevice helper fallback. |
+| Physical keyboard typing | In-process US-layout ASCII, tab and LF, 1...512 characters; no clipboard operation. Mixed-case/digit/shifted punctuation has scoped Settings search verification. Other layouts/fields and failure release remain unverified. |
+| Physical three-to-five-contact/timed gestures and multi-tap | Unavailable pending direct implementation; no ipb/idevice helper fallback. |
 | Physical accessibility | Rust idevice executable blocked; direct replacement pending. Screen auto can fall back to Vision OCR. |
 | Native physical recording | ipb video executable blocked; direct replacement pending. Default devicectl remains unsupported on the tested phone. |
 | Simulator input/accessibility | AXe executable blocked; direct replacement pending. |

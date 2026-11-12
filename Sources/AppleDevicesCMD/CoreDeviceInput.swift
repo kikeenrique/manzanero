@@ -12,14 +12,17 @@ struct CoreDeviceInput {
     static func parse(_ args: [String]) throws -> Self? {
         guard args.first == "--physical-backend" else { return nil }
         guard args.count >= 5, args[1] == "coredevice", args[2] == "physical",
-              ["button", "tap", "long-press", "gesture", "drag", "swipe", "key", "paste", "multi-drag", "pinch"].contains(args[4]) else {
-            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|long-press|gesture|drag|swipe|key|paste|multi-drag|pinch> ... . Pairing files are not supported by this backend.")
+              ["button", "tap", "long-press", "gesture", "drag", "swipe", "key", "type", "paste", "multi-drag", "pinch"].contains(args[4]) else {
+            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch> ... . Pairing files are not supported by this backend.")
         }
         var operands = Array(args.dropFirst(5))
         guard !args[3].isEmpty, !args[3].hasPrefix("-") else {
             throw CommandFailure(description: "Invalid native physical input target or operands.")
         }
-        if args[4] == "paste" {
+        if args[4] == "type" {
+            guard operands.count == 1 else { throw CommandFailure(description: "Physical typing expects one text operand.") }
+            _ = try DirectPhysicalTyping.samples(operands[0])
+        } else if args[4] == "paste" {
             guard operands.count == 1, (1...65536).contains(operands[0].utf8.count), !operands[0].contains("\0") else {
                 throw CommandFailure(description: "Native paste requires 1...65536 UTF-8 bytes without NUL. It replaces the device clipboard and pastes at the focused caret/selection.")
             }

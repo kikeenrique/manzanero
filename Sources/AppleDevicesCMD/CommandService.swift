@@ -47,7 +47,7 @@ actor CommandService {
             return try json(["backend": "idevice", "executionAvailable": false, "arguments": forwarded,
                 "limitation": "The explicitly selected non-Apple executable backend is disabled; no fallback will run."])
         }
-        let nativeArguments = args.count >= 3 && args[0] == "physical" && (["button", "key", "paste"] + DirectPhysicalTouch.operations).contains(args[2])
+        let nativeArguments = args.count >= 3 && args[0] == "physical" && (["button", "key", "type", "paste"] + DirectPhysicalTouch.operations).contains(args[2])
             ? ["--physical-backend", "coredevice"] + args : args
         if let native = try CoreDeviceInput.parse(nativeArguments) {
             if dryRun {
@@ -62,6 +62,12 @@ actor CommandService {
                         "stdinUTF8Bytes": native.operands[0].utf8.count,
                         "clipboardEffect": "Replace device clipboard; paste once at current focus; clipboard is not restored; no automatic replay.",
                         "execution": "Apple devicectl clipboard write followed by in-process Indigo Command+V; no helper executable."])
+                }
+                if native.operation == "type" {
+                    return try json(["backend": "coredevice-direct", "operation": "type", "identityArguments": identity.arguments,
+                        "layout": "US", "characterCount": native.operands[0].utf8.count,
+                        "sampleCount": try DirectPhysicalTyping.samples(native.operands[0]).count,
+                        "execution": "In-process Apple Indigo keyboard at current focus; no clipboard operation or helper executable."])
                 }
                 if (["button", "key"] + DirectPhysicalTouch.operations).contains(native.operation) {
                     return try json(["backend": "coredevice-direct", "identityArguments": identity.arguments,
@@ -90,6 +96,9 @@ actor CommandService {
             }
             if native.operation == "key" {
                 return CommandOutput(data: try DirectPhysicalKeyboard.execute(native, query: query))
+            }
+            if native.operation == "type" {
+                return CommandOutput(data: try DirectPhysicalTyping.execute(native, query: query))
             }
             if native.operation == "paste" {
                 return CommandOutput(data: try DirectPhysicalPaste.execute(native, query: query, copy: { plan, data in

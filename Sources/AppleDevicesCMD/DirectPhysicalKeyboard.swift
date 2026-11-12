@@ -12,6 +12,22 @@ enum DirectPhysicalKeyboard {
         let usage: UInt64
     }
 
+    struct Sequence {
+        let uuid: String
+        let version: String
+        let samples: [ADCKeyboardSample]
+    }
+
+    static func dispatchSequence(_ value: Sequence) throws {
+        var error = [CChar](repeating: 0, count: 1024)
+        let status = value.samples.withUnsafeBufferPointer {
+            ADCPerformKeyboard(value.uuid, value.version, $0.baseAddress, $0.count, &error, error.count)
+        }
+        guard status == 0 else {
+            throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+        }
+    }
+
     static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
                         send: (Key) throws -> Void = dispatch) throws -> Data {
         guard input.operation == "key", input.operands.count == 1,

@@ -86,20 +86,26 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
-            if let text = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PASTE"] {
-                _ = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical, "paste", text]))
-                let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-paste-before.png").path]])
+            if let text = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PASTE"] ?? ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_TYPE"] {
+                let paste = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PASTE"] != nil
+                let operation = paste ? "paste" : "type"
+                _ = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical, operation, text]))
+                let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-\(operation)-before.png").path]])
                 try #require((before["result"] as? [String: Any])?["isError"] as? Bool == false)
-                let response = try request(5, "tools/call", ["name": "paste_text", "arguments": ["device": physical, "text": text]])
+                let response = try request(5, "tools/call", ["name": paste ? "paste_text" : "type_text", "arguments": ["platform": "physical", "device": physical, "text": text].filter { paste ? $0.key != "platform" : true }])
                 let result = try #require(response["result"] as? [String: Any])
                 try #require(result["isError"] as? Bool == false)
                 let structured = try #require(result["structuredContent"] as? [String: Any])
                 let receipt = try #require(structured["result"] as? [String: Any])
-                #expect(receipt["backend"] as? String == "coredevice-direct" && receipt["operation"] as? String == "paste")
-                #expect(receipt["clipboard"] as? String == "replaced")
+                #expect(receipt["backend"] as? String == "coredevice-direct" && receipt["operation"] as? String == operation)
+                if paste { #expect(receipt["clipboard"] as? String == "replaced") }
+                else {
+                    #expect(receipt["layout"] as? String == "US" && receipt["characterCount"] as? Int == text.utf8.count)
+                    #expect(receipt["clipboard"] == nil)
+                }
                 #expect(receipt["insertionVerified"] as? Bool == false && receipt["releaseVerified"] as? Bool == false)
-                try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys]).write(to: directory.appendingPathComponent("direct-paste.json"))
-                let after = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-paste-after.png").path]])
+                try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys]).write(to: directory.appendingPathComponent("direct-\(operation).json"))
+                let after = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-\(operation)-after.png").path]])
                 try #require((after["result"] as? [String: Any])?["isError"] as? Bool == false)
                 try finish()
                 return
