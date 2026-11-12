@@ -42,7 +42,9 @@ fn validate_header(
     Ok((count, length))
 }
 
-async fn read_frame(socket: &mut (impl tokio::io::AsyncRead + Unpin)) -> Result<Message, String> {
+pub(crate) async fn read_frame(
+    socket: &mut (impl tokio::io::AsyncRead + Unpin),
+) -> Result<Message, String> {
     let mut wire = Vec::new();
     let mut payload = Vec::new();
     let mut expected_count = None;
@@ -98,7 +100,10 @@ fn request(identifier: u32, enabled: bool) -> Result<Vec<u8>, String> {
     .serialize())
 }
 
-async fn acknowledge(socket: &mut impl ReadWrite, frame: &Message) -> Result<(), String> {
+pub(crate) async fn acknowledge(
+    socket: &mut impl ReadWrite,
+    frame: &Message,
+) -> Result<(), String> {
     let header = frame.message_header.serialize();
     if u32_at(&header, 28) == 0 {
         return Ok(());
@@ -132,7 +137,7 @@ async fn acknowledge(socket: &mut impl ReadWrite, frame: &Message) -> Result<(),
         .map_err(|e| format!("Reply to accessibility callback: {e}"))
 }
 
-fn snapshot_archive(frame: &Message) -> Option<&[u8]> {
+pub(crate) fn snapshot_archive(frame: &Message) -> Option<&[u8]> {
     if frame.data.as_ref().and_then(plist::Value::as_string) != Some(CALLBACK) {
         return None;
     }

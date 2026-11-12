@@ -15,6 +15,7 @@ struct Decoder {
     values: usize,
     archives: usize,
     expanded_bytes: usize,
+    protocol: bool,
 }
 
 impl Decoder {
@@ -26,7 +27,10 @@ impl Decoder {
         Ok(())
     }
     fn archive(&mut self, bytes: &[u8], depth: usize) -> Result<Value, String> {
-        if bytes.len() > MAX_BYTES || depth > MAX_DEPTH || self.archives >= 4 {
+        if bytes.len() > MAX_BYTES
+            || depth > if self.protocol { 512 } else { MAX_DEPTH }
+            || self.archives >= 4
+        {
             return Err("Accessibility archive byte, depth, or nesting limit exceeded".into());
         }
         self.archives += 1;
@@ -64,7 +68,7 @@ impl Decoder {
         depth: usize,
     ) -> Result<Value, String> {
         self.values += 1;
-        if self.values > MAX_VALUES || depth > MAX_DEPTH {
+        if self.values > MAX_VALUES || depth > if self.protocol { 512 } else { MAX_DEPTH } {
             return Err("Archive expansion or depth limit exceeded".into());
         }
         match value {
@@ -97,10 +101,20 @@ impl Decoder {
             Plist::Date(date) => Ok(json!({"$date": date.to_xml_format()})),
             Plist::Data(bytes) => {
                 if bytes.starts_with(b"bplist00") || bytes.starts_with(b"<?xml") {
+                    if self.protocol {
+                        return self.archive(bytes, depth + 1);
+                    }
                     Ok(
                         json!({"byteCount": bytes.len(), "nestedArchive": self.archive(bytes, depth + 1)?}),
                     )
                 } else {
+                    if self.protocol {
+                        use base64::Engine;
+                        self.charge(bytes.len())?;
+                        return Ok(
+                            json!({"$data": base64::engine::general_purpose::STANDARD.encode(bytes)}),
+                        );
+                    }
                     Ok(json!({"dataBytes": bytes.len()}))
                 }
             }
@@ -188,6 +202,15 @@ impl Decoder {
             _ => Err("Unsupported property-list value".into()),
         }
     }
+}
+
+/// Internal protocol decoding retains opaque token data; never emitted as tree output.
+pub(crate) fn decode_protocol(bytes: &[u8]) -> Result<Value, String> {
+    Decoder {
+        protocol: true,
+        ..Decoder::default()
+    }
+    .archive(bytes, 0)
 }
 
 pub fn decode(bytes: &[u8]) -> Result<Value, String> {

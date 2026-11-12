@@ -86,7 +86,9 @@ Simulator input uses [AXe](https://github.com/cameroncooke/AXe), by Cameron Cook
 
 ## Experimental accessibility snapshots
 
-`physical <UDID> ax-snapshot [new-local-archive.plist]` uses the protocol bridge and accepts the same optional `--pairing-file` prefix. It captures the first matching remote-accessibility callback archive as base64 JSON, or saves it privately and returns file metadata. Callback acquisition and correlated disable were verified over USB on the iPhone 13 mini. `decode-ax-archive <local-plist>` performs bounded, data-only structural decoding through the bridge without connecting to a device. Numeric attribute meanings and a normalized physical hierarchy remain unfinished; see [protocol evidence](ACCESSIBILITY-PROTOCOL.md).
+`physical <UDID> tree <pid>` uses the protocol bridge for active AXP application-root and native snapshot reads, following the pinned MIT-licensed ipb protocol research. It returns bounded parent/child paths, labels, identifiers, logical-point frames, traits, and available native metadata without exposing opaque handles. The explicit-PID Settings tree was verified through CLI and real MCP stdio on the USB iPhone 13 mini. Physical selectors, foreground selection, stable actionable references, and broader app/transport coverage remain unfinished. No upstream Python runtime or XCTest is used. See [active snapshot protocol and limits](ACCESSIBILITY-PROTOCOL.md#active-per-application-tree).
+
+`physical <UDID> ax-snapshot [new-local-archive.plist]` separately captures the first matching remote-accessibility callback archive as base64 JSON, or saves it privately and returns file metadata. Callback acquisition and correlated disable were verified over USB on the iPhone 13 mini. Both live AX commands accept the existing optional `--pairing-file` prefix. `decode-ax-archive <local-plist>` performs bounded, data-only structural decoding through the bridge without connecting to a device; that offline command does not turn raw callbacks into a normalized hierarchy.
 
 
 ## Xcode app/data operations

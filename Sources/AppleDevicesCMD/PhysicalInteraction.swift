@@ -3,7 +3,7 @@ import Foundation
 /// Optional idevice bridge; private protocols stay outside the Swift command surface.
 enum PhysicalInteraction {
     static func plan(device: String, operation: String, operands: [String]) throws -> DeviceCommand? {
-        guard ["hid-info", "ax-snapshot", "logs", "tap", "multi-tap", "multi-drag", "pinch", "drag", "swipe", "button", "key", "type"].contains(operation) else { return nil }
+        guard ["hid-info", "ax-snapshot", "tree", "logs", "tap", "multi-tap", "multi-drag", "pinch", "drag", "swipe", "button", "key", "type"].contains(operation) else { return nil }
         func require(_ count: Int) throws {
             guard operands.count == count else {
                 throw CommandFailure(description: "\(operation) expects \(count) operands. See --help.")
@@ -27,6 +27,12 @@ enum PhysicalInteraction {
         case "hid-info":
             try require(0)
             arguments = [operation]
+        case "tree":
+            try require(1)
+            guard let pid = UInt32(operands[0]), pid > 0, pid <= Int32.max else {
+                throw CommandFailure(description: "Physical tree requires a positive PID. Use physical <device> processes to find it.")
+            }
+            arguments = [operation, String(pid)]
         case "ax-snapshot":
             guard operands.count <= 1, operands.first.map({ !$0.isEmpty && !$0.hasPrefix("-") && $0.lowercased().hasSuffix(".plist") }) ?? true else {
                 throw CommandFailure(description: "Usage: ax-snapshot [new-local-archive.plist]")

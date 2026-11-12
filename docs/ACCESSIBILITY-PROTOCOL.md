@@ -1,4 +1,32 @@
-# Experimental remote accessibility observation
+# Physical accessibility observations
+
+## Active per-application tree
+
+```sh
+mise run idevice:build --debug --offline
+mise run build
+mise run cli physical <UDID> processes
+# Use a current application PID from processes or the result of launch:
+mise run cli physical <UDID> tree <pid>
+# Optional real MCP stdio verification of that same read:
+mise run test:mcp-physical <UDID> <pid>
+```
+
+`tree` performs active read-only requests through the optional idevice bridge. It requires a positive PID no greater than 2147483647 and the existing physical Developer Mode preflight. The optional `--pairing-file` prefix uses the existing bridge transport; that Wi-Fi path is not verified by the USB checks below. MCP `get_ui_tree` accepts `platform: physical`, `device`, and integer `pid`. Its default remains the simulator/AXe tree for existing clients. Supplying a PID for a simulator is rejected.
+
+The protocol path follows the MIT-licensed [pinned ipb research and implementation](https://github.com/ipbtools/ipb/blob/8c227a10710dad479852aa0203de729fed57471b/docs/protocol.md), with the retained [license notice](../ThirdParty/ipb-LICENSE.txt). The host answers `hostAPIVersion` with 7 and requires device API version 26, which is a protocol version rather than the iOS version. After `clientNeedsAccessibility: true`, it sends `AXPTranslatorRequest` type 1 for the PID's application root, then type 2 / attribute 52 for a native descendant snapshot. All requests have action type zero. Data travels as a keyed archive argument to `processDataFromHost:`; `processDataFromRemoteDevice:` supplies semantic responses separately from DTX call acknowledgements.
+
+The native snapshot options request attributes `[2001,2002,2003,2004,5019,2006,2025,5003,5004,3003]`, traversal from parents to children, depth 48, and child/array caps 512. These IDs supply label, hint, frame, traits, identifier, value, visibility, and native class/bundle metadata. They are distinct from the older AXP attribute IDs. Missing properties stay absent; unsupported value/geometry shapes cause an error instead of an inferred field. Geometry is **device logical points**, not screenshot pixels or normalized HID coordinates. The observed portrait root was 375×812, while screenshots were 1125×2436.
+
+Success returns `format: accessibility-tree`, `parsedHierarchy: true`, nodes with `parentId`/`children`, and a random `snapshotId`. IDs such as `n0` identify paths within this observation only. Repeated native elements on different parent paths remain separate occurrences; equal labels do not establish identity. Opaque translation tokens never appear in the returned tree. Native class/bundle fields retain their numeric keys under `nativeAttributes`; no XCUIElementType mapping or generic hittability claim is made.
+
+The snapshot response must report request type 2, attribute 52, error zero, and the matching root identity. Each declared child count must match its array. Host traversal rejects more than 512 nodes or depth over 32 without emitting a partial tree. The application root is queried again afterward and must retain its PID/object identity and application flag. `rootStabilityScope: application-identity` and `atomic: false` describe that limited check: descendants can change during the operation. Explicit PID selection may inspect a background app; no foreground/display hit test is performed. A tree is not every UIView, a combined system/app dump, or proof that device-side caps include every offscreen node.
+
+There is one outstanding semantic request at a time; older queued notifications are discarded before sending it. DTX replies must match identifier/conversation/channel, and unsupported reply kinds fail. Semantic errors, missing status/data, target/attribute mismatches, changed root, malformed children, or decode limits abort the read. No shallow fallback or automatic request retry occurs. The observation deadline is 30 seconds, individual reply phases have four-second deadlines, and cleanup has three seconds. After any attempted subscription, the host attempts `clientNeedsAccessibility: false` and requires the correlated reply before success. The bridge's outer 60-second deadline, connection loss, or process termination can interrupt cleanup.
+
+Active protocol decoding remains data-only. Its internal mode preserves opaque data for fresh request tokens and permits archive wrapper depth 512, while the public offline structural inspector retains its original depth 64 and byte-count-only opaque data. Both retain the 16 MiB input-per-archive, four-archive, 100,000-value, and 32 MiB expanded-content limits. The session also caps received callback archives at 40 MiB, queued callbacks at eight, and frame/response loops. These host limits are not an audit of upstream plist parsing allocations.
+
+On the selected awake/unlocked USB iPhone 13 mini, a CLI read and a separate real MCP stdio exchange each returned a 263-node Settings snapshot, maximum depth 20, with confirmed subscription stop. A fresh screenshot matched visible labels including Pantalla y brillo, Desarrollador, General, and the search close control. This is scoped physical evidence for this Settings/search/keyboard state. Other apps, overlays, rotations, secure content, Wi-Fi, stable actionable references, selector actions, and broad completeness remain unverified or unimplemented.
 
 ## Evidence and scope
 
@@ -43,4 +71,4 @@ Limits are 16 MiB of input per archive, four archives total, recursion depth 64,
 
 Synthetic in-memory DTX tests cover framing failures, fragments, callback filtering, acknowledgements, and correlated cleanup. A live iPhone 13 mini USB query now completed callback capture and the correlated disable exchange. A subsequent Swift CLI query saved a 7,555-byte archive under ignored `tmp/`; offline decoding found two nested archives, an `AXPTranslatorResponse`, and 27 `treeDump` responses. These are response records, not a count of UI elements. The payload includes numeric attributes, translation-object identities, and Foundation wrappers. No private device data is committed as a fixture.
 
-Next evidence needed: independently verified numeric attribute meanings, initial-versus-update dump semantics, relationships, and comparison with a known visible screen. Generation handling, stable reference lifetime, physical selectors, and normalized hierarchy output remain unimplemented. A different device state may produce a non-tree event or an unsupported archive shape. The current probe and structural decoder do not complete physical accessibility parity.
+The raw callback probe still does not interpret initial-versus-update dump semantics. The separate active request above now supplies a normalized native hierarchy with scoped physical verification. Generation handling, stable actionable references, foreground selection, and physical selectors remain unimplemented. A different device state may produce unsupported data. Neither path completes physical accessibility parity.

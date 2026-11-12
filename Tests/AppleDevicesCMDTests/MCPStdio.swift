@@ -3,11 +3,12 @@ import Foundation
 import Testing
 @testable import AppleDevicesCMD
 
-/// Opt-in because this queries CoreSimulator and captures the selected screen.
+/// Opt-in because this queries a selected simulator or physical application.
 struct MCPStdioTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_LIVE"] == "1"), .timeLimit(.minutes(1)))
-    func subprocessHandshakeAndSimulatorTools() throws {
-        let simulator = try #require(ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_SIMULATOR"])
+    func subprocessHandshakeAndDeviceTools() throws {
+        let physical = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PHYSICAL"]
+        let simulator = physical == nil ? try #require(ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_SIMULATOR"]) : ""
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let directory = root.appendingPathComponent("tmp/mcp-live-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -36,7 +37,7 @@ struct MCPStdioTests {
             try input.fileHandleForWriting.write(contentsOf: data)
         }
         func receive() throws -> [String: Any] {
-            let deadline = ContinuousClock.now + .seconds(20)
+            let deadline = ContinuousClock.now + .seconds(physical == nil ? 20 : 50)
             while true {
                 if let newline = buffer.firstIndex(of: 10) {
                     let message = Data(buffer[..<newline])
@@ -65,6 +66,13 @@ struct MCPStdioTests {
             #expect(response["jsonrpc"] as? String == "2.0")
             return response
         }
+        func finish() throws {
+            try input.fileHandleForWriting.close()
+            let deadline = ContinuousClock.now + .seconds(5)
+            while process.isRunning, ContinuousClock.now < deadline { usleep(10_000) }
+            #expect(process.isRunning == false)
+            if !process.isRunning { #expect(process.terminationStatus == 0) }
+        }
         let initialized = try request(1, "initialize", ["protocolVersion": "2025-11-25", "capabilities": ["elicitation": ["form": [:]]], "clientInfo": ["name": "stdio-verification", "version": "1"]])
         let initResult = try #require(initialized["result"] as? [String: Any])
         #expect(initResult["protocolVersion"] as? String == "2025-11-25")
@@ -75,6 +83,32 @@ struct MCPStdioTests {
         #expect(tools.compactMap { $0["name"] as? String } == MCPTools.definitions.map(\.name))
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
+        if let physical {
+            let pid = try #require(Int(ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PID"] ?? ""))
+            let response = try request(4, "tools/call", ["name": "get_ui_tree", "arguments": ["device": physical, "platform": "physical", "pid": pid]])
+            let result = try #require(response["result"] as? [String: Any])
+            #expect(result["isError"] as? Bool == false)
+            let structured = try #require(result["structuredContent"] as? [String: Any])
+            let tree = try #require(structured["result"] as? [String: Any])
+            #expect(tree["parsedHierarchy"] as? Bool == true)
+            #expect(tree["atomic"] as? Bool == false)
+            #expect((tree["application"] as? [String: Any])?["pid"] as? Int == pid)
+            #expect((tree["cleanup"] as? [String: Any])?["subscriptionStop"] as? String == "confirmed")
+            let nodes = try #require(tree["nodes"] as? [[String: Any]])
+            #expect(!nodes.isEmpty)
+            #expect(tree["nodeCount"] as? Int == nodes.count)
+            let ids = Set(nodes.compactMap { $0["id"] as? String })
+            #expect(ids.count == nodes.count)
+            for node in nodes {
+                let children = try #require(node["children"] as? [String])
+                #expect(children.allSatisfy(ids.contains))
+            }
+            let artifact = directory.appendingPathComponent("physical-tree.json")
+            let data = try JSONSerialization.data(withJSONObject: tree, options: [.prettyPrinted, .sortedKeys])
+            #expect(FileManager.default.createFile(atPath: artifact.path, contents: data, attributes: [.posixPermissions: 0o600]))
+            try finish()
+            return
+        }
         let inventory = try request(4, "tools/call", ["name": "list_devices", "arguments": ["platform": "simulator"]])
         let inventoryResult = try #require(inventory["result"] as? [String: Any])
         #expect(inventoryResult["isError"] as? Bool == false)
@@ -123,10 +157,6 @@ struct MCPStdioTests {
         let screenContent = try #require(inspectResult["content"] as? [[String: Any]])
         #expect(screenContent.contains { $0["type"] as? String == "image" })
         // Closing stdin must end the server without a protocol shutdown request.
-        try input.fileHandleForWriting.close()
-        let deadline = ContinuousClock.now + .seconds(5)
-        while process.isRunning, ContinuousClock.now < deadline { usleep(10_000) }
-        #expect(process.isRunning == false)
-        if !process.isRunning { #expect(process.terminationStatus == 0) }
+        try finish()
     }
 }

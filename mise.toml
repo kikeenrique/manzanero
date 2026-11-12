@@ -64,6 +64,17 @@ dir = "{{ config_root }}"
 description = "Test native multitouch scheduling, validation, and failure cleanup without a device"
 run = ["mkdir -p tmp/coredevice-tests", "clang -Wall -Wextra -Werror Backends/CoreDevice/test-multitouch.c -o tmp/coredevice-tests/multitouch", "tmp/coredevice-tests/multitouch"]
 
+[tasks."test:mcp-physical"]
+extends = "swift"
+description = "Verify MCP stdio physical AX tree for an explicitly selected device and PID"
+depends = ["build"]
+env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
+usage = '''
+arg "<device>" help="Explicit physical device UDID"
+arg "<pid>" help="Current application PID to inspect; may be a background app"
+'''
+run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_PID="$usage_pid" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon'
+
 [task_templates.idevice]
 dir = "{{ config_root }}"
 env = { MISE_DATA_DIR = "{{ config_root }}/tmp/mise-data", MISE_CACHE_DIR = "{{ config_root }}/tmp/mise-cache", CARGO_HOME = "{{ config_root }}/tmp/cargo-home", RUSTUP_HOME = "{{ config_root }}/tmp/rustup" }
@@ -106,3 +117,9 @@ bridge_args=(test --locked --manifest-path Backends/IDevice/Cargo.toml --target-
 if [ "${usage_offline:-false}" = true ]; then bridge_args+=(--offline); fi
 mise exec rust@{{ vars.rust_version }} -- cargo "${bridge_args[@]}"
 '''
+
+[tasks."idevice:fmt"]
+extends = "idevice"
+description = "Format the Rust bridge using its pinned toolchain"
+depends = ["idevice:setup"]
+run = "mise exec rust@{{ vars.rust_version }} -- cargo fmt --manifest-path Backends/IDevice/Cargo.toml"

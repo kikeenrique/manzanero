@@ -129,7 +129,7 @@ actor CommandService {
             }
             if let archivePath { try AccessibilityArchive.validateDestination(archivePath) }
             if targetArgs.count >= 3, targetArgs[0] == "physical",
-               ["tap", "multi-tap", "multi-drag", "pinch", "drag", "swipe", "button", "key", "type", "hid-info", "ax-snapshot", "launch", "terminate", "processes", "open-url", "screenshot"].contains(targetArgs[2]) {
+               ["tap", "multi-tap", "multi-drag", "pinch", "drag", "swipe", "button", "key", "type", "hid-info", "ax-snapshot", "tree", "launch", "terminate", "processes", "open-url", "screenshot"].contains(targetArgs[2]) {
                 try preflight(targetArgs[1], operation: targetArgs[2])
             }
             guard allowInteractive || !command.interactive else {

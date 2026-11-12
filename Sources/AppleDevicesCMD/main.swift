@@ -42,6 +42,7 @@ Usage:
   Build & Run targets iOS, defaults to Debug, and requires xcsift on PATH.
   appledevicescmd physical <UDID> hid-info
   appledevicescmd physical <UDID> ax-snapshot [new-local-archive.plist]  Experimental raw archive
+  appledevicescmd physical <UDID> tree <positive-pid>  Experimental native AX snapshot for one app
   appledevicescmd decode-ax-archive <local-plist>  Offline structural archive inspection
   appledevicescmd physical <UDID> tap <x> <y>
   appledevicescmd physical <UDID> multi-tap <x1> <y1> <x2> <y2> [<x3> <y3> ...]

@@ -9,6 +9,7 @@ use std::time::Duration;
 
 mod accessibility;
 mod archive;
+mod ax_tree;
 mod gesture;
 mod logs;
 mod pairing;
@@ -21,6 +22,7 @@ enum Action {
     Surfaces,
     Logs(u32, Option<u32>),
     AccessibilitySnapshot,
+    AccessibilityTree(u32),
     Tap(u16, u16),
     MultiTap(Vec<(u16, u16)>),
     MultiDrag(gesture::Gesture),
@@ -60,6 +62,15 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
         }
         "hid-info" if values.is_empty() => Action::Surfaces,
         "ax-snapshot" if values.is_empty() => Action::AccessibilitySnapshot,
+        "tree" if values.len() == 1 => {
+            let pid: u32 = values[0]
+                .parse()
+                .map_err(|_| "AX tree requires a positive PID")?;
+            if pid == 0 || pid > i32::MAX as u32 {
+                return Err("Invalid AX tree PID".into());
+            }
+            Action::AccessibilityTree(pid)
+        }
         "tap" if values.len() == 2 => Action::Tap(number(0)?, number(1)?),
         "multi-tap" if (4..=10).contains(&values.len()) && values.len() % 2 == 0 => {
             let points = (0..values.len())
@@ -124,7 +135,10 @@ async fn execute(
         result["transport"] = json!(connection.name);
         return Ok(result);
     }
-    if action == Action::AccessibilitySnapshot {
+    if matches!(
+        action,
+        Action::AccessibilitySnapshot | Action::AccessibilityTree(_)
+    ) {
         let service = rsd
             .services
             .get("com.apple.accessibility.axAuditDaemon.remoteAXService")
@@ -133,7 +147,11 @@ async fn execute(
             .connect(service.port)
             .await
             .map_err(|e| format!("Remote accessibility connect: {e}"))?;
-        let mut snapshot = accessibility::capture(&mut socket).await?;
+        let mut snapshot = if let Action::AccessibilityTree(pid) = action {
+            ax_tree::capture(&mut socket, pid).await?
+        } else {
+            accessibility::capture(&mut socket).await?
+        };
         snapshot["backend"] = json!("idevice");
         snapshot["transport"] = json!(connection.name);
         return Ok(snapshot);
