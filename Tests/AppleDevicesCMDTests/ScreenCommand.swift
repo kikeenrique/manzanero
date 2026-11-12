@@ -31,9 +31,10 @@ struct ScreenCommandTests {
         ScreenText(source: path, regions: [.init(text: "Synthetic", confidence: 0.9, x: 0.1, y: 0.2, width: 0.3, height: 0.1)])
     }
 
-    @Test func validatesModesTargetsAndPhysicalTreeLimit() throws {
+    @Test func validatesModesTargetsAndAcceptsForegroundPhysicalTree() throws {
         #expect(try ScreenCommand.parse(["simulator", device, "screen"])?.mode == .automatic)
-        for args in [["simulator", "booted", "screen"], ["simulator", device, "screen", "unknown"], ["physical", "fixture", "screen", "tree"]] {
+        #expect(try ScreenCommand.parse(["physical", "fixture", "screen", "tree"])?.mode == .tree)
+        for args in [["simulator", "booted", "screen"], ["simulator", device, "screen", "unknown"]] {
             #expect(throws: CommandFailure.self) { try ScreenCommand.parse(args) }
         }
     }
@@ -132,6 +133,63 @@ struct ScreenCommandTests {
             if case .image(let base64, let mime, _, _) = content {
                 #expect(mime == "image/png")
                 #expect(Data(base64Encoded: base64) == (try Data(contentsOf: image)))
+            }
+        }
+    }
+
+    func physicalTree() throws -> Data {
+        try JSONSerialization.data(withJSONObject: ["format":"accessibility-tree", "parsedHierarchy":true,
+            "application":["selection":"centre-hit-test"],"coordinateSpace":"device-logical-points","nodeCount":2,
+            "nodes":[["id":"n0","label":"App"],["id":"n1","label":"Button","visible":true]]])
+    }
+
+    @Test(arguments: [false, true]) func physicalAutoPrefersForegroundTreeAndPreservesItsCoordinateSpace(cleanupWarning: Bool) async throws {
+        var hierarchy = try json(physicalTree())
+        if cleanupWarning { hierarchy["cleanup"] = ["subscriptionStop":"connection-closed-before-ack", "warning":"Cleanup unconfirmed."] }
+        let data = try JSONSerialization.data(withJSONObject: hierarchy)
+        try await fixture { directory in
+            let screen = ScreenCommand(platform:"physical",device:"fixture",mode:.automatic)
+            let result = try await screen.execute(directory:directory,run:{ plan in
+                if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8) }
+                #expect(plan.arguments == ["appledevices-idevice","fixture","tree"])
+                return data
+            },recognize:{ _ in Issue.record("Useful physical tree reached OCR"); throw CommandFailure(description:"unexpected OCR") })
+            #expect(try json(result)["method"] as? String == "accessibility")
+            #expect(try json(result)["coordinateSpace"] as? String == "device-logical-points")
+            #expect(try json(result)["diagnostics"] as? [String] == (cleanupWarning ? ["Cleanup unconfirmed."] : []))
+        }
+    }
+
+    @Test func physicalFallbackRejectsBackgroundAndInconsistentTreeMetadata() async throws {
+        for invalid in ["background","count","hidden"] {
+            var value = try json(physicalTree())
+            if invalid == "background" { value["application"] = ["selection":"explicit-pid"] }
+            if invalid == "count" { value["nodeCount"] = 3 }
+            if invalid == "hidden" { value["nodes"] = [["id":"n0","label":"App"],["id":"n1","label":"Button","visible":false]] }
+            let data = try JSONSerialization.data(withJSONObject:value)
+            try await fixture { directory in
+                let screen = ScreenCommand(platform:"physical",device:"fixture",mode:.automatic)
+                let result = try await screen.execute(directory:directory,run:{ plan in
+                    if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8) }
+                    return data
+                },recognize:{ Self.text($0) })
+                #expect(try json(result)["method"] as? String == "ocr")
+            }
+        }
+    }
+
+    @Test func forcedPhysicalTreeFailureKeepsScreenshotAndDoesNotUseOCR() async throws {
+        try await fixture { directory in
+            let screen = ScreenCommand(platform:"physical",device:"fixture",mode:.tree)
+            do {
+                _ = try await screen.execute(directory:directory,run:{ plan in
+                    if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8) }
+                    throw CommandFailure(description:"fixture AX unavailable")
+                },recognize:{ _ in Issue.record("Forced tree reached OCR"); return Self.text("unexpected") })
+                Issue.record("Forced tree failure was hidden")
+            } catch {
+                #expect(String(describing:error).contains("Screenshot saved at"))
+                #expect(FileManager.default.fileExists(atPath:directory.appendingPathComponent("screen.png").path))
             }
         }
     }

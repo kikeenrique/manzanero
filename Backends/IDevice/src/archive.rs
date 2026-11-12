@@ -213,6 +213,75 @@ pub(crate) fn decode_protocol(bytes: &[u8]) -> Result<Value, String> {
     .archive(bytes, 0)
 }
 
+/// Inspect only routing metadata before expanding a callback. Unsolicited AX
+/// dumps can contain values outside our supported semantic schema (including
+/// non-finite numbers); they must not poison a different outstanding reply.
+pub(crate) fn response_kind(bytes: &[u8]) -> Result<Option<u64>, String> {
+    fn resolve<'a>(mut value: &'a Plist, objects: &'a [Plist]) -> Result<&'a Plist, String> {
+        for _ in 0..8 {
+            let Some(uid) = value.as_uid() else {
+                return Ok(value);
+            };
+            value = objects
+                .get(usize::try_from(uid.get()).map_err(|_| "AX routing reference overflow")?)
+                .ok_or("Invalid AX routing reference")?;
+        }
+        Err("AX routing reference depth exceeded".into())
+    }
+    fn inspect(bytes: &[u8], nesting: usize) -> Result<Option<u64>, String> {
+        if bytes.len() > MAX_BYTES || nesting >= 4 {
+            return Err("AX routing archive limit exceeded".into());
+        }
+        let value = Plist::from_reader(Cursor::new(bytes))
+            .map_err(|e| format!("Read AX routing archive: {e}"))?;
+        let archive = value.as_dictionary().ok_or("Invalid AX routing archive")?;
+        if archive.get("$archiver").and_then(Plist::as_string) != Some("NSKeyedArchiver") {
+            return Err("Invalid AX routing archiver".into());
+        }
+        let objects = archive
+            .get("$objects")
+            .and_then(Plist::as_array)
+            .filter(|v| v.len() <= MAX_VALUES)
+            .ok_or("Invalid AX routing object table")?;
+        let root = archive
+            .get("$top")
+            .and_then(Plist::as_dictionary)
+            .and_then(|v| v.get("root"))
+            .ok_or("Missing AX routing root")?;
+        let root = resolve(root, objects)?;
+        if let Some(data) = root.as_data() {
+            return inspect(data, nesting + 1);
+        }
+        let Some(root) = root.as_dictionary() else {
+            return Ok(None);
+        };
+        let class = root
+            .get("$class")
+            .map(|v| resolve(v, objects))
+            .transpose()?
+            .and_then(Plist::as_dictionary)
+            .and_then(|v| v.get("$classname"))
+            .and_then(Plist::as_string);
+        if matches!(class, Some("NSData" | "NSMutableData" | "__NSCFData")) {
+            let data = resolve(
+                root.get("NS.data").ok_or("Missing AX routing data")?,
+                objects,
+            )?
+            .as_data()
+            .ok_or("Invalid AX routing data")?;
+            return inspect(data, nesting + 1);
+        }
+        if class != Some("AXPTranslatorResponse") {
+            return Ok(None);
+        }
+        root.get("associatedRequestType")
+            .map(|v| resolve(v, objects).map(|v| v.as_unsigned_integer()))
+            .transpose()
+            .map(Option::flatten)
+    }
+    inspect(bytes, 0)
+}
+
 pub fn decode(bytes: &[u8]) -> Result<Value, String> {
     let mut decoder = Decoder::default();
     let decoded = decoder.archive(bytes, 0)?;

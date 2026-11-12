@@ -81,7 +81,7 @@ actor CommandService {
             if dryRun {
                 let plan = try screen.capturePlan(image: directory.appendingPathComponent("screen.png"))
                 return try json(["executable": plan.executable, "arguments": plan.arguments, "analysisMode": screen.mode.rawValue,
-                    "analysis": "Prefer simulator accessibility in auto mode; fall back to Vision OCR, then explicitly report image-only if analysis fails."])
+                    "analysis": "Prefer accessibility in auto mode (physical selects the app at primary display centre); fall back to Vision OCR, then explicitly report image-only if analysis fails."])
             }
             if screen.platform == "physical" { try preflight(screen.device, operation: "capture screen") }
             return CommandOutput(data: try await screen.execute(directory: directory, run: { try runner.run($0.arguments, executable: $0.executable) }))

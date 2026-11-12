@@ -1,6 +1,6 @@
 # Feature parity status
 
-Checkpoint: `d69a44b`, 2026-11-12. Full device-control tooling parity is not complete. This classifies the repository's [recorded parity inventory](ROADMAP.md), rather than claiming a newly audited vendor feature list. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
+Checkpoint: foreground-selection implementation, 2026-11-12. Full device-control tooling parity is not complete. This classifies the repository's [recorded parity inventory](ROADMAP.md), rather than claiming a newly audited vendor feature list. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
 
 Scope clarification: all Apple device families are in scope, explicitly including iPhone, iPad, Apple Watch, Apple TV, and Duo targets. Android is excluded and is not an unfinished requirement. The same physical iPhone result cannot verify another device family.
 
@@ -14,14 +14,15 @@ Scope clarification: all Apple device families are in scope, explicitly includin
 | Physical control | Pinch and moving multitouch | Partial, scoped verification | Native two-contact Maps zoom in/out verified. Three-to-five-contact effects and failure cleanup on hardware remain unverified; arbitrary timed paths are missing. |
 | Physical control | Unicode paste / Backspace | Verified | Settings search insertion/removal observed. Paste explicitly replaces the phone clipboard; other field types, keys, and layouts need coverage. |
 | Physical control | Exact identifier/label press | Partial, scoped verification | Settings navigation observed through fresh AX targets, live state, hit, and portrait display checks. Other apps/overlays/rotations remain incomplete. |
-| Physical control | Foreground app selection | In progress | Uncommitted automatic selection for trees and presses; explicit-PID operations are the committed checkpoint. |
+| Physical control | Foreground app selection | Partial, scoped verification | Primary-display centre selection verified for Settings trees and exact identifier/label presses without PID. Overlays, embedded processes, rotations, and other families remain incomplete. |
 | Observation | Physical screenshot | Verified | Awake/unlocked iPhone 13 mini USB capture. Earlier black captures preceded confirmed wake/unlock. |
-| Observation | Physical accessibility tree | Partial, scoped verification | Explicit-PID Settings/search/keyboard tree verified through CLI and real MCP. Snapshot-local IDs; non-atomic; broad coverage unproven. |
-| Observation | Physical screenshot + tree workflow | In progress | Uncommitted integration. Committed physical screen auto uses OCR. |
+| Observation | Physical accessibility tree | Partial, scoped verification | Explicit-PID and automatically selected Settings trees verified through CLI and real MCP. Snapshot-local IDs; non-atomic; broad coverage unproven. |
+| Observation | Physical screenshot + tree workflow | Partial, scoped verification | Physical screen auto/tree integration implemented; real MCP returned Settings hierarchy and inline PNG. Sequential capture/query; physical OCR accuracy remains unverified. |
 | Observation | OCR | Partial | Simulator fixture verified; physical accuracy and OCR selector actions remain unverified/missing. |
 | Observation | Physical finite recording | Implemented, unverified | Command exists; iPhone 13 mini has not completed a capture test. An earlier different phone rejected native recording. |
 | Observation | Live mirroring/streaming | Missing | Internal HID media setup does not constitute a user-facing capture/session feature. |
 | Apps | Launch installed apps | Partial, scoped verification | Settings launch verified; other launch restrictions need coverage. |
+| Apps | List installed apps | Verified | Selected iPhone 13 mini returned 74 entries, including system components; private inventory stays under ignored tmp/. Other device families remain unverified. |
 | Apps | Install/uninstall/terminate/URLs | Implemented, unverified physically | Physical command plans exist; Safari URL preflight failed in one check. No broad physical lifecycle claim. |
 | Apps | App-container files | Partial | Raw listing/pull/push exist. Tool-owned temporary-domain copy round trip verified; actual app-container permission/round-trip proof missing. Xcode-format export/replacement missing. |
 | Diagnostics | Saved reports | Partial | Physical listing verified; download unverified. Parsing, symbolication, filters, and deletion missing. |

@@ -256,13 +256,41 @@ struct Session<'a, S> {
     next: u32,
     callbacks: VecDeque<Value>,
     bytes: usize,
+    expected_kind: Option<u64>,
+    connection_closed: bool,
 }
 fn header_u32(header: &[u8], offset: usize) -> u32 {
     u32::from_le_bytes(header[offset..offset + 4].try_into().unwrap())
 }
 impl<'a, S: ReadWrite> Session<'a, S> {
+    async fn stop_subscription(&mut self) -> Result<Value, String> {
+        self.expected_kind = None;
+        self.connection_closed = false;
+        let result = tokio::time::timeout(
+            Duration::from_secs(3),
+            self.invoke("clientNeedsAccessibility:", Some(false.into())),
+        )
+        .await
+        .map_err(|_| "AX subscription cleanup timed out".to_string())
+        .and_then(|r| r);
+        match result {
+            Ok(_) => Ok(json!({"subscriptionStop":"confirmed"})),
+            Err(error) if self.connection_closed => Ok(json!({
+                "subscriptionStop":"connection-closed-before-ack",
+                "confirmed":false,
+                "warning":"Connection closed before the disable acknowledgement; subscription cleanup is unconfirmed.",
+                "diagnostic":error
+            })),
+            Err(error) => Err(error),
+        }
+    }
     async fn receive(&mut self) -> Result<Message, String> {
-        let frame = accessibility::read_frame(self.socket).await?;
+        let frame = accessibility::read_frame_with_state(self.socket)
+            .await
+            .map_err(|e| {
+                self.connection_closed = e.connection_closed;
+                e.message
+            })?;
         let header = frame.message_header.serialize();
         if frame.data.as_ref().and_then(Plist::as_string) == Some("hostAPIVersion")
             && header_u32(&header, 28) != 0
@@ -295,7 +323,11 @@ impl<'a, S: ReadWrite> Session<'a, S> {
             if self.bytes > 40 * 1024 * 1024 || self.callbacks.len() >= 8 {
                 return Err("AX callback budget exceeded".into());
             }
-            self.callbacks.push_back(archive::decode_protocol(bytes)?);
+            if let Some(expected) = self.expected_kind {
+                if archive::response_kind(bytes)? == Some(expected) {
+                    self.callbacks.push_back(archive::decode_protocol(bytes)?);
+                }
+            }
         }
         Ok(frame)
     }
@@ -364,6 +396,7 @@ impl<'a, S: ReadWrite> Session<'a, S> {
         // Only one semantic request is outstanding. Discard older notifications
         // before sending; a timeout ends this session rather than reusing it.
         self.callbacks.clear();
+        self.expected_kind = Some(kind);
         self.invoke("processDataFromHost:", Some(Plist::Data(bytes)))
             .await?;
         tokio::time::timeout(Duration::from_secs(4), async {
@@ -383,11 +416,13 @@ impl<'a, S: ReadWrite> Session<'a, S> {
                     {
                         return Err("AX snapshot response target/attribute mismatch".into());
                     }
-                    return reply
+                    let result = reply
                         .get("resultData")
                         .cloned()
                         .filter(|v| !v.is_null())
                         .ok_or("AX request returned no data".into());
+                    self.expected_kind = None;
+                    return result;
                 }
                 self.receive().await?;
             }
@@ -520,11 +555,34 @@ fn normalize(snapshot: &Value, root: &Value) -> Result<Vec<Value>, String> {
 }
 
 pub async fn capture(socket: &mut impl ReadWrite, pid: u32) -> Result<Value, String> {
+    struct UnusedDisplay;
+    impl actions::DisplaySource for UnusedDisplay {
+        async fn display(&mut self) -> Result<Value, String> {
+            Err("No display query configured".into())
+        }
+    }
+    capture_selected(socket, Some(pid), &mut UnusedDisplay).await
+}
+
+pub async fn capture_foreground(
+    socket: &mut impl ReadWrite,
+    displays: &mut impl actions::DisplaySource,
+) -> Result<Value, String> {
+    capture_selected(socket, None, displays).await
+}
+
+async fn capture_selected(
+    socket: &mut impl ReadWrite,
+    requested_pid: Option<u32>,
+    displays: &mut impl actions::DisplaySource,
+) -> Result<Value, String> {
     let mut session = Session {
         socket,
         next: 1,
         callbacks: VecDeque::new(),
         bytes: 0,
+        expected_kind: None,
+        connection_closed: false,
     };
     let mut subscribed = false;
     let result = tokio::time::timeout(Duration::from_secs(30), async {
@@ -532,38 +590,43 @@ pub async fn capture(socket: &mut impl ReadWrite, pid: u32) -> Result<Value, Str
         if version.as_ref().and_then(Plist::as_unsigned_integer) != Some(26) { return Err("Unsupported remote AX API version".into()); }
         subscribed = true;
         session.invoke("clientNeedsAccessibility:", Some(true.into())).await?;
+        let display = if requested_pid.is_none() { Some(actions::Display::parse(&displays.display().await?)?) } else { None };
+        let pid = if let Some(pid) = requested_pid { pid } else {
+            let (x,y) = display.as_ref().unwrap().center();
+            identity(&session.exchange(6,point_request(x,y)?,None).await?)?.0
+        };
         let root = session.read(1, json!({"pid":pid}), None).await?;
         if identity(&root)?.0 != pid || fields(&root,"AXPTranslationObject")?["isApplicationElement"] != true { return Err("AX application identity mismatch".into()); }
         let snapshot = session.read(2, snapshot_options(), Some(&root)).await?;
         let nodes = normalize(&snapshot, &root)?;
         let after = session.read(1, json!({"pid":pid}), None).await?;
         if identity(&after)? != identity(&root)? || fields(&after,"AXPTranslationObject")?["isApplicationElement"] != true { return Err("AX application identity changed during observation".into()); }
+        if let Some(display) = &display {
+            let (x,y) = display.center();
+            if identity(&session.exchange(6,point_request(x,y)?,None).await?)?.0 != pid { return Err("Displayed AX process changed during observation".into()); }
+            if actions::Display::parse(&displays.display().await?)? != *display { return Err("Display geometry/orientation changed during observation".into()); }
+        }
         Ok(json!({"format":"accessibility-tree","schemaVersion":1,"parsedHierarchy":true,"experimental":true,
-            "application":{"pid":pid,"selection":"explicit-pid"},"deviceAPIVersion":26,"snapshotId":uuid::Uuid::new_v4().to_string(),
+            "application":{"pid":pid,"selection":if requested_pid.is_some() { "explicit-pid" } else { "centre-hit-test" }},
+            "display":display.as_ref().map(|d|d.metadata()),"deviceAPIVersion":26,"snapshotId":uuid::Uuid::new_v4().to_string(),
             "nodeCount":nodes.len(),"nodes":nodes,"atomic":false,"rootStabilityScope":"application-identity",
             "referenceScope":"snapshot-local-paths","coordinateSpace":"device-logical-points",
-            "limitations":["Explicit PID can identify a background app; foreground selection is not checked.",
+            "limitations":[if requested_pid.is_some() { "Explicit PID can identify a background app; foreground selection is not checked." } else { "Foreground selection uses the primary display centre and may select an overlay/embedded process; it is not a combined display tree." },
             "Accessibility snapshot is not every UIView, nor a combined system/app snapshot. IDs are not reusable action handles.",
             "Device snapshot child/depth caps and offscreen coverage are not independently complete-coverage guarantees."]}))
     }).await.map_err(|_| "AX tree observation timed out".to_string()).and_then(|r| r);
+    session.expected_kind = None;
     let cleanup = if subscribed {
-        tokio::time::timeout(
-            Duration::from_secs(3),
-            session.invoke("clientNeedsAccessibility:", Some(false.into())),
-        )
-        .await
-        .map_err(|_| "AX tree subscription cleanup timed out".to_string())
-        .and_then(|r| r)
-        .map(|_| ())
+        session.stop_subscription().await
     } else {
-        Ok(())
+        Ok(json!({"subscriptionStop":"not-subscribed"}))
     };
     match (result, cleanup) {
-        (Ok(mut value), Ok(())) => {
-            value["cleanup"] = json!({"subscriptionStop":"confirmed"});
+        (Ok(mut value), Ok(cleanup)) => {
+            value["cleanup"] = cleanup;
             Ok(value)
         }
-        (Err(error), Ok(())) => Err(error),
+        (Err(error), Ok(_)) => Err(error),
         (Ok(_), Err(error)) => Err(error),
         (Err(error), Err(cleanup)) => Err(format!("{error}; {cleanup}")),
     }
@@ -648,6 +711,50 @@ mod tests {
         let mut bytes = Vec::new();
         document.to_writer_binary(&mut bytes).unwrap();
         bytes
+    }
+
+    pub(super) fn nonfinite_callback(kind: u64) -> Vec<u8> {
+        let mut encoder = Encoder::new();
+        let root = encoder.object(
+            "AXPTranslatorResponse",
+            [
+                (
+                    "associatedRequestType".to_string(),
+                    Plist::Integer(kind.into()),
+                ),
+                ("error".to_string(), 0.into()),
+                ("resultData".to_string(), Plist::Real(f64::INFINITY)),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        let document = Plist::Dictionary(
+            [
+                ("$archiver".to_string(), "NSKeyedArchiver".into()),
+                ("$objects".to_string(), Plist::Array(encoder.objects)),
+                (
+                    "$top".to_string(),
+                    Plist::Dictionary([("root".to_string(), root)].into_iter().collect()),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        let mut bytes = Vec::new();
+        document.to_writer_binary(&mut bytes).unwrap();
+        bytes
+    }
+
+    #[test]
+    fn callback_routing_does_not_expand_payloads_or_relax_semantic_number_validation() {
+        for kind in [0, 7] {
+            let bytes = nonfinite_callback(kind);
+            assert_eq!(archive::response_kind(&bytes).unwrap(), Some(kind));
+            assert!(archive::decode_protocol(&bytes).is_err());
+            let wrapped = ns_keyed_archive::encode::encode_to_bytes(Plist::Data(bytes)).unwrap();
+            assert_eq!(archive::response_kind(&wrapped).unwrap(), Some(kind));
+        }
+        assert!(archive::response_kind(b"invalid archive").is_err());
     }
 
     #[test]
@@ -822,7 +929,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn correlates_native_reads_and_requires_cleanup_and_stable_application() {
+    async fn correlates_native_reads_and_reports_cleanup_and_stable_application() {
         for failure in [
             "",
             "wrong-attribute",
@@ -834,10 +941,17 @@ mod tests {
             let (mut client, server) = tokio::io::duplex(65536);
             let task = tokio::spawn(peer(server, failure));
             let result = capture(&mut client, 123).await;
-            if failure.is_empty() {
+            if failure.is_empty() || failure == "cleanup" {
                 let result = result.unwrap();
                 assert_eq!(result["nodeCount"], 2);
-                assert_eq!(result["cleanup"]["subscriptionStop"], "confirmed");
+                assert_eq!(
+                    result["cleanup"]["subscriptionStop"],
+                    if failure == "cleanup" {
+                        "connection-closed-before-ack"
+                    } else {
+                        "confirmed"
+                    }
+                );
                 assert_eq!(result["atomic"], false);
                 assert!(!result.to_string().contains("rawElementData"));
             } else {

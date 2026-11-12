@@ -28,18 +28,24 @@ enum PhysicalInteraction {
             try require(0)
             arguments = [operation]
         case "tree":
-            try require(1)
-            guard let pid = UInt32(operands[0]), pid > 0, pid <= Int32.max else {
-                throw CommandFailure(description: "Physical tree requires a positive PID. Use physical <device> processes to find it.")
+            guard operands.count <= 1 else { throw CommandFailure(description: "Physical tree accepts an optional positive PID; omitting it selects the displayed app.") }
+            if let value = operands.first {
+                guard let pid = UInt32(value), pid > 0, pid <= Int32.max else { throw CommandFailure(description: "Physical tree PID must be positive.") }
+                arguments = [operation, String(pid)]
+            } else {
+                arguments = [operation]
             }
-            arguments = [operation, String(pid)]
         case "press-id", "press-label":
-            try require(2)
-            guard let pid = UInt32(operands[0]), pid > 0, pid <= Int32.max,
-                  (1...4096).contains(operands[1].utf8.count), !operands[1].contains("\0") else {
-                throw CommandFailure(description: "Physical AX press requires a positive PID and 1...4096 UTF-8 bytes of exact identifier or label without NUL.")
+            guard (1...2).contains(operands.count), let text = operands.last,
+                  (1...4096).contains(text.utf8.count), !text.contains("\0") else {
+                throw CommandFailure(description: "Physical AX press accepts an optional positive PID and 1...4096 UTF-8 bytes of exact selector without NUL.")
             }
-            arguments = [operation, String(pid), operands[1]]
+            if operands.count == 2 {
+                guard let pid = UInt32(operands[0]), pid > 0, pid <= Int32.max else { throw CommandFailure(description: "Physical AX press PID must be positive.") }
+                arguments = [operation, String(pid), text]
+            } else {
+                arguments = [operation, text]
+            }
         case "ax-snapshot":
             guard operands.count <= 1, operands.first.map({ !$0.isEmpty && !$0.hasPrefix("-") && $0.lowercased().hasSuffix(".plist") }) ?? true else {
                 throw CommandFailure(description: "Usage: ax-snapshot [new-local-archive.plist]")

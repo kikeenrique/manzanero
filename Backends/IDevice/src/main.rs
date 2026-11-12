@@ -22,8 +22,8 @@ enum Action {
     Surfaces,
     Logs(u32, Option<u32>),
     AccessibilitySnapshot,
-    AccessibilityTree(u32),
-    AccessibilityPress(u32, String, String),
+    AccessibilityTree(Option<u32>),
+    AccessibilityPress(Option<u32>, String, String),
     Tap(u16, u16),
     MultiTap(Vec<(u16, u16)>),
     MultiDrag(gesture::Gesture),
@@ -63,24 +63,34 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
         }
         "hid-info" if values.is_empty() => Action::Surfaces,
         "ax-snapshot" if values.is_empty() => Action::AccessibilitySnapshot,
-        "tree" if values.len() == 1 => {
-            let pid: u32 = values[0]
-                .parse()
-                .map_err(|_| "AX tree requires a positive PID")?;
-            if pid == 0 || pid > i32::MAX as u32 {
+        "tree" if values.len() <= 1 => {
+            let pid = values
+                .first()
+                .map(|v| {
+                    v.parse::<u32>()
+                        .map_err(|_| "Invalid AX tree PID".to_string())
+                })
+                .transpose()?;
+            if pid.is_some_and(|pid| pid == 0 || pid > i32::MAX as u32) {
                 return Err("Invalid AX tree PID".into());
             }
             Action::AccessibilityTree(pid)
         }
-        "press-id" | "press-label" if values.len() == 2 => {
-            let pid: u32 = values[0]
-                .parse()
-                .map_err(|_| "AX press requires a positive PID")?;
-            if pid == 0
-                || pid > i32::MAX as u32
-                || values[1].is_empty()
-                || values[1].len() > 4096
-                || values[1].contains('\0')
+        "press-id" | "press-label" if (1..=2).contains(&values.len()) => {
+            let pid = if values.len() == 2 {
+                Some(
+                    values[0]
+                        .parse::<u32>()
+                        .map_err(|_| "Invalid AX press PID")?,
+                )
+            } else {
+                None
+            };
+            let text = values.last().unwrap();
+            if pid.is_some_and(|pid| pid == 0 || pid > i32::MAX as u32)
+                || text.is_empty()
+                || text.len() > 4096
+                || text.contains('\0')
             {
                 return Err("Invalid AX press PID or selector".into());
             }
@@ -92,7 +102,7 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
                     "label"
                 }
                 .into(),
-                values[1].clone(),
+                text.clone(),
             )
         }
         "tap" if values.len() == 2 => Action::Tap(number(0)?, number(1)?),
@@ -141,6 +151,39 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
     Ok((&args[0], action))
 }
 
+async fn connect_display(
+    adapter: &mut idevice::tcp::handle::AdapterHandle,
+    rsd: &idevice::rsd::RsdHandshake,
+) -> Result<idevice::core_device::CoreDeviceServiceClient<Box<dyn idevice::ReadWrite>>, String> {
+    let feature = "com.apple.coredevice.feature.getdisplayinfo";
+    let services = rsd
+        .services
+        .values()
+        .filter(|s| {
+            s.uses_remote_xpc
+                && s.features.as_ref().is_some_and(|features| {
+                    features
+                        .iter()
+                        .any(|f| f == feature || f == "getdisplayinfo")
+                })
+        })
+        .collect::<Vec<_>>();
+    if services.len() != 1 {
+        return Err(
+            "AX foreground selection requires exactly one advertised display-info service".into(),
+        );
+    }
+    let stream = adapter
+        .connect(services[0].port)
+        .await
+        .map_err(|e| e.to_string())?;
+    idevice::core_device::CoreDeviceServiceClient::new(
+        Box::new(stream) as Box<dyn idevice::ReadWrite>
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
 async fn execute(
     udid: &str,
     action: Action,
@@ -174,31 +217,13 @@ async fn execute(
             .await
             .map_err(|e| format!("Remote accessibility connect: {e}"))?;
         let mut snapshot = match action {
-            Action::AccessibilityTree(pid) => ax_tree::capture(&mut socket, pid).await?,
+            Action::AccessibilityTree(Some(pid)) => ax_tree::capture(&mut socket, pid).await?,
+            Action::AccessibilityTree(None) => {
+                let mut displays = connect_display(adapter, rsd).await?;
+                ax_tree::capture_foreground(&mut socket, &mut displays).await?
+            }
             Action::AccessibilityPress(pid, selector, text) => {
-                let feature = "com.apple.coredevice.feature.getdisplayinfo";
-                let services = rsd
-                    .services
-                    .values()
-                    .filter(|s| {
-                        s.uses_remote_xpc
-                            && s.features.as_ref().is_some_and(|features| {
-                                features
-                                    .iter()
-                                    .any(|f| f == feature || f == "getdisplayinfo")
-                            })
-                    })
-                    .collect::<Vec<_>>();
-                if services.len() != 1 {
-                    return Err("AX press requires exactly one advertised display-info service; no press sent".into());
-                }
-                let stream = adapter
-                    .connect(services[0].port)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                let mut displays = idevice::core_device::CoreDeviceServiceClient::new(stream)
-                    .await
-                    .map_err(|e| e.to_string())?;
+                let mut displays = connect_display(adapter, rsd).await?;
                 ax_tree::press(&mut socket, &mut displays, pid, &selector, &text).await?
             }
             _ => accessibility::capture(&mut socket).await?,

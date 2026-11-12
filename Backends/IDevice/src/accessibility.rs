@@ -45,6 +45,44 @@ fn validate_header(
 pub(crate) async fn read_frame(
     socket: &mut (impl tokio::io::AsyncRead + Unpin),
 ) -> Result<Message, String> {
+    read_frame_with_state(socket).await.map_err(|e| e.message)
+}
+
+pub(crate) struct FrameReadError {
+    pub message: String,
+    pub connection_closed: bool,
+}
+impl From<String> for FrameReadError {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            connection_closed: false,
+        }
+    }
+}
+impl From<&str> for FrameReadError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+impl FrameReadError {
+    fn io(context: &str, error: std::io::Error) -> Self {
+        Self {
+            message: format!("{context}: {error}"),
+            connection_closed: matches!(
+                error.kind(),
+                std::io::ErrorKind::UnexpectedEof
+                    | std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::ConnectionAborted
+            ),
+        }
+    }
+}
+
+pub(crate) async fn read_frame_with_state(
+    socket: &mut (impl tokio::io::AsyncRead + Unpin),
+) -> Result<Message, FrameReadError> {
     let mut wire = Vec::new();
     let mut payload = Vec::new();
     let mut expected_count = None;
@@ -53,7 +91,7 @@ pub(crate) async fn read_frame(
         socket
             .read_exact(&mut header)
             .await
-            .map_err(|e| format!("Read DTX header: {e}"))?;
+            .map_err(|e| FrameReadError::io("Read DTX header", e))?;
         let (count, length) = validate_header(&header, fragment, payload.len())?;
         if expected_count.is_some_and(|c| c != count) {
             return Err("DTX fragment count changed".into());
@@ -68,7 +106,7 @@ pub(crate) async fn read_frame(
         socket
             .read_exact(&mut body)
             .await
-            .map_err(|e| format!("Read DTX body: {e}"))?;
+            .map_err(|e| FrameReadError::io("Read DTX body", e))?;
         payload.extend_from_slice(&body);
         wire.extend_from_slice(&body);
         if fragment + 1 == count {
@@ -82,7 +120,7 @@ pub(crate) async fn read_frame(
             }
             return Message::from_reader(&mut wire.as_slice())
                 .await
-                .map_err(|e| format!("Decode DTX accessibility frame: {e}"));
+                .map_err(|e| format!("Decode DTX accessibility frame: {e}").into());
         }
     }
     Err("Too many DTX fragments".into())

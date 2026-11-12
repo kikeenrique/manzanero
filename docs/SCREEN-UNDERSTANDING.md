@@ -4,19 +4,21 @@
 appledevicescmd simulator <UUID> screen auto
 appledevicescmd simulator <UUID> screen tree
 appledevicescmd physical <device> screen ocr
+appledevicescmd physical <device> screen auto
+appledevicescmd physical <device> screen tree
 ```
 
-The command saves a fresh screenshot beneath a unique `tmp/screen-*/` directory, checks that it decodes as PNG, and returns JSON with the image path, pixel dimensions, capture time, analysis method, coordinate space, and diagnostics. Simulator targets require an explicit UUID. Physical capture uses Xcode and its readiness preflight; it does not require the idevice bridge.
+The command saves a fresh screenshot beneath a unique `tmp/screen-*/` directory, checks that it decodes as PNG, and returns JSON with the image path, pixel dimensions, capture time, analysis method, coordinate space, and diagnostics. Simulator targets require an explicit UUID. Physical capture uses Xcode and its readiness preflight. Physical hierarchy analysis additionally requires the optional idevice bridge; capture and forced OCR do not.
 
-In `auto` mode, a simulator hierarchy is useful when at least one non-application node has a role/type and a nonempty label, identifier, value, or title. The original AXe hierarchy is returned without rewriting it. An unavailable, malformed, empty, or application-only hierarchy falls back to Vision OCR. This heuristic does not prove every visible control is represented. Physical auto mode selects OCR directly. The separate [physical `tree <pid>` read](ACCESSIBILITY-PROTOCOL.md#active-per-application-tree) requires explicit application selection and is not integrated into screen auto; the raw `ax-snapshot` archive is not a parsed hierarchy.
+In `auto` mode, a simulator hierarchy is useful when at least one non-application node has a role/type and a nonempty label, identifier, value, or title. The original AXe hierarchy is returned without rewriting it. Physical auto uses a [foreground physical tree](ACCESSIBILITY-PROTOCOL.md#active-per-application-tree), selecting the primary display-centre process without a caller-supplied PID. It requires consistent tree metadata and a non-root node that is not marked hidden and has a nonempty label, identifier, or string value. The hierarchy is preserved, and any cleanup warning also appears in diagnostics. An unavailable, malformed, empty, or application-only hierarchy falls back to Vision OCR. These heuristics do not prove every visible control is represented. The raw `ax-snapshot` archive is not a parsed hierarchy.
 
-If OCR also fails in automatic mode, the result contains `method: image-only`, `status: partial`, and diagnostics. It never invents text or a hierarchy. Successful analysis reports `status: captured`; an empty OCR result is accompanied by a diagnostic. Forced `tree` or `ocr` failures return an error that identifies the saved screenshot. Physical `screen tree` is rejected before capture; use the separate explicit-PID tree command. Cancellation propagates as cancellation rather than partial success.
+If OCR also fails in automatic mode, the result contains `method: image-only`, `status: partial`, and diagnostics. It never invents text or a hierarchy. Successful analysis reports `status: captured`; an empty OCR result is accompanied by a diagnostic. Forced `tree` or `ocr` failures return an error that identifies the saved screenshot. Both platforms accept forced `tree`. Cancellation propagates as cancellation rather than partial success.
 
 MCP `get_screen` accepts `platform`, `device`, and optional `method` (`auto`, `tree`, or `ocr`). JSON appears under `structuredContent.result`, with the saved PNG included as image content up to 8 MiB. Larger PNGs remain on disk with an omission notice. Captures can contain private device content; keep `tmp/` out of version control.
 
 ## Coordinates and consistency
 
-- Accessibility coordinates are simulator interface points. Screenshot dimensions are image pixels; they can differ by the simulator scale factor.
+- Accessibility coordinates are simulator interface points or physical device logical points. Screenshot dimensions are image pixels; they can differ by the display scale factor.
 - OCR bounds are normalized 0...1, with the origin at the top left. They describe text regions, not interactive hit targets.
 - Image-only output identifies image-pixel coordinates.
 
@@ -25,5 +27,7 @@ No automatic conversion from OCR bounds to simulator tap points, stable element 
 ## Verification
 
 Simulator auto mode returned the tool-owned fixture's accessibility hierarchy and a decoded 1206×2622 PNG. Forced OCR recognized the fixture text with confidence 1.0. The real MCP stdio test exercised `get_screen` and received hierarchy data plus inline PNG content. Synthetic tests cover fallback, invalid capture, forced-method failure, cancellation, and generated image-path handling.
+
+On the selected awake/unlocked USB iPhone 13 mini, physical auto selected Settings without a caller-supplied PID and returned accessibility data with a 1125×2436 PNG and logical-point geometry. The real `test:mcp-foreground` exchange verified both `get_ui_tree` and `get_screen`, including inline PNG content. These checks do not establish physical OCR accuracy or complete screen coverage.
 
 These checks establish one simulator fixture, not general OCR accuracy. An earlier standalone OCR attempt failed with `Failed to create CVPixelBuffer`; its cause remains unknown. The prepared iPhone 13 mini initially produced a black 1125×2436 PNG with no OCR text. After the user confirmed wake/unlock, fresh screenshots showed Settings and Home content and allowed native input verification. The black capture's exact cause was not isolated; physical text recognition remains unverified. See [verification records](VERIFICATION.md).

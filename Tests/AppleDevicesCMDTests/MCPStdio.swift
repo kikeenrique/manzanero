@@ -84,16 +84,33 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
-            let pid = try #require(Int(ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PID"] ?? ""))
-            let response = try request(4, "tools/call", ["name": "get_ui_tree", "arguments": ["device": physical, "platform": "physical", "pid": pid]])
+            let rawPID = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PID"] ?? ""
+            let pid = Int(rawPID)
+            guard rawPID.isEmpty || pid.map({ $0 > 0 }) == true else {
+                throw CommandFailure(description: "Physical MCP test PID must be positive or omitted for foreground selection.")
+            }
+            var arguments: [String: Any] = ["device":physical,"platform":"physical"]
+            if let pid { arguments["pid"] = pid }
+            let response = try request(4, "tools/call", ["name": "get_ui_tree", "arguments": arguments])
             let result = try #require(response["result"] as? [String: Any])
             #expect(result["isError"] as? Bool == false)
             let structured = try #require(result["structuredContent"] as? [String: Any])
             let tree = try #require(structured["result"] as? [String: Any])
             #expect(tree["parsedHierarchy"] as? Bool == true)
             #expect(tree["atomic"] as? Bool == false)
-            #expect((tree["application"] as? [String: Any])?["pid"] as? Int == pid)
-            #expect((tree["cleanup"] as? [String: Any])?["subscriptionStop"] as? String == "confirmed")
+            let application = try #require(tree["application"] as? [String: Any])
+            if let pid { #expect(application["pid"] as? Int == pid) }
+            else {
+                #expect((application["pid"] as? Int ?? 0) > 0)
+                #expect(application["selection"] as? String == "centre-hit-test")
+            }
+            let cleanup = try #require(tree["cleanup"] as? [String: Any])
+            let stop = try #require(cleanup["subscriptionStop"] as? String)
+            #expect(["confirmed", "connection-closed-before-ack"].contains(stop))
+            if stop == "connection-closed-before-ack" {
+                #expect(cleanup["confirmed"] as? Bool == false)
+                #expect(!(cleanup["warning"] as? String ?? "").isEmpty)
+            }
             let nodes = try #require(tree["nodes"] as? [[String: Any]])
             #expect(!nodes.isEmpty)
             #expect(tree["nodeCount"] as? Int == nodes.count)
@@ -106,6 +123,21 @@ struct MCPStdioTests {
             let artifact = directory.appendingPathComponent("physical-tree.json")
             let data = try JSONSerialization.data(withJSONObject: tree, options: [.prettyPrinted, .sortedKeys])
             #expect(FileManager.default.createFile(atPath: artifact.path, contents: data, attributes: [.posixPermissions: 0o600]))
+            if pid == nil {
+                let response = try request(5,"tools/call",["name":"get_screen","arguments":["device":physical,"platform":"physical"]])
+                let result = try #require(response["result"] as? [String: Any])
+                #expect(result["isError"] as? Bool == false)
+                let structured = try #require(result["structuredContent"] as? [String: Any])
+                let screen = try #require(structured["result"] as? [String: Any])
+                #expect(screen["method"] as? String == "accessibility")
+                #expect(screen["coordinateSpace"] as? String == "device-logical-points")
+                #expect((screen["hierarchy"] as? [String: Any])?["parsedHierarchy"] as? Bool == true)
+                let content = try #require(result["content"] as? [[String: Any]])
+                #expect(content.contains { $0["type"] as? String == "image" && $0["mimeType"] as? String == "image/png" })
+                let artifact = directory.appendingPathComponent("physical-screen.json")
+                let data = try JSONSerialization.data(withJSONObject:screen,options:[.prettyPrinted,.sortedKeys])
+                #expect(FileManager.default.createFile(atPath:artifact.path,contents:data,attributes:[.posixPermissions:0o600]))
+            }
             try finish()
             return
         }

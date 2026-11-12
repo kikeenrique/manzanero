@@ -1,5 +1,5 @@
 use super::*;
-use crate::ax_tree::tests::{fixture_bytes, record, token};
+use crate::ax_tree::tests::{fixture_bytes, nonfinite_callback, record, token};
 
 struct Displays {
     calls: usize,
@@ -11,7 +11,7 @@ impl DisplaySource for Displays {
         Ok(
             json!({"displays":[{"primary":true,"displayId":1,"nativeOrientation":"rot0",
             "currentOrientation":if self.failure == "rotated" { "rot90" } else { "rot0" },
-            "bounds":[[0,0],[1125,2436]],"pointScale":if self.failure == "display-change" && self.calls == 2 { 2 } else { 3 }}]}),
+            "bounds":[[0,0],[1125,2436]],"pointScale":if self.failure.contains("display-change") && self.calls == 2 { 2 } else { 3 }}]}),
         )
     }
 }
@@ -66,6 +66,19 @@ async fn peer(mut socket: tokio::io::DuplexStream, failure: &'static str) -> usi
         };
         if selector == "clientNeedsAccessibility:" {
             if argument == false {
+                if failure == "cleanup-invalid" {
+                    let h = call.message_header.serialize();
+                    let mut reply = Message::new(
+                        MessageHeader::new(0, 1, header_u32(&h, 16), 1, 0, false),
+                        PayloadHeader::default(),
+                        None,
+                        None,
+                    )
+                    .serialize();
+                    reply[32] = 255;
+                    socket.write_all(&reply).await.unwrap();
+                    return presses;
+                }
                 if failure != "cleanup-loss" {
                     accessibility::acknowledge(&mut socket, &call)
                         .await
@@ -101,18 +114,20 @@ async fn peer(mut socket: tokio::io::DuplexStream, failure: &'static str) -> usi
                 let point = fields(&request["parameters"]["point"], "NSValue").unwrap();
                 assert_eq!(
                     point["NS.pointval"],
-                    if hits == 2 {
+                    if hits == 2 && !failure.starts_with("tree-") {
                         "{25, 40}"
                     } else {
                         "{187.5, 406}"
                     }
                 );
-                let mut target = token(if hits == 2 {
+                let mut target = token(if hits == 2 && !failure.starts_with("tree-") {
                     if failure == "hit-mismatch" { 9 } else { 2 }
                 } else {
                     1
                 });
-                if (failure == "background" && hits == 1) || (failure == "pid-change" && hits == 3)
+                if (failure == "tree-pid-change" && hits == 2)
+                    || (failure == "background" && hits == 1)
+                    || (failure == "pid-change" && hits == 3)
                 {
                     target["fields"]["pid"] = json!(124);
                 }
@@ -140,8 +155,25 @@ async fn peer(mut socket: tokio::io::DuplexStream, failure: &'static str) -> usi
             result.as_object_mut().unwrap().remove("32");
         }
         let reply = json!({"className":"AXPTranslatorResponse","fields":{"associatedRequestType":kind,"error":0,"attribute":52,"associatedTranslationObject":token(1),"resultData":result}});
-        let outer =
-            ns_keyed_archive::encode::encode_to_bytes(Plist::Data(fixture_bytes(&reply))).unwrap();
+        if kind == 7 && failure == "unsolicited-nonfinite" {
+            let outer =
+                ns_keyed_archive::encode::encode_to_bytes(Plist::Data(nonfinite_callback(0)))
+                    .unwrap();
+            let callback = Message::new(
+                MessageHeader::new(0, 1, 998, 0, 0, true),
+                PayloadHeader::method_invocation(),
+                Some(Aux::from_values(vec![AuxValue::Array(outer)])),
+                Some("processDataFromRemoteDevice:".into()),
+            );
+            socket.write_all(&callback.serialize()).await.unwrap();
+            accessibility::read_frame(&mut socket).await.unwrap();
+        }
+        let payload = if kind == 7 && failure == "matched-nonfinite" {
+            nonfinite_callback(7)
+        } else {
+            fixture_bytes(&reply)
+        };
+        let outer = ns_keyed_archive::encode::encode_to_bytes(Plist::Data(payload)).unwrap();
         let callback = Message::new(
             MessageHeader::new(0, 1, 999, 0, 0, true),
             PayloadHeader::method_invocation(),
@@ -161,6 +193,9 @@ async fn fresh_guards_prevent_submission_and_partial_failures_preserve_action_st
     for failure in [
         "",
         "duplicate-path",
+        "auto",
+        "unsolicited-nonfinite",
+        "matched-nonfinite",
         "background",
         "ambiguous",
         "disabled",
@@ -176,6 +211,7 @@ async fn fresh_guards_prevent_submission_and_partial_failures_preserve_action_st
         "native-refused",
         "wire-after-action",
         "cleanup-loss",
+        "cleanup-invalid",
     ] {
         let (mut client, server) = tokio::io::duplex(65536);
         let task = tokio::spawn(peer(server, failure));
@@ -183,24 +219,52 @@ async fn fresh_guards_prevent_submission_and_partial_failures_preserve_action_st
         let result = press(
             &mut client,
             &mut displays,
-            123,
+            if failure == "auto" { None } else { Some(123) },
             "identifier",
             "fixture.control",
         )
         .await;
         let sent = task.await.unwrap();
-        if ["", "duplicate-path"].contains(&failure) {
+        if [
+            "",
+            "duplicate-path",
+            "auto",
+            "unsolicited-nonfinite",
+            "cleanup-loss",
+        ]
+        .contains(&failure)
+        {
             let result = result.unwrap();
             assert_eq!(sent, 1);
             assert_eq!(result["nativeAccepted"], true);
             assert_eq!(result["effectVerified"], false);
+            assert_eq!(
+                result["cleanup"]["subscriptionStop"],
+                if failure == "cleanup-loss" {
+                    "connection-closed-before-ack"
+                } else {
+                    "confirmed"
+                }
+            );
+            if failure == "cleanup-loss" {
+                assert_eq!(result["cleanup"]["confirmed"], false);
+                assert!(result["cleanup"]["warning"].is_string());
+            }
+            assert_eq!(
+                result["application"]["selection"],
+                if failure == "auto" {
+                    "centre-hit-test"
+                } else {
+                    "explicit-pid+centre-hit-test"
+                }
+            );
             assert!(!result.to_string().contains("rawElementData"));
         } else {
             let message = result.unwrap_err();
             let state = match failure {
                 "native-refused" => "refused",
-                "wire-after-action" => "submitted",
-                "cleanup-loss" => "accepted",
+                "wire-after-action" | "matched-nonfinite" => "submitted",
+                "cleanup-invalid" => "accepted",
                 _ => "not-sent",
             };
             if state == "not-sent" {
@@ -210,6 +274,29 @@ async fn fresh_guards_prevent_submission_and_partial_failures_preserve_action_st
                 assert_eq!(sent, 1);
                 assert!(message.contains(&format!("state={state}")), "{message}");
             }
+        }
+    }
+}
+
+#[tokio::test]
+async fn foreground_tree_brackets_display_and_pid_and_never_submits_an_action() {
+    for failure in ["tree-ok", "tree-pid-change", "tree-display-change"] {
+        let (mut client, server) = tokio::io::duplex(65536);
+        let task = tokio::spawn(peer(server, failure));
+        let mut displays = Displays { calls: 0, failure };
+        let result = crate::ax_tree::capture_foreground(&mut client, &mut displays).await;
+        assert_eq!(task.await.unwrap(), 0);
+        if failure == "tree-ok" {
+            let tree = result.unwrap();
+            assert_eq!(
+                tree["application"],
+                json!({"pid":123,"selection":"centre-hit-test"})
+            );
+            assert_eq!(tree["display"]["bounds"]["width"], 375.0);
+            assert_eq!(tree["cleanup"]["subscriptionStop"], "confirmed");
+            assert_eq!(displays.calls, 2);
+        } else {
+            assert!(result.is_err(), "{failure}");
         }
     }
 }

@@ -17,7 +17,7 @@ impl<S: ReadWrite> DisplaySource for CoreDeviceServiceClient<S> {
 }
 
 #[derive(Debug, PartialEq)]
-struct Display {
+pub(super) struct Display {
     x: f64,
     y: f64,
     width: f64,
@@ -26,7 +26,7 @@ struct Display {
     scale: f64,
 }
 impl Display {
-    fn parse(info: &Value) -> Result<Self, String> {
+    pub(super) fn parse(info: &Value) -> Result<Self, String> {
         let primary = info["displays"]
             .as_array()
             .ok_or("Missing display metadata")?
@@ -78,8 +78,12 @@ impl Display {
             scale,
         })
     }
-    fn center(&self) -> (f64, f64) {
+    pub(super) fn center(&self) -> (f64, f64) {
         (self.x + self.width / 2.0, self.y + self.height / 2.0)
+    }
+    pub(super) fn metadata(&self) -> Value {
+        json!({"bounds":{"x":self.x,"y":self.y,"width":self.width,"height":self.height},
+            "displayId":self.id,"pointScale":self.scale,"orientation":"rot0"})
     }
     fn target_center(&self, frame: &Value) -> Result<(f64, f64), String> {
         let number = |key| {
@@ -161,7 +165,7 @@ fn known_true(value: &Value) -> bool {
 pub(crate) async fn press(
     socket: &mut impl ReadWrite,
     displays: &mut impl DisplaySource,
-    pid: u32,
+    requested_pid: Option<u32>,
     selector: &str,
     text: &str,
 ) -> Result<Value, String> {
@@ -177,6 +181,8 @@ pub(crate) async fn press(
         next: 1,
         callbacks: VecDeque::new(),
         bytes: 0,
+        expected_kind: None,
+        connection_closed: false,
     };
     let mut subscribed = false;
     let mut state = "not-sent";
@@ -188,7 +194,8 @@ pub(crate) async fn press(
         let (cx,cy) = display.center();
         let selected = session.exchange(6,point_request(cx,cy)?,None).await?;
         let selected_pid = identity(&selected)?.0;
-        if selected_pid != pid { return Err(format!("Requested AX PID {pid} differs from display-centre hit PID {selected_pid}")); }
+        if requested_pid.is_some_and(|pid| pid != selected_pid) { return Err(format!("Requested AX PID {} differs from display-centre hit PID {selected_pid}",requested_pid.unwrap())); }
+        let pid = selected_pid;
         let root = session.read(1,json!({"pid":pid}),None).await?;
         if identity(&root)?.0 != pid || fields(&root,"AXPTranslationObject")?["isApplicationElement"] != true { return Err("AX application identity mismatch".into()); }
         let snapshot = session.read(2,snapshot_options(),Some(&root)).await?;
@@ -221,24 +228,18 @@ pub(crate) async fn press(
         let mut public_target = serde_json::Map::new();
         for key in ["label","identifier","frame","nativeAttributes"] { if let Some(value) = node.get(key) { public_target.insert(key.into(),value.clone()); } }
         Ok(json!({"operation":"press","status":"accepted","nativeAccepted":true,"verified":false,"effectVerified":false,
-            "application":{"pid":pid,"selection":"explicit-pid+centre-hit-test"},"selector":{"by":selector,"text":text},
+            "application":{"pid":pid,"selection":if requested_pid.is_some() { "explicit-pid+centre-hit-test" } else { "centre-hit-test" }},"selector":{"by":selector,"text":text},
             "target":public_target,"coordinateSpace":"device-logical-points","atomic":false}))
     }).await.map_err(|_| "AX press operation timed out".to_string()).and_then(|r|r);
+    session.expected_kind = None;
     let cleanup = if subscribed {
-        tokio::time::timeout(
-            Duration::from_secs(3),
-            session.invoke("clientNeedsAccessibility:", Some(false.into())),
-        )
-        .await
-        .map_err(|_| "AX press cleanup timed out".to_string())
-        .and_then(|r| r)
-        .map(|_| ())
+        session.stop_subscription().await
     } else {
-        Ok(())
+        Ok(json!({"subscriptionStop":"not-subscribed"}))
     };
     match (result, cleanup) {
-        (Ok(mut value), Ok(())) => {
-            value["cleanup"] = json!({"subscriptionStop":"confirmed"});
+        (Ok(mut value), Ok(cleanup)) => {
+            value["cleanup"] = cleanup;
             Ok(value)
         }
         (result, cleanup) => {
