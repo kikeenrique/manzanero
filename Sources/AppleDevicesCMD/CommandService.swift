@@ -39,6 +39,23 @@ actor CommandService {
 
     func execute(_ args: [String], dryRun: Bool = false, allowInteractive: Bool = false,
                  handoffConfirmation: (@Sendable (HandoffCommand) async throws -> HandoffStatus)? = nil) async throws -> CommandOutput {
+        if args.count >= 2, args[0] == "--physical-backend", args[1] == "idevice" {
+            let forwarded = Array(args.dropFirst(2))
+            let target = forwarded.first == "--pairing-file" ? Array(forwarded.dropFirst(2)) : forwarded
+            guard target.count >= 3, target[0] == "physical" else { throw CommandFailure(description: "--physical-backend requires a physical input command.") }
+            return try await execute(forwarded, dryRun: dryRun, allowInteractive: allowInteractive, handoffConfirmation: handoffConfirmation)
+        }
+        if let native = try CoreDeviceInput.parse(args) {
+            if dryRun {
+                let identity = try native.identityPlan()
+                let action = try native.actionPlan("<resolved CoreDevice UUID>", touchscreen: "<discovered touchscreen ID>")
+                return try json(["backend": "coredevice-ipb", "identityArguments": identity.arguments,
+                    "executable": action.executable, "actionArguments": action.arguments,
+                    "discovery": "Touch operations discover exactly one touchscreen before sending input; dry run queries nothing."])
+            }
+            try checkHandoffPause(Array(args.dropFirst(2)))
+            return CommandOutput(data: try native.execute { try runner.run($0.arguments, executable: $0.executable, timeout: 40) })
+        }
         if let handoff = try HandoffCommand.parse(args) {
             if dryRun { return try json(["platform": handoff.platform, "device": handoff.device, "message": handoff.message, "action": "Request human completion; no device action or prompt is executed by this dry run."]) }
             guard pendingHandoffs.insert(handoff.target).inserted else { throw CommandFailure(description: "A handoff is already pending for this device.") }

@@ -39,6 +39,8 @@ The 28 tools have object schemas with required fields, enumerated operations whe
 
 Physical touch coordinates are normalized; simulator coordinates are interface points. `type_text` defaults to simulator but accepts `platform: "physical"` for [experimental US-layout ASCII typing](PHYSICAL-TYPING.md). Unicode physical entry and a parsed physical hierarchy remain unavailable. Unsupported device/platform combinations return tool errors; publishing a tool does not establish hardware support.
 
+Physical `tap`, `drag`, and `press_button` accept optional `backend: coredevice` for the [native Apple framework helper](NATIVE-INPUT.md). Default behavior remains idevice. Native Home/tap/drag effects were verified on the USB iPhone 13 mini; individual receipts still require observation. Pairing files and simulator targets are rejected for this backend. No automatic retry or backend fallback occurs.
+
 ## Shared execution and output
 
 Tool calls use the same `CommandService`, planners, and backends as the CLI. Device actions are serialized within one server process. OCR and handoff confirmation can suspend, allowing another request during that suspension; handoff explicitly blocks mutations for its pending target. Multiple server/CLI processes are not coordinated.

@@ -9,6 +9,8 @@ Usage:
   appledevicescmd devices simulators   List available simulators as JSON
   appledevicescmd pair wifi <host> <port> <new-record.pairing.plist>
   appledevicescmd --pairing-file <record> physical <UDID> <bridge-operation> ...
+  appledevicescmd --physical-backend coredevice physical <device> <button|tap|drag|swipe> ...
+  Native input requires the optional appledevices-coredevice helper; run mise run coredevice:build.
   Pairing prompts for the device's PIN; use its advertised _remotepairing._tcp endpoint.
   appledevicescmd doctor               Check Xcode and device-service access
   appledevicescmd ocr <image-path>     Recognize image text and normalized bounds as JSON

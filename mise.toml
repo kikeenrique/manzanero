@@ -22,6 +22,31 @@ description = "Run the built Swift CLI with the local physical bridge on PATH"
 env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
 run = ".build/debug/appledevicescmd"
 
+[tasks."coredevice:setup"]
+dir = "{{ config_root }}"
+description = "Fetch the pinned MIT-licensed ipb helper sources under tmp"
+shell = "bash -e -o pipefail -c"
+run = '''
+if [ ! -e tmp/ipb ]; then
+  git clone --no-checkout --depth 1 https://github.com/ipbtools/ipb.git tmp/ipb
+  git -C tmp/ipb fetch --depth 1 origin 8c227a10710dad479852aa0203de729fed57471b
+  git -C tmp/ipb checkout --detach 8c227a10710dad479852aa0203de729fed57471b
+fi
+test "$(git -C tmp/ipb rev-parse HEAD)" = 8c227a10710dad479852aa0203de729fed57471b
+git -C tmp/ipb diff --exit-code HEAD
+'''
+
+[tasks."coredevice:build"]
+extends = "swift"
+description = "Build the pinned native CoreDevice helper into tmp/bin"
+depends = ["coredevice:setup"]
+run = '''
+make -C tmp/ipb check-reports build/ipb-helper 2>&1 | xcsift -f toon
+test -x tmp/ipb/build/ipb-helper
+mkdir -p tmp/bin
+cp tmp/ipb/build/ipb-helper tmp/bin/appledevices-coredevice
+'''
+
 [tasks."test:mcp-live"]
 extends = "swift"
 description = "Verify MCP stdio tools against a selected booted simulator"

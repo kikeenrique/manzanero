@@ -68,8 +68,9 @@ private extension Dictionary where Key == String, Value == MCP.Value {
     }
     func deviceCommand(_ operands: [String], platform: String? = nil) -> [String] {
         let args = [platform ?? text("platform"), text("device")] + operands
-        if let pairing = self["pairing_file"]?.stringValue { return ["--pairing-file", pairing] + args }
-        return args
+        let paired = self["pairing_file"]?.stringValue.map { ["--pairing-file", $0] + args } ?? args
+        if let backend = self["backend"]?.stringValue { return ["--physical-backend", backend] + paired }
+        return paired
     }
 }
 
@@ -77,6 +78,7 @@ enum MCPTools {
     private static let platform = MCPField(name: "platform", choices: ["physical", "simulator"])
     private static let device = MCPField(name: "device", description: "Explicit target identifier; use the UDID from list_devices.")
     private static let pairing = MCPField(name: "pairing_file", description: "Existing private pairing file for physical idevice operations only; pair using the CLI first.", required: false)
+    private static let inputBackend = MCPField(name: "backend", description: "Physical input only: idevice (default) or coredevice (optional native Apple framework/ipb helper). Never automatically retries with another backend.", required: false, choices: ["idevice", "coredevice"])
     private static let x = MCPField(name: "x", kind: .number)
     private static let y = MCPField(name: "y", kind: .number)
 
@@ -94,13 +96,13 @@ enum MCPTools {
             $0.deviceCommand(["ax-snapshot"] + ($0["path"]?.stringValue.map { [$0] } ?? []), platform: "physical")
         },
         .init(name: "decode_accessibility_archive", description: "Inspect a saved local keyed archive through the optional idevice bridge, without connecting to a device. Bounded structural decoding preserves unknown classes/fields, decodes nested archives, and represents opaque data by byte count. Does not produce a parsed physical hierarchy or establish numeric attribute meanings.", fields: [.init(name: "path")], readOnly: true) { ["decode-ax-archive", $0.text("path")] },
-        .init(name: "screenshot", description: "Capture a PNG to a local path and return it as MCP image content if at most 8 MiB. May replace an existing local file. Simulator capture verified. iPhone 13 mini USB capture produced a black PNG; useful physical screen content remains unverified.", fields: [platform, device, .init(name: "path", description: "Local output path ending in .png; prefer ignored tmp/.")], imagePath: "path") { $0.deviceCommand(["screenshot", $0.text("path")]) },
+        .init(name: "screenshot", description: "Capture a PNG to a local path and return it as MCP image content if at most 8 MiB. May replace an existing local file. Simulator and awake/unlocked iPhone 13 mini USB capture verified; earlier captures before confirmed wake/unlock were black.", fields: [platform, device, .init(name: "path", description: "Local output path ending in .png; prefer ignored tmp/.")], imagePath: "path") { $0.deviceCommand(["screenshot", $0.text("path")]) },
         .init(name: "record_screen", description: "Record a finite screen video to a new host .mp4 path. Parent directory must exist. Duration 1...300 seconds; default h264, optional hevc. Returns duration/dimensions after decoding a frame; no inline video. Uses Xcode capture tools, not the idevice bridge. Simulator capture verified; native physical capture requires device capability and may be unsupported.", fields: [platform, device, .init(name: "path"), .init(name: "seconds", kind: .number), .init(name: "codec", required: false, choices: ["h264", "hevc"])]) {
             $0.deviceCommand(["record", $0.text("path"), $0.number("seconds"), $0.text("codec", default: "h264")])
         },
-        .init(name: "tap", description: "Tap coordinates. Physical coordinates are normalized 0...1; simulator coordinates are interface points. Dispatch is not verified delivery.", fields: [platform, device, x, y, pairing]) { $0.deviceCommand(["tap", $0.number("x"), $0.number("y")]) },
+        .init(name: "tap", description: "Tap coordinates. Physical coordinates are normalized 0...1; simulator coordinates are interface points. Optional physical backend coredevice uses the native Apple framework helper. Dispatch is not verified delivery.", fields: [platform, device, x, y, pairing, inputBackend]) { $0.deviceCommand(["tap", $0.number("x"), $0.number("y")]) },
         .init(name: "tap_element", description: "Tap a simulator element by accessibility label or ID using AXe. Inspect a fresh tree to verify its effect.", fields: [device, .init(name: "selector_type", choices: ["label", "id"]), .init(name: "selector")]) { $0.deviceCommand(["tap-" + $0.text("selector_type"), $0.text("selector")], platform: "simulator") },
-        .init(name: "drag", description: "Drag from start to end over seconds. Physical coordinates are normalized; simulator coordinates are interface points. Physical duration 0.03...10 seconds; simulator restrictions come from AXe.", fields: [platform, device, .init(name: "x1", kind: .number), .init(name: "y1", kind: .number), .init(name: "x2", kind: .number), .init(name: "y2", kind: .number), .init(name: "seconds", kind: .number), pairing]) {
+        .init(name: "drag", description: "Drag from start to end over seconds. Physical coordinates are normalized; simulator coordinates are interface points. Physical duration 0.03...10 seconds; simulator restrictions come from AXe. Optional physical backend coredevice uses the native Apple framework helper.", fields: [platform, device, .init(name: "x1", kind: .number), .init(name: "y1", kind: .number), .init(name: "x2", kind: .number), .init(name: "y2", kind: .number), .init(name: "seconds", kind: .number), pairing, inputBackend]) {
             $0.deviceCommand(["drag"] + ["x1", "y1", "x2", "y2", "seconds"].map($0.number))
         },
         .init(name: "multi_tap", description: "Physical simultaneous contact and release at two to five normalized coordinate pairs. Does not implement moving multitouch.", fields: [device, .init(name: "coordinates", kind: .array, description: "Flat numeric array [x1,y1,x2,y2,...], 4...10 values."), pairing]) {
@@ -119,7 +121,7 @@ enum MCPTools {
             $0.deviceCommand(["pinch"] + ["center_x", "center_y", "start_span", "end_span", "seconds"].map($0.number), platform: "physical")
         },
         .init(name: "type_text", description: "Type literal text. Platform defaults to simulator, using AXe's US mapping. Experimental physical typing accepts 1...512 printable US-layout ASCII characters, tab, and LF newline through an owned idevice keyboard. Physical output and layout are unverified; Unicode unsupported. pairing_file applies only to physical.", fields: [device, .init(name: "platform", required: false, choices: ["physical", "simulator"]), .init(name: "text"), pairing]) { $0.deviceCommand(["type", $0.text("text")], platform: $0.text("platform", default: "simulator")) },
-        .init(name: "press_button", description: "Press a hardware button. Physical supports home, lock, volume-up, volume-down; simulator uses AXe button names.", fields: [platform, device, .init(name: "button"), pairing]) { $0.deviceCommand(["button", $0.text("button")]) },
+        .init(name: "press_button", description: "Press a hardware button. Physical supports home, lock, volume-up, volume-down; simulator uses AXe button names. Optional physical backend coredevice uses the native Apple framework helper.", fields: [platform, device, .init(name: "button"), pairing, inputBackend]) { $0.deviceCommand(["button", $0.text("button")]) },
         .init(name: "press_key", description: "Send one experimental physical key: return, escape, backspace, tab, space, up, down, left, right.", fields: [device, .init(name: "key", choices: ["return", "escape", "backspace", "tab", "space", "up", "down", "left", "right"]), pairing]) { $0.deviceCommand(["key", $0.text("key")], platform: "physical") },
         .init(name: "app_action", description: "Install, uninstall, launch, terminate an app, or open a URL. Value is a host app path for install, a URL for open-url, a positive PID for physical terminate, otherwise a bundle identifier. Uninstall deletes app data.", fields: [platform, device, .init(name: "operation", choices: ["install", "uninstall", "launch", "terminate", "open-url"]), .init(name: "value")]) { $0.deviceCommand([$0.text("operation"), $0.text("value")]) },
         .init(name: "app_data", description: "Physical app-container listing or raw pull/push. Remote paths are relative; '.' means root. Listing is nonrecursive. Copies may overwrite selected destinations; app access is permission-dependent and unverified live. Not .xcappdata export/replacement.", fields: [device, .init(name: "operation", choices: ["files", "pull", "push"]), .init(name: "bundle_id"), .init(name: "remote_path"), .init(name: "local_path", required: false)]) {

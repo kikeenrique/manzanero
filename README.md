@@ -1,6 +1,6 @@
 # appledevicescmd
 
-A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. The CLI uses Xcode tools, Vision, an optional AXe simulator backend, and an optional Rust bridge to the open-source idevice library. **Full feature parity is not implemented.**
+A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. The CLI uses Xcode tools, Vision, AXe for simulator control, an optional Rust idevice bridge, and an optional native CoreDevice input helper. **Full feature parity is not implemented.**
 
 See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), [investigation](docs/ANALYSIS.md), and [documentation review findings](docs/DOCUMENTATION-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
@@ -71,7 +71,7 @@ Listing is nonrecursive. Absolute remote paths and `..` components are rejected.
 
 These physical commands return devicectl JSON. Simulator app/lifecycle/screenshot commands preserve simctl output, which is not always JSON. Errors go to stderr with a nonzero exit status. The Swift CLI's errors are currently text; the protocol bridge writes JSON errors that the CLI can wrap in text. `--dry-run` prints an executable and argument array without executing the operation. See `--help` for all implemented commands.
 
-Physical command planning and screenshot flags were checked against Xcode 27.2. Details are verified on a physical phone; screenshot capture produced a decodable but black PNG on the iPhone 13 mini, so useful physical screen content remains unverified. Direct devicectl copies round-tripped a synthetic fixture in a tool-owned temporary domain. App-container listing/copies, termination, and URL opening are not yet verified live.
+Physical command planning and screenshot flags were checked against Xcode 27.2. Details and awake/unlocked screenshot capture are verified on the iPhone 13 mini. Earlier captures were black before the user confirmed wake/unlock; the exact cause was not isolated. Direct devicectl copies round-tripped a synthetic fixture in a tool-owned temporary domain. App-container listing/copies, termination, and URL opening are not yet verified live.
 
 ## Human handoff
 
@@ -137,6 +137,16 @@ Input and tree commands require an explicit simulator UUID, not `booted`. Coordi
 
 ## Experimental physical input and accessibility
 
+For the physically verified Home/tap/drag path, build and explicitly select the [native CoreDevice backend](docs/NATIVE-INPUT.md):
+
+```sh
+mise run coredevice:build
+mise run cli --physical-backend coredevice physical <device> button home
+mise run cli --physical-backend coredevice physical <device> tap 0.5 0.5
+```
+
+This optional MIT-licensed helper uses installed Apple private frameworks. The iPhone must be awake/unlocked for the tested UI flow, with Developer Mode and **Settings → Developer → Enable UI Automation** enabled. The idevice backend below remains the default; no input is retried automatically through another backend.
+
 With the optional `appledevices-idevice` bridge on PATH:
 
 ```sh
@@ -154,7 +164,7 @@ appledevicescmd physical <UDID> ax-snapshot tmp/accessibility.plist
 appledevicescmd decode-ax-archive tmp/accessibility.plist
 ```
 
-Physical touch coordinates are normalized 0...1, unlike simulator interface points. `multi-tap` sends simultaneous contacts and release. Experimental `multi-drag` moves two to five contacts together; `pinch` generates a horizontal two-contact pinch/spread. Input receipts indicate dispatch only, and hardware gesture effects remain unverified. See [multitouch syntax and cleanup limits](docs/MULTITOUCH.md).
+Physical touch coordinates are normalized 0...1, unlike simulator interface points. In the idevice backend, `multi-tap` sends simultaneous contacts and release. Experimental `multi-drag` moves two to five contacts together; `pinch` generates a horizontal two-contact pinch/spread. These idevice receipts indicate dispatch only, and their hardware gesture effects remain unverified. See [multitouch syntax and cleanup limits](docs/MULTITOUCH.md).
 
 Physical `type` is experimental and accepts 1...512 printable US-layout ASCII characters, tab, and LF newline. It uses an owned virtual keyboard, attempts reset/removal after dispatch, and requires the phone's hardware-keyboard layout to match the US mapping. Unicode is unsupported; layout, Caps Lock, and actual entered text remain unverified on hardware. See [physical typing details](docs/PHYSICAL-TYPING.md).
 
@@ -168,7 +178,7 @@ appledevicescmd pair wifi <host> <port> tmp/pairings/phone.pairing.plist
 appledevicescmd --pairing-file tmp/pairings/phone.pairing.plist physical <UDID> hid-info
 ```
 
-Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discovery and setup](docs/DEPENDENCIES.md#wi-fi-pairing). Pairing records contain private keys and must stay out of version control. Physical input, Wi-Fi pairing, and reconnection remain unverified on hardware; USB accessibility callback capture is verified as described above.
+Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discovery and setup](docs/DEPENDENCIES.md#wi-fi-pairing). Pairing records contain private keys and must stay out of version control. Idevice input effects, Wi-Fi pairing, and reconnection remain unverified on hardware; USB accessibility callback capture and the explicit native Home/tap/drag path are verified as described above.
 
 ## Screen inspection, OCR, and remaining work
 

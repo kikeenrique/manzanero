@@ -8,6 +8,12 @@ The executable links the official [Swift MCP SDK](https://github.com/modelcontex
 
 MCP mode is optional at runtime via `appledevicescmd mcp`; the dependency is linked in the standard executable. The compiled product uses the SDK's MCP library, not its conformance executables. The SDK manifest also declares packages for other products, so resolution can include dependencies beyond those compiled into this executable. Swift build/test tasks use `tmp/swift-cache` for the package cache; SwiftPM-managed build checkouts remain under ignored `.build/`. See [MCP configuration and protocol limits](MCP.md).
 
+## Native CoreDevice input helper
+
+`mise run coredevice:build` fetches/checks [ipb](https://github.com/ipbtools/ipb) at revision `8c227a10710dad479852aa0203de729fed57471b`, builds its native helper through the upstream Makefile and xcsift, and copies it to `tmp/bin/appledevices-coredevice`. The [MIT notice](../ThirdParty/ipb-LICENSE.txt) is retained. This optional process dependency dynamically uses installed Apple CoreDevice/Mercury/UniversalHID frameworks; no device-control tooling binary or Apple framework is redistributed. The main CLI remains Swift with strict concurrency; this third-party helper contains Objective-C, Swift, and assembly.
+
+Select it explicitly with `--physical-backend coredevice` for physical Home/buttons, taps, and drags/swipes. It resolves the requested target to a CoreDevice UUID and discovers a touchscreen before touch input. Host subprocess deadlines, handoff pause, and JSON dispatch receipts apply. It does not use the idevice pairing file/software tunnel or the upstream Python AX backend. Native Home/tap/drag were screenshot-verified on the awake/unlocked USB iPhone 13 mini; other operations/transports remain unverified. See [native input setup and limits](NATIVE-INPUT.md).
+
 ## idevice
 
 Physical HID uses the open-source [idevice library](https://github.com/jkcoxson/idevice), by Jackson Coxson, under the MIT license. Its source is declared as a Git dependency in [the bridge manifest](../Backends/IDevice/Cargo.toml), pinned to revision `89702099f4d7552f704f93b4526756abda319ceb`. [Cargo.lock](../Backends/IDevice/Cargo.lock) records the transitive dependency versions and registry checksums. A development clone in `tmp/idevice` is investigation material and is not needed to build the shipped backend.

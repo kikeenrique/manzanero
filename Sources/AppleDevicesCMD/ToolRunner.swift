@@ -21,8 +21,8 @@ struct ToolRunner {
             throw CommandFailure(description: "Simulator recorder failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))")
         }
     }
-    func run(_ arguments: [String], executable: String = "/usr/bin/xcrun", interactive: Bool = false) throws -> Data {
-        let result = try capture(arguments, executable: executable, interactive: interactive)
+    func run(_ arguments: [String], executable: String = "/usr/bin/xcrun", interactive: Bool = false, timeout: Double? = nil) throws -> Data {
+        let result = try capture(arguments, executable: executable, interactive: interactive, timeout: timeout)
         guard result.status == 0 else {
             throw CommandFailure(description: "\(URL(fileURLWithPath: executable).lastPathComponent) failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))")
         }
@@ -48,7 +48,7 @@ struct ToolRunner {
 
     private func capture(_ arguments: [String], executable: String, interactive: Bool = false,
                          merged: Bool = false, input: URL? = nil,
-                         recording: RecordingTiming? = nil) throws -> (status: Int32, output: Data, errors: Data) {
+                         recording: RecordingTiming? = nil, timeout: Double? = nil) throws -> (status: Int32, output: Data, errors: Data) {
         let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("tmp/process-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -80,6 +80,20 @@ struct ToolRunner {
                 if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
                 process.waitUntilExit()
                 throw error
+            }
+        } else if let timeout {
+            let deadline = ContinuousClock.now + .seconds(timeout)
+            while process.isRunning {
+                if Task.isCancelled || ContinuousClock.now >= deadline {
+                    process.terminate()
+                    let grace = ContinuousClock.now + .seconds(1)
+                    while process.isRunning, ContinuousClock.now < grace { usleep(10_000) }
+                    if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
+                    process.waitUntilExit()
+                    if Task.isCancelled { throw CancellationError() }
+                    throw CommandFailure(description: "\(URL(fileURLWithPath: executable).lastPathComponent) timed out; inspect device state before retrying an action.")
+                }
+                usleep(10_000)
             }
         }
         process.waitUntilExit()
