@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Type synthetic US-layout text through direct MCP without changing clipboard"
+#MISE depends = ["build"]
+#USAGE arg "<device>" help="Explicit physical device UDID"
+#USAGE arg "<text>" help="Synthetic US-layout ASCII; types once at current focus"
+
+set -e -o pipefail
+
+APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_TYPE="$usage_text" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings

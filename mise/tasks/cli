@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE dir = "{{ config_root }}"
+#MISE description = "Run the built Swift CLI with the local physical bridge on PATH"
+#MISE env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
+
+set -e -o pipefail
+
+exec .build/debug/appledevicescmd "$@"

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Send one native physical gesture sequence through real MCP and capture its result"
+#MISE depends = ["build"]
+#MISE env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
+#USAGE arg "<device>" help="Explicit physical device UDID"
+#USAGE arg "<file>" help="Local JSON gesture sequence; sends one complete physical touch sequence"
+
+set -e -o pipefail
+
+APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_GESTURE_FILE="$usage_file" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings

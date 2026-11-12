@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Run Swift tests through xcsift"
+
+set -e -o pipefail
+
+swift test --cache-path tmp/swift-cache 2>&1 | xcsift -f toon --warnings

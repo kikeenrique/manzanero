@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+#MISE extends = "idevice"
+#MISE description = "Build the locked idevice bridge into tmp/bin"
+#MISE depends = ["idevice:setup"]
+#MISE env = { APPLEDEVICES_RUST_VERSION = "{{ vars.rust_version }}" }
+#USAGE flag "--debug" help="Build without release optimization"
+#USAGE flag "--offline" help="Use cached Cargo dependencies only"
+
+set -e -o pipefail
+
+bridge_profile=release
+bridge_args=(build --release --locked --manifest-path Backends/IDevice/Cargo.toml --target-dir tmp/idevice-build)
+if [ "${usage_debug:-false}" = true ]; then
+  bridge_profile=debug
+  bridge_args=(build --locked --manifest-path Backends/IDevice/Cargo.toml --target-dir tmp/idevice-build)
+fi
+if [ "${usage_offline:-false}" = true ]; then bridge_args+=(--offline); fi
+mise exec rust@${APPLEDEVICES_RUST_VERSION} -- cargo "${bridge_args[@]}"
+mkdir -p tmp/bin
+cp "tmp/idevice-build/$bridge_profile/appledevices-idevice" tmp/bin/appledevices-idevice

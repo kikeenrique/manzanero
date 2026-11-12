@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Build the Swift CLI through xcsift"
+
+set -e -o pipefail
+
+swift build --cache-path tmp/swift-cache 2>&1 | xcsift -f toon --warnings

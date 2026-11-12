@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Build the pinned native AVConference video helper into tmp/bin"
+#MISE depends = ["coredevice:setup"]
+
+set -e -o pipefail
+
+mkdir -p tmp/coredevice-video-source/Sources
+cp tmp/ipb/Sources/video_stream.m tmp/coredevice-video-source/Sources/
+cp tmp/ipb/Makefile tmp/coredevice-video-source/
+git apply --directory=tmp/coredevice-video-source Backends/CoreDevice/video.patch
+make -C tmp/coredevice-video-source BUILD_DIR=../coredevice-video-build ../coredevice-video-build/ipb-video 2>&1 | xcsift -f toon --warnings
+test -x tmp/coredevice-video-build/ipb-video
+mkdir -p tmp/bin
+cp tmp/coredevice-video-build/ipb-video tmp/bin/appledevices-video

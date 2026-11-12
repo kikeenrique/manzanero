@@ -19,6 +19,8 @@ appledevicescmd doctor
 
 After building, `mise run cli <arguments...>` runs the executable. Third-party device executables are refused by the execution layer even if present on PATH. Existing examples below for AXe/idevice/ipb operations describe legacy interfaces and are unavailable pending direct implementations.
 
+Task scripts live under [`mise/tasks/`](mise/tasks/); `mise.toml` keeps shared configuration. Existing task names and arguments are unchanged. See [development tasks](docs/DEVELOPMENT-TASKS.md) for layout and validation.
+
 `devices physical` currently returns the unfiltered CoreDevice JSON inventory, which can include simulators. `devices simulators` returns simctl JSON. `doctor` checks whether Xcode and the two discovery commands succeed; it does not verify device trust, UI Automation, input delivery, or optional-backend installation.
 
 For a physical target, run `appledevicescmd physical <device> readiness` to report Developer Mode, developer-image services, connection/pairing, and preparation steps. Known disabled Developer Mode is also reported before developer-operation dispatch. See [readiness checks and limits](docs/READINESS.md).
