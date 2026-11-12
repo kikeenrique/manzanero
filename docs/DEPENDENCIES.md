@@ -2,7 +2,7 @@
 
 ## Integration direction
 
-**Current enforcement:** non-Apple device-control executables are disabled in both process runners. Physical hardware buttons use the project's in-process Apple bridge; the former ipb input/video, Rust idevice and AXe simulator adapters are unavailable pending direct replacements. The xcsift development/build-log formatter is infrastructure, not a device backend. General-purpose linked Swift packages remain permitted. Later sections describing helper installation are historical reference material.
+**Current enforcement:** non-Apple device-control executables are disabled in both process runners. Physical hardware buttons and single-contact touch use the project's in-process Apple bridge; the former ipb input/video, Rust idevice and AXe simulator adapters are unavailable pending remaining direct replacements. The xcsift development/build-log formatter is infrastructure, not a device backend. General-purpose linked Swift packages remain permitted. Later sections describing helper installation are historical reference material.
 
 The user clarified on 2026-11-12 that device backends should communicate directly with Apple frameworks/APIs from this project's code. Third-party device-control tools are references for understanding those interfaces, rather than the intended permanent runtime architecture. General-purpose Swift packages such as Subprocess remain appropriate dependencies; they do not implement the device operations.
 

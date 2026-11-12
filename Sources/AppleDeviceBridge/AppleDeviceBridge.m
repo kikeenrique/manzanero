@@ -2,6 +2,8 @@
 #import <xpc/xpc.h>
 #include <dlfcn.h>
 #include <unistd.h>
+#include <math.h>
+#include <time.h>
 #include "AppleDeviceBridge.h"
 
 // Private Apple interfaces stay in this in-process interoperability target.
@@ -60,13 +62,37 @@ static xpc_object_t ADCButtonEvent(uint64_t usage, uint64_t state, BOOL barrier)
     return event;
 }
 
-int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
-                   unsigned hold, char *error, size_t capacity) {
+static xpc_object_t ADCTouchEvent(double x, double y, uint64_t phase, BOOL barrier) {
+    xpc_object_t event = xpc_dictionary_create_empty();
+    xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.digitizer");
+    xpc_dictionary_set_string(event, "messageType", "IndigoDigitizerEvent");
+    xpc_dictionary_set_bool(event, "isBarrier", barrier);
+    if (!barrier) {
+        xpc_object_t payload = xpc_dictionary_create_empty(), point = xpc_dictionary_create_empty();
+        xpc_dictionary_set_double(point, "x", x);
+        xpc_dictionary_set_double(point, "y", y);
+        xpc_dictionary_set_value(payload, "pointOne", point);
+        xpc_dictionary_set_uint64(payload, "eventType", phase);
+        xpc_dictionary_set_uint64(payload, "edge", 0);
+        xpc_dictionary_set_uint64(payload, "target", 0);
+        xpc_dictionary_set_value(event, "payload", payload);
+    }
+    return event;
+}
+
+static uint64_t ADCNow(void) {
+    struct timespec value;
+    clock_gettime(CLOCK_MONOTONIC, &value);
+    return (uint64_t)value.tv_sec * NSEC_PER_SEC + value.tv_nsec;
+}
+
+static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
+                   unsigned hold, const ADCTouchSample *samples, size_t count, char *error, size_t capacity) {
     @autoreleasepool {
-        if (!uuid || !version || ![[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:uuid]] ||
-            ![@[@64, @48, @233, @234] containsObject:@(usage)] || hold > 400000) {
-            return ADCFail(error, capacity, @"Invalid direct button request.");
+        if (!uuid || !version || ![[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:uuid]]) {
+            return ADCFail(error, capacity, @"Invalid direct input identity.");
         }
+        const char *feature = samples ? "com.apple.coredevice.feature.remote.hid.digitizer" : "com.apple.coredevice.feature.remote.hid.button";
         static void *framework;
         static dispatch_once_t loadOnce;
         dispatch_once(&loadOnce, ^{
@@ -93,7 +119,8 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
         xpc_connection_set_event_handler(connection, ^(xpc_object_t event) {});
         xpc_connection_resume(connection);
         xpc_object_t input = xpc_dictionary_create_empty();
-        xpc_dictionary_set_string(input, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.button");
+        xpc_dictionary_set_string(input, "featureIdentifier", feature);
+        if (samples) xpc_dictionary_set_string(input, "serviceName", "com.apple.coredevice.hid.indigo");
         ADCReplyState *socketReply = [ADCReplyState new];
         xpc_connection_send_message_with_reply(connection, ADCEnvelope(uuid, version, input), queue, ^(xpc_object_t reply) {
             socketReply.reply = reply;
@@ -108,7 +135,7 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
         int fd = output ? xpc_dictionary_dup_fd(output, "fileDescriptor") : -1;
         if (fd < 0) {
             xpc_connection_cancel(connection);
-            return ADCFail(error, capacity, @"Apple CoreDevice refused the button service socket before input.");
+            return ADCFail(error, capacity, @"Apple CoreDevice refused the input service socket before input.");
         }
         ADCRemote remote = create(fd, queue, xpc_dictionary_get_uint64(output, "remoteXPCVersionFlags"), 0);
         if (!remote) {
@@ -120,11 +147,45 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
         ADCReplyState *status = [ADCReplyState new];
         handler(remote, ^(xpc_object_t event) { if (xpc_get_type(event) == XPC_TYPE_ERROR) status.failed = YES; });
         activate(remote);
-        send(remote, ADCButtonEvent(usage, 1, NO));
-        usleep(hold);
-        // Always send up after down, even if a connection error was observed.
-        send(remote, ADCButtonEvent(usage, 2, NO));
-        request(remote, ADCButtonEvent(usage, 0, YES), queue, ^(xpc_object_t response) {
+        if (samples) {
+            ADCReplyState *ready = [ADCReplyState new];
+            request(remote, ADCTouchEvent(0, 0, 0, YES), queue, ^(xpc_object_t response) {
+                ready.reply = response;
+                dispatch_semaphore_signal(ready.semaphore);
+            });
+            BOOL timeout = dispatch_semaphore_wait(ready.semaphore, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC)) != 0;
+            if (timeout || status.failed || !ready.reply || xpc_get_type(ready.reply) != XPC_TYPE_DICTIONARY ||
+                xpc_dictionary_get_value(ready.reply, "CoreDevice.error") || xpc_dictionary_get_value(ready.reply, "error")) {
+                cancel(remote); xpc_connection_cancel(connection);
+                return ADCFail(error, capacity, @"Apple digitizer service did not become ready; no touch sent.");
+            }
+        }
+        if (samples) {
+            uint64_t start = ADCNow();
+            size_t attempted = 0;
+            for (size_t i = 0; i < count; i++) {
+                uint64_t target = start + samples[i].nanoseconds;
+                uint64_t now;
+                while ((now = ADCNow()) < target && !status.failed) {
+                    uint64_t remaining = target - now;
+                    struct timespec wait = { (time_t)(remaining / NSEC_PER_SEC), (long)(remaining % NSEC_PER_SEC) };
+                    nanosleep(&wait, NULL);
+                }
+                if (status.failed) break;
+                attempted = i;
+                send(remote, ADCTouchEvent(samples[i].x, samples[i].y, samples[i].phase, NO));
+            }
+            // A failed send may already have reached the device; attempt up at
+            // the last attempted position without replaying any movement.
+            if (samples[attempted].phase != 2)
+                send(remote, ADCTouchEvent(samples[attempted].x, samples[attempted].y, 2, NO));
+        } else {
+            send(remote, ADCButtonEvent(usage, 1, NO));
+            usleep(hold);
+            send(remote, ADCButtonEvent(usage, 2, NO));
+        }
+        xpc_object_t barrier = samples ? ADCTouchEvent(0, 0, 0, YES) : ADCButtonEvent(usage, 0, YES);
+        request(remote, barrier, queue, ^(xpc_object_t response) {
             status.reply = response;
             dispatch_semaphore_signal(status.semaphore);
         });
@@ -135,7 +196,28 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
             xpc_dictionary_get_value(barrierReply, "error") != NULL;
         cancel(remote);
         xpc_connection_cancel(connection);
-        if (failed) return ADCFail(error, capacity, @"Button down/up was attempted, but the Apple service barrier was not confirmed. UI effect and release are unknown; do not replay automatically.");
+        if (failed) return ADCFail(error, capacity, @"Input was attempted, but the Apple service barrier was not confirmed. UI effect and release are unknown; do not replay automatically.");
         return 0;
     }
+}
+
+int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
+                   unsigned hold, char *error, size_t capacity) {
+    if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
+        return ADCFail(error, capacity, @"Invalid direct button request.");
+    return ADCPerformInput(uuid, version, usage, hold, NULL, 0, error, capacity);
+}
+
+int ADCPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
+                    size_t count, char *error, size_t capacity) {
+    if (!samples || count < 2 || count > 8192) return ADCFail(error, capacity, @"Invalid direct touch sample count.");
+    for (size_t i = 0; i < count; i++) {
+        ADCTouchSample sample = samples[i];
+        uint64_t expectedPhase = i == 0 ? 0 : (i == count - 1 ? 2 : 1);
+        if (!isfinite(sample.x) || !isfinite(sample.y) || sample.x < 0 || sample.x > 1 || sample.y < 0 || sample.y > 1 ||
+            sample.phase != expectedPhase || sample.nanoseconds > 11ULL * NSEC_PER_SEC ||
+            (i == 0 ? sample.nanoseconds != 0 : sample.nanoseconds <= samples[i - 1].nanoseconds))
+            return ADCFail(error, capacity, @"Invalid direct touch sequence; no input sent.");
+    }
+    return ADCPerformInput(uuid, version, 0, 0, samples, count, error, capacity);
 }

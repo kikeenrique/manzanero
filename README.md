@@ -1,6 +1,6 @@
 # appledevicescmd
 
-A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. Device operations use Apple APIs/frameworks or Apple executables. **Non-Apple device helpers are disabled. Full feature parity is not implemented.** Physical hardware buttons now use an in-process Apple CoreDevice/RemoteXPC backend; migration of touch, accessibility, and native video is in progress. See the [classified feature status](docs/PARITY-STATUS.md) for current availability, historical verification, and remaining gaps.
+A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. Device operations use Apple APIs/frameworks or Apple executables. **Non-Apple device helpers are disabled. Full feature parity is not implemented.** Physical hardware buttons and single-contact touch use an in-process Apple CoreDevice/RemoteXPC backend; multi-contact input, keyboard, accessibility, and native video migration remain in progress. See the [classified feature status](docs/PARITY-STATUS.md) for current availability, historical verification, and remaining gaps.
 
 See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), [investigation](docs/ANALYSIS.md), and [documentation review findings](docs/DOCUMENTATION-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
@@ -31,7 +31,7 @@ mise run cli physical <UDID> button home
 mise run cli --physical-backend coredevice physical <UDID> button home
 ```
 
-Home was screenshot-verified on the USB iPhone 13 mini through CLI; other buttons and interruption cleanup need hardware coverage. See [direct input and migration status](docs/NATIVE-INPUT.md). Legacy bridge build tasks remain as research material, not runtime setup instructions.
+Home, Settings tap/drag, and a Maps icon long-press were screenshot-verified on the USB iPhone 13 mini. Single-contact `tap`, `long-press`, `drag`, and `swipe` also default to the direct backend. Coordinates are normalized in the current interface; inspect the screen before input. Other buttons/orientations and interruption cleanup need hardware coverage. See [direct input and migration status](docs/NATIVE-INPUT.md). Legacy bridge build tasks remain as research material, not runtime setup instructions.
 
 ## Optional MCP interface
 

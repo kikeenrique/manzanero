@@ -47,15 +47,15 @@ actor CommandService {
             return try json(["backend": "idevice", "executionAvailable": false, "arguments": forwarded,
                 "limitation": "The explicitly selected non-Apple executable backend is disabled; no fallback will run."])
         }
-        let nativeArguments = args.count == 4 && args[0] == "physical" && args[2] == "button"
+        let nativeArguments = args.count >= 3 && args[0] == "physical" && ["button", "tap", "long-press", "drag", "swipe"].contains(args[2])
             ? ["--physical-backend", "coredevice"] + args : args
         if let native = try CoreDeviceInput.parse(nativeArguments) {
             if dryRun {
                 let identity = try native.identityPlan()
-                if native.operation == "button" {
+                if ["button", "tap", "long-press", "drag", "swipe"].contains(native.operation) {
                     return try json(["backend": "coredevice-direct", "identityArguments": identity.arguments,
-                        "operation": "button", "button": native.operands[0],
-                        "execution": "In-process Apple CoreDevice/RemoteXPC down/up and barrier; no helper executable."])
+                        "operation": native.operation, "operands": native.operands,
+                        "execution": "In-process Apple CoreDevice/RemoteXPC; fresh display checks for touch; no helper executable."])
                 }
                 let action = try native.actionPlan("<resolved CoreDevice UUID>", surface: "<discovered HID surface ID>")
                 var plan: [String: Any] = ["backend": "coredevice-ipb", "executionAvailable": false,
@@ -70,6 +70,9 @@ actor CommandService {
                 return try json(plan)
             }
             try checkHandoffPause(Array(nativeArguments.dropFirst(2)))
+            if native.operation != "button" {
+                return CommandOutput(data: try DirectPhysicalTouch.execute(native) { try runner.run($0.arguments, executable: $0.executable, timeout: 40) })
+            }
             return CommandOutput(data: try DirectPhysicalInput.execute(native) {
                 try runner.run($0.arguments, executable: $0.executable, timeout: 40)
             })

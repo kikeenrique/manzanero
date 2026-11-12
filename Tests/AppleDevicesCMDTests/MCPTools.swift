@@ -93,7 +93,8 @@ struct MCPToolsTests {
         let service = CommandService()
         let result = try await service.execute(["physical", "phone", "tap", "0.5", "0.5"], dryRun: true)
         let plan = try #require(try JSONSerialization.jsonObject(with: result.data) as? [String: Any])
-        #expect(plan["arguments"] as? [String] == ["appledevices-idevice", "phone", "tap", "32768", "32768"])
+        #expect(plan["backend"] as? String == "coredevice-direct")
+        #expect(plan["operands"] as? [String] == ["0.5", "0.5"])
         await #expect(throws: CommandFailure.self) {
             try await service.execute(["pair", "wifi", "example.local", "1234", "tmp/fixture.pairing.plist"])
         }

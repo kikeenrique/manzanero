@@ -1,6 +1,6 @@
 # Scope, feature sources, and implementation status
 
-**Current architecture constraint:** device operations may use this project's in-process Apple framework/API implementations or Apple executables, never non-Apple helper binaries. The direct physical button backend is available; legacy ipb/idevice/AXe paths are disabled pending migration. Feature evidence below involving those paths is historical. See [current runtime availability](PARITY-STATUS.md#current-runtime-availability).
+**Current architecture constraint:** device operations may use this project's in-process Apple framework/API implementations or Apple executables, never non-Apple helper binaries. Direct physical buttons and single-contact touch are available; legacy ipb/idevice/AXe paths are disabled pending remaining migration. Feature evidence below involving those paths is historical. See [current runtime availability](PARITY-STATUS.md#current-runtime-availability).
 
 The user's objective is a Swift CLI named `appledevicescmd` with proprietary device-control tooling's device features, using the same kinds of Apple frameworks/APIs or permitted third-party tools, with optional MCP sharing the operations. This is not yet a complete clone.
 

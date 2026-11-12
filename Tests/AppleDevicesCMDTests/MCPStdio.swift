@@ -152,6 +152,10 @@ struct MCPStdioTests {
                 let structured = try #require(result["structuredContent"] as? [String: Any])
                 let receipt = try #require(structured["result"] as? [String: Any])
                 #expect(receipt["operation"] as? String == operation)
+                if operation == "long-press" {
+                    #expect(receipt["backend"] as? String == "coredevice-direct")
+                    #expect((receipt["sampleCount"] as? Int ?? 0) > 2)
+                }
                 #expect(receipt["verified"] as? Bool == false)
                 let artifact = directory.appendingPathComponent("physical-\(operation).json")
                 let data = try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])

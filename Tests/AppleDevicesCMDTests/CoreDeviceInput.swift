@@ -78,7 +78,7 @@ struct CoreDeviceInputTests {
         let args = try tool.command(["platform": "physical", "device": .string(udid), "x": 0.25, "y": 0.75, "backend": "coredevice"])
         #expect(try CoreDeviceInput.parse(args)?.operands == ["0.25", "0.75"])
         let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).execute(args, dryRun: true)
-        #expect(String(decoding: dry.data, as: UTF8.self).contains("coredevice-ipb"))
+        #expect(String(decoding: dry.data, as: UTF8.self).contains("coredevice-direct"))
     }
 
     @Test func nativeHelperTimeoutReturnsAnErrorInsteadOfSuccess() throws {

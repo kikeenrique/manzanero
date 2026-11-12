@@ -70,6 +70,6 @@ struct PhysicalLongPressTests {
         #expect(try CoreDeviceInput.parse(args)?.operation == "long-press")
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() })
         let result = try await service.execute(args, dryRun: true)
-        #expect(String(decoding: result.data, as: UTF8.self).contains("cd_uhid_long"))
+        #expect(String(decoding: result.data, as: UTF8.self).contains("coredevice-direct"))
     }
 }

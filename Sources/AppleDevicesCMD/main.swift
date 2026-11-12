@@ -14,7 +14,7 @@ Usage:
   appledevicescmd --recording-backend coredevice physical <device> record <new.mp4> <seconds> [h264|hevc]
   appledevicescmd --physical-backend coredevice physical <device> long-press <x> <y> <seconds: 0.1...10>
   Native paste replaces the device clipboard with Unicode text, then pastes at the focused caret/selection.
-  Native hardware buttons call Apple CoreDevice in process. Other native input is awaiting migration.
+  Buttons, tap, long-press, drag and swipe call Apple CoreDevice in process. Other input is awaiting migration.
   Non-Apple device helper executables are disabled, including AXe, idevice, and ipb helpers.
   Pairing prompts for the device's PIN; use its advertised _remotepairing._tcp endpoint.
   appledevicescmd doctor               Check Xcode and device-service access

@@ -8,7 +8,17 @@ Swift validates the operation, queries fresh identity/readiness with Apple's `de
 
 The Home action was screenshot-verified from Settings to Home on the selected USB iPhone 13 mini. The direct implementation follows protocol observations in the MIT AXe/ipb references; no executable or implementation source from either project is invoked by this path. Private symbol availability is checked at runtime and unavailable interfaces fail before input. Existing human-handoff pause applies.
 
-Touch/gesture/key/paste operations are unavailable until migrated. Both process runners reject non-Apple device executables; they do not fall back to the former helpers. The documentation below is retained as a **historical implementation reference**, not current execution instructions.
+## Direct single-contact touch
+
+Physical `tap`, `long-press`, `drag`, and `swipe` also use the in-process backend, by default or with explicit `--physical-backend coredevice`. Coordinates are normalized 0...1 in the current interface, with origin at its top left. A tap lasts 80 ms; long-press accepts 0.1...10 seconds; drag/swipe accepts 0.03...10 seconds. Inspect a fresh screen before choosing coordinates.
+
+After fresh identity/readiness, Apple's `devicectl device info displays` must report exactly one awake integrated primary display, finite positive bounds/scale, and recognized native/current orientation. Normalized interface coordinates are rotated into the digitizer's portrait frame. Panels with a nonzero native orientation additionally require agreeing non-flat device orientation. A second display query must match before dispatch. These reads are sequential, not atomic; rotation during a gesture is not monitored.
+
+The project's bridge opens Apple's Indigo digitizer service and requires a readiness barrier before input. It sends a custom `DigitizerPoint` dictionary with x/y doubles; it is not a Codable CGPoint array. Stationary taps/holds include position pulses at approximately 60 Hz. Drags have 30 movement samples followed by lift 1 ms after the requested movement duration. Scheduling uses absolute monotonic offsets and is not a real-time delivery guarantee. The C boundary independently checks sample counts, finite normalized coordinates, increasing times and complete down/move/up phases before opening a connection. On an ordinary connection error it attempts lift at the last attempted position, then checks a completion barrier. No movement is replayed and no alternate backend runs.
+
+On the USB iPhone 13 mini, direct tap opened Settings, drag moved the Settings list, and a 0.8-second hold opened Maps' Home Screen context menu. Other orientations/families, system edge gestures, interruption/crash release and simultaneous independent controllers remain unverified. Dispatch receipts retain `verified: false` and `releaseVerified: false`; the readiness/completion barriers prove service/transport behavior, not UIKit delivery or release. Multi-contact and arbitrary timed sequences, keys and paste remain unavailable pending their direct replacements.
+
+Both process runners continue to reject non-Apple device executables. The documentation below is retained as a **historical implementation reference**, not current execution instructions.
 
 ## Historical helper implementation (disabled)
 

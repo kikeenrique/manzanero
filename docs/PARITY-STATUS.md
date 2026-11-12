@@ -1,6 +1,6 @@
 # Feature parity status
 
-Checkpoint: direct Apple button backend and removal of non-Apple executable backends, 2026-11-12. Full device-control tooling parity is not complete. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
+Checkpoint: direct Apple buttons and single-contact touch, 2026-11-12. Full device-control tooling parity is not complete. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
 
 ## Current runtime availability
 
@@ -9,7 +9,8 @@ Checkpoint: direct Apple button backend and removal of non-Apple executable back
 | Physical hardware buttons | Project-owned in-process Apple CoreDevice/RemoteXPC backend; Home screenshot-verified through CLI. Other buttons and interruption cleanup need coverage. |
 | Apple Xcode operations | Inventory, readiness, app/file/report operations, screenshots, simulator recording and Build & Run retain their existing implementation and verification limits. |
 | Vision OCR / AVFoundation encoding | In-process Apple frameworks remain available. |
-| Physical touch, gestures, keys and paste | Unavailable pending direct implementation; no ipb/idevice helper fallback. |
+| Physical single-contact touch | In-process Apple digitizer implementation for tap, long-press, drag and swipe. Settings tap/drag and Maps long-press screenshot-verified on USB iPhone 13 mini. Other orientations/families and failure release unverified. |
+| Physical multi-contact/timed gestures, keys and paste | Unavailable pending direct implementation; no ipb/idevice helper fallback. |
 | Physical accessibility | Rust idevice executable blocked; direct replacement pending. Screen auto can fall back to Vision OCR. |
 | Native physical recording | ipb video executable blocked; direct replacement pending. Default devicectl remains unsupported on the tested phone. |
 | Simulator input/accessibility | AXe executable blocked; direct replacement pending. |
