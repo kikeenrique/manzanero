@@ -19,7 +19,7 @@ This is a configuration example, not an installation into a particular host. Hos
 
 ## Tools
 
-The 30 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
+The 31 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
 
 | Tools | Operations |
 | --- | --- |
@@ -28,6 +28,7 @@ The 30 tools have object schemas with required fields, enumerated operations whe
 | `request_handoff` | [Explicit human completion request](HANDOFF.md) using a host form, with per-device mutation pause |
 | `get_ui_tree`, `get_accessibility_archive`, `ocr_image` | AXe simulator hierarchy or native physical AX snapshot with optional PID, separate raw physical callback archive, standalone Vision OCR |
 | `press_element` | [Fresh physical AX press](ACCESSIBILITY-PROTOCOL.md#fresh-selector-presses) by exact identifier/label, with unique target, live state, hit, and display checks; native acceptance does not verify UI effect |
+| `scroll_to_element` | [Physical scroll-to-visible](ACCESSIBILITY-PROTOCOL.md#scroll-an-element-into-view) by exact identifier/label for a target already in the snapshot; one native action followed by read-only visibility/frame/hit checks. Inspect `nativeResult` and `postconditionVerified` separately. |
 | `decode_accessibility_archive` | [Offline structural archive inspection](ACCESSIBILITY-PROTOCOL.md#saving-and-inspecting-a-callback), with bounds and unknown fields preserved; no normalized physical tree |
 | `screenshot` | Capture a PNG to a host path; inline MCP image content up to 8 MiB |
 | `get_screen` | [Capture and inspect](SCREEN-UNDERSTANDING.md), preferring simulator or physical accessibility with OCR fallback and an explicit image-only result if automatic analysis fails |
@@ -68,3 +69,5 @@ The opt-in check `mise run test:mcp-live <booted-simulator-UUID>` launches the r
 `mise run test:mcp-physical <UDID> <pid>` uses the same real stdio harness for initialization, discovery, invalid input, an active physical AX tree read, and EOF shutdown. It requires the built idevice bridge and does not install/launch an app or send UI input. A current application PID is required; the query may inspect a background app. The native tree is saved privately under ignored `tmp/mcp-live-*/physical-tree.json`. The USB iPhone 13 mini Settings exchange passed; this does not verify other apps or transports.
 
 `mise run test:mcp-foreground <UDID>` instead omits PID and verifies foreground selection, tree structure, `get_screen` accessibility analysis, inline PNG content, and EOF shutdown. It saves private tree and screen JSON under ignored `tmp/mcp-live-*/`. Cleanup may be confirmed or explicitly report connection closure before acknowledgement; the latter must carry an unconfirmed flag and warning. This harness sends no UI input.
+
+`mise run test:mcp-scroll <UDID> <identifier>` opts into one `scroll_to_element` call after those foreground reads. It sends a native scroll action for the explicitly supplied identifier and requires its observed visibility postcondition to pass. It saves private `physical-scroll.json` alongside the read artifacts. The target must already exist in the current snapshot. This task can move the app's scroll position; it does not press the row, send another scroll on failure, or change a setting.

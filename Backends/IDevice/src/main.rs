@@ -24,6 +24,7 @@ enum Action {
     AccessibilitySnapshot,
     AccessibilityTree(Option<u32>),
     AccessibilityPress(Option<u32>, String, String),
+    AccessibilityScroll(Option<u32>, String, String),
     Tap(u16, u16),
     MultiTap(Vec<(u16, u16)>),
     MultiDrag(gesture::Gesture),
@@ -76,12 +77,14 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
             }
             Action::AccessibilityTree(pid)
         }
-        "press-id" | "press-label" if (1..=2).contains(&values.len()) => {
+        "press-id" | "press-label" | "scroll-id" | "scroll-label"
+            if (1..=2).contains(&values.len()) =>
+        {
             let pid = if values.len() == 2 {
                 Some(
                     values[0]
                         .parse::<u32>()
-                        .map_err(|_| "Invalid AX press PID")?,
+                        .map_err(|_| "Invalid AX selector action PID")?,
                 )
             } else {
                 None
@@ -92,11 +95,16 @@ fn parse(args: &[String]) -> Result<(&str, Action), String> {
                 || text.len() > 4096
                 || text.contains('\0')
             {
-                return Err("Invalid AX press PID or selector".into());
+                return Err("Invalid AX selector action PID or selector".into());
             }
-            Action::AccessibilityPress(
+            let operation = if args[1].starts_with("scroll-") {
+                Action::AccessibilityScroll
+            } else {
+                Action::AccessibilityPress
+            };
+            operation(
                 pid,
-                if args[1] == "press-id" {
+                if args[1].ends_with("-id") {
                     "identifier"
                 } else {
                     "label"
@@ -207,6 +215,7 @@ async fn execute(
         Action::AccessibilitySnapshot
             | Action::AccessibilityTree(_)
             | Action::AccessibilityPress(..)
+            | Action::AccessibilityScroll(..)
     ) {
         let service = rsd
             .services
@@ -225,6 +234,11 @@ async fn execute(
             Action::AccessibilityPress(pid, selector, text) => {
                 let mut displays = connect_display(adapter, rsd).await?;
                 ax_tree::press(&mut socket, &mut displays, pid, &selector, &text).await?
+            }
+            Action::AccessibilityScroll(pid, selector, text) => {
+                let mut displays = connect_display(adapter, rsd).await?;
+                ax_tree::scroll_to_visible(&mut socket, &mut displays, pid, &selector, &text)
+                    .await?
             }
             _ => accessibility::capture(&mut socket).await?,
         };
@@ -389,6 +403,10 @@ mod tests {
             vec!["test", "logs", "31"],
             vec!["test", "logs", "1", "0"],
             vec!["test", "logs", "1", "4294967295"],
+            vec!["test", "scroll-id"],
+            vec!["test", "scroll-id", "0", "row"],
+            vec!["test", "scroll-label", "2147483648", "Row"],
+            vec!["test", "scroll-label", "a\0b"],
         ] {
             assert!(parse(&args(&values)).is_err());
         }

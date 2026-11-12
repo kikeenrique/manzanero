@@ -3,6 +3,10 @@ use super::*;
 use idevice::core_device::CoreDeviceServiceClient;
 use std::collections::BTreeMap;
 
+#[path = "ax_scroll.rs"]
+mod scroll;
+pub(crate) use scroll::scroll_to_visible;
+
 pub(crate) trait DisplaySource {
     async fn display(&mut self) -> Result<Value, String>;
 }

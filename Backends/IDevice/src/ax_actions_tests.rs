@@ -10,8 +10,8 @@ impl DisplaySource for Displays {
         self.calls += 1;
         Ok(
             json!({"displays":[{"primary":true,"displayId":1,"nativeOrientation":"rot0",
-            "currentOrientation":if self.failure == "rotated" { "rot90" } else { "rot0" },
-            "bounds":[[0,0],[1125,2436]],"pointScale":if self.failure.contains("display-change") && self.calls == 2 { 2 } else { 3 }}]}),
+            "currentOrientation":if self.failure.ends_with("rotated") { "rot90" } else { "rot0" },
+            "bounds":[[0,0],[1125,2436]],"pointScale":if (self.failure.ends_with("post-display-change") && self.calls == 3) || (self.failure.contains("display-change") && !self.failure.contains("post-display-change") && self.calls == 2) { 2 } else { 3 }}]}),
         )
     }
 }
@@ -42,7 +42,29 @@ fn snapshot(failure: &str, iteration: usize) -> Value {
     root["UIAccessibilitySnapshotKeyAttributes"]["2001"] = json!("Application");
     root
 }
-async fn peer(mut socket: tokio::io::DuplexStream, failure: &'static str) -> usize {
+fn scroll_snapshot(failure: &str, iteration: usize) -> Value {
+    let mut value = snapshot(failure, iteration);
+    for child in value["UIAccessibilitySnapshotKeyChildren"]
+        .as_array_mut()
+        .unwrap()
+    {
+        let visible = failure == "already-visible" || (iteration >= 3 && failure != "still-hidden");
+        child["UIAccessibilitySnapshotKeyAttributes"]["2003"]["fields"]["NS.rectval"] =
+            json!(if visible {
+                "{{10,20},{30,40}}"
+            } else {
+                "{{10,900},{30,40}}"
+            });
+        child["UIAccessibilitySnapshotKeyAttributes"]["2025"] = json!(visible);
+        if failure == "post-target-change" && iteration >= 3 {
+            child["UIAccessibilitySnapshotKeyElement"] = token(3);
+        }
+    }
+    value
+}
+async fn peer(mut socket: tokio::io::DuplexStream, scenario: &'static str) -> usize {
+    let scroll = scenario.starts_with("scroll:");
+    let failure = scenario.strip_prefix("scroll:").unwrap_or(scenario);
     let mut snapshots = 0;
     let mut hits = 0;
     let mut presses = 0;
@@ -95,15 +117,37 @@ async fn peer(mut socket: tokio::io::DuplexStream, failure: &'static str) -> usi
         assert_eq!(selector, "processDataFromHost:");
         let request = fields(&argument, "AXPTranslatorRequest").unwrap();
         let kind = request["requestType"].as_u64().unwrap();
-        assert_eq!(request["actionType"], if kind == 7 { 5 } else { 0 });
+        assert_eq!(
+            request["actionType"],
+            if kind == 7 {
+                if scroll { 11 } else { 5 }
+            } else {
+                0
+            }
+        );
         let result = match kind {
-            1 => token(1),
+            1 => token(if scroll && failure == "post-root-change" && presses == 1 {
+                9
+            } else {
+                1
+            }),
             2 => {
                 snapshots += 1;
-                snapshot(failure, snapshots)
+                if scroll {
+                    scroll_snapshot(failure, snapshots)
+                } else {
+                    snapshot(failure, snapshots)
+                }
             }
-            5 => json!({"21":record(2,vec![])["UIAccessibilitySnapshotKeyAttributes"]["2003"],
-                "25":"fixture.control","27":failure != "disabled","32":failure != "hidden"}),
+            5 => {
+                let attrs = if scroll {
+                    scroll_snapshot(failure,snapshots)["UIAccessibilitySnapshotKeyChildren"][0]["UIAccessibilitySnapshotKeyAttributes"].clone()
+                } else {
+                    record(2, vec![])["UIAccessibilitySnapshotKeyAttributes"].clone()
+                };
+                json!({"21":attrs["2003"],"25":"fixture.control","27":failure != "disabled",
+                    "32":if scroll { attrs["2025"].clone() } else { json!(failure != "hidden") }})
+            }
             6 => {
                 hits += 1;
                 assert_eq!(
@@ -112,15 +156,20 @@ async fn peer(mut socket: tokio::io::DuplexStream, failure: &'static str) -> usi
                 );
                 assert_eq!(request["parameters"]["displayId"], 0);
                 let point = fields(&request["parameters"]["point"], "NSValue").unwrap();
+                let target_hit = if scroll {
+                    hits == 3
+                } else {
+                    hits == 2 && !failure.starts_with("tree-")
+                };
                 assert_eq!(
                     point["NS.pointval"],
-                    if hits == 2 && !failure.starts_with("tree-") {
+                    if target_hit {
                         "{25, 40}"
                     } else {
                         "{187.5, 406}"
                     }
                 );
-                let mut target = token(if hits == 2 && !failure.starts_with("tree-") {
+                let mut target = token(if target_hit {
                     if failure == "hit-mismatch" { 9 } else { 2 }
                 } else {
                     1
@@ -128,6 +177,8 @@ async fn peer(mut socket: tokio::io::DuplexStream, failure: &'static str) -> usi
                 if (failure == "tree-pid-change" && hits == 2)
                     || (failure == "background" && hits == 1)
                     || (failure == "pid-change" && hits == 3)
+                    || (scroll && failure == "pre-pid-change" && hits == 2)
+                    || (scroll && failure == "post-pid-change" && hits == 4)
                 {
                     target["fields"]["pid"] = json!(124);
                 }
@@ -140,7 +191,11 @@ async fn peer(mut socket: tokio::io::DuplexStream, failure: &'static str) -> usi
                 if failure == "wire-after-action" {
                     return presses;
                 }
-                json!(failure != "native-refused")
+                if scroll && failure == "native-unknown" {
+                    json!("unknown")
+                } else {
+                    json!(failure != "native-refused" && failure != "already-visible")
+                }
             }
             _ => panic!("Unexpected request kind {kind}"),
         };
@@ -318,4 +373,126 @@ fn label_resolution_and_display_scaling_are_exact() {
             .target_center(&json!({"x":0,"y":0,"width":0,"height":10}))
             .is_err()
     );
+}
+
+#[tokio::test]
+async fn scroll_observes_effect_without_conflating_native_false_with_failure_or_replaying() {
+    for scenario in [
+        "scroll:ok",
+        "scroll:label",
+        "scroll:already-visible",
+        "scroll:still-hidden",
+        "scroll:post-target-change",
+        "scroll:post-pid-change",
+        "scroll:post-root-change",
+        "scroll:post-display-change",
+        "scroll:hit-mismatch",
+        "scroll:ambiguous",
+        "scroll:disabled",
+        "scroll:target-change",
+        "scroll:frame-change",
+        "scroll:unknown-visibility",
+        "scroll:background",
+        "scroll:pre-pid-change",
+        "scroll:display-change",
+        "scroll:rotated",
+        "scroll:native-unknown",
+        "scroll:wire-after-action",
+        "scroll:cleanup-loss",
+        "scroll:cleanup-invalid",
+    ] {
+        let (mut client, server) = tokio::io::duplex(65536);
+        let task = tokio::spawn(peer(server, scenario));
+        let mut displays = Displays {
+            calls: 0,
+            failure: scenario,
+        };
+        let result = scroll_to_visible(
+            &mut client,
+            &mut displays,
+            if scenario == "scroll:background" {
+                Some(123)
+            } else {
+                None
+            },
+            if scenario == "scroll:label" {
+                "label"
+            } else {
+                "identifier"
+            },
+            if scenario == "scroll:label" {
+                "Navigate"
+            } else {
+                "fixture.control"
+            },
+        )
+        .await;
+        let sent = task.await.unwrap();
+        if [
+            "scroll:ok",
+            "scroll:label",
+            "scroll:already-visible",
+            "scroll:cleanup-loss",
+        ]
+        .contains(&scenario)
+        {
+            let value = result.unwrap();
+            assert_eq!(sent, 1, "{scenario}");
+            assert_eq!(value["postconditionVerified"], true);
+            assert_eq!(value["nativeResult"], scenario != "scroll:already-visible");
+            assert_eq!(
+                value["before"]["visible"],
+                scenario == "scroll:already-visible"
+            );
+            assert_eq!(value["after"]["visible"], true);
+            assert_eq!(value["after"]["frame"]["y"], 20.0);
+            assert!(!value.to_string().contains("rawElementData"));
+            assert_eq!(
+                value["cleanup"]["subscriptionStop"],
+                if scenario == "scroll:cleanup-loss" {
+                    "connection-closed-before-ack"
+                } else {
+                    "confirmed"
+                }
+            );
+        } else if [
+            "scroll:still-hidden",
+            "scroll:post-target-change",
+            "scroll:post-pid-change",
+            "scroll:post-root-change",
+            "scroll:post-display-change",
+            "scroll:hit-mismatch",
+        ]
+        .contains(&scenario)
+        {
+            let value = result.unwrap();
+            assert_eq!(sent, 1);
+            assert_eq!(value["nativeResult"], true);
+            assert_eq!(value["postconditionVerified"], false);
+            assert_eq!(value["status"], "postcondition-failed");
+            assert!(value["postconditionFailure"].is_string());
+        } else {
+            let error = result.unwrap_err();
+            if [
+                "scroll:native-unknown",
+                "scroll:wire-after-action",
+                "scroll:cleanup-invalid",
+            ]
+            .contains(&scenario)
+            {
+                assert_eq!(sent, 1);
+                assert!(
+                    error.contains(if scenario == "scroll:cleanup-invalid" {
+                        "state=native-true"
+                    } else {
+                        "state=submitted"
+                    }),
+                    "{error}"
+                );
+            } else {
+                assert_eq!(sent, 0, "{scenario}");
+                assert!(error.starts_with("No AX scroll sent:"), "{error}");
+            }
+        }
+    }
 }

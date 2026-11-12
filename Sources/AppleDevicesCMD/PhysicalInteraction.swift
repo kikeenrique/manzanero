@@ -3,7 +3,7 @@ import Foundation
 /// Optional idevice bridge; private protocols stay outside the Swift command surface.
 enum PhysicalInteraction {
     static func plan(device: String, operation: String, operands: [String]) throws -> DeviceCommand? {
-        guard ["hid-info", "ax-snapshot", "tree", "press-id", "press-label", "logs", "tap", "multi-tap", "multi-drag", "pinch", "drag", "swipe", "button", "key", "type"].contains(operation) else { return nil }
+        guard ["hid-info", "ax-snapshot", "tree", "press-id", "press-label", "scroll-id", "scroll-label", "logs", "tap", "multi-tap", "multi-drag", "pinch", "drag", "swipe", "button", "key", "type"].contains(operation) else { return nil }
         func require(_ count: Int) throws {
             guard operands.count == count else {
                 throw CommandFailure(description: "\(operation) expects \(count) operands. See --help.")
@@ -35,13 +35,13 @@ enum PhysicalInteraction {
             } else {
                 arguments = [operation]
             }
-        case "press-id", "press-label":
+        case "press-id", "press-label", "scroll-id", "scroll-label":
             guard (1...2).contains(operands.count), let text = operands.last,
                   (1...4096).contains(text.utf8.count), !text.contains("\0") else {
-                throw CommandFailure(description: "Physical AX press accepts an optional positive PID and 1...4096 UTF-8 bytes of exact selector without NUL.")
+                throw CommandFailure(description: "Physical AX selector action accepts an optional positive PID and 1...4096 UTF-8 bytes of exact selector without NUL.")
             }
             if operands.count == 2 {
-                guard let pid = UInt32(operands[0]), pid > 0, pid <= Int32.max else { throw CommandFailure(description: "Physical AX press PID must be positive.") }
+                guard let pid = UInt32(operands[0]), pid > 0, pid <= Int32.max else { throw CommandFailure(description: "Physical AX selector action PID must be positive.") }
                 arguments = [operation, String(pid), text]
             } else {
                 arguments = [operation, text]

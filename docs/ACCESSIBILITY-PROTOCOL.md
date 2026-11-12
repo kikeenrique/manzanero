@@ -52,6 +52,23 @@ Only after those checks does the bridge send type 7 / action 5 with the fresh to
 
 Both identifier and exact-label navigation were screenshot-verified on the USB iPhone 13 mini: General → Información by `com.apple.settings.general.about`, then Información → General by the `General` back-button label. An earlier attempt on Software Update stopped with no press because its centre-hit PID differed from the requested Settings PID. The cause of that mismatch was not isolated. Embedded/overlay processes and other states can therefore be conservatively refused; the tool does not switch PID or fall back to a tap. Other apps, rotations, Wi-Fi, secure fields, modal permissions, and generic press effects remain unverified. The live action checks used the shared CLI; MCP routing is tested synthetically, with no separate real MCP press exchange yet.
 
+## Scroll an element into view
+
+```sh
+mise run cli physical <UDID> scroll-id [pid] com.example.row
+mise run cli physical <UDID> scroll-label [pid] 'Exact row label'
+```
+
+MCP exposes `scroll_to_element` with `device`, `by: identifier|label`, `text`, optional `pid`, and optional `pairing_file`. Selection, selector bounds, Developer Mode preflight, handoff pause, and portrait display requirements match the physical press path. This operation follows the pinned ipb protocol research mapping type 7 / action 11 to native `scrollToVisible`; it does not submit a press or a coordinate swipe.
+
+The target must already exist in the bounded native snapshot. Two fresh snapshots must resolve the same unique native identity. Live enabled state, identifier, frame, and known visibility must agree with the latest snapshot; an offscreen frame is allowed and visibility may be false. Application identity, display-centre process, and display geometry are rechecked before one action. It cannot discover an unmaterialized row by repeatedly scrolling or retry an unknown result.
+
+`nativeResult` preserves the device's Boolean response. Native false can mean an already-visible target, and native true alone does not prove the target became visible. One subsequent read-only observation resolves the same identity, checks live and snapshot visibility/enabled state and matching geometry, requires the full positive-size frame inside the display, checks its exact centre hit, and rechecks application/display selection. Passing these checks returns `status: postcondition-verified`, `postconditionVerified: true`, and public `before`/`after` state. These are sequential AX checks, not an atomic transaction or independent screenshot proof; `verified` remains false.
+
+A completed native response with a failed post-action observation returns `status: postcondition-failed`, `postconditionVerified: false`, and `postconditionFailure` while retaining `nativeResult` and `before`. The command returns this structured observation with exit zero; callers must inspect the status and verification field. No follow-up action is sent. Pre-submission failures say no AX scroll was sent; errors after submission preserve `state=submitted|native-true|native-false` and advise inspection before retrying. Cleanup and deadlines match the active tree/press behavior above. No device-side rollback or full-list coverage is promised.
+
+On the selected USB iPhone 13 mini, a CLI identifier scroll moved the Settings Captura de pantalla row from y=793 to y≈416.33 logical points with native true and a passing postcondition; independent screenshots confirmed movement into view. A distinct real MCP call on that now-visible row returned native false, unchanged geometry, and a passing visibility/hit postcondition. The MCP result honestly reported connection closure before cleanup acknowledgement. A later label selection for Información found zero matches in its fresh snapshot and sent no scroll; a previously returned tree does not guarantee continued materialization. See [verification records](VERIFICATION.md).
+
 ## Evidence and scope
 
 The physical phone's advertised services included `com.apple.accessibility.axAuditDaemon.remoteAXService`; see [transport notes](TRANSPORT.md). Advertisement does not prove that a request will succeed. The older DTX audit service, `com.apple.accessibility.axAuditDaemon.remoteserver.shim.remote`, offers focus/audit operations and must not be treated as an interchangeable full-tree API.

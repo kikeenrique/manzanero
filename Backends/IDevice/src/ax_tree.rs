@@ -14,6 +14,7 @@ use tokio::io::AsyncWriteExt;
 #[path = "ax_actions.rs"]
 mod actions;
 pub(crate) use actions::press;
+pub(crate) use actions::scroll_to_visible;
 
 fn fields<'a>(value: &'a Value, class: &str) -> Result<&'a Value, String> {
     if value["className"] != class {
@@ -241,9 +242,13 @@ fn point_request(x: f64, y: f64) -> Result<Vec<u8>, String> {
 }
 
 fn press_request(token: &Value) -> Result<Vec<u8>, String> {
+    action_request(token, 5)
+}
+
+fn action_request(token: &Value, action: u64) -> Result<Vec<u8>, String> {
     let mut encoder = Encoder::new();
     let translation = encoder.token(token)?;
-    finish_request(encoder, 7, Plist::Uid(Uid::new(0)), translation, 5)
+    finish_request(encoder, 7, Plist::Uid(Uid::new(0)), translation, action)
 }
 
 fn snapshot_options() -> Value {

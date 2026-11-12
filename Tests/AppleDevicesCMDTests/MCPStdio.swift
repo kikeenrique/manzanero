@@ -138,6 +138,21 @@ struct MCPStdioTests {
                 let data = try JSONSerialization.data(withJSONObject:screen,options:[.prettyPrinted,.sortedKeys])
                 #expect(FileManager.default.createFile(atPath:artifact.path,contents:data,attributes:[.posixPermissions:0o600]))
             }
+            if let identifier = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_SCROLL_IDENTIFIER"], !identifier.isEmpty {
+                let response = try request(6, "tools/call", ["name": "scroll_to_element", "arguments": ["device": physical, "by": "identifier", "text": identifier]])
+                let result = try #require(response["result"] as? [String: Any])
+                #expect(result["isError"] as? Bool == false)
+                let structured = try #require(result["structuredContent"] as? [String: Any])
+                let scroll = try #require(structured["result"] as? [String: Any])
+                #expect(scroll["operation"] as? String == "scroll-to-visible")
+                #expect(scroll["nativeResult"] as? Bool != nil)
+                #expect(scroll["postconditionVerified"] as? Bool == true)
+                #expect((scroll["after"] as? [String: Any])?["identifier"] as? String == identifier)
+                #expect((scroll["after"] as? [String: Any])?["visible"] as? Bool == true)
+                let artifact = directory.appendingPathComponent("physical-scroll.json")
+                let data = try JSONSerialization.data(withJSONObject: scroll, options: [.prettyPrinted, .sortedKeys])
+                #expect(FileManager.default.createFile(atPath: artifact.path, contents: data, attributes: [.posixPermissions: 0o600]))
+            }
             try finish()
             return
         }
