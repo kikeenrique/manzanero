@@ -1,12 +1,13 @@
 # Native CoreDevice input backend
 
-The optional native backend supports physical `button`, `tap`, `drag`, `swipe`, `multi-drag`, `pinch`, `key`, and Unicode `paste`. The default remains the experimental idevice backend; selection is explicit and a failed action never triggers an automatic retry or another backend.
+The optional native backend supports physical `button`, `tap`, `long-press`, `drag`, `swipe`, `multi-drag`, `pinch`, `key`, and Unicode `paste`. The default remains the experimental idevice backend; selection is explicit and a failed action never triggers an automatic retry or another backend.
 
 ```sh
 mise run coredevice:build
 mise run build
 mise run cli --physical-backend coredevice physical <device> button home
 mise run cli --physical-backend coredevice physical <device> tap 0.5 0.5
+mise run cli --physical-backend coredevice physical <device> long-press 0.5 0.5 0.8
 mise run cli --physical-backend coredevice physical <device> drag 0.5 0.4 0.5 0.8 0.5
 mise run cli --physical-backend coredevice physical <device> pinch 0.5 0.4 0.2 0.6 0.5
 mise run cli --physical-backend coredevice physical <device> key backspace
@@ -24,13 +25,21 @@ The Swift planner passes an argument array to `/usr/bin/env`, setting the instal
 
 The CLI queries fresh CoreDevice details for the requested device, checks Developer Mode, and resolves the CoreDevice UUID required by the helper. A supplied UUID or hardware UDID must match the corresponding returned identity. Name aliases rely on CoreDevice's resolution and are restricted during pending handoff just like other physical mutations.
 
-Touch input queries native HID descriptors and requires exactly one matching touchscreen and a valid service ID. There is no fixed-ID fallback. Coordinates remain normalized 0...1 with origin at the top left; duration remains 0.03...10 seconds. `swipe` and `drag` both use coordinated point-to-point contact movement. Rotation and multiple-display behavior remain unverified.
+Touch input queries native HID descriptors and requires exactly one matching touchscreen and a valid service ID. There is no fixed-ID fallback. Coordinates remain normalized 0...1 with origin at the top left; drag duration is 0.03...10 seconds. `swipe` and `drag` both use coordinated point-to-point contact movement. Rotation and multiple-display behavior remain unverified.
 
 Buttons are `home`, `lock`, `volume-up`, and `volume-down`. The helper sends down/up and a native barrier; `lock` uses a 0.4-second hold, the other buttons 0.08 seconds. Lock can toggle the side-button state and was not tested in this task. A barrier is a transport fence, not an assertion that the UI changed.
 
 JSON receipts identify `backend: coredevice-ipb`, the requested device, resolved UUID, operation, and `verified: false`. Helper diagnostics go to stderr. Observing the result with a fresh screenshot or other app check is still required for each action. Existing handoff mutation pause applies. The native backend does not accept idevice pairing files, create trust, or initiate Wi-Fi pairing.
 
-MCP `tap`, `drag`, `multi_drag`, `pinch`, `press_button`, and `press_key` accept optional `backend: coredevice`; omitting it preserves existing behavior. `paste_text` always uses the native backend and accepts `device` and `text`. The native path uses Apple's existing CoreDevice pairing/tunnel rather than the independent usbmuxd software tunnel.
+MCP `tap`, `drag`, `multi_drag`, `pinch`, `press_button`, and `press_key` accept optional `backend: coredevice`; omitting it preserves existing behavior. `paste_text` and `long_press` always use the native backend. The native path uses Apple's existing CoreDevice pairing/tunnel rather than the independent usbmuxd software tunnel.
+
+## Long-press
+
+`long-press <x> <y> <seconds>` holds a stationary touch for a requested 0.1...10 seconds, then releases. It reuses the pinned helper's existing `cd_uhid_long` operation: contact down, hold, contact release, and barrier. No new report encoder or native patch is needed. The Swift CLI validates and canonicalizes finite coordinates/duration before identity discovery or input. Application gesture thresholds vary; a short hold need not open a context menu.
+
+MCP `long_press` accepts `device`, normalized `x`/`y`, and `seconds`. CLI use requires explicit `--physical-backend coredevice`; the default idevice path does not expose this operation. Developer Mode, identity matching, unique touchscreen discovery, dry-run, and handoff pause use the same native path as taps.
+
+The receipt adds requested `holdSeconds`, `coordinateSpace: normalized-top-left`, and `releaseVerified: false`. It does not measure delivered timing or prove device-side release. A helper failure/timeout reports that UI effect and contact release are unknown; no replay is sent. The helper attempts release after an ordinary send failure, but a blocked framework call, transport loss, or process termination can interrupt it. The existing 40-second subprocess deadline applies.
 
 ## Moving multitouch
 
@@ -49,6 +58,8 @@ The outer 40-second subprocess deadline also applies here. Connection loss, bloc
 The JSON receipt adds `clipboard: replaced` and `insertionVerified: false`. If discovery fails, the clipboard is not written. If the copy command fails or does not confirm success, paste is not sent and the error reports that clipboard state may have changed. If dispatch fails after a confirmed copy, the error reports that the clipboard was replaced and insertion is unknown. No automatic retry occurs in either case. Dry runs show both copy and input phases, the byte count, and the clipboard effect without reading or changing the device. Existing `type`/`type_text` behavior is unchanged; see [idevice ASCII typing](PHYSICAL-TYPING.md).
 
 ## Physical verification
+
+A native 0.8-second long-press at normalized `(0.38,0.12)` opened the Maps Home Screen icon context menu on the selected USB iPhone 13 mini. A screenshot confirmed the menu; Home dismissed it. A separate real MCP `long_press` call reopened the same menu, also confirmed by its captured PNG. No menu item was selected. This verifies that context-menu gesture on this phone, not exact timing, every app recognizer, rotated displays, or device-side release after failure.
 
 Native two-contact spread through `pinch` and inward movement through `multi-drag` visibly zoomed Apple Maps in and out on the selected USB iPhone 13 mini. Screenshots confirmed both effects. Three-to-five-contact gestures, exact timing, and failure cleanup on hardware remain unverified. Maps first-run setup used Allow Once for location, Not Now for notification onboarding, and declined optional improvement data sharing. These were explicit test actions, not automatic permission handling in the tool.
 

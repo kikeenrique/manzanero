@@ -9,7 +9,8 @@ Usage:
   appledevicescmd devices simulators   List available simulators as JSON
   appledevicescmd pair wifi <host> <port> <new-record.pairing.plist>
   appledevicescmd --pairing-file <record> physical <UDID> <bridge-operation> ...
-  appledevicescmd --physical-backend coredevice physical <device> <button|tap|drag|swipe|key|paste|multi-drag|pinch> ...
+  appledevicescmd --physical-backend coredevice physical <device> <button|tap|long-press|drag|swipe|key|paste|multi-drag|pinch> ...
+  appledevicescmd --physical-backend coredevice physical <device> long-press <x> <y> <seconds: 0.1...10>
   Native paste replaces the device clipboard with Unicode text, then pastes at the focused caret/selection.
   Native input requires the optional appledevices-coredevice helper; run mise run coredevice:build.
   Pairing prompts for the device's PIN; use its advertised _remotepairing._tcp endpoint.

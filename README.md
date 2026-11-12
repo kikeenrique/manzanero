@@ -143,6 +143,7 @@ For the physically verified Home/tap/drag, two-contact map zoom, Unicode paste, 
 mise run coredevice:build
 mise run cli --physical-backend coredevice physical <device> button home
 mise run cli --physical-backend coredevice physical <device> tap 0.5 0.5
+mise run cli --physical-backend coredevice physical <device> long-press 0.5 0.5 0.8
 mise run cli --physical-backend coredevice physical <device> key backspace
 mise run cli --physical-backend coredevice physical <device> paste 'mañana 🚀 中'
 ```
@@ -150,6 +151,8 @@ mise run cli --physical-backend coredevice physical <device> paste 'mañana 🚀
 This optional MIT-licensed helper uses installed Apple private frameworks. The iPhone must be awake/unlocked for the tested UI flow, with Developer Mode and **Settings → Developer → Enable UI Automation** enabled. The idevice backend below remains the default; no input is retried automatically through another backend.
 
 Native `paste` replaces the phone clipboard and pastes once into the already-focused field. It does not focus, select all, submit, restore the clipboard, or approve iOS permission prompts. MCP exposes it as `paste_text`; existing `type_text` retains its previous behavior. See [paste semantics and partial failures](docs/NATIVE-INPUT.md#keyboard-and-unicode-paste).
+
+Native `long-press <x> <y> <seconds>` holds and releases one touch at normalized coordinates for a requested 0.1...10 seconds. MCP exposes `long_press` through the same native backend. A 0.8-second hold opened the Maps icon context menu on iPhone 13 mini. Receipts remain unverified dispatch results; gesture thresholds and delivered timing vary. See [long-press behavior and limits](docs/NATIVE-INPUT.md#long-press).
 
 With the optional `appledevices-idevice` bridge on PATH:
 

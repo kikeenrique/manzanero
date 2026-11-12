@@ -84,6 +84,26 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
+            if let hold = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_LONG_PRESS"] {
+                let operands = hold.split(separator: ",").map(String.init)
+                let command = ["--physical-backend", "coredevice", "physical", physical, "long-press"] + operands
+                _ = try #require(try CoreDeviceInput.parse(command))
+                let response = try request(4, "tools/call", ["name": "long_press", "arguments": ["device": physical,
+                    "x": try #require(Double(operands[0])), "y": try #require(Double(operands[1])), "seconds": try #require(Double(operands[2]))]])
+                let result = try #require(response["result"] as? [String: Any])
+                #expect(result["isError"] as? Bool == false)
+                let structured = try #require(result["structuredContent"] as? [String: Any])
+                let receipt = try #require(structured["result"] as? [String: Any])
+                #expect(receipt["operation"] as? String == "long-press")
+                #expect(receipt["verified"] as? Bool == false)
+                let artifact = directory.appendingPathComponent("physical-long-press.json")
+                let data = try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
+                #expect(FileManager.default.createFile(atPath: artifact.path, contents: data, attributes: [.posixPermissions: 0o600]))
+                let screenshot = try request(5, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("long-press.png").path]])
+                #expect((screenshot["result"] as? [String: Any])?["isError"] as? Bool == false)
+                try finish()
+                return
+            }
             let rawPID = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PID"] ?? ""
             let pid = Int(rawPID)
             guard rawPID.isEmpty || pid.map({ $0 > 0 }) == true else {

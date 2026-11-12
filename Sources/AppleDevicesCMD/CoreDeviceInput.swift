@@ -11,10 +11,10 @@ struct CoreDeviceInput {
     static func parse(_ args: [String]) throws -> Self? {
         guard args.first == "--physical-backend" else { return nil }
         guard args.count >= 5, args[1] == "coredevice", args[2] == "physical",
-              ["button", "tap", "drag", "swipe", "key", "paste", "multi-drag", "pinch"].contains(args[4]) else {
-            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|drag|swipe|key|paste|multi-drag|pinch> ... . Pairing files are not supported by this backend.")
+              ["button", "tap", "long-press", "drag", "swipe", "key", "paste", "multi-drag", "pinch"].contains(args[4]) else {
+            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|long-press|drag|swipe|key|paste|multi-drag|pinch> ... . Pairing files are not supported by this backend.")
         }
-        let operands = Array(args.dropFirst(5))
+        var operands = Array(args.dropFirst(5))
         guard !args[3].isEmpty, !args[3].hasPrefix("-") else {
             throw CommandFailure(description: "Invalid native physical input target or operands.")
         }
@@ -22,6 +22,13 @@ struct CoreDeviceInput {
             guard operands.count == 1, (1...65536).contains(operands[0].utf8.count), !operands[0].contains("\0") else {
                 throw CommandFailure(description: "Native paste requires 1...65536 UTF-8 bytes without NUL. It replaces the device clipboard and pastes at the focused caret/selection.")
             }
+        } else if args[4] == "long-press" {
+            guard operands.count == 3, let x = Double(operands[0]), let y = Double(operands[1]),
+                  let seconds = Double(operands[2]), x.isFinite, y.isFinite, seconds.isFinite,
+                  (0...1).contains(x), (0...1).contains(y), (0.1...10).contains(seconds) else {
+                throw CommandFailure(description: "Native long-press requires normalized x/y in 0...1 and duration 0.1...10 seconds.")
+            }
+            operands = [x, y, seconds].map { String($0) }
         } else {
             guard try PhysicalInteraction.plan(device: args[3], operation: args[4], operands: operands) != nil else { throw CommandFailure(description: "Unsupported native input operation.") }
         }
@@ -106,6 +113,9 @@ struct CoreDeviceInput {
         if operation == "tap" {
             return helper(resolved, feature: Self.universal, arguments: ["cd_uhid_tap", surface] + operands)
         }
+        if operation == "long-press" {
+            return helper(resolved, feature: Self.universal, arguments: ["cd_uhid_long", surface] + operands)
+        }
         return helper(resolved, feature: Self.universal, arguments: ["cd_uhid_swipe", surface] + operands)
     }
 
@@ -134,12 +144,18 @@ struct CoreDeviceInput {
         do { output = try run(actionPlan(resolved, surface: surface)) }
         catch {
             if operation == "paste" { throw CommandFailure(description: "Clipboard was replaced, but paste dispatch failed or timed out; insertion is unknown. Inspect the focused field before retrying. \(error)") }
+            if operation == "long-press" { throw CommandFailure(description: "Long-press dispatch failed or timed out; UI effect and contact release are unknown. Inspect the device before retrying. \(error)") }
             throw error
         }
         FileHandle.standardError.write(output)
         var result: [String: Any] = ["backend": "coredevice-ipb", "operation": operation,
             "status": "dispatched", "verified": false, "device": device, "resolvedCoreDeviceUUID": resolved]
         if operation == "paste" { result["clipboard"] = "replaced"; result["insertionVerified"] = false }
+        if operation == "long-press" {
+            result["holdSeconds"] = Double(operands[2])
+            result["coordinateSpace"] = "normalized-top-left"
+            result["releaseVerified"] = false
+        }
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
     }
 }
