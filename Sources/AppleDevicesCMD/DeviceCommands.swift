@@ -64,7 +64,10 @@ struct DeviceCommand {
                 command = ["info", "apps", "--include-default-apps"]
             case "launch":
                 try require(1)
-                command = ["process", "launch"] + operands
+                // Launch consumes everything after the app operand as app argv.
+                // Keep device/output options before it, including in Build & Run.
+                return Self(arguments: ["devicectl", "device", "process", "launch", "--device", device,
+                    "--timeout", "60", "--json-output", "-"] + operands, jsonOutput: true)
             case "processes", "details":
                 try require(0)
                 command = ["info", operation]

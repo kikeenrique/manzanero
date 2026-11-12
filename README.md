@@ -71,7 +71,7 @@ Listing is nonrecursive. Absolute remote paths and `..` components are rejected.
 
 These physical commands return devicectl JSON. Simulator app/lifecycle/screenshot commands preserve simctl output, which is not always JSON. Errors go to stderr with a nonzero exit status. The Swift CLI's errors are currently text; the protocol bridge writes JSON errors that the CLI can wrap in text. `--dry-run` prints an executable and argument array without executing the operation. See `--help` for all implemented commands.
 
-Physical command planning and screenshot flags were checked against Xcode 27.2. Details and awake/unlocked screenshot capture are verified on the iPhone 13 mini. Earlier captures were black before the user confirmed wake/unlock; the exact cause was not isolated. Direct devicectl copies round-tripped a synthetic fixture in a tool-owned temporary domain. App-container listing/copies, termination, and URL opening are not yet verified live.
+Physical command planning and screenshot flags were checked against Xcode 27.2. Details, launching Settings, and awake/unlocked screenshot capture are verified on the iPhone 13 mini. Launch places devicectl options before the app operand so they are not forwarded as app arguments. Earlier captures were black before the user confirmed wake/unlock; the exact cause was not isolated. Direct devicectl copies round-tripped a synthetic fixture in a tool-owned temporary domain. App-container listing/copies, termination, and URL opening are not yet verified live.
 
 ## Human handoff
 

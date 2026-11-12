@@ -21,6 +21,8 @@ Configuration defaults to `Debug`; custom configuration names are passed literal
 
 Every external invocation uses an argument array. The merged Xcode build log is passed to xcsift as file-backed stdin after the build finishes. Formatted diagnostics go to stderr. The Xcode process's exit status remains authoritative even when formatting succeeds. Failed builds and mismatched products stop before installation; failed installs stop before launch. A launch failure returns nonzero, but an already completed installation remains on the device.
 
+Physical launch places all devicectl options, including device/output selection and `--terminate-existing`, before the app operand. Devicectl consumes later tokens as app arguments. This ordering is regression-tested; a standalone Settings launch was verified on the iPhone 13 mini. Physical signing, installation, and the complete Build & Run flow remain unverified.
+
 On success, stdout contains one JSON document with `status: launched`, bundle identifier, app path, build directory, and the backend's launch result. `verified: false` means the CLI has not checked app UI or continued health. Follow with `tree`, a screenshot, or app-specific checks. Dry-run prints build/settings argument arrays and describes subsequent deployment; it does not resolve an app, create the build directory, or run Xcode.
 
 ## Signing and limitations

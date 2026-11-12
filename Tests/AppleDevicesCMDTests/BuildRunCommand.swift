@@ -155,7 +155,8 @@ struct BuildRunCommandTests {
             })
             #expect(operations.count == 2)
             #expect(operations.first?.prefix(4) == ["devicectl", "device", "install", "app"])
-            #expect(operations.last?.prefix(6) == ["devicectl", "device", "process", "launch", "--terminate-existing", "org.example.build-run"])
+            #expect(operations.last == ["devicectl", "device", "process", "launch", "--terminate-existing",
+                "--device", "00000000-0000000000000000", "--timeout", "60", "--json-output", "-", "org.example.build-run"])
         }
     }
 }
