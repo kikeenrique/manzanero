@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <time.h>
+#include <fcntl.h>
 #include "AppleDeviceBridge.h"
 
 // Private Apple interfaces stay in this in-process interoperability target.
@@ -24,9 +25,35 @@ typedef void (*ADCReply)(ADCRemote, xpc_object_t, dispatch_queue_t, xpc_handler_
 - (instancetype)init { if ((self = [super init])) _semaphore = dispatch_semaphore_create(0); return self; }
 @end
 
+@interface ADCAccessibilitySocketOwner : NSObject
+@property(nonatomic, strong) xpc_connection_t connection;
+@property(nonatomic, strong) id device;
+@property(nonatomic, strong) id service;
+@end
+@implementation ADCAccessibilitySocketOwner
+@end
+
 static int ADCFail(char *error, size_t capacity, NSString *message) {
     if (error && capacity) snprintf(error, capacity, "%s", message.UTF8String);
     return 1;
+}
+
+static int ADCPrepareCoreDevice(char *error, size_t capacity) {
+    static void *framework;
+    static dispatch_once_t loadOnce;
+    dispatch_once(&loadOnce, ^{
+        framework = dlopen("/Library/Developer/PrivateFrameworks/CoreDevice.framework/CoreDevice", RTLD_NOW | RTLD_GLOBAL);
+    });
+    if (!framework) return ADCFail(error, capacity, @"Cannot load the installed Apple CoreDevice framework.");
+    void (*addBundle)(NSBundle *) = dlsym(RTLD_DEFAULT, "_coredevice_xpc_add_bundle");
+    void (*initialize)(void) = dlsym(RTLD_DEFAULT, "_coredevice_xpc_init_services");
+    if (!addBundle || !initialize) return ADCFail(error, capacity, @"Required Apple CoreDevice initialization symbols are unavailable.");
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        addBundle([NSBundle bundleWithPath:@"/Library/Developer/PrivateFrameworks/CoreDevice.framework"]);
+        initialize();
+    });
+    return 0;
 }
 
 static xpc_object_t ADCEnvelope(const char *uuid, const char *version, xpc_object_t input) {
@@ -45,6 +72,130 @@ static xpc_object_t ADCEnvelope(const char *uuid, const char *version, xpc_objec
     xpc_dictionary_set_value(message, "CoreDevice.coreDeviceVersion", release);
     xpc_dictionary_set_value(message, "CoreDevice.input", input);
     return message;
+}
+
+int ADCOpenAccessibilitySocket(const char *uuid, const char *version, void **owner, char *error, size_t capacity) {
+    @autoreleasepool {
+        if (owner) *owner = NULL;
+        NSString *identifier = uuid ? [NSString stringWithUTF8String:uuid] : nil;
+        NSString *release = version ? [NSString stringWithUTF8String:version] : nil;
+        if (!owner || !identifier || ![[NSUUID alloc] initWithUUIDString:identifier] || !release ||
+            [release rangeOfString:@"^[0-9]+(?:\\.[0-9]+){0,3}$" options:NSRegularExpressionSearch].length != release.length || release.length == 0) {
+            ADCFail(error, capacity, @"Invalid direct accessibility socket identity or owner.");
+            return -1;
+        }
+        if (ADCPrepareCoreDevice(error, capacity)) return -1;
+        dispatch_queue_t queue = dispatch_queue_create("appledevices.coredevice.accessibility-socket", DISPATCH_QUEUE_SERIAL);
+        xpc_connection_t connection = xpc_connection_create("com.apple.CoreDevice.CoreDeviceService", queue);
+        xpc_connection_set_event_handler(connection, ^(xpc_object_t event) {});
+        xpc_connection_resume(connection);
+        xpc_object_t input = xpc_dictionary_create_empty();
+        // Installed CoreDevice Input(serviceName:featureIdentifier:) permits
+        // selection by name alone. AX carries raw DTX, not HID RemoteXPC.
+        xpc_dictionary_set_string(input, "serviceName", "com.apple.accessibility.axAuditDaemon.remoteAXService");
+        ADCReplyState *state = [ADCReplyState new];
+        xpc_connection_send_message_with_reply(connection, ADCEnvelope(uuid, version, input), queue, ^(xpc_object_t reply) {
+            state.reply = reply;
+            dispatch_semaphore_signal(state.semaphore);
+        });
+        if (dispatch_semaphore_wait(state.semaphore, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC))) {
+            xpc_connection_cancel(connection);
+            ADCFail(error, capacity, @"Apple accessibility socket request timed out; no accessibility subscription sent.");
+            return -1;
+        }
+        xpc_object_t response = state.reply;
+        xpc_object_t output = response && xpc_get_type(response) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(response, "CoreDevice.output") : NULL;
+        int descriptor = output ? xpc_dictionary_dup_fd(output, "fileDescriptor") : -1;
+        if (descriptor < 0) {
+            xpc_object_t failure = response && xpc_get_type(response) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(response, "CoreDevice.error") : NULL;
+            const char *domain = failure ? xpc_dictionary_get_string(failure, "domain") : NULL;
+            long long code = failure ? xpc_dictionary_get_int64(failure, "code") : 0;
+            xpc_connection_cancel(connection);
+            ADCFail(error, capacity, [NSString stringWithFormat:@"Apple refused the raw accessibility socket (%s %lld); no accessibility subscription sent.", domain ?: "unknown", code]);
+            return -1;
+        }
+        if (fcntl(descriptor, F_SETFD, FD_CLOEXEC) == -1) {
+            close(descriptor); xpc_connection_cancel(connection);
+            ADCFail(error, capacity, @"Cannot protect accessibility socket ownership; no subscription sent.");
+            return -1;
+        }
+        ADCAccessibilitySocketOwner *lifetime = [ADCAccessibilitySocketOwner new];
+        lifetime.connection = connection;
+        *owner = (void *)CFBridgingRetain(lifetime);
+        return descriptor;
+    }
+}
+
+int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUDID, void **owner, char *error, size_t capacity) {
+    @autoreleasepool {
+        if (owner) *owner = NULL;
+        NSString *identifier = remoteUUID ? [NSString stringWithUTF8String:remoteUUID] : nil;
+        NSString *hardware = expectedUDID ? [NSString stringWithUTF8String:expectedUDID] : nil;
+        if (!owner || !identifier || ![[NSUUID alloc] initWithUUIDString:identifier] || !hardware ||
+            [hardware rangeOfString:@"^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$" options:NSRegularExpressionSearch].length != hardware.length || hardware.length == 0) {
+            ADCFail(error, capacity, @"Invalid RSD accessibility identity or owner.");
+            return -1;
+        }
+        static void *framework;
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{
+            framework = dlopen("/System/Library/PrivateFrameworks/RemoteServiceDiscovery.framework/RemoteServiceDiscovery", RTLD_NOW | RTLD_GLOBAL);
+        });
+        // Signatures/selection keys follow the installed Apple remotectl caller.
+        void *(*matching)(xpc_object_t) = dlsym(RTLD_DEFAULT, "remote_device_copy_device_matching");
+        void *(*property)(id, const char *) = dlsym(RTLD_DEFAULT, "remote_device_copy_property");
+        void *(*service)(id, const char *) = dlsym(RTLD_DEFAULT, "remote_device_copy_service");
+        int (*state)(id) = dlsym(RTLD_DEFAULT, "remote_device_get_state");
+        bool (*encrypted)(id) = dlsym(RTLD_DEFAULT, "remote_service_should_encrypt_socket_data");
+        int (*connect)(id) = dlsym(RTLD_DEFAULT, "remote_service_create_connected_socket");
+        if (!framework || !matching || !property || !service || !state || !encrypted || !connect) {
+            ADCFail(error, capacity, @"Installed Apple raw-service APIs are unavailable.");
+            return -1;
+        }
+        xpc_object_t selection = xpc_dictionary_create_empty();
+        xpc_dictionary_set_string(selection, "DeviceType", "coredevice-device");
+        xpc_dictionary_set_string(selection, "DeviceUUID", remoteUUID);
+        id device = CFBridgingRelease(matching(selection));
+        if (!device || state(device) != 2) {
+            ADCFail(error, capacity, [NSString stringWithFormat:@"Selected Apple RSD device %@; no subscription sent.", device ? [NSString stringWithFormat:@"is not connected (state %d)", state(device)] : @"was not found"]);
+            return -1;
+        }
+        xpc_object_t udid = CFBridgingRelease(property(device, "UniqueDeviceID"));
+        const char *actual = udid && xpc_get_type(udid) == XPC_TYPE_STRING ? xpc_string_get_string_ptr(udid) : NULL;
+        NSString *actualIdentifier = actual ? [NSString stringWithUTF8String:actual] : nil;
+        if (!actualIdentifier || [hardware caseInsensitiveCompare:actualIdentifier] != NSOrderedSame) {
+            ADCFail(error, capacity, @"Apple RSD hardware identity mismatch; no socket opened.");
+            return -1;
+        }
+        id endpoint = CFBridgingRelease(service(device, "com.apple.accessibility.axAuditDaemon.remoteAXService"));
+        if (!endpoint || encrypted(endpoint)) {
+            ADCFail(error, capacity, endpoint ? @"Raw Apple accessibility service requires encryption; no subscription sent." : @"Raw Apple accessibility service was not found; no subscription sent.");
+            return -1;
+        }
+        int descriptor = connect(endpoint);
+        if (descriptor < 0) {
+            ADCFail(error, capacity, [NSString stringWithFormat:@"Apple raw accessibility socket failed (errno %d); no subscription sent.", errno]);
+            return -1;
+        }
+        if (fcntl(descriptor, F_SETFD, FD_CLOEXEC) == -1) {
+            close(descriptor);
+            ADCFail(error, capacity, @"Cannot protect raw accessibility socket ownership; no subscription sent.");
+            return -1;
+        }
+        ADCAccessibilitySocketOwner *lifetime = [ADCAccessibilitySocketOwner new];
+        lifetime.device = device;
+        lifetime.service = endpoint;
+        *owner = (void *)CFBridgingRetain(lifetime);
+        return descriptor;
+    }
+}
+
+void ADCCloseAccessibilitySocket(int descriptor, void *owner) {
+    if (descriptor >= 0) close(descriptor);
+    if (owner) {
+        ADCAccessibilitySocketOwner *lifetime = CFBridgingRelease(owner);
+        if (lifetime.connection) xpc_connection_cancel(lifetime.connection);
+    }
 }
 
 static xpc_object_t ADCButtonEvent(uint64_t usage, uint64_t state, BOOL barrier) {
@@ -117,27 +268,15 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         // registered button feature rather than inventing a standalone keyboard
         // feature socket; keyboard messages carry their own feature identifier.
         xpc_object_t (*scalarEvent)(uint64_t, uint64_t, BOOL) = keyboard ? ADCKeyboardEvent : ADCButtonEvent;
-        static void *framework;
-        static dispatch_once_t loadOnce;
-        dispatch_once(&loadOnce, ^{
-            framework = dlopen("/Library/Developer/PrivateFrameworks/CoreDevice.framework/CoreDevice", RTLD_NOW | RTLD_GLOBAL);
-        });
-        if (!framework) return ADCFail(error, capacity, @"Cannot load the installed Apple CoreDevice framework.");
-        void (*addBundle)(NSBundle *) = dlsym(RTLD_DEFAULT, "_coredevice_xpc_add_bundle");
-        void (*initialize)(void) = dlsym(RTLD_DEFAULT, "_coredevice_xpc_init_services");
+        if (ADCPrepareCoreDevice(error, capacity)) return 1;
         ADCCreate create = dlsym(RTLD_DEFAULT, "xpc_remote_connection_create_with_connected_fd");
         ADCHandler handler = dlsym(RTLD_DEFAULT, "xpc_remote_connection_set_event_handler");
         ADCActivate activate = dlsym(RTLD_DEFAULT, "xpc_remote_connection_activate");
         ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
         ADCSend send = dlsym(RTLD_DEFAULT, "xpc_remote_connection_send_message");
         ADCReply request = dlsym(RTLD_DEFAULT, "xpc_remote_connection_send_message_with_reply");
-        if (!addBundle || !initialize || !create || !handler || !activate || !cancel || !send || !request)
+        if (!create || !handler || !activate || !cancel || !send || !request)
             return ADCFail(error, capacity, @"Required Apple CoreDevice/RemoteXPC symbols are unavailable.");
-        static dispatch_once_t once;
-        dispatch_once(&once, ^{
-            addBundle([NSBundle bundleWithPath:@"/Library/Developer/PrivateFrameworks/CoreDevice.framework"]);
-            initialize();
-        });
         dispatch_queue_t queue = dispatch_queue_create("appledevices.coredevice.button", DISPATCH_QUEUE_SERIAL);
         xpc_connection_t connection = xpc_connection_create("com.apple.CoreDevice.CoreDeviceService", queue);
         xpc_connection_set_event_handler(connection, ^(xpc_object_t event) {});

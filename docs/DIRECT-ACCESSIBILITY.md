@@ -14,8 +14,35 @@ Protocol facts were cross-checked against the existing [accessibility notes](ACC
 
 ## Remaining integration
 
-Opening the selected device's raw accessibility socket, serving version negotiation, enabling/disabling accessibility, request/callback routing, bounded data-only archive decoding, fresh application snapshots, selector guards and CLI/MCP routing still need direct implementation and hardware verification. Historical results below other documentation headings are acceptance targets, not verification of this codec or transport.
+Two project-owned socket-opening paths now exist behind the bridge, with an opt-in read-only integration probe. Neither has opened the AX endpoint successfully on the selected phone. Product CLI/MCP accessibility routing remains disabled. Serving version negotiation, enabling/disabling accessibility, request/callback routing, bounded data-only archive decoding, fresh application snapshots and selector guards still need direct implementation and hardware verification. Historical results below other documentation headings are acceptance targets, not verification of this codec or transport.
+
+## Socket-opening investigation
+
+`ADCOpenAccessibilitySocket` asks Apple's CoreDevice service for the exact AX service name, without a feature identifier or RemoteXPC upgrade. Its owned descriptor and XPC control connection have one explicit close API; socket setup has a 15-second reply deadline. Framework initialization is shared with the existing HID path.
+
+`ADCOpenRSDAccessibilitySocket` is a separate, explicitly selected experiment using installed RemoteServiceDiscovery APIs. Signatures and selection keys were checked against the installed Apple `remotectl` caller using `nm`/`otool`. It selects a remote UUID of type `coredevice-device`, requires connected state, verifies its `UniqueDeviceID` against the requested hardware UDID, then looks up the exact AX service and refuses endpoints requiring encrypted raw data. It does not guess service ports, connect another device, retry or fall back automatically. These synchronous private API calls do not yet have a product-level cancellation/deadline guarantee.
+
+The close API closes the owned descriptor and releases retained service/device objects or cancels the owned CoreDevice control connection. Descriptors are marked close-on-exec. Identity errors clear the output owner and fail before framework access. A socket-open receipt would only prove opening, not DTX negotiation or a tree.
+
+```sh
+# CoreDevice service-name path:
+mise run test:ax-socket <hardware-UDID>
+# Separate RSD path; use a fresh Apple remote inventory UUID for the same device:
+mise run test:ax-socket <hardware-UDID> --remote-uuid <remote-UUID>
+```
+
+Neither probe enables accessibility, sends input, reads a tree or changes device settings. Both are tests of code linked into this project, not shipped helper executables.
+
+On 2026-11-13 the CoreDevice path failed with `com.apple.dt.CoreDeviceError 4000` before subscription. The RSD path initially found no device when filtering by `AvailableService`; separating identity lookup from service lookup found the connected phone and passed the hardware check, but `remote_device_copy_service` returned no AX endpoint. Apple `remotectl show` separately advertised that exact service, and `get-property` reported `UsesRemoteXPC: true`, `EncryptSocketData: false`. The discrepancy is unresolved; advertising and property reads do not establish a working raw connection.
+
+The fresh Apple inventory reports the selected iPhone 13 mini on iOS 27.2.1 (24B156), differing from the earlier 27.2 (24B119) input records. Its hardware UDID was checked; no other listed Apple device was used. Host macOS remains 27.2.1 (26B131), Xcode 27.2 (27B52), CoreDevice 651.32, Swift 6.4.2. Raw device inventory and disassembly remain under ignored `tmp/`.
+
+The next transport investigation is the ordinary paired RSD/TCP route described by the source references, with fresh directory identity checks and bounded I/O. These socket errors are not proof that the phone refuses AX or that Developer Mode/UI Automation is disabled. No additional phone setting change is justified by this evidence.
 
 ## Local validation
 
 On 2026-11-13, `mise run test` passed 160 Swift test functions with zero errors/warnings on macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2. Seven new tests cover an independent byte fixture, outgoing subscription archives, fragment assembly/correlation, malformed header/payload/argument bounds, reply direction/overflow and opaque unknown archive class names. No phone request was sent by these tests. A successful build or codec test is not a live tree result.
+
+After adding socket ownership/identity checks, `mise run test` passed 161 test functions with zero errors/warnings; all 24 mise tasks validate. The opt-in live socket test failed on each path as recorded above. Its failure is retained as evidence, not converted to a passing capability result. Physical accessibility remains unavailable.
+
+The shared CoreDevice initialization was regression-checked through real MCP Home input: the before image showed Settings, the immediate after image showed its dismissal animation, and a subsequent Apple screenshot showed settled Home. The MCP handshake, receipt checks and EOF shutdown passed. This verifies the existing Home path after the initialization refactor, not accessibility connectivity.

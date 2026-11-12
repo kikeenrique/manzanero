@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Probe Apple's raw AX service socket without enabling accessibility or sending input"
+#USAGE arg "<device>" help="Explicit physical device UDID; read-only socket-open check"
+#USAGE flag "--remote-uuid <remote_uuid>" help="Explicit remote UUID for separate raw RSD path; verifies hardware UDID"
+
+set -e -o pipefail
+
+unset APPLEDEVICES_AX_SOCKET_REMOTE_UUID
+if [ -n "${usage_remote_uuid:-}" ]; then
+  export APPLEDEVICES_AX_SOCKET_REMOTE_UUID="$usage_remote_uuid"
+fi
+APPLEDEVICES_AX_SOCKET_DEVICE="$usage_device" swift test --cache-path tmp/swift-cache --filter AccessibilitySocketTests 2>&1 | xcsift -f toon --warnings

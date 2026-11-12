@@ -3,6 +3,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/// Opens only Apple's named remote accessibility service, without a RemoteXPC
+/// upgrade. Returns an owned FD, or -1. Close FD and owner together below.
+int ADCOpenAccessibilitySocket(const char *uuid, const char *version, void **owner,
+                               char *error, size_t errorCapacity);
+/// Separate explicit RSD path; verifies UniqueDeviceID before opening AX.
+int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUDID, void **owner,
+                                  char *error, size_t errorCapacity);
+void ADCCloseAccessibilitySocket(int descriptor, void *owner);
+
 /// Returns zero only after sending one down/up pair and a service barrier.
 /// This is transport dispatch, never verification of device UI or key release.
 int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
