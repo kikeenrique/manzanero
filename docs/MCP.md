@@ -1,5 +1,7 @@
 # Optional MCP server
 
+**Current runtime policy:** MCP uses only project-owned in-process Apple backends or Apple executables for device operations. Physical `press_button` defaults to the direct CoreDevice backend. Tools requiring AXe/idevice/ipb executables return unavailable errors until migrated; the catalog and legacy examples below do not imply those backends remain executable. See [current availability](PARITY-STATUS.md#current-runtime-availability).
+
 `appledevicescmd mcp` serves the existing operations over local stdio, using the official Swift MCP SDK. It waits for newline-delimited JSON-RPC on stdin. Stdout contains only protocol messages; diagnostics go to stderr. No HTTP listener is created.
 
 Configure an MCP host to launch the built executable by absolute path with `args: ["mcp"]`. Set the working directory to this checkout and provide a PATH containing xcsift, AXe, and `tmp/bin` as needed for the selected backend. A common host configuration shape is:

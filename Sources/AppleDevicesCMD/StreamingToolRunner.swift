@@ -8,6 +8,7 @@ struct StreamingToolRunner: Sendable {
     func run(executable: String, arguments: [String], timeout: Double,
              maximumOutputBytes: Int = 1024 * 1024 * 1024,
              receive: @Sendable @escaping (Data) async throws -> Void) async throws {
+        try DeviceExecutablePolicy.validate(executable, arguments: arguments)
         guard timeout.isFinite, timeout > 0, maximumOutputBytes > 0 else {
             throw CommandFailure(description: "Invalid streaming process deadline or output limit.")
         }

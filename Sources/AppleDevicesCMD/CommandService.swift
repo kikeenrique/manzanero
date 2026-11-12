@@ -40,16 +40,26 @@ actor CommandService {
     func execute(_ args: [String], dryRun: Bool = false, allowInteractive: Bool = false,
                  handoffConfirmation: (@Sendable (HandoffCommand) async throws -> HandoffStatus)? = nil) async throws -> CommandOutput {
         if args.count >= 2, args[0] == "--physical-backend", args[1] == "idevice" {
+            if !dryRun { try DeviceExecutablePolicy.validate("/usr/bin/env", arguments: ["appledevices-idevice"]) }
             let forwarded = Array(args.dropFirst(2))
             let target = forwarded.first == "--pairing-file" ? Array(forwarded.dropFirst(2)) : forwarded
             guard target.count >= 3, target[0] == "physical" else { throw CommandFailure(description: "--physical-backend requires a physical input command.") }
-            return try await execute(forwarded, dryRun: dryRun, allowInteractive: allowInteractive, handoffConfirmation: handoffConfirmation)
+            return try json(["backend": "idevice", "executionAvailable": false, "arguments": forwarded,
+                "limitation": "The explicitly selected non-Apple executable backend is disabled; no fallback will run."])
         }
-        if let native = try CoreDeviceInput.parse(args) {
+        let nativeArguments = args.count == 4 && args[0] == "physical" && args[2] == "button"
+            ? ["--physical-backend", "coredevice"] + args : args
+        if let native = try CoreDeviceInput.parse(nativeArguments) {
             if dryRun {
                 let identity = try native.identityPlan()
+                if native.operation == "button" {
+                    return try json(["backend": "coredevice-direct", "identityArguments": identity.arguments,
+                        "operation": "button", "button": native.operands[0],
+                        "execution": "In-process Apple CoreDevice/RemoteXPC down/up and barrier; no helper executable."])
+                }
                 let action = try native.actionPlan("<resolved CoreDevice UUID>", surface: "<discovered HID surface ID>")
-                var plan: [String: Any] = ["backend": "coredevice-ipb", "identityArguments": identity.arguments,
+                var plan: [String: Any] = ["backend": "coredevice-ipb", "executionAvailable": false,
+                    "limitation": "Historical helper plan only; non-Apple executables are disabled pending the direct implementation.", "identityArguments": identity.arguments,
                     "executable": action.executable, "actionArguments": action.arguments,
                     "discovery": "Touch/keyboard operations discover exactly one matching HID surface before input; dry run queries nothing."]
                 if native.operation == "paste" {
@@ -59,10 +69,10 @@ actor CommandService {
                 }
                 return try json(plan)
             }
-            try checkHandoffPause(Array(args.dropFirst(2)))
-            return CommandOutput(data: try native.execute(copy: { plan, text in
-                try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40, inputData: text)
-            }) { try runner.run($0.arguments, executable: $0.executable, timeout: 40) })
+            try checkHandoffPause(Array(nativeArguments.dropFirst(2)))
+            return CommandOutput(data: try DirectPhysicalInput.execute(native) {
+                try runner.run($0.arguments, executable: $0.executable, timeout: 40)
+            })
         }
         if let handoff = try HandoffCommand.parse(args) {
             if dryRun { return try json(["platform": handoff.platform, "device": handoff.device, "message": handoff.message, "action": "Request human completion; no device action or prompt is executed by this dry run."]) }
@@ -99,9 +109,14 @@ actor CommandService {
                 .appendingPathComponent("tmp/recording-\(UUID().uuidString)")
             if dryRun {
                 let plan = recording.command(staging: directory.appendingPathComponent("capture.mp4"))
-                return try json(["executable": plan.executable, "arguments": plan.arguments,
+                var output: [String: Any] = ["executable": plan.executable, "arguments": plan.arguments,
                     "destination": recording.destination.path, "durationSeconds": recording.seconds,
-                    "stopPolicy": recording.native ? "Timestamped live frames; AVFoundation MP4 encoding; no automatic backend fallback." : (recording.physical ? "devicectl --duration" : "Wait for first frame, then SIGINT after duration; wait for finalization.")])
+                    "stopPolicy": recording.native ? "Timestamped live frames; AVFoundation MP4 encoding; no automatic backend fallback." : (recording.physical ? "devicectl --duration" : "Wait for first frame, then SIGINT after duration; wait for finalization.")]
+                if recording.native {
+                    output["executionAvailable"] = false
+                    output["limitation"] = "Historical video helper plan only; direct Apple capture replacement pending."
+                }
+                return try json(output)
             }
             if recording.physical { try preflight(recording.device, operation: "record screen") }
             return CommandOutput(data: try await recording.execute(directory: directory, runner: runner))
@@ -125,6 +140,8 @@ actor CommandService {
             let archivePath = targetArgs.count == 4 && targetArgs[0] == "physical" && targetArgs[2] == "ax-snapshot" ? targetArgs[3] : nil
             if dryRun {
                 var plan: [String: Any] = ["executable": command.executable, "arguments": command.arguments]
+                do { try DeviceExecutablePolicy.validate(command.executable, arguments: command.arguments) }
+                catch { plan["executionAvailable"] = false; plan["limitation"] = String(describing: error) }
                 if let archivePath { plan["archiveDestination"] = archivePath }
                 return try json(plan)
             }

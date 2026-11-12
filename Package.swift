@@ -10,7 +10,9 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", exact: "1.0.2")
     ],
     targets: [
+        .target(name: "AppleDeviceBridge", cSettings: [.unsafeFlags(["-fobjc-arc"])], linkerSettings: [.linkedFramework("Foundation")]),
         .executableTarget(name: "AppleDevicesCMD", dependencies: [
+            "AppleDeviceBridge",
             .product(name: "MCP", package: "swift-sdk"),
             .product(name: "Subprocess", package: "swift-subprocess")
         ]),

@@ -49,6 +49,7 @@ struct ToolRunner {
     private func capture(_ arguments: [String], executable: String, interactive: Bool = false,
                          merged: Bool = false, input: URL? = nil, inputData: Data? = nil,
                          recording: RecordingTiming? = nil, timeout: Double? = nil) throws -> (status: Int32, output: Data, errors: Data) {
+        try DeviceExecutablePolicy.validate(executable, arguments: arguments)
         let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("tmp/process-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

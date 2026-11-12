@@ -1,6 +1,23 @@
 # Feature parity status
 
-Checkpoint: native finite recording, 2026-11-12. Full device-control tooling parity is not complete. This classifies the repository's [recorded parity inventory](ROADMAP.md), rather than claiming a newly audited vendor feature list. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
+Checkpoint: direct Apple button backend and removal of non-Apple executable backends, 2026-11-12. Full device-control tooling parity is not complete. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
+
+## Current runtime availability
+
+| Area | Current state |
+| --- | --- |
+| Physical hardware buttons | Project-owned in-process Apple CoreDevice/RemoteXPC backend; Home screenshot-verified through CLI. Other buttons and interruption cleanup need coverage. |
+| Apple Xcode operations | Inventory, readiness, app/file/report operations, screenshots, simulator recording and Build & Run retain their existing implementation and verification limits. |
+| Vision OCR / AVFoundation encoding | In-process Apple frameworks remain available. |
+| Physical touch, gestures, keys and paste | Unavailable pending direct implementation; no ipb/idevice helper fallback. |
+| Physical accessibility | Rust idevice executable blocked; direct replacement pending. Screen auto can fall back to Vision OCR. |
+| Native physical recording | ipb video executable blocked; direct replacement pending. Default devicectl remains unsupported on the tested phone. |
+| Simulator input/accessibility | AXe executable blocked; direct replacement pending. |
+| CLI/MCP | Both enforce the same restriction. Full Apple-family scope remains unchanged. |
+
+## Historical feature inventory
+
+The inventory below records the implementations and scoped verification **before the non-Apple executable restriction**. Entries involving ipb, idevice or AXe do not mean those paths remain available. Use the current availability table above for execution status; preserve these observations as migration acceptance targets.
 
 Scope clarification: all Apple device families are in scope, explicitly including iPhone, iPad, Apple Watch, Apple TV, and Duo targets. Android is excluded and is not an unfinished requirement. The same physical iPhone result cannot verify another device family.
 

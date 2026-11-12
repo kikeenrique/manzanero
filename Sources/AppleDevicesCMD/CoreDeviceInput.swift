@@ -1,6 +1,7 @@
 import Foundation
 
-/// Optional MIT-licensed ipb helper; Apple private ABI stays outside the Swift CLI.
+/// Input validation and identity resolution. Historical helper plans remain for
+/// migration reference; execution policy blocks their non-Apple executables.
 struct CoreDeviceInput {
     let device: String
     let operation: String

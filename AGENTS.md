@@ -10,7 +10,8 @@
 
 ## Dependencies
 
-- Prefer existing Apple frameworks or maintained third-party libraries as dependencies when needed instead of implementing custom solutions for capabilities they already provide.
+- Device operations must communicate with Apple frameworks/APIs from this project's code or use Apple-provided executables. Do not invoke non-Apple device-control executables, including AXe, idevice, or ipb helpers.
+- Use third-party device projects as implementation references. Prefer existing Apple frameworks and maintained general-purpose libraries over custom infrastructure where appropriate.
 - Ask the user before adding third-party dependencies that have not already been authorized. Preserve licenses and attribution.
 
 ## Workflow

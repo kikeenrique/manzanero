@@ -1,5 +1,7 @@
 # Scope, feature sources, and implementation status
 
+**Current architecture constraint:** device operations may use this project's in-process Apple framework/API implementations or Apple executables, never non-Apple helper binaries. The direct physical button backend is available; legacy ipb/idevice/AXe paths are disabled pending migration. Feature evidence below involving those paths is historical. See [current runtime availability](PARITY-STATUS.md#current-runtime-availability).
+
 The user's objective is a Swift CLI named `appledevicescmd` with proprietary device-control tooling's device features, using the same kinds of Apple frameworks/APIs or permitted third-party tools, with optional MCP sharing the operations. This is not yet a complete clone.
 
 This roadmap is an implementation inventory, not a claim that the user explicitly approved each inferred item. Vendor documentation was rechecked on **2026-11-11**. Current public documentation and the inspected device-control tooling 0.9.0/build 90 artifact are different evidence sources; current pages do not establish which release introduced a feature.

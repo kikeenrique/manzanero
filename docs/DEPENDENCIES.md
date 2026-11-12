@@ -2,6 +2,8 @@
 
 ## Integration direction
 
+**Current enforcement:** non-Apple device-control executables are disabled in both process runners. Physical hardware buttons use the project's in-process Apple bridge; the former ipb input/video, Rust idevice and AXe simulator adapters are unavailable pending direct replacements. The xcsift development/build-log formatter is infrastructure, not a device backend. General-purpose linked Swift packages remain permitted. Later sections describing helper installation are historical reference material.
+
 The user clarified on 2026-11-12 that device backends should communicate directly with Apple frameworks/APIs from this project's code. Third-party device-control tools are references for understanding those interfaces, rather than the intended permanent runtime architecture. General-purpose Swift packages such as Subprocess remain appropriate dependencies; they do not implement the device operations.
 
 The current implementation only partly meets that direction: AVFoundation/CoreVideo encoding is in-process, while physical input/video uses an external ipb helper, accessibility uses the Rust idevice bridge, and simulator interaction uses AXe. Existing implementations and verification records remain valid, but they are migration starting points. Prioritize replacing physical intermediaries with project-owned in-process Apple backends, using a small C/Objective-C interoperability layer where Swift cannot express the private API. Verify each replacement on the selected iPhone 13 mini before retiring its working predecessor. Adding AXe's physical CLI as another permanent adapter would not meet this direction. See [the AXe implementation review](AXE-PHYSICAL-REVIEW.md).

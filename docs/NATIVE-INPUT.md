@@ -1,5 +1,17 @@
 # Native CoreDevice input backend
 
+## Current direct backend
+
+Device operations must not invoke non-Apple intermediate executables. Physical `button home|lock|volume-up|volume-down` now calls Apple CoreDevice/RemoteXPC **in process**, through the project's `AppleDeviceBridge` interoperability target. Both `physical <device> button <name>` and explicit `--physical-backend coredevice` use it. There is no ipb helper build, helper launch, Swift private-value ABI shim, or third-party runtime dependency in this button path.
+
+Swift validates the operation, queries fresh identity/readiness with Apple's `devicectl`, checks the requested UUID/UDID and reported CoreDevice version, then enters the bridge. The bridge dynamically loads the installed Apple framework, requests the button service socket, sends one `IndigoButtonEvent` down/up pair, and waits for a service barrier before closing its connections. The socket request has a 15-second deadline and the barrier a 3-second deadline. Up is attempted after down even if a connection error is observed. A failed dispatch is never replayed. Normal dispatch does not prove UI effect or release; receipts report `backend: coredevice-direct`, `verified: false`, `releaseVerified: false`. SIGINT/crash release and other buttons are not hardware-verified.
+
+The Home action was screenshot-verified from Settings to Home on the selected USB iPhone 13 mini. The direct implementation follows protocol observations in the MIT AXe/ipb references; no executable or implementation source from either project is invoked by this path. Private symbol availability is checked at runtime and unavailable interfaces fail before input. Existing human-handoff pause applies.
+
+Touch/gesture/key/paste operations are unavailable until migrated. Both process runners reject non-Apple device executables; they do not fall back to the former helpers. The documentation below is retained as a **historical implementation reference**, not current execution instructions.
+
+## Historical helper implementation (disabled)
+
 The optional native backend supports physical `button`, `tap`, `long-press`, timed `gesture`, `drag`, `swipe`, `multi-drag`, `pinch`, `key`, and Unicode `paste`. The default remains the experimental idevice backend; selection is explicit and a failed action never triggers an automatic retry or another backend.
 
 ```sh

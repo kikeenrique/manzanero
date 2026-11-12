@@ -1,6 +1,6 @@
 # appledevicescmd
 
-A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. The CLI uses Xcode tools, Vision, AXe for simulator control, an optional Rust idevice bridge, and an optional native CoreDevice input helper. **Full feature parity is not implemented.** See the [classified feature status](docs/PARITY-STATUS.md) for verification and remaining gaps.
+A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. Device operations use Apple APIs/frameworks or Apple executables. **Non-Apple device helpers are disabled. Full feature parity is not implemented.** Physical hardware buttons now use an in-process Apple CoreDevice/RemoteXPC backend; migration of touch, accessibility, and native video is in progress. See the [classified feature status](docs/PARITY-STATUS.md) for current availability, historical verification, and remaining gaps.
 
 See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), [investigation](docs/ANALYSIS.md), and [documentation review findings](docs/DOCUMENTATION-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
@@ -17,22 +17,21 @@ appledevicescmd devices simulators
 appledevicescmd doctor
 ```
 
-After building, `mise run cli <arguments...>` runs the executable with `tmp/bin` on PATH for the optional physical bridge. It does not build or install missing backends automatically.
+After building, `mise run cli <arguments...>` runs the executable. Third-party device executables are refused by the execution layer even if present on PATH. Existing examples below for AXe/idevice/ipb operations describe legacy interfaces and are unavailable pending direct implementations.
 
 `devices physical` currently returns the unfiltered CoreDevice JSON inventory, which can include simulators. `devices simulators` returns simctl JSON. `doctor` checks whether Xcode and the two discovery commands succeed; it does not verify device trust, UI Automation, input delivery, or optional-backend installation.
 
 For a physical target, run `appledevicescmd physical <device> readiness` to report Developer Mode, developer-image services, connection/pairing, and preparation steps. Known disabled Developer Mode is also reported before developer-operation dispatch. See [readiness checks and limits](docs/READINESS.md).
 
-Build the optional physical protocol bridge with mise (tested with 2026.10.20):
+Physical buttons need no helper build:
 
 ```sh
-mise run idevice:build
-# For a cached debug build and bridge tests:
-mise run idevice:build --debug --offline
-mise run idevice:test --offline
+mise run cli physical <UDID> button home
+# Explicit backend selection uses the same in-process implementation:
+mise run cli --physical-backend coredevice physical <UDID> button home
 ```
 
-These tasks use Rust 1.99.1 and keep its toolchain, Cargo downloads, and generated bridge under `tmp/`. `--offline` applies to Cargo dependencies; the pinned toolchain must already be installed. See [dependency details](docs/DEPENDENCIES.md).
+Home was screenshot-verified on the USB iPhone 13 mini through CLI; other buttons and interruption cleanup need hardware coverage. See [direct input and migration status](docs/NATIVE-INPUT.md). Legacy bridge build tasks remain as research material, not runtime setup instructions.
 
 ## Optional MCP interface
 

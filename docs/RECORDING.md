@@ -1,5 +1,7 @@
 # Screen recording
 
+**Current availability:** the `coredevice` recording option below is disabled because it launches a non-Apple ipb executable. Its direct Apple API replacement is pending. Simulator simctl recording remains available; physical devicectl recording retains its documented capability failure. Native recording implementation details and evidence below are historical migration references.
+
 ```sh
 appledevicescmd simulator <UUID> record tmp/demo.mp4 5
 appledevicescmd simulator <UUID> record 'tmp/My Demo.mp4' 5 hevc

@@ -86,6 +86,21 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
+            if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_BUTTON"] == "1" {
+                let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-button-before.png").path]])
+                #expect((before["result"] as? [String: Any])?["isError"] as? Bool == false)
+                let response = try request(5, "tools/call", ["name": "press_button", "arguments": ["platform": "physical", "device": physical, "button": "home"]])
+                let result = try #require(response["result"] as? [String: Any])
+                try #require(result["isError"] as? Bool == false)
+                let structured = try #require(result["structuredContent"] as? [String: Any])
+                let receipt = try #require(structured["result"] as? [String: Any])
+                #expect(receipt["backend"] as? String == "coredevice-direct")
+                #expect(receipt["verified"] as? Bool == false)
+                let screenshot = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-button-after.png").path]])
+                #expect((screenshot["result"] as? [String: Any])?["isError"] as? Bool == false)
+                try finish()
+                return
+            }
             if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_RECORDING"] == "1" {
                 let path = directory.appendingPathComponent("physical-hevc.mp4")
                 let response = try request(4, "tools/call", ["name": "record_screen", "arguments": ["platform": "physical", "device": physical, "path": path.path, "seconds": 2, "codec": "hevc", "recording_backend": "coredevice"]])

@@ -49,6 +49,10 @@ struct RecordingCommand {
     }
 
     func execute(directory: URL, runner: ToolRunner, isolation: isolated (any Actor)? = #isolation) async throws -> Data {
+        if native {
+            let plan = nativeCommand()
+            try DeviceExecutablePolicy.validate(plan.executable, arguments: plan.arguments)
+        }
         let parent = destination.deletingLastPathComponent()
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: parent.path, isDirectory: &isDirectory), isDirectory.boolValue else {

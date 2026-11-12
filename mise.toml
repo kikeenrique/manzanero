@@ -68,6 +68,13 @@ env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
 usage = 'arg "<device>" help="Explicit physical device UDID"'
 run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_RECORDING=1 swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings'
 
+[tasks."test:mcp-button"]
+extends = "swift"
+description = "Verify one direct Apple physical Home-button call through real MCP stdio"
+depends = ["build"]
+usage = 'arg "<device>" help="Explicit physical device UDID; sends Home once"'
+run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_BUTTON=1 swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings'
+
 [tasks."coredevice:test"]
 dir = "{{ config_root }}"
 description = "Test native multitouch scheduling, validation, and failure cleanup without a device"
