@@ -11,6 +11,10 @@ use serde_json::{Value, json};
 use std::{collections::VecDeque, time::Duration};
 use tokio::io::AsyncWriteExt;
 
+#[path = "ax_actions.rs"]
+mod actions;
+pub(crate) use actions::press;
+
 fn fields<'a>(value: &'a Value, class: &str) -> Result<&'a Value, String> {
     if value["className"] != class {
         return Err(format!("Expected AX class {class}"));
@@ -137,7 +141,7 @@ impl Encoder {
 }
 
 fn request(kind: u64, parameters: Value, token: Option<&Value>) -> Result<Vec<u8>, String> {
-    if ![1, 2].contains(&kind) || (kind == 2 && token.is_none()) {
+    if ![1, 2, 5].contains(&kind) || ([2, 5].contains(&kind) && token.is_none()) {
         return Err("Unsupported AX tree request".into());
     }
     let mut encoder = Encoder::new();
@@ -146,10 +150,20 @@ fn request(kind: u64, parameters: Value, token: Option<&Value>) -> Result<Vec<u8
         .map(|t| encoder.token(t))
         .transpose()?
         .unwrap_or(Plist::Uid(Uid::new(0)));
+    finish_request(encoder, kind, params, translation, 0)
+}
+
+fn finish_request(
+    mut encoder: Encoder,
+    kind: u64,
+    params: Plist,
+    translation: Plist,
+    action: u64,
+) -> Result<Vec<u8>, String> {
     let values = [
         ("requestType".to_string(), Plist::Integer(kind.into())),
         ("clientType".to_string(), 0.into()),
-        ("actionType".to_string(), 0.into()),
+        ("actionType".to_string(), Plist::Integer(action.into())),
         (
             "attributeType".to_string(),
             if kind == 2 { 52.into() } else { 0.into() },
@@ -178,6 +192,63 @@ fn request(kind: u64, parameters: Value, token: Option<&Value>) -> Result<Vec<u8
         .to_writer_binary(&mut bytes)
         .map_err(|e| e.to_string())?;
     Ok(bytes)
+}
+
+fn point_request(x: f64, y: f64) -> Result<Vec<u8>, String> {
+    if !x.is_finite() || !y.is_finite() {
+        return Err("Invalid AX hit point".into());
+    }
+    let mut encoder = Encoder::new();
+    let point = encoder.encode(&json!(format!("{{{x}, {y}}}")))?;
+    let point = encoder.object(
+        "NSValue",
+        [
+            ("NS.pointval".to_string(), point),
+            ("NS.special".to_string(), 1.into()),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    let keys = vec![
+        encoder.encode(&json!("point"))?,
+        encoder.encode(&json!("displayId"))?,
+    ];
+    let display = encoder.encode(&json!(0))?;
+    let parameters = encoder.object(
+        "NSDictionary",
+        [
+            ("NS.keys".to_string(), Plist::Array(keys)),
+            ("NS.objects".to_string(), Plist::Array(vec![point, display])),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    let object_id = encoder.encode(&json!(uuid::Uuid::new_v4().as_u128() as u64))?;
+    let token = encoder.object(
+        "AXPTranslationObject",
+        [
+            ("rawElementData".to_string(), Plist::Uid(Uid::new(0))),
+            ("bridgeDelegateToken".to_string(), Plist::Uid(Uid::new(0))),
+            ("objectID".to_string(), object_id),
+            ("pid".to_string(), 0.into()),
+            ("isApplicationElement".to_string(), false.into()),
+            ("didPopuldateAppInfo".to_string(), false.into()),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    finish_request(encoder, 6, parameters, token, 0)
+}
+
+fn press_request(token: &Value) -> Result<Vec<u8>, String> {
+    let mut encoder = Encoder::new();
+    let translation = encoder.token(token)?;
+    finish_request(encoder, 7, Plist::Uid(Uid::new(0)), translation, 5)
+}
+
+fn snapshot_options() -> Value {
+    json!({"parameter":{"attributes":[2001,2002,2003,2004,5019,2006,2025,5003,5004,3003],
+        "maxDepth":48,"maxChildren":512,"maxArrayCount":512,"traverseFromParentsToChildren":true,"snapshotKeyHonorModalViews":false}})
 }
 
 struct Session<'a, S> {
@@ -280,10 +351,19 @@ impl<'a, S: ReadWrite> Session<'a, S> {
         parameters: Value,
         token: Option<&Value>,
     ) -> Result<Value, String> {
+        self.exchange(kind, request(kind, parameters, token)?, token)
+            .await
+    }
+
+    async fn exchange(
+        &mut self,
+        kind: u64,
+        bytes: Vec<u8>,
+        token: Option<&Value>,
+    ) -> Result<Value, String> {
         // Only one semantic request is outstanding. Discard older notifications
         // before sending; a timeout ends this session rather than reusing it.
         self.callbacks.clear();
-        let bytes = request(kind, parameters, token)?;
         self.invoke("processDataFromHost:", Some(Plist::Data(bytes)))
             .await?;
         tokio::time::timeout(Duration::from_secs(4), async {
@@ -454,8 +534,7 @@ pub async fn capture(socket: &mut impl ReadWrite, pid: u32) -> Result<Value, Str
         session.invoke("clientNeedsAccessibility:", Some(true.into())).await?;
         let root = session.read(1, json!({"pid":pid}), None).await?;
         if identity(&root)?.0 != pid || fields(&root,"AXPTranslationObject")?["isApplicationElement"] != true { return Err("AX application identity mismatch".into()); }
-        let snapshot = session.read(2, json!({"parameter":{"attributes":[2001,2002,2003,2004,5019,2006,2025,5003,5004,3003],
-            "maxDepth":48,"maxChildren":512,"maxArrayCount":512,"traverseFromParentsToChildren":true,"snapshotKeyHonorModalViews":false}}), Some(&root)).await?;
+        let snapshot = session.read(2, snapshot_options(), Some(&root)).await?;
         let nodes = normalize(&snapshot, &root)?;
         let after = session.read(1, json!({"pid":pid}), None).await?;
         if identity(&after)? != identity(&root)? || fields(&after,"AXPTranslationObject")?["isApplicationElement"] != true { return Err("AX application identity changed during observation".into()); }
@@ -494,12 +573,12 @@ pub async fn capture(socket: &mut impl ReadWrite, pid: u32) -> Result<Value, Str
 mod tests {
     use super::*;
 
-    fn token(id: u64) -> Value {
+    pub(super) fn token(id: u64) -> Value {
         json!({"className":"AXPTranslationObject","fields":{"pid":123,"objectID":id,
             "rawElementData":{"$data":"AQIDBA=="},"bridgeDelegateToken":null,
             "isApplicationElement":id == 1,"didPopuldateAppInfo":false}})
     }
-    fn record(id: u64, children: Vec<Value>) -> Value {
+    pub(super) fn record(id: u64, children: Vec<Value>) -> Value {
         json!({"UIAccessibilitySnapshotKeyElement":token(id),
             "UIAccessibilitySnapshotKeyChildrenCount":children.len(),"UIAccessibilitySnapshotKeyChildren":children,
             "UIAccessibilitySnapshotKeyAttributes":{"2001":"Fixture label","5019":"fixture.control","2004":1,"2025":true,
@@ -551,7 +630,7 @@ mod tests {
             _ => encoder.encode(value).unwrap(),
         }
     }
-    fn fixture_bytes(value: &Value) -> Vec<u8> {
+    pub(super) fn fixture_bytes(value: &Value) -> Vec<u8> {
         let mut encoder = Encoder::new();
         let root = fixture_value(&mut encoder, value);
         let document = Plist::Dictionary(

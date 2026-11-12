@@ -19,7 +19,7 @@ This is a configuration example, not an installation into a particular host. Hos
 
 ## Tools
 
-The 29 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
+The 30 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
 
 | Tools | Operations |
 | --- | --- |
@@ -27,6 +27,7 @@ The 29 tools have object schemas with required fields, enumerated operations whe
 | `device_readiness` | [Physical preparation status](READINESS.md), including Developer Mode and developer-image services |
 | `request_handoff` | [Explicit human completion request](HANDOFF.md) using a host form, with per-device mutation pause |
 | `get_ui_tree`, `get_accessibility_archive`, `ocr_image` | AXe simulator hierarchy or explicit-PID native physical AX snapshot, separate raw physical callback archive, standalone Vision OCR |
+| `press_element` | [Fresh physical AX press](ACCESSIBILITY-PROTOCOL.md#fresh-selector-presses) by exact identifier/label, with unique target, live state, hit, and display checks; native acceptance does not verify UI effect |
 | `decode_accessibility_archive` | [Offline structural archive inspection](ACCESSIBILITY-PROTOCOL.md#saving-and-inspecting-a-callback), with bounds and unknown fields preserved; no normalized physical tree |
 | `screenshot` | Capture a PNG to a host path; inline MCP image content up to 8 MiB |
 | `get_screen` | [Capture and inspect](SCREEN-UNDERSTANDING.md), preferring simulator accessibility with OCR fallback and an explicit image-only result if automatic analysis fails |
