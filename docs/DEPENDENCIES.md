@@ -1,5 +1,11 @@
 # Backend dependencies
 
+## Integration direction
+
+The user clarified on 2026-11-12 that device backends should communicate directly with Apple frameworks/APIs from this project's code. Third-party device-control tools are references for understanding those interfaces, rather than the intended permanent runtime architecture. General-purpose Swift packages such as Subprocess remain appropriate dependencies; they do not implement the device operations.
+
+The current implementation only partly meets that direction: AVFoundation/CoreVideo encoding is in-process, while physical input/video uses an external ipb helper, accessibility uses the Rust idevice bridge, and simulator interaction uses AXe. Existing implementations and verification records remain valid, but they are migration starting points. Prioritize replacing physical intermediaries with project-owned in-process Apple backends, using a small C/Objective-C interoperability layer where Swift cannot express the private API. Verify each replacement on the selected iPhone 13 mini before retiring its working predecessor. Adding AXe's physical CLI as another permanent adapter would not meet this direction. See [the AXe implementation review](AXE-PHYSICAL-REVIEW.md).
+
 The main CLI is Swift 6.2+ with strict concurrency. Xcode supplies `devicectl` and `simctl`; macOS supplies Vision. Private protocol implementations stay behind optional backend boundaries.
 
 ## Swift MCP SDK
