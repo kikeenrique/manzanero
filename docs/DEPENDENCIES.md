@@ -8,6 +8,12 @@ The executable links the official [Swift MCP SDK](https://github.com/modelcontex
 
 MCP mode is optional at runtime via `appledevicescmd mcp`; the dependency is linked in the standard executable. The compiled product uses the SDK's MCP library, not its conformance executables. The SDK manifest also declares packages for other products, so resolution can include dependencies beyond those compiled into this executable. Swift build/test tasks use `tmp/swift-cache` for the package cache; SwiftPM-managed build checkouts remain under ignored `.build/`. See [MCP configuration and protocol limits](MCP.md).
 
+## Swift Subprocess
+
+The executable also links [Swift Subprocess](https://github.com/swiftlang/swift-subprocess) as a Git-backed SwiftPM dependency at exact version 1.0.2, revision `dbe21bd7dfd4ffef8c32588918542a8abfa1b54c`. The target declares the `Subprocess` product, and `Package.resolved` records its resolved source. The optional clone under ignored `tmp/` is API-reference material; it is not the build dependency. The [Apache 2.0 license with runtime library exception](../ThirdParty/swift-subprocess-LICENSE.txt) is retained.
+
+`StreamingToolRunner` uses the package's structured asynchronous output sequence and scoped process lifetime, bounded stderr/output, cancellation teardown, and reaping. It passes literal argument arrays and never lets execution/pipe handles escape the package's body closure. Tests exercise binary output, literal text, failed children, deadlines, consumer failure, and byte-limit cleanup. Existing synchronous command paths retain their current runner while live media integration is developed.
+
 ## Native CoreDevice input helper
 
 `mise run coredevice:build` fetches/checks [ipb](https://github.com/ipbtools/ipb) at revision `8c227a10710dad479852aa0203de729fed57471b`, stages an unchanged-source copy plus the repository's [multitouch extension](../Backends/CoreDevice/multitouch.patch), builds its native helper through the upstream Makefile and xcsift, and copies it to `tmp/bin/appledevices-coredevice`. The checkout remains unchanged; staging/build outputs live under `tmp/coredevice-source` and `tmp/coredevice-build`. The [MIT notice](../ThirdParty/ipb-LICENSE.txt) is retained. This optional process dependency dynamically uses installed Apple CoreDevice/Mercury/UniversalHID frameworks; no device-control tooling binary or Apple framework is redistributed. The main CLI remains Swift with strict concurrency; this third-party helper contains Objective-C, Swift, and assembly.
