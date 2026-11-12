@@ -48,13 +48,21 @@ actor CommandService {
         if let native = try CoreDeviceInput.parse(args) {
             if dryRun {
                 let identity = try native.identityPlan()
-                let action = try native.actionPlan("<resolved CoreDevice UUID>", touchscreen: "<discovered touchscreen ID>")
-                return try json(["backend": "coredevice-ipb", "identityArguments": identity.arguments,
+                let action = try native.actionPlan("<resolved CoreDevice UUID>", surface: "<discovered HID surface ID>")
+                var plan: [String: Any] = ["backend": "coredevice-ipb", "identityArguments": identity.arguments,
                     "executable": action.executable, "actionArguments": action.arguments,
-                    "discovery": "Touch operations discover exactly one touchscreen before sending input; dry run queries nothing."])
+                    "discovery": "Touch/keyboard operations discover exactly one matching HID surface before input; dry run queries nothing."]
+                if native.operation == "paste" {
+                    plan["clipboardArguments"] = native.clipboardPlan("<resolved CoreDevice UUID>").arguments
+                    plan["clipboardEffect"] = "Replace device clipboard; then paste once at the focused caret/selection. Clipboard is not restored."
+                    plan["stdinUTF8Bytes"] = native.operands[0].utf8.count
+                }
+                return try json(plan)
             }
             try checkHandoffPause(Array(args.dropFirst(2)))
-            return CommandOutput(data: try native.execute { try runner.run($0.arguments, executable: $0.executable, timeout: 40) })
+            return CommandOutput(data: try native.execute(copy: { plan, text in
+                try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40, inputData: text)
+            }) { try runner.run($0.arguments, executable: $0.executable, timeout: 40) })
         }
         if let handoff = try HandoffCommand.parse(args) {
             if dryRun { return try json(["platform": handoff.platform, "device": handoff.device, "message": handoff.message, "action": "Request human completion; no device action or prompt is executed by this dry run."]) }

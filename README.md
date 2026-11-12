@@ -137,15 +137,19 @@ Input and tree commands require an explicit simulator UUID, not `booted`. Coordi
 
 ## Experimental physical input and accessibility
 
-For the physically verified Home/tap/drag path, build and explicitly select the [native CoreDevice backend](docs/NATIVE-INPUT.md):
+For the physically verified Home/tap/drag, Unicode paste, and Backspace path, build and explicitly select the [native CoreDevice backend](docs/NATIVE-INPUT.md):
 
 ```sh
 mise run coredevice:build
 mise run cli --physical-backend coredevice physical <device> button home
 mise run cli --physical-backend coredevice physical <device> tap 0.5 0.5
+mise run cli --physical-backend coredevice physical <device> key backspace
+mise run cli --physical-backend coredevice physical <device> paste 'mañana 🚀 中'
 ```
 
 This optional MIT-licensed helper uses installed Apple private frameworks. The iPhone must be awake/unlocked for the tested UI flow, with Developer Mode and **Settings → Developer → Enable UI Automation** enabled. The idevice backend below remains the default; no input is retried automatically through another backend.
+
+Native `paste` replaces the phone clipboard and pastes once into the already-focused field. It does not focus, select all, submit, restore the clipboard, or approve iOS permission prompts. MCP exposes it as `paste_text`; existing `type_text` retains its previous behavior. See [paste semantics and partial failures](docs/NATIVE-INPUT.md#keyboard-and-unicode-paste).
 
 With the optional `appledevices-idevice` bridge on PATH:
 
@@ -186,4 +190,4 @@ Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discove
 
 `appledevicescmd ocr <image-path>` also accepts an existing image. Vision returns text, confidence, and bounds normalized to 0...1 with the origin at the top left. A simulator fixture was recognized successfully; the earlier `Failed to create CVPixelBuffer` failure remains unexplained, and broad recognition accuracy is unverified.
 
-User-facing streaming sessions, verified physical recording/input and parsed accessibility, Unicode physical text entry, Xcode-format container export/replacement, complete saved-report management, settings controls, and automatic human-prompt detection remain outstanding. Explicit handoff and MCP expose the implemented workflow operations. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.
+User-facing streaming sessions, verified physical recording/multitouch and parsed accessibility, Xcode-format container export/replacement, complete saved-report management, settings controls, and automatic human-prompt detection remain outstanding. Native Home/tap/drag, Unicode clipboard paste, and Backspace have physical verification on the selected USB phone. Explicit handoff and MCP expose the implemented workflow operations. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.

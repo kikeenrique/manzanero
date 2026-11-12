@@ -19,7 +19,7 @@ This is a configuration example, not an installation into a particular host. Hos
 
 ## Tools
 
-The 28 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
+The 29 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
 
 | Tools | Operations |
 | --- | --- |
@@ -33,13 +33,14 @@ The 28 tools have object schemas with required fields, enumerated operations whe
 | `record_screen` | [Finite screen recording](RECORDING.md) to a new host MP4, with decoded-artifact metadata |
 | `tap`, `tap_element`, `drag`, `multi_tap`, `type_text`, `press_button`, `press_key` | Existing simulator/physical input operations, with their backend limits |
 | `multi_drag`, `pinch` | [Experimental physical moving multitouch](MULTITOUCH.md), with two to five coordinated linear paths or a horizontal pinch/spread |
+| `paste_text` | [Physical Unicode paste](NATIVE-INPUT.md#keyboard-and-unicode-paste) into the focused field, explicitly replacing the device clipboard |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report`, `capture_logs` | Saved physical reports and experimental finite OS trace |
 | `build_run` | The existing [Xcode build/install/restart workflow](BUILD-RUN.md) |
 
-Physical touch coordinates are normalized; simulator coordinates are interface points. `type_text` defaults to simulator but accepts `platform: "physical"` for [experimental US-layout ASCII typing](PHYSICAL-TYPING.md). Unicode physical entry and a parsed physical hierarchy remain unavailable. Unsupported device/platform combinations return tool errors; publishing a tool does not establish hardware support.
+Physical touch coordinates are normalized; simulator coordinates are interface points. `type_text` defaults to simulator but accepts `platform: "physical"` for [experimental US-layout ASCII typing](PHYSICAL-TYPING.md). Physical Unicode insertion is available through the separate clipboard-replacing `paste_text` operation; a parsed physical hierarchy remains unavailable. Unsupported device/platform combinations return tool errors; publishing a tool does not establish hardware support.
 
-Physical `tap`, `drag`, and `press_button` accept optional `backend: coredevice` for the [native Apple framework helper](NATIVE-INPUT.md). Default behavior remains idevice. Native Home/tap/drag effects were verified on the USB iPhone 13 mini; individual receipts still require observation. Pairing files and simulator targets are rejected for this backend. No automatic retry or backend fallback occurs.
+Physical `tap`, `drag`, `press_button`, and `press_key` accept optional `backend: coredevice` for the [native Apple framework helper](NATIVE-INPUT.md). Default behavior remains idevice. Native Home/tap/drag, Unicode paste, and Backspace effects were verified on the USB iPhone 13 mini; individual receipts still require observation. Pairing files and simulator targets are rejected for this backend. `paste_text` uses native CoreDevice and reports clipboard replacement separately from unverified insertion. No automatic retry or backend fallback occurs.
 
 ## Shared execution and output
 

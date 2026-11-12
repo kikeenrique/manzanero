@@ -1,5 +1,7 @@
 # Experimental physical typing
 
+This page describes the idevice ASCII keyboard path. For screenshot-verified Unicode insertion through an explicit clipboard operation, use [native CoreDevice paste](NATIVE-INPUT.md#keyboard-and-unicode-paste). Native Backspace is also verified; the two paths have different side effects and verification coverage.
+
 ```sh
 appledevicescmd physical <UDID> type 'Hello, world!'
 appledevicescmd --pairing-file tmp/phone.pairing.plist physical <UDID> type 'Hello!'
@@ -29,4 +31,4 @@ Dispatch has a 30-second local deadline; keyboard removal has a separate 3-secon
 
 Swift planner/MCP tests cover validation, literal arguments, pairing routing, and disabled-Developer-Mode gating. Rust tests cover ASCII mappings, Shift release, stopping after failed press/release, removal attempts, cleanup failures, and dispatch/cleanup timeouts with synthetic keyboard mocks. These mocks test the bridge's lifecycle calls, not live HID wire behavior.
 
-The iPhone 13 mini now reports Developer Mode enabled, and read-only bridge HID discovery succeeded over USB. No text was sent to it. Virtual-keyboard registration/removal and actual text output remain unverified on hardware. See [verification records](VERIFICATION.md).
+The iPhone 13 mini reports Developer Mode enabled, and read-only idevice HID discovery succeeded over USB. Virtual-keyboard registration/removal and actual text output through this idevice path remain unverified. Native clipboard paste and Backspace were verified separately; they do not validate this owned-keyboard implementation. See [verification records](VERIFICATION.md).

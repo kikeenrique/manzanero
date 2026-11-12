@@ -21,8 +21,8 @@ struct ToolRunner {
             throw CommandFailure(description: "Simulator recorder failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))")
         }
     }
-    func run(_ arguments: [String], executable: String = "/usr/bin/xcrun", interactive: Bool = false, timeout: Double? = nil) throws -> Data {
-        let result = try capture(arguments, executable: executable, interactive: interactive, timeout: timeout)
+    func run(_ arguments: [String], executable: String = "/usr/bin/xcrun", interactive: Bool = false, timeout: Double? = nil, inputData: Data? = nil) throws -> Data {
+        let result = try capture(arguments, executable: executable, interactive: interactive, inputData: inputData, timeout: timeout)
         guard result.status == 0 else {
             throw CommandFailure(description: "\(URL(fileURLWithPath: executable).lastPathComponent) failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))")
         }
@@ -47,7 +47,7 @@ struct ToolRunner {
     }
 
     private func capture(_ arguments: [String], executable: String, interactive: Bool = false,
-                         merged: Bool = false, input: URL? = nil,
+                         merged: Bool = false, input: URL? = nil, inputData: Data? = nil,
                          recording: RecordingTiming? = nil, timeout: Double? = nil) throws -> (status: Int32, output: Data, errors: Data) {
         let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("tmp/process-\(UUID().uuidString)")
@@ -59,8 +59,17 @@ struct ToolRunner {
         FileManager.default.createFile(atPath: stderr.path, contents: nil)
         let output = try FileHandle(forWritingTo: stdout)
         let errors = try FileHandle(forWritingTo: stderr)
-        let inputHandle = try input.map { try FileHandle(forReadingFrom: $0) }
         defer { try? output.close(); try? errors.close() }
+        var inputURL = input
+        if let inputData {
+            guard input == nil, !interactive else { throw CommandFailure(description: "Process input cannot combine data, a file, and interactive stdin.") }
+            let url = directory.appendingPathComponent("stdin")
+            guard FileManager.default.createFile(atPath: url.path, contents: inputData, attributes: [.posixPermissions: 0o600]) else {
+                throw CommandFailure(description: "Cannot prepare private subprocess stdin.")
+            }
+            inputURL = url
+        }
+        let inputHandle = try inputURL.map { try FileHandle(forReadingFrom: $0) }
         defer { try? inputHandle?.close() }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)

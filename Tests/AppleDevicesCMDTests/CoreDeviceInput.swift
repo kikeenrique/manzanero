@@ -17,13 +17,13 @@ struct CoreDeviceInputTests {
 
     @Test func validatesBeforeNativeDispatchAndPlansUnquantizedCoordinates() throws {
         let tap = try input(["tap", "0.25", "0.75"])
-        let plan = try tap.actionPlan(uuid, touchscreen: "257")
+        let plan = try tap.actionPlan(uuid, surface: "257")
         #expect(plan.executable == "/usr/bin/env")
         #expect(plan.arguments.suffix(4) == ["cd_uhid_tap", "257", "0.25", "0.75"])
         let drag = try input(["drag", "0", "1", "1", "0", "0.5"])
-        #expect(try drag.actionPlan(uuid, touchscreen: "257").arguments.suffix(7) == ["cd_uhid_swipe", "257", "0", "1", "1", "0", "0.5"])
+        #expect(try drag.actionPlan(uuid, surface: "257").arguments.suffix(7) == ["cd_uhid_swipe", "257", "0", "1", "1", "0", "0.5"])
         let lock = try input(["button", "lock"])
-        #expect(try lock.actionPlan(uuid, touchscreen: nil).arguments.suffix(4) == ["cd_button_click", "12", "48", "0.4"])
+        #expect(try lock.actionPlan(uuid, surface: nil).arguments.suffix(4) == ["cd_button_click", "12", "48", "0.4"])
         for op in [["tap", "nan", "0"], ["tap", "1.1", "0"], ["drag", "0", "0", "1", "1", "0"], ["type", "text"], ["button", "unknown"]] {
             #expect(throws: CommandFailure.self) { try input(op) }
         }
@@ -86,5 +86,94 @@ struct CoreDeviceInputTests {
         #expect(throws: CommandFailure.self) { try ToolRunner().run(["10"], executable: "/bin/sleep", timeout: 0.05) }
         #expect(start.duration(to: .now) < .seconds(3))
         #expect(try ToolRunner().run([], executable: "/usr/bin/true", timeout: 1).isEmpty)
+    }
+
+    @Test func nativeKeyboardDiscoveryAndKeyPlan() throws {
+        let descriptors = Data("connectedDescriptor[0] serviceID:0x101 string:\"CoreDevice touchscreen(nil)\"\nconnectedDescriptor[1] serviceID:0x200 string:\"CoreDevice keyboard\"".utf8)
+        #expect(try CoreDeviceInput.surface(descriptors, role: .keyboard) == "512")
+        let key = try input(["key", "backspace"])
+        #expect(try key.actionPlan(uuid, surface: "512").arguments.suffix(4) == ["cd_key", "512", "42", "0.08"])
+        #expect(throws: CommandFailure.self) { try input(["key", "unknown"]) }
+        #expect(throws: CommandFailure.self) { try CoreDeviceInput.surface(Data("connectedDescriptor[0] serviceID:0x101 string:\"CoreDevice touchscreen(nil)\"".utf8), role: .keyboard) }
+    }
+
+    @Test func unicodePastePreservesLiteralUTF8AndOrdersDiscoveryCopyThenOnePaste() throws {
+        let text = "--literal 'ñ' 🙂 中文; $(touch sentinel)\n"
+        let paste = try input(["paste", text])
+        var phases: [String] = []
+        let output = try paste.execute(copy: { plan, bytes in
+            phases.append("copy")
+            #expect(plan.arguments.prefix(4) == ["devicectl", "device", "pasteboard", "copy"])
+            #expect(!plan.arguments.contains(text))
+            #expect(bytes == Data(text.utf8))
+            return Data("{\"info\":{\"outcome\":\"success\"}}".utf8)
+        }) { plan in
+            if plan.arguments.contains("details") { phases.append("identity"); return try details() }
+            if plan.arguments.contains("cd_connected_descriptors_async_raw") {
+                phases.append("discover")
+                return Data("connectedDescriptor[1] serviceID:0x200 string:\"CoreDevice keyboard\"".utf8)
+            }
+            phases.append("paste")
+            #expect(plan.arguments.suffix(2) == ["cd_paste", "512"])
+            return Data()
+        }
+        #expect(phases == ["identity", "discover", "copy", "paste"])
+        let result = try #require(try JSONSerialization.jsonObject(with: output) as? [String: Any])
+        #expect(result["clipboard"] as? String == "replaced")
+        #expect(result["insertionVerified"] as? Bool == false)
+        #expect(!String(decoding: output, as: UTF8.self).contains(text))
+    }
+
+    @Test func pasteFailuresDoNotRetryOrHidePartialClipboardEffects() throws {
+        for failure in ["disabled", "discovery", "copy", "copy-reply", "paste"] {
+            let paste = try input(["paste", "é🙂"])
+            var copies = 0, pastes = 0
+            do {
+                _ = try paste.execute(copy: { _, _ in
+                    copies += 1
+                    if failure == "copy" { throw CommandFailure(description: "fixture copy failed") }
+                    return Data((failure == "copy-reply" ? "{}" : "{\"info\":{\"outcome\":\"success\"}}").utf8)
+                }) { plan in
+                    if plan.arguments.contains("details") { return try details(mode: failure == "disabled" ? "disabled" : "enabled") }
+                    if plan.arguments.contains("cd_connected_descriptors_async_raw") {
+                        if failure == "discovery" { return Data() }
+                        return Data("connectedDescriptor[1] serviceID:0x200 string:\"CoreDevice keyboard\"".utf8)
+                    }
+                    pastes += 1
+                    throw CommandFailure(description: "fixture paste failed")
+                }
+                Issue.record("Expected paste failure")
+            } catch {
+                if failure == "paste" { #expect(String(describing: error).contains("Clipboard was replaced")) }
+                if failure.hasPrefix("copy") { #expect(String(describing: error).contains("Paste was not sent")) }
+            }
+            #expect(copies == (["disabled", "discovery"].contains(failure) ? 0 : 1))
+            #expect(pastes == (failure == "paste" ? 1 : 0))
+        }
+    }
+
+    @Test func pasteBoundsAndMCPRoutingKeepExplicitClipboardSemantics() async throws {
+        for text in ["", "a\0b", String(repeating: "x", count: 65537)] {
+            #expect(throws: CommandFailure.self) { try input(["paste", text]) }
+        }
+        #expect(try input(["paste", String(repeating: "🙂", count: 16384)]).operands[0].utf8.count == 65536)
+        #expect(throws: CommandFailure.self) { try input(["paste", String(repeating: "🙂", count: 16385)]) }
+        let tool = try #require(MCPTools.definitions.first { $0.name == "paste_text" })
+        let text = "ñ🙂"
+        let args = try tool.command(["device": .string(udid), "text": .string(text)])
+        #expect(try CoreDeviceInput.parse(args)?.operands == [text])
+        let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).execute(args, dryRun: true)
+        let result = try #require(try JSONSerialization.jsonObject(with: dry.data) as? [String: Any])
+        #expect(result["stdinUTF8Bytes"] as? Int == text.utf8.count)
+        #expect(result["clipboardArguments"] != nil)
+        #expect((result["clipboardEffect"] as? String)?.contains("not restored") == true)
+        let key = try #require(MCPTools.definitions.first { $0.name == "press_key" })
+        #expect(try CoreDeviceInput.parse(key.command(["device": .string(udid), "key": "backspace", "backend": "coredevice"]))?.operation == "key")
+    }
+
+    @Test func subprocessStdinPreservesBinaryAndUnicodeBytesWithoutShellEvaluation() throws {
+        let bytes = Data("\0ñ🙂 '$(touch sentinel)'\n\t".utf8)
+        #expect(try ToolRunner().run([], executable: "/bin/cat", timeout: 1, inputData: bytes) == bytes)
+        #expect(throws: CommandFailure.self) { try ToolRunner().run([], executable: "/bin/cat", interactive: true, inputData: bytes) }
     }
 }
