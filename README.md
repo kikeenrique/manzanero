@@ -1,6 +1,6 @@
 # appledevicescmd
 
-A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. The CLI uses Xcode tools, Vision, AXe for simulator control, an optional Rust idevice bridge, and an optional native CoreDevice input helper. **Full feature parity is not implemented.**
+A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. The CLI uses Xcode tools, Vision, AXe for simulator control, an optional Rust idevice bridge, and an optional native CoreDevice input helper. **Full feature parity is not implemented.** See the [classified feature status](docs/PARITY-STATUS.md) for verification and remaining gaps.
 
 See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), [investigation](docs/ANALYSIS.md), and [documentation review findings](docs/DOCUMENTATION-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
