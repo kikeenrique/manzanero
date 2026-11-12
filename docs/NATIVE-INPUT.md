@@ -1,6 +1,6 @@
 # Native CoreDevice input backend
 
-The optional native backend supports physical `button`, `tap`, `drag`, `swipe`, `key`, and Unicode `paste`. The default remains the experimental idevice backend; selection is explicit and a failed action never triggers an automatic retry or another backend.
+The optional native backend supports physical `button`, `tap`, `drag`, `swipe`, `multi-drag`, `pinch`, `key`, and Unicode `paste`. The default remains the experimental idevice backend; selection is explicit and a failed action never triggers an automatic retry or another backend.
 
 ```sh
 mise run coredevice:build
@@ -8,6 +8,7 @@ mise run build
 mise run cli --physical-backend coredevice physical <device> button home
 mise run cli --physical-backend coredevice physical <device> tap 0.5 0.5
 mise run cli --physical-backend coredevice physical <device> drag 0.5 0.4 0.5 0.8 0.5
+mise run cli --physical-backend coredevice physical <device> pinch 0.5 0.4 0.2 0.6 0.5
 mise run cli --physical-backend coredevice physical <device> key backspace
 # Replaces the phone clipboard and pastes once into the already-focused field:
 mise run cli --physical-backend coredevice physical <device> paste 'mañana 🚀 中'
@@ -15,7 +16,7 @@ mise run cli --physical-backend coredevice physical <device> paste 'mañana 🚀
 
 For direct executable use, put `tmp/bin` on PATH. This backend requires the installed Apple CoreDevice, Mercury, and UniversalHID private frameworks. It was built and checked on macOS 27.2.1 / Xcode 27.2; it does not expand the main Swift executable's macOS deployment target. Private ABI changes can break the helper even if the Swift CLI still builds.
 
-The helper is built from MIT-licensed [ipb](https://github.com/ipbtools/ipb) revision `8c227a10710dad479852aa0203de729fed57471b`. Mise keeps its checkout/build under `tmp/ipb`, checks the exact revision and tracked source changes, and copies the native executable to `tmp/bin/appledevices-coredevice`. [The MIT notice](../ThirdParty/ipb-LICENSE.txt) is retained. The build uses the upstream Makefile/report-size check through xcsift; Make's exit status and executable check establish build success even when xcsift reports an incomplete log because Make emits no Xcode/SwiftPM completion marker. No upstream Python AX runtime, shell CLI wrapper, proprietary device-control tooling executable, XCTest runner, or phone helper app is used by this input path.
+The helper is built from MIT-licensed [ipb](https://github.com/ipbtools/ipb) revision `8c227a10710dad479852aa0203de729fed57471b`. Mise keeps the unchanged pinned checkout under `tmp/ipb`, stages sources under `tmp/coredevice-source`, applies the repository's [multitouch patch](../Backends/CoreDevice/multitouch.patch), and builds under `tmp/coredevice-build`. The native executable is copied to `tmp/bin/appledevices-coredevice`. [The MIT notice](../ThirdParty/ipb-LICENSE.txt) is retained. The build uses the upstream Makefile/report-size check through xcsift; Make's exit status and executable check establish build success even when xcsift reports an incomplete log because Make emits no Xcode/SwiftPM completion marker. No upstream Python AX runtime, shell CLI wrapper, proprietary device-control tooling executable, XCTest runner, or phone helper app is used by this input path.
 
 The Swift planner passes an argument array to `/usr/bin/env`, setting the installed Apple framework search path and quiet/wait options before executing the helper. It does not interpolate user input into shell code. Each query/helper subprocess has a 40-second host deadline. Timeout is an error and cannot establish whether the action already happened; process termination does not promise device-side rollback or key/contact release.
 
@@ -29,7 +30,13 @@ Buttons are `home`, `lock`, `volume-up`, and `volume-down`. The helper sends dow
 
 JSON receipts identify `backend: coredevice-ipb`, the requested device, resolved UUID, operation, and `verified: false`. Helper diagnostics go to stderr. Observing the result with a fresh screenshot or other app check is still required for each action. Existing handoff mutation pause applies. The native backend does not accept idevice pairing files, create trust, or initiate Wi-Fi pairing.
 
-MCP `tap`, `drag`, `press_button`, and `press_key` accept optional `backend: coredevice`; omitting it preserves existing behavior. `paste_text` always uses the native backend and accepts `device` and `text`. Moving multitouch and pinch retain their idevice backend. The native path uses Apple's existing CoreDevice pairing/tunnel rather than the independent usbmuxd software tunnel.
+MCP `tap`, `drag`, `multi_drag`, `pinch`, `press_button`, and `press_key` accept optional `backend: coredevice`; omitting it preserves existing behavior. `paste_text` always uses the native backend and accepts `device` and `text`. The native path uses Apple's existing CoreDevice pairing/tunnel rather than the independent usbmuxd software tunnel.
+
+## Moving multitouch
+
+Native `multi-drag` and `pinch` use the [shared gesture syntax and bounds](MULTITOUCH.md). Swift prepares an initial frame, 30 linear movement frames, and release with stable identities 0...4. The 58-byte mainTouchscreen layout follows the pinned idevice implementation; the native adapter wraps these bytes in ipb's Apple HIDReport representation. The helper validates all 32 frames before sending any contact, schedules movement against absolute monotonic offsets, then attempts release and a barrier. A send error stops movement and attempts release at the last attempted positions. Release failure prevents a successful helper exit. This is not a real-time delivery guarantee.
+
+The outer 40-second subprocess deadline also applies here. Connection loss, blocked framework calls, or process termination can prevent release and barrier completion. The CLI never repeats a partial gesture automatically. `mise run coredevice:test` checks sender validation, failure cleanup, and release failure without a phone; Swift tests check contact encoding, interpolation, endpoints, and shared planner bounds.
 
 ## Keyboard and Unicode paste
 
@@ -42,6 +49,8 @@ MCP `tap`, `drag`, `press_button`, and `press_key` accept optional `backend: cor
 The JSON receipt adds `clipboard: replaced` and `insertionVerified: false`. If discovery fails, the clipboard is not written. If the copy command fails or does not confirm success, paste is not sent and the error reports that clipboard state may have changed. If dispatch fails after a confirmed copy, the error reports that the clipboard was replaced and insertion is unknown. No automatic retry occurs in either case. Dry runs show both copy and input phases, the byte count, and the clipboard effect without reading or changing the device. Existing `type`/`type_text` behavior is unchanged; see [idevice ASCII typing](PHYSICAL-TYPING.md).
 
 ## Physical verification
+
+Native two-contact spread through `pinch` and inward movement through `multi-drag` visibly zoomed Apple Maps in and out on the selected USB iPhone 13 mini. Screenshots confirmed both effects. Three-to-five-contact gestures, exact timing, and failure cleanup on hardware remain unverified. Maps first-run setup used Allow Once for location, Not Now for notification onboarding, and declined optional improvement data sharing. These were explicit test actions, not automatic permission handling in the tool.
 
 With the user-selected iPhone 13 mini awake, unlocked, and UI Automation enabled, fresh screenshots showed native Home leaving Settings, native tap reopening Settings, and native drag scrolling its list. A later test focused Settings search and pasted the synthetic marker `mañana 🚀 中X`. After an explicit test tap allowed the visible paste prompt, a screenshot showed the exact marker. A native Backspace removed only the final `X`; a separate clear-field tap removed the marker afterward. The clipboard remained replaced with the test text. These checks verify the observed USB/CoreDevice operations, not all devices, transports, field types, orientations, or keyboard behavior.
 

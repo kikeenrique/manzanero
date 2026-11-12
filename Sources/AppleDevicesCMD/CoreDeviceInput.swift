@@ -11,8 +11,8 @@ struct CoreDeviceInput {
     static func parse(_ args: [String]) throws -> Self? {
         guard args.first == "--physical-backend" else { return nil }
         guard args.count >= 5, args[1] == "coredevice", args[2] == "physical",
-              ["button", "tap", "drag", "swipe", "key", "paste"].contains(args[4]) else {
-            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|drag|swipe|key|paste> ... . Pairing files are not supported by this backend.")
+              ["button", "tap", "drag", "swipe", "key", "paste", "multi-drag", "pinch"].contains(args[4]) else {
+            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|drag|swipe|key|paste|multi-drag|pinch> ... . Pairing files are not supported by this backend.")
         }
         let operands = Array(args.dropFirst(5))
         guard !args[3].isEmpty, !args[3].hasPrefix("-") else {
@@ -99,6 +99,10 @@ struct CoreDeviceInput {
             return helper(resolved, feature: Self.universal, arguments: ["cd_paste", surface])
         }
         guard let surface else { throw CommandFailure(description: "Native touch requires discovered touchscreen identity.") }
+        if ["multi-drag", "pinch"].contains(operation) {
+            let frames = try NativeTouchFrames(device: device, operation: operation, operands: operands)
+            return helper(resolved, feature: Self.universal, arguments: ["cd_multitouch", surface] + frames.arguments)
+        }
         if operation == "tap" {
             return helper(resolved, feature: Self.universal, arguments: ["cd_uhid_tap", surface] + operands)
         }

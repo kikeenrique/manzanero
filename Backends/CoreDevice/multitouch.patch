@@ -1,0 +1,11 @@
+diff --git a/Sources/action_sender.m b/Sources/action_sender.m
+--- a/Sources/action_sender.m
++++ b/Sources/action_sender.m
+@@ -1174,1 +1174,3 @@
++#include "multitouch.inc"
++
+ static void send_coredevice_hid_swipe(xpc_remote_connection_t remote, uint64_t service_id, double x1, double y1, double x2, double y2, useconds_t duration, useconds_t hold_after_move) {
+@@ -1604,1 +1606,3 @@
++                    } else if (strcmp(kind, "cd_multitouch") == 0) {
++                        appledevices_multitouch(remote, argc, argv);
+                     } else if (strcmp(kind, "cd_uhid_report") == 0) {

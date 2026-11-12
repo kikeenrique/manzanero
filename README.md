@@ -137,7 +137,7 @@ Input and tree commands require an explicit simulator UUID, not `booted`. Coordi
 
 ## Experimental physical input and accessibility
 
-For the physically verified Home/tap/drag, Unicode paste, and Backspace path, build and explicitly select the [native CoreDevice backend](docs/NATIVE-INPUT.md):
+For the physically verified Home/tap/drag, two-contact map zoom, Unicode paste, and Backspace path, build and explicitly select the [native CoreDevice backend](docs/NATIVE-INPUT.md):
 
 ```sh
 mise run coredevice:build
@@ -168,7 +168,7 @@ appledevicescmd physical <UDID> ax-snapshot tmp/accessibility.plist
 appledevicescmd decode-ax-archive tmp/accessibility.plist
 ```
 
-Physical touch coordinates are normalized 0...1, unlike simulator interface points. In the idevice backend, `multi-tap` sends simultaneous contacts and release. Experimental `multi-drag` moves two to five contacts together; `pinch` generates a horizontal two-contact pinch/spread. These idevice receipts indicate dispatch only, and their hardware gesture effects remain unverified. See [multitouch syntax and cleanup limits](docs/MULTITOUCH.md).
+Physical touch coordinates are normalized 0...1, unlike simulator interface points. In the idevice backend, `multi-tap` sends simultaneous contacts and release. `multi-drag` moves two to five contacts together; `pinch` generates a horizontal two-contact pinch/spread. Both moving gestures accept explicit `--physical-backend coredevice` (MCP `backend: coredevice`). Native two-contact spread/inward movement visibly zoomed Maps on the iPhone 13 mini. Three-to-five-contact effects and all idevice gesture effects remain unverified. Every receipt indicates dispatch only. See [multitouch syntax and cleanup limits](docs/MULTITOUCH.md).
 
 Physical `type` is experimental and accepts 1...512 printable US-layout ASCII characters, tab, and LF newline. It uses an owned virtual keyboard, attempts reset/removal after dispatch, and requires the phone's hardware-keyboard layout to match the US mapping. Unicode is unsupported; layout, Caps Lock, and actual entered text remain unverified on hardware. See [physical typing details](docs/PHYSICAL-TYPING.md).
 
@@ -190,4 +190,4 @@ Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discove
 
 `appledevicescmd ocr <image-path>` also accepts an existing image. Vision returns text, confidence, and bounds normalized to 0...1 with the origin at the top left. A simulator fixture was recognized successfully; the earlier `Failed to create CVPixelBuffer` failure remains unexplained, and broad recognition accuracy is unverified.
 
-User-facing streaming sessions, verified physical recording/multitouch and parsed accessibility, Xcode-format container export/replacement, complete saved-report management, settings controls, and automatic human-prompt detection remain outstanding. Native Home/tap/drag, Unicode clipboard paste, and Backspace have physical verification on the selected USB phone. Explicit handoff and MCP expose the implemented workflow operations. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.
+User-facing streaming sessions, verified physical recording and parsed accessibility, Xcode-format container export/replacement, complete saved-report management, settings controls, and automatic human-prompt detection remain outstanding. Native Home/tap/drag, two-contact map zoom, Unicode clipboard paste, and Backspace have physical verification on the selected USB phone; wider multitouch coverage remains incomplete. Explicit handoff and MCP expose the implemented workflow operations. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.

@@ -40,7 +40,7 @@ The 29 tools have object schemas with required fields, enumerated operations whe
 
 Physical touch coordinates are normalized; simulator coordinates are interface points. `type_text` defaults to simulator but accepts `platform: "physical"` for [experimental US-layout ASCII typing](PHYSICAL-TYPING.md). Physical Unicode insertion is available through the separate clipboard-replacing `paste_text` operation; a parsed physical hierarchy remains unavailable. Unsupported device/platform combinations return tool errors; publishing a tool does not establish hardware support.
 
-Physical `tap`, `drag`, `press_button`, and `press_key` accept optional `backend: coredevice` for the [native Apple framework helper](NATIVE-INPUT.md). Default behavior remains idevice. Native Home/tap/drag, Unicode paste, and Backspace effects were verified on the USB iPhone 13 mini; individual receipts still require observation. Pairing files and simulator targets are rejected for this backend. `paste_text` uses native CoreDevice and reports clipboard replacement separately from unverified insertion. No automatic retry or backend fallback occurs.
+Physical `tap`, `drag`, `multi_drag`, `pinch`, `press_button`, and `press_key` accept optional `backend: coredevice` for the [native Apple framework helper](NATIVE-INPUT.md). Default behavior remains idevice. Native Home/tap/drag, two-contact map zoom gestures, Unicode paste, and Backspace effects were verified on the USB iPhone 13 mini; individual receipts still require observation. Pairing files and simulator targets are rejected for this backend. `paste_text` uses native CoreDevice and reports clipboard replacement separately from unverified insertion. No automatic retry or backend fallback occurs.
 
 ## Shared execution and output
 
