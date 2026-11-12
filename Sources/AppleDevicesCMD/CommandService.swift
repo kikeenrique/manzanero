@@ -47,7 +47,7 @@ actor CommandService {
             return try json(["backend": "idevice", "executionAvailable": false, "arguments": forwarded,
                 "limitation": "The explicitly selected non-Apple executable backend is disabled; no fallback will run."])
         }
-        let nativeArguments = args.count >= 3 && args[0] == "physical" && (["button"] + DirectPhysicalTouch.operations).contains(args[2])
+        let nativeArguments = args.count >= 3 && args[0] == "physical" && (["button", "key"] + DirectPhysicalTouch.operations).contains(args[2])
             ? ["--physical-backend", "coredevice"] + args : args
         if let native = try CoreDeviceInput.parse(nativeArguments) {
             if dryRun {
@@ -56,7 +56,7 @@ actor CommandService {
                     return try json(["backend": "coredevice-direct", "executionAvailable": false,
                         "limitation": "Direct multi-drag currently supports exactly two paths; three-to-five-contact input awaits direct migration."])
                 }
-                if (["button"] + DirectPhysicalTouch.operations).contains(native.operation) {
+                if (["button", "key"] + DirectPhysicalTouch.operations).contains(native.operation) {
                     return try json(["backend": "coredevice-direct", "identityArguments": identity.arguments,
                         "operation": native.operation, "operands": native.operands,
                         "execution": "In-process Apple CoreDevice/RemoteXPC; fresh display checks for touch; no helper executable."])
@@ -80,6 +80,9 @@ actor CommandService {
                     return try self.readinessQuery(native.device)
                 }
                 return try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40)
+            }
+            if native.operation == "key" {
+                return CommandOutput(data: try DirectPhysicalKeyboard.execute(native, query: query))
             }
             if native.operation != "button" {
                 return CommandOutput(data: try DirectPhysicalTouch.execute(native, query: query))

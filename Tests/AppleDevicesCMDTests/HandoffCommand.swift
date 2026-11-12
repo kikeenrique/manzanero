@@ -108,7 +108,7 @@ struct HandoffCommandTests {
                 _ = try await service.execute(["physical", device, "terminate", "123"])
                 Issue.record("CoreDevice alias bypassed handoff pause")
             } catch { #expect(String(describing: error).contains("physical hardware UDID")) }
-            for operands in [["pinch", "0.5", "0.5", "0.5", "1", "1"], ["multi-drag", "1", "0", "0", "1", "1", "1", "1", "0", "0"], ["press-id", "123", "fixture.button"], ["press-label", "123", "Button"], ["scroll-id", "fixture.row"], ["scroll-label", "123", "Row"]] {
+            for operands in [["key", "backspace"], ["pinch", "0.5", "0.5", "0.5", "1", "1"], ["multi-drag", "1", "0", "0", "1", "1", "1", "1", "0", "0"], ["press-id", "123", "fixture.button"], ["press-label", "123", "Button"], ["scroll-id", "fixture.row"], ["scroll-label", "123", "Row"]] {
                 do {
                     _ = try await service.execute(["physical", udid] + operands)
                     Issue.record("Physical action bypassed handoff pause")

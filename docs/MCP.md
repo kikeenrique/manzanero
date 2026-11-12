@@ -1,6 +1,6 @@
 # Optional MCP server
 
-**Current runtime policy:** MCP uses only project-owned in-process Apple backends or Apple executables for device operations. Physical `press_button` defaults to the direct CoreDevice backend. Tools requiring AXe/idevice/ipb executables return unavailable errors until migrated; the catalog and legacy examples below do not imply those backends remain executable. See [current availability](PARITY-STATUS.md#current-runtime-availability).
+**Current runtime policy:** MCP uses only project-owned in-process Apple backends or Apple executables for device operations. Physical buttons, named keys, single-contact touch and two-contact movement default to the direct CoreDevice backend. Tools requiring AXe/idevice/ipb executables return unavailable errors until migrated; the catalog and legacy examples below do not imply those backends remain executable. See [current availability](PARITY-STATUS.md#current-runtime-availability).
 
 `appledevicescmd mcp` serves the existing operations over local stdio, using the official Swift MCP SDK. It waits for newline-delimited JSON-RPC on stdin. Stdout contains only protocol messages; diagnostics go to stderr. No HTTP listener is created.
 

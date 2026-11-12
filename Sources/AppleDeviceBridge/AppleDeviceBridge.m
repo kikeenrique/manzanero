@@ -62,6 +62,20 @@ static xpc_object_t ADCButtonEvent(uint64_t usage, uint64_t state, BOOL barrier)
     return event;
 }
 
+static xpc_object_t ADCKeyboardEvent(uint64_t usage, uint64_t state, BOOL barrier) {
+    xpc_object_t event = xpc_dictionary_create_empty();
+    xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.keyboard");
+    xpc_dictionary_set_string(event, "messageType", "IndigoKeyboardButtonEvent");
+    xpc_dictionary_set_bool(event, "isBarrier", barrier);
+    if (!barrier) {
+        xpc_object_t payload = xpc_dictionary_create_empty();
+        xpc_dictionary_set_uint64(payload, "usageCode", usage);
+        xpc_dictionary_set_uint64(payload, "state", state);
+        xpc_dictionary_set_value(event, "payload", payload);
+    }
+    return event;
+}
+
 static xpc_object_t ADCTouchEvent(double x, double y, const ADCTouchPoint *second, uint64_t phase, BOOL barrier) {
     xpc_object_t event = xpc_dictionary_create_empty();
     xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.digitizer");
@@ -93,12 +107,16 @@ static uint64_t ADCNow(void) {
 }
 
 static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
-                   unsigned hold, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, size_t count, char *error, size_t capacity) {
+                   unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, size_t count, char *error, size_t capacity) {
     @autoreleasepool {
         if (!uuid || !version || ![[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:uuid]]) {
             return ADCFail(error, capacity, @"Invalid direct input identity.");
         }
         const char *feature = samples ? "com.apple.coredevice.feature.remote.hid.digitizer" : "com.apple.coredevice.feature.remote.hid.button";
+        // Button and keyboard events share Apple's Indigo HID service. Open its
+        // registered button feature rather than inventing a standalone keyboard
+        // feature socket; keyboard messages carry their own feature identifier.
+        xpc_object_t (*scalarEvent)(uint64_t, uint64_t, BOOL) = keyboard ? ADCKeyboardEvent : ADCButtonEvent;
         static void *framework;
         static dispatch_once_t loadOnce;
         dispatch_once(&loadOnce, ^{
@@ -126,7 +144,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         xpc_connection_resume(connection);
         xpc_object_t input = xpc_dictionary_create_empty();
         xpc_dictionary_set_string(input, "featureIdentifier", feature);
-        if (samples) xpc_dictionary_set_string(input, "serviceName", "com.apple.coredevice.hid.indigo");
+        if (samples || keyboard) xpc_dictionary_set_string(input, "serviceName", "com.apple.coredevice.hid.indigo");
         ADCReplyState *socketReply = [ADCReplyState new];
         xpc_connection_send_message_with_reply(connection, ADCEnvelope(uuid, version, input), queue, ^(xpc_object_t reply) {
             socketReply.reply = reply;
@@ -153,9 +171,10 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         ADCReplyState *status = [ADCReplyState new];
         handler(remote, ^(xpc_object_t event) { if (xpc_get_type(event) == XPC_TYPE_ERROR) status.failed = YES; });
         activate(remote);
-        if (samples) {
+        if (samples || keyboard) {
             ADCReplyState *ready = [ADCReplyState new];
-            request(remote, ADCTouchEvent(0, 0, NULL, 0, YES), queue, ^(xpc_object_t response) {
+            xpc_object_t barrier = samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES);
+            request(remote, barrier, queue, ^(xpc_object_t response) {
                 ready.reply = response;
                 dispatch_semaphore_signal(ready.semaphore);
             });
@@ -163,7 +182,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
             if (timeout || status.failed || !ready.reply || xpc_get_type(ready.reply) != XPC_TYPE_DICTIONARY ||
                 xpc_dictionary_get_value(ready.reply, "CoreDevice.error") || xpc_dictionary_get_value(ready.reply, "error")) {
                 cancel(remote); xpc_connection_cancel(connection);
-                return ADCFail(error, capacity, @"Apple digitizer service did not become ready; no touch sent.");
+                return ADCFail(error, capacity, @"Apple HID service did not become ready; no input sent.");
             }
         }
         if (samples) {
@@ -186,11 +205,11 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
             if (samples[attempted].phase != 2)
                 send(remote, ADCTouchEvent(samples[attempted].x, samples[attempted].y, secondPoints ? &secondPoints[attempted] : NULL, 2, NO));
         } else {
-            send(remote, ADCButtonEvent(usage, 1, NO));
+            send(remote, scalarEvent(usage, 1, NO));
             usleep(hold);
-            send(remote, ADCButtonEvent(usage, 2, NO));
+            send(remote, scalarEvent(usage, 2, NO));
         }
-        xpc_object_t barrier = samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : ADCButtonEvent(usage, 0, YES);
+        xpc_object_t barrier = samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES);
         request(remote, barrier, queue, ^(xpc_object_t response) {
             status.reply = response;
             dispatch_semaphore_signal(status.semaphore);
@@ -211,7 +230,13 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, char *error, size_t capacity) {
     if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
         return ADCFail(error, capacity, @"Invalid direct button request.");
-    return ADCPerformInput(uuid, version, usage, hold, NULL, NULL, 0, error, capacity);
+    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, 0, error, capacity);
+}
+
+int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage, char *error, size_t capacity) {
+    if (!((usage >= 40 && usage <= 44) || (usage >= 79 && usage <= 82)))
+        return ADCFail(error, capacity, @"Unsupported direct keyboard usage; no input sent.");
+    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, 0, error, capacity);
 }
 
 static int ADCValidateAndPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
@@ -231,7 +256,7 @@ static int ADCValidateAndPerformTouch(const char *uuid, const char *version, con
                 return ADCFail(error, capacity, @"Invalid second contact; no input sent.");
         }
     }
-    return ADCPerformInput(uuid, version, 0, 0, samples, secondPoints, count, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, count, error, capacity);
 }
 
 int ADCPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,

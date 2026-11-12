@@ -86,6 +86,26 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
+            if let key = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_KEY"] {
+                _ = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical, "key", key]))
+                let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-key-before.png").path]])
+                #expect((before["result"] as? [String: Any])?["isError"] as? Bool == false)
+                let response = try request(5, "tools/call", ["name": "press_key", "arguments": ["device": physical, "key": key]])
+                let result = try #require(response["result"] as? [String: Any])
+                try #require(result["isError"] as? Bool == false)
+                let structured = try #require(result["structuredContent"] as? [String: Any])
+                let receipt = try #require(structured["result"] as? [String: Any])
+                #expect(receipt["backend"] as? String == "coredevice-direct")
+                #expect(receipt["operation"] as? String == "key")
+                #expect(receipt["key"] as? String == key)
+                #expect(receipt["usage"] as? UInt64 == DirectPhysicalKeyboard.usages[key])
+                #expect(receipt["verified"] as? Bool == false && receipt["releaseVerified"] as? Bool == false)
+                try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys]).write(to: directory.appendingPathComponent("direct-key.json"))
+                let after = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-key-after.png").path]])
+                #expect((after["result"] as? [String: Any])?["isError"] as? Bool == false)
+                try finish()
+                return
+            }
             if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_BUTTON"] == "1" {
                 let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-button-before.png").path]])
                 #expect((before["result"] as? [String: Any])?["isError"] as? Bool == false)

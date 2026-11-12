@@ -75,6 +75,16 @@ depends = ["build"]
 usage = 'arg "<device>" help="Explicit physical device UDID; sends Home once"'
 run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_BUTTON=1 swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings'
 
+[tasks."test:mcp-key"]
+extends = "swift"
+description = "Send one direct Apple physical named key through real MCP with before/after screenshots"
+depends = ["build"]
+usage = '''
+arg "<device>" help="Explicit physical device UDID"
+arg "<key>" help="Named key; sends once at the currently focused field"
+'''
+run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_KEY="$usage_key" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings'
+
 [tasks."coredevice:test"]
 dir = "{{ config_root }}"
 description = "Test native multitouch scheduling, validation, and failure cleanup without a device"

@@ -1,6 +1,6 @@
 # appledevicescmd
 
-A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. Device operations use Apple APIs/frameworks or Apple executables. **Non-Apple device helpers are disabled. Full feature parity is not implemented.** Physical hardware buttons and single-contact touch use an in-process Apple CoreDevice/RemoteXPC backend; multi-contact input, keyboard, accessibility, and native video migration remain in progress. See the [classified feature status](docs/PARITY-STATUS.md) for current availability, historical verification, and remaining gaps.
+A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. Device operations use Apple APIs/frameworks or Apple executables. **Non-Apple device helpers are disabled. Full feature parity is not implemented.** Physical hardware buttons, named keys, single-contact touch and two-contact movement use an in-process Apple CoreDevice/RemoteXPC backend; arbitrary typing/paste, general multitouch, accessibility, and native video migration remain in progress. See the [classified feature status](docs/PARITY-STATUS.md) for current availability, historical verification, and remaining gaps.
 
 See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), [investigation](docs/ANALYSIS.md), and [documentation review findings](docs/DOCUMENTATION-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
@@ -27,6 +27,7 @@ Physical buttons need no helper build:
 
 ```sh
 mise run cli physical <UDID> button home
+mise run cli physical <UDID> key backspace
 # Explicit backend selection uses the same in-process implementation:
 mise run cli --physical-backend coredevice physical <UDID> button home
 ```

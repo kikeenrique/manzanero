@@ -7,6 +7,8 @@
 /// This is transport dispatch, never verification of device UI or key release.
 int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
                    unsigned holdMicroseconds, char *error, size_t errorCapacity);
+int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage,
+                       char *error, size_t errorCapacity);
 
 typedef struct {
     uint64_t nanoseconds;

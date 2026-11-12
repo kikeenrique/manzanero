@@ -15,7 +15,8 @@ Usage:
   appledevicescmd --physical-backend coredevice physical <device> long-press <x> <y> <seconds: 0.1...10>
   Native paste replaces the device clipboard with Unicode text, then pastes at the focused caret/selection.
   Buttons, tap, long-press, drag, swipe, pinch and two-path multi-drag call Apple CoreDevice in process.
-  Three-to-five-contact input, arbitrary gesture sequences and keyboard/paste are awaiting migration.
+  Named keyboard keys also call Apple CoreDevice in process; arbitrary typing and paste await migration.
+  Three-to-five-contact input and arbitrary gesture sequences are awaiting migration.
   Non-Apple device helper executables are disabled, including AXe, idevice, and ipb helpers.
   Pairing prompts for the device's PIN; use its advertised _remotepairing._tcp endpoint.
   appledevicescmd doctor               Check Xcode and device-service access
