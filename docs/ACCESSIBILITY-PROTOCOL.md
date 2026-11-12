@@ -1,5 +1,7 @@
 # Physical accessibility observations
 
+**Current runtime:** the idevice executable path described below is disabled. The direct in-process replacement is being developed; see [direct accessibility migration](DIRECT-ACCESSIBILITY.md). Historical observations are migration targets, not current availability claims.
+
 ## Active per-application tree
 
 ```sh
