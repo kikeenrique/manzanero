@@ -8,6 +8,11 @@
 - Open-source third-party libraries such as `idevice` are permitted. Preserve licenses and attribution. Do not use proprietary device-control tooling's proprietary binaries as runtime dependencies.
 - Keep platform-specific and private interfaces behind backend boundaries. Distinguish implemented features from verified device behavior.
 
+## Dependencies
+
+- Prefer existing Apple frameworks or maintained third-party libraries as dependencies when needed instead of implementing custom solutions for capabilities they already provide.
+- Ask the user before adding third-party dependencies that have not already been authorized. Preserve licenses and attribution.
+
 ## Workflow
 
 - Commit each completed task separately with a descriptive message. Verify the change before committing. If Git writes fail, report the error and do not claim a commit exists.
