@@ -10,19 +10,24 @@ The implementation inventory includes the completed report/log command work desc
 
 - Swift CLI named `appledevicescmd`.
 - Apple-device feature parity using Apple interfaces and permitted open-source dependencies such as idevice.
+- All Apple device families are in scope, explicitly including iPhones, iPads, Apple Watches, Apple TVs, and the user's Duo targets. Device-family support needs its own implementation and verification; iPhone evidence does not prove another family's behavior.
+- Android devices/emulators are explicitly excluded by the user and are not parity requirements.
 - Optional MCP support based on the same operations.
 - Commit verified tasks separately; keep research and verification in `docs/` and temporary artifacts in `tmp/`.
 - Use mise tasks instead of the former Python build helper.
 
 The main executable is Swift. Physical private protocols currently use a small Rust bridge pinned to idevice; that bridge is not a Swift-native protocol implementation.
 
-## Vendor-documented parity inventory
+## Parity inventory and explicit platform scope
 
 | Capability | Source | Current implementation and evidence |
 | --- | --- | --- |
 | iPhone/iPad over USB and Wi-Fi | [Device setup]([private reference removed]) | CoreDevice discovery, an optional native Apple framework input helper, and an optional usbmuxd/independent Wi-Fi protocol path. Native Home/tap/drag and protocol-based AX reads/selector presses have scoped verification on the USB iPhone 13 mini. Idevice HID input effects and Wi-Fi pairing remain unverified. |
 | iOS simulators | [Vendor overview]([private reference removed]) | simctl operations and optional AXe input/tree backend. A tree → Settings label tap → tree flow is verified live. |
 | Apple Watch and watch simulators | [Apple Watch]([private reference removed]) | No dedicated support or verification yet. Backend tools accepting a watch identifier do not establish feature parity. |
+| iPad-specific behavior | Explicit user requirement | Generic iPhone/iPad command paths exist, but no dedicated physical iPad evidence or multitasking/display verification yet. |
+| Apple TV / tvOS | Explicit user requirement | No dedicated control implementation or verification yet. |
+| Duo targets | Explicit user requirement | Dedicated device/posture/display coverage is not implemented or verified. Generic device-ID acceptance does not establish support. |
 | Screen mirroring and recordings | [Vendor overview]([private reference removed]) | Simulator screenshots and finite H.264/HEVC recording verified. Native physical recording command implemented but rejected on the initially tested phone; the subsequently specified iPhone 13 mini has not completed a capture test. Streaming/session management and a physical capture fallback are missing. Internal media setup for HID is not a capture feature. See [recording contract](RECORDING.md). |
 | Touch, pinch, keyboard, hardware buttons | [Control]([private reference removed]) | Native physical Home/tap/drag, two-contact Maps zoom through pinch/multi-drag, Unicode clipboard paste, and Backspace are verified on the USB iPhone 13 mini through an explicit [CoreDevice backend](NATIVE-INPUT.md). Simulator input and experimental idevice multitap, multicontact movement, pinch, keys, and ASCII typing also exist. Arbitrary contact paths and simulator pinch are missing; three-to-five-contact effects, idevice effects/layout/cleanup, hardware failure cleanup, and other native keys/buttons remain unverified. See [multitouch](MULTITOUCH.md) and [typing limits](PHYSICAL-TYPING.md). |
 | Agent screen understanding and text targeting | [MCP]([private reference removed]), [static investigation](ANALYSIS.md) | AXe simulator tree/selectors and unified screenshot inspection with OCR fallback, verified on a simulator fixture. Active explicit-PID physical AX snapshots returned a normalized 263-node Settings/search/keyboard tree through CLI and real MCP on the USB iPhone 13 mini. Fresh exact identifier/label AX presses have screenshot-verified Settings navigation, with unique target, live state, hit, and portrait display guards. Automatic foreground selection, stable actionable references, broader AX actions/coverage, and physical OCR verification remain open. Raw callback capture/cleanup and offline decoding are also verified. See [screen inspection](SCREEN-UNDERSTANDING.md) and [accessibility evidence](ACCESSIBILITY-PROTOCOL.md). |
@@ -31,7 +36,6 @@ The main executable is Swift. Physical private protocols currently use a small R
 | Build and launch from source | [Build & Run]([private reference removed]) | Swift `build-run` orchestrates Xcode build/settings, app selection/validation, installation, and restart. Simulator project/Debug and workspace/Release flows verified; physical signing/deployment unverified. Automatic scheme discovery, progress, cancellation, and crash/source integration remain missing. See [CLI contract](BUILD-RUN.md). |
 | Human handoff | [Human Handoff]([private reference removed]) | Explicit terminal and MCP form requests, completion outcomes, and same-process device mutation pause. Synthetic terminal/stdio form exchanges verified. Automatic prompt detection, native notifications, and mirror banners are missing; acknowledgement does not verify the device step. See [handoff contract](HANDOFF.md). |
 | Multiple devices, agent activity, approvals | [Overview]([private reference removed]), [MCP]([private reference removed]) | Explicit per-command targets exist. Coordinated sessions, activity tracking, and an application approval policy are missing. CLI dry-run is not an approval system. |
-| Android devices/emulators | [Vendor overview]([private reference removed]) | No implementation. Whether Android belongs in this Apple-focused tool's first parity target remains an open scope question. |
 | MCP interface | [Vendor MCP]([private reference removed]); optional in the user's request | `mcp` serves 30 tools over stdio through the official Swift SDK and the CLI's shared command service, including physical AX press, Unicode paste, screen/archive inspection, coordinated gestures, and form-based handoff when supported by the host. Supports protocol versions through 2025-11-25. No HTTP, built-in approval policy, general progress, or general cancellation coordination. Backend feature/verification gaps remain. See [MCP contract](MCP.md). |
 
 GUI windows, menus, and keyboard shortcuts need CLI equivalents where they express a device operation; recreating the vendor's Mac GUI is not part of a CLI deliverable.

@@ -2,6 +2,8 @@
 
 Checkpoint: `d69a44b`, 2026-11-12. Full device-control tooling parity is not complete. This classifies the repository's [recorded parity inventory](ROADMAP.md), rather than claiming a newly audited vendor feature list. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
 
+Scope clarification: all Apple device families are in scope, explicitly including iPhone, iPad, Apple Watch, Apple TV, and Duo targets. Android is excluded and is not an unfinished requirement. The same physical iPhone result cannot verify another device family.
+
 **Verified** means a scoped live result was observed. **Implemented, unverified** means code exists without sufficient live proof. **Partial** means important functionality or coverage remains missing. **Missing** means there is no product implementation. **In progress** means current work has not reached a verified, committed checkpoint. Passing tests alone does not establish hardware behavior.
 
 | Category | Feature | Status | Evidence or remaining gap |
@@ -29,7 +31,9 @@ Checkpoint: `d69a44b`, 2026-11-12. Full device-control tooling parity is not com
 | Agents | Multiple-device coordination/activity/approvals | Partial | Explicit command targets exist. Coordinated sessions, activity tracking, and application approval policy missing. |
 | Platforms | iOS simulators | Partial, scoped verification | Core input, AX tree/selectors, screenshots, finite H.264/HEVC recording, and Build & Run flows verified. Simulator pinch/arbitrary moving multitouch missing. |
 | Platforms | Apple Watch / watch simulators | Missing | No dedicated product support or live verification. |
-| Platforms | Android | Missing; scope open | No implementation; inclusion in this Apple-focused tool remains undecided. |
+| Platforms | iPad-specific coverage | Partial, unverified | Generic command paths exist; dedicated physical iPad, multitasking, and display behavior remain unverified. |
+| Platforms | Apple TV / tvOS | Missing | No dedicated control implementation or verification. |
+| Platforms | Duo targets | Missing dedicated coverage | No verified posture/display/control support; generic device-ID acceptance is insufficient. |
 | Interface | Swift CLI and shared MCP | Partial | Swift CLI and 30 stdio MCP tools share operations. Physical private protocols use an optional Rust bridge; native HID helper uses Objective-C/Swift/assembly. HTTP, general cancellation/progress, and consistent structured CLI errors remain incomplete. |
 
 The old idevice **HID** path returned successful receipts without visible Home/tap effects. Verified physical touch/keyboard operations use the native CoreDevice backend. The separate idevice **AX** path has verified tree reads and selector presses. These results must not be conflated.
