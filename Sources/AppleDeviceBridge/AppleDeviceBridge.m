@@ -107,7 +107,7 @@ static uint64_t ADCNow(void) {
 }
 
 static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
-                   unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, size_t count, char *error, size_t capacity) {
+                   unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys, size_t count, char *error, size_t capacity) {
     @autoreleasepool {
         if (!uuid || !version || ![[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:uuid]]) {
             return ADCFail(error, capacity, @"Invalid direct input identity.");
@@ -204,6 +204,25 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
             // the last attempted position without replaying any movement.
             if (samples[attempted].phase != 2)
                 send(remote, ADCTouchEvent(samples[attempted].x, samples[attempted].y, secondPoints ? &secondPoints[attempted] : NULL, 2, NO));
+        } else if (keys) {
+            BOOL pressed[256] = {NO};
+            uint64_t start = ADCNow();
+            for (size_t i = 0; i < count; i++) {
+                uint64_t target = start + keys[i].nanoseconds, now;
+                while ((now = ADCNow()) < target && !status.failed) {
+                    uint64_t remaining = target - now;
+                    struct timespec wait = { (time_t)(remaining / NSEC_PER_SEC), (long)(remaining % NSEC_PER_SEC) };
+                    nanosleep(&wait, NULL);
+                }
+                if (status.failed) break;
+                // Mark attempted downs before sending: failure does not prove
+                // the device missed the event. Release without replaying text.
+                pressed[keys[i].usage] = keys[i].state == 1;
+                send(remote, ADCKeyboardEvent(keys[i].usage, keys[i].state, NO));
+            }
+            // Release ordinary keys before modifiers on an ordinary failure.
+            for (size_t code = 0; code < 256; code++)
+                if (pressed[code]) send(remote, ADCKeyboardEvent(code, 2, NO));
         } else {
             send(remote, scalarEvent(usage, 1, NO));
             usleep(hold);
@@ -230,13 +249,33 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, char *error, size_t capacity) {
     if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
         return ADCFail(error, capacity, @"Invalid direct button request.");
-    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, 0, error, capacity);
+    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, 0, error, capacity);
 }
 
 int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage, char *error, size_t capacity) {
     if (!((usage >= 40 && usage <= 44) || (usage >= 79 && usage <= 82)))
         return ADCFail(error, capacity, @"Unsupported direct keyboard usage; no input sent.");
-    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, 0, error, capacity);
+    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, NULL, 0, error, capacity);
+}
+
+int ADCPerformKeyboard(const char *uuid, const char *version, const ADCKeyboardSample *samples,
+                       size_t count, char *error, size_t capacity) {
+    if (!samples || count < 2 || count > 4096)
+        return ADCFail(error, capacity, @"Invalid keyboard sample count; no input sent.");
+    BOOL pressed[256] = {NO};
+    for (size_t i = 0; i < count; i++) {
+        ADCKeyboardSample key = samples[i];
+        BOOL supported = (key.usage >= 4 && key.usage <= 56) || (key.usage >= 79 && key.usage <= 82) || key.usage == 225 || key.usage == 227;
+        if (!supported || (key.state != 1 && key.state != 2) ||
+            key.nanoseconds > 31ULL * NSEC_PER_SEC ||
+            (i == 0 ? key.nanoseconds != 0 : key.nanoseconds <= samples[i - 1].nanoseconds) ||
+            pressed[key.usage] == (key.state == 1))
+            return ADCFail(error, capacity, @"Invalid or unbalanced keyboard schedule; no input sent.");
+        pressed[key.usage] = key.state == 1;
+    }
+    for (size_t code = 0; code < 256; code++)
+        if (pressed[code]) return ADCFail(error, capacity, @"Keyboard schedule must release every key; no input sent.");
+    return ADCPerformInput(uuid, version, 0, 0, YES, NULL, NULL, samples, count, error, capacity);
 }
 
 static int ADCValidateAndPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
@@ -256,7 +295,7 @@ static int ADCValidateAndPerformTouch(const char *uuid, const char *version, con
                 return ADCFail(error, capacity, @"Invalid second contact; no input sent.");
         }
     }
-    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, count, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, NULL, count, error, capacity);
 }
 
 int ADCPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,

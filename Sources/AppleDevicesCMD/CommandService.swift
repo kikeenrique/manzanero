@@ -47,7 +47,7 @@ actor CommandService {
             return try json(["backend": "idevice", "executionAvailable": false, "arguments": forwarded,
                 "limitation": "The explicitly selected non-Apple executable backend is disabled; no fallback will run."])
         }
-        let nativeArguments = args.count >= 3 && args[0] == "physical" && (["button", "key"] + DirectPhysicalTouch.operations).contains(args[2])
+        let nativeArguments = args.count >= 3 && args[0] == "physical" && (["button", "key", "paste"] + DirectPhysicalTouch.operations).contains(args[2])
             ? ["--physical-backend", "coredevice"] + args : args
         if let native = try CoreDeviceInput.parse(nativeArguments) {
             if dryRun {
@@ -55,6 +55,13 @@ actor CommandService {
                 if native.operation == "multi-drag", native.operands.count != 9 {
                     return try json(["backend": "coredevice-direct", "executionAvailable": false,
                         "limitation": "Direct multi-drag currently supports exactly two paths; three-to-five-contact input awaits direct migration."])
+                }
+                if native.operation == "paste" {
+                    return try json(["backend": "coredevice-direct", "operation": "paste", "identityArguments": identity.arguments,
+                        "clipboardArguments": native.clipboardPlan("<resolved CoreDevice UUID>").arguments,
+                        "stdinUTF8Bytes": native.operands[0].utf8.count,
+                        "clipboardEffect": "Replace device clipboard; paste once at current focus; clipboard is not restored; no automatic replay.",
+                        "execution": "Apple devicectl clipboard write followed by in-process Indigo Command+V; no helper executable."])
                 }
                 if (["button", "key"] + DirectPhysicalTouch.operations).contains(native.operation) {
                     return try json(["backend": "coredevice-direct", "identityArguments": identity.arguments,
@@ -83,6 +90,11 @@ actor CommandService {
             }
             if native.operation == "key" {
                 return CommandOutput(data: try DirectPhysicalKeyboard.execute(native, query: query))
+            }
+            if native.operation == "paste" {
+                return CommandOutput(data: try DirectPhysicalPaste.execute(native, query: query, copy: { plan, data in
+                    try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40, inputData: data)
+                }))
             }
             if native.operation != "button" {
                 return CommandOutput(data: try DirectPhysicalTouch.execute(native, query: query))

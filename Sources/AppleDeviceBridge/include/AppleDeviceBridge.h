@@ -9,6 +9,14 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
                    unsigned holdMicroseconds, char *error, size_t errorCapacity);
 int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage,
                        char *error, size_t errorCapacity);
+typedef struct {
+    uint64_t nanoseconds;
+    uint64_t usage;
+    uint64_t state; // 1 down, 2 up
+} ADCKeyboardSample;
+int ADCPerformKeyboard(const char *uuid, const char *version,
+                       const ADCKeyboardSample *samples, size_t count,
+                       char *error, size_t errorCapacity);
 
 typedef struct {
     uint64_t nanoseconds;

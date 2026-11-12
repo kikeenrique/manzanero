@@ -1,6 +1,6 @@
 # appledevicescmd
 
-A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. Device operations use Apple APIs/frameworks or Apple executables. **Non-Apple device helpers are disabled. Full feature parity is not implemented.** Physical hardware buttons, named keys, single-contact touch and two-contact movement use an in-process Apple CoreDevice/RemoteXPC backend; arbitrary typing/paste, general multitouch, accessibility, and native video migration remain in progress. See the [classified feature status](docs/PARITY-STATUS.md) for current availability, historical verification, and remaining gaps.
+A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. Device operations use Apple APIs/frameworks or Apple executables. **Non-Apple device helpers are disabled. Full feature parity is not implemented.** Physical hardware buttons, named keys, single-contact touch and two-contact movement use an in-process Apple CoreDevice/RemoteXPC backend. Unicode paste combines Apple's clipboard command with in-process key input. Arbitrary keyboard typing, general multitouch, accessibility, and native video migration remain in progress. See the [classified feature status](docs/PARITY-STATUS.md) for current availability, historical verification, and remaining gaps.
 
 See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), [investigation](docs/ANALYSIS.md), and [documentation review findings](docs/DOCUMENTATION-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
@@ -33,6 +33,8 @@ mise run cli --physical-backend coredevice physical <UDID> button home
 ```
 
 Home, Settings tap/drag, Maps icon long-press, and direct Maps pinch/spread were screenshot-verified on the USB iPhone 13 mini. Buttons, single-contact touch, pinch and exactly two-path `multi-drag` default to the direct backend. General independent multi-drag paths remain hardware-unverified. Coordinates are normalized in the current interface; inspect the screen before input. Other buttons/orientations and interruption cleanup need hardware coverage. See [direct input and migration status](docs/NATIVE-INPUT.md). Legacy bridge build tasks remain as research material, not runtime setup instructions.
+
+Named keys and Unicode paste also use the direct backend by default. `mise run cli physical <UDID> paste 'mañana 🚀 中'` replaces the phone clipboard and sends one Command+V at the current focus. It does not restore the clipboard or approve an iOS paste prompt. See [direct paste behavior](docs/NATIVE-INPUT.md#direct-unicode-paste).
 
 ## Optional MCP interface
 

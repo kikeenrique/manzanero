@@ -4,6 +4,8 @@
 
 `appledevicescmd mcp` serves the existing operations over local stdio, using the official Swift MCP SDK. It waits for newline-delimited JSON-RPC on stdin. Stdout contains only protocol messages; diagnostics go to stderr. No HTTP listener is created.
 
+`paste_text` uses Apple's clipboard command and in-process Command+V, with no helper executable. It replaces the phone clipboard; an iOS paste prompt may remain after a successful dispatch receipt. See [current paste semantics](NATIVE-INPUT.md#direct-unicode-paste). The server does not approve prompts or retry insertion.
+
 Configure an MCP host to launch the built executable by absolute path with `args: ["mcp"]`. Set the working directory to this checkout and provide a PATH containing xcsift, AXe, and `tmp/bin` as needed for the selected backend. A common host configuration shape is:
 
 ```json
