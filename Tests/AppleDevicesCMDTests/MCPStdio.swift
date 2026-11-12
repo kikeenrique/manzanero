@@ -1,12 +1,14 @@
 import Darwin
+import AVFoundation
 import Foundation
+import ImageIO
 import Testing
 @testable import AppleDevicesCMD
 
 /// Opt-in because this queries a selected simulator or physical application.
 struct MCPStdioTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_LIVE"] == "1"), .timeLimit(.minutes(1)))
-    func subprocessHandshakeAndDeviceTools() throws {
+    func subprocessHandshakeAndDeviceTools() async throws {
         let physical = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PHYSICAL"]
         let simulator = physical == nil ? try #require(ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_SIMULATOR"]) : ""
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
@@ -84,6 +86,32 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
+            if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_RECORDING"] == "1" {
+                let path = directory.appendingPathComponent("physical-hevc.mp4")
+                let response = try request(4, "tools/call", ["name": "record_screen", "arguments": ["platform": "physical", "device": physical, "path": path.path, "seconds": 2, "codec": "hevc", "recording_backend": "coredevice"]])
+                let result = try #require(response["result"] as? [String: Any])
+                try #require(result["isError"] as? Bool == false)
+                let structured = try #require(result["structuredContent"] as? [String: Any])
+                let receipt = try #require(structured["result"] as? [String: Any])
+                #expect(receipt["backend"] as? String == "coredevice-avconference")
+                #expect((receipt["sourceFrames"] as? Int ?? 0) > 0)
+                let video = try await VideoArtifact.inspect(path)
+                #expect(abs(video.duration - 2) < 0.02)
+                #expect(video.codec == "hvc1")
+                #expect((receipt["cleanup"] as? [String: Any])?["deviceStopConfirmed"] as? Bool == false)
+                let generator = AVAssetImageGenerator(asset: AVURLAsset(url: path))
+                let frame = try await generator.image(at: .zero)
+                let imageURL = directory.appendingPathComponent("recording-first-frame.png")
+                let destination = try #require(CGImageDestinationCreateWithURL(imageURL as CFURL, "public.png" as CFString, 1, nil))
+                CGImageDestinationAddImage(destination, frame.image, nil)
+                #expect(CGImageDestinationFinalize(destination))
+                let data = try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
+                try data.write(to: directory.appendingPathComponent("recording.json"))
+                let screenshot = try request(5, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("after-recording.png").path]])
+                #expect((screenshot["result"] as? [String: Any])?["isError"] as? Bool == false)
+                try finish()
+                return
+            }
             let hold = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_LONG_PRESS"]
             let sequenceFile = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_GESTURE_FILE"]
             if hold != nil || sequenceFile != nil {

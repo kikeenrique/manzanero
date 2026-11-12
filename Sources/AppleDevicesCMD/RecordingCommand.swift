@@ -7,8 +7,18 @@ struct RecordingCommand {
     let destination: URL
     let seconds: Double
     let codec: String
+    let native: Bool
 
     static func parse(_ args: [String]) throws -> Self? {
+        var args = args
+        var native = false
+        if args.first == "--recording-backend" {
+            guard args.count >= 3, ["devicectl", "coredevice"].contains(args[1]), args[2] == "physical" else {
+                throw CommandFailure(description: "--recording-backend <devicectl|coredevice> requires a physical recording command.")
+            }
+            native = args[1] == "coredevice"
+            args = Array(args.dropFirst(2))
+        }
         guard args.count >= 3, ["physical", "simulator"].contains(args[0]), args[2] == "record" else { return nil }
         guard (5...6).contains(args.count), !args[1].isEmpty, !args[1].hasPrefix("-"),
               !args[3].hasPrefix("-"), args[3].lowercased().hasSuffix(".mp4"),
@@ -19,16 +29,23 @@ struct RecordingCommand {
         guard args[0] == "physical" || UUID(uuidString: args[1]) != nil else {
             throw CommandFailure(description: "Simulator recording requires an explicit simulator UUID.")
         }
-        return Self(physical: args[0] == "physical", device: args[1], destination: URL(fileURLWithPath: args[3]), seconds: seconds, codec: args.count == 6 ? args[5] : "h264")
+        return Self(physical: args[0] == "physical", device: args[1], destination: URL(fileURLWithPath: args[3]), seconds: seconds, codec: args.count == 6 ? args[5] : "h264", native: native)
     }
 
     func command(staging: URL) -> DeviceCommand {
+        if native { return nativeCommand() }
         if physical {
             return DeviceCommand(arguments: ["devicectl", "device", "capture", "screen-record", "--device", device,
                 "--destination", staging.path, "--duration", String(seconds), "--codec", codec,
                 "--timeout", String(Int(ceil(seconds)) + 60), "--json-output", "-"], jsonOutput: true)
         }
         return DeviceCommand(arguments: ["simctl", "io", device, "recordVideo", "--codec=\(codec)", staging.path], jsonOutput: false)
+    }
+
+    func nativeCommand(endpoint: NativeMediaEndpoint? = nil) -> DeviceCommand {
+        DeviceCommand(executable: "/usr/bin/env", arguments: ["appledevices-video", endpoint?.uuid ?? "<resolved CoreDevice UUID>",
+            endpoint?.interface ?? "<matching utun>", endpoint?.host ?? "<host IPv6>", endpoint?.device ?? "<device IPv6>",
+            "--timed-stdout", "--seconds", String(seconds), "--fps", "30"], jsonOutput: false)
     }
 
     func execute(directory: URL, runner: ToolRunner, isolation: isolated (any Actor)? = #isolation) async throws -> Data {
@@ -44,7 +61,11 @@ struct RecordingCommand {
         let staging = directory.appendingPathComponent("capture.mp4")
         let plan = command(staging: staging)
         do {
-            if physical {
+            var nativeFrames: Int?
+            if native {
+                guard #available(macOS 26.0, *) else { throw CommandFailure(description: "Native recording requires macOS 26 or later and the optional video helper.") }
+                nativeFrames = try await NativeRecording.execute(self, staging: staging, runner: runner)
+            } else if physical {
                 let response = try runner.run(plan.arguments)
                 _ = try JSONSerialization.jsonObject(with: response)
             } else {
@@ -53,9 +74,17 @@ struct RecordingCommand {
             let video = try await VideoArtifact.inspect(staging)
             // moveItem refuses an existing destination, including one created while recording.
             try FileManager.default.moveItem(at: staging, to: destination)
-            return try JSONSerialization.data(withJSONObject: ["status": "recorded", "backend": physical ? "devicectl" : "simctl",
+            var result: [String: Any] = ["status": "recorded", "backend": native ? "coredevice-avconference" : (physical ? "devicectl" : "simctl"),
                 "path": destination.path, "requestedSeconds": seconds, "requestedCodec": codec,
-                "artifact": ["durationSeconds": video.duration, "width": video.width, "height": video.height, "frameDecoded": true]], options: [.prettyPrinted, .sortedKeys])
+                "artifact": ["durationSeconds": video.duration, "width": video.width, "height": video.height, "codec": video.codec, "frameDecoded": true]]
+            if let nativeFrames {
+                result["sourceFrames"] = nativeFrames
+                result["timeline"] = "host-jpeg-emission"
+                result["audio"] = false
+                result["cleanup"] = ["helperExited": true, "deviceStopConfirmed": false]
+                result["warnings"] = ["The local decoder stopped, but device-side media-session teardown is unconfirmed; the screen-sharing indicator may remain visible."]
+            }
+            return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         } catch {
             throw CommandFailure(description: "Recording failed: \(error). Investigation artifacts: \(directory.path)")
         }
@@ -66,6 +95,7 @@ struct VideoArtifact: Sendable {
     let duration: Double
     let width: Int
     let height: Int
+    let codec: String
 
     static func inspect(_ url: URL) async throws -> Self {
         let asset = AVURLAsset(url: url)
@@ -74,6 +104,12 @@ struct VideoArtifact: Sendable {
         let generator = AVAssetImageGenerator(asset: asset)
         let frame = try await generator.image(at: .zero)
         guard frame.image.width > 0, frame.image.height > 0 else { throw CommandFailure(description: "Recording has no decodable video frame.") }
-        return Self(duration: duration, width: frame.image.width, height: frame.image.height)
+        guard let track = try await asset.loadTracks(withMediaType: .video).first,
+              let format = try await track.load(.formatDescriptions).first else {
+            throw CommandFailure(description: "Recording has no video format description.")
+        }
+        let subtype = CMFormatDescriptionGetMediaSubType(format)
+        let codec = String(decoding: [24, 16, 8, 0].map { UInt8(truncatingIfNeeded: subtype >> $0) }, as: UTF8.self)
+        return Self(duration: duration, width: frame.image.width, height: frame.image.height, codec: codec)
     }
 }

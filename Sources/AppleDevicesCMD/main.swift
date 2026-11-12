@@ -11,6 +11,7 @@ Usage:
   appledevicescmd --pairing-file <record> physical <UDID> <bridge-operation> ...
   appledevicescmd --physical-backend coredevice physical <device> <button|tap|long-press|gesture|drag|swipe|key|paste|multi-drag|pinch> ...
   appledevicescmd --physical-backend coredevice physical <device> gesture '<JSON with frames:[{ms,touches:[{id,x,y}]}]>'
+  appledevicescmd --recording-backend coredevice physical <device> record <new.mp4> <seconds> [h264|hevc]
   appledevicescmd --physical-backend coredevice physical <device> long-press <x> <y> <seconds: 0.1...10>
   Native paste replaces the device clipboard with Unicode text, then pastes at the focused caret/selection.
   Native input requires the optional appledevices-coredevice helper; run mise run coredevice:build.

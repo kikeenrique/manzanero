@@ -82,9 +82,11 @@ Physical command planning and screenshot flags were checked against Xcode 27.2. 
 ```sh
 appledevicescmd simulator <UUID> record tmp/demo.mp4 5
 appledevicescmd physical <device> record tmp/phone.mp4 5
+mise run coredevice:video-build
+mise run cli --recording-backend coredevice physical <UDID> record tmp/native-phone.mp4 5
 ```
 
-Finite recording accepts 1...300 seconds and optional `h264`/`hevc`. It refuses existing destinations and validates the staged video before publishing it. Simulator capture is verified in both codecs; native physical recording remains device-dependent and unverified. MCP exposes the same operation as `record_screen`. See [recording behavior and limits](docs/RECORDING.md).
+Finite recording accepts 1...300 seconds and optional `h264`/`hevc`. It refuses existing destinations and validates the staged video before publishing it. Simulator capture and the explicit CoreDevice physical backend have scoped verification in both codecs. Physical `devicectl` recording is unsupported on the tested iPhone 13 mini. The CoreDevice backend requires macOS 26+ and the video helper on PATH; device-side stream teardown is unconfirmed and the sharing indicator can persist. MCP exposes the same operation as `record_screen`. See [recording behavior and limits](docs/RECORDING.md).
 
 ## Build and run from source
 
@@ -201,4 +203,4 @@ Initial pairing uses the device's approval/PIN flow. See [Wi-Fi endpoint discove
 
 `appledevicescmd ocr <image-path>` also accepts an existing image. Vision returns text, confidence, and bounds normalized to 0...1 with the origin at the top left. A simulator fixture was recognized successfully; the earlier `Failed to create CVPixelBuffer` failure remains unexplained, and broad recognition accuracy is unverified.
 
-User-facing streaming sessions, verified physical recording, broader accessibility/actions coverage, Xcode-format container export/replacement, complete saved-report management, settings controls, and automatic human-prompt detection remain outstanding. Native Home/tap/drag, two-contact map zoom, Unicode clipboard paste, Backspace, launching Settings, an explicit-PID Settings accessibility tree, and fresh identifier/label presses have physical verification on the selected USB phone; wider coverage remains incomplete. Explicit handoff and MCP expose the implemented workflow operations. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.
+User-facing streaming sessions, confirmed physical recording teardown, broader accessibility/actions coverage, Xcode-format container export/replacement, complete saved-report management, settings controls, and automatic human-prompt detection remain outstanding. Native Home/tap/drag, two-contact map zoom, Unicode clipboard paste, Backspace, launching Settings, an explicit-PID Settings accessibility tree, and fresh identifier/label presses have physical verification on the selected USB phone; wider coverage remains incomplete. Explicit handoff and MCP expose the implemented workflow operations. Build & Run has a verified simulator path; physical deployment remains unverified. Raw app-container copies, report downloads, and experimental OS-log capture exist but have not been verified live. The [roadmap](docs/ROADMAP.md) distinguishes documented vendor features, explicit user requirements, and proposed CLI engineering work.

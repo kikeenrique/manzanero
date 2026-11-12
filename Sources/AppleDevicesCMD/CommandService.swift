@@ -5,8 +5,8 @@ struct CommandOutput: Sendable {
     var exitCode: Int32 = 0
 }
 
-/// CLI and MCP share validation, backend selection, and execution. Device actions
-/// have no suspension points, so actor isolation serializes them within a server.
+/// CLI and MCP share validation, backend selection, and execution. Synchronous
+/// actions serialize here; asynchronous observations/recording can interleave.
 actor CommandService {
     private let runner = ToolRunner()
     private let readinessQuery: @Sendable (String) throws -> Data
@@ -94,13 +94,14 @@ actor CommandService {
             return try readiness(args[1]).output()
         }
         if let recording = try RecordingCommand.parse(args) {
+            if !dryRun { try checkHandoffPause([recording.physical ? "physical" : "simulator", recording.device, "record"]) }
             let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("tmp/recording-\(UUID().uuidString)")
             if dryRun {
                 let plan = recording.command(staging: directory.appendingPathComponent("capture.mp4"))
                 return try json(["executable": plan.executable, "arguments": plan.arguments,
                     "destination": recording.destination.path, "durationSeconds": recording.seconds,
-                    "stopPolicy": recording.physical ? "devicectl --duration" : "Wait for first frame, then SIGINT after duration; wait for finalization."])
+                    "stopPolicy": recording.native ? "Timestamped live frames; AVFoundation MP4 encoding; no automatic backend fallback." : (recording.physical ? "devicectl --duration" : "Wait for first frame, then SIGINT after duration; wait for finalization.")])
             }
             if recording.physical { try preflight(recording.device, operation: "record screen") }
             return CommandOutput(data: try await recording.execute(directory: directory, runner: runner))

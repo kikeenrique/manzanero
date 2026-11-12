@@ -60,10 +60,33 @@ depends = ["build"]
 usage = 'arg "<simulator>" help="Explicit booted simulator UUID"'
 run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_SIMULATOR="$usage_simulator" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon'
 
+[tasks."test:mcp-recording"]
+extends = "swift"
+description = "Verify native HEVC physical recording through real MCP stdio"
+depends = ["build", "coredevice:video-build"]
+env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
+usage = 'arg "<device>" help="Explicit physical device UDID"'
+run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_RECORDING=1 swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings'
+
 [tasks."coredevice:test"]
 dir = "{{ config_root }}"
 description = "Test native multitouch scheduling, validation, and failure cleanup without a device"
 run = ["mkdir -p tmp/coredevice-tests", "clang -Wall -Wextra -Werror Backends/CoreDevice/test-multitouch.c -o tmp/coredevice-tests/multitouch", "tmp/coredevice-tests/multitouch", "clang -Wall -Wextra -Werror Backends/CoreDevice/test-gesture.c -o tmp/coredevice-tests/gesture", "tmp/coredevice-tests/gesture"]
+
+[tasks."coredevice:video-build"]
+extends = "swift"
+description = "Build the pinned native AVConference video helper into tmp/bin"
+depends = ["coredevice:setup"]
+run = '''
+mkdir -p tmp/coredevice-video-source/Sources
+cp tmp/ipb/Sources/video_stream.m tmp/coredevice-video-source/Sources/
+cp tmp/ipb/Makefile tmp/coredevice-video-source/
+git apply --directory=tmp/coredevice-video-source Backends/CoreDevice/video.patch
+make -C tmp/coredevice-video-source BUILD_DIR=../coredevice-video-build ../coredevice-video-build/ipb-video 2>&1 | xcsift -f toon --warnings
+test -x tmp/coredevice-video-build/ipb-video
+mkdir -p tmp/bin
+cp tmp/coredevice-video-build/ipb-video tmp/bin/appledevices-video
+'''
 
 [tasks."test:mcp-physical"]
 extends = "swift"

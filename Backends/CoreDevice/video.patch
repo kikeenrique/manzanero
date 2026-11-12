@@ -1,0 +1,104 @@
+--- a/Sources/video_stream.m
++++ b/Sources/video_stream.m
+@@ -37,6 +37,7 @@
+ #include <signal.h>
+ #include <math.h>
+ #include <unistd.h>
++#include <libkern/OSByteOrder.h>
+ 
+ #define LOGE(...) do{ fprintf(stderr, "ipb-video: " __VA_ARGS__); fprintf(stderr,"\n"); }while(0)
+ #define DIE(code, ...) do{ LOGE(__VA_ARGS__); return (code); }while(0)
+@@ -78,6 +79,8 @@
+ static int gMaxFrames = 0;         // stop after N distinct frames (0 = until timeout)
+ static double gMinInterval = 0;    // seconds between saved frames (fps limiter)
+ static BOOL gStdout = NO;          // stream frames to stdout as [4-byte BE length][jpeg]...
++static BOOL gTimedStdout = NO;
++static double gRecordingSeconds = 0, gFirstEmitT = 0, gPublishedFirstEmitT = 0;
+ static int gSaved = 0, gPulls = 0;
+ static unsigned long gPrevHash = 0;
+ static double gLastSaveT = 0;       // writer-owned
+@@ -218,11 +221,25 @@
+     if(!jpeg.length) return;
+     unsigned long h=fnv(jpeg.bytes,jpeg.length);
+     double t=nowSec();
++    if(gTimedStdout){
++        if(!gFirstEmitT){
++            gFirstEmitT=t;
++            pthread_mutex_lock(&gFrameLock); gPublishedFirstEmitT=t; pthread_mutex_unlock(&gFrameLock);
++        }
++        if(t-gFirstEmitT>=gRecordingSeconds){
++            pthread_mutex_lock(&gFrameLock); stopFramesLocked(); pthread_mutex_unlock(&gFrameLock);
++            return;
++        }
++    }
+     if(h==gPrevHash) return;                                   // identical frame; skip
+     BOOL ok=YES;
+     if(gStdout){
+         uint32_t n=htonl((uint32_t)jpeg.length);
+-        ok=jpeg.length<=UINT32_MAX && fwrite(&n,1,4,stdout)==4 &&
++        if(gTimedStdout){
++            uint64_t ns=OSSwapHostToBigInt64((uint64_t)((t-gFirstEmitT)*1000000000.0));
++            ok=fwrite("ADV1",1,4,stdout)==4 && fwrite(&n,1,4,stdout)==4 && fwrite(&ns,1,8,stdout)==8;
++        }
++        ok=ok && jpeg.length<=UINT32_MAX && (gTimedStdout || fwrite(&n,1,4,stdout)==4) &&
+            fwrite(jpeg.bytes,1,jpeg.length,stdout)==jpeg.length && fflush(stdout)==0;
+         if(!ok) LOGE("stdout write/flush failed: %s",strerror(errno));
+     }
+@@ -299,6 +316,7 @@
+       "usage: ipb-video <coredevice-uuid> <utun> <hostIP> <deviceIP> [options]\n"
+       "  --dir DIR       write frames as DIR/frame%%06d.jpg\n"
+       "  --stdout        stream frames to stdout: repeated [uint32 BE length][jpeg bytes]\n"
++      "  --timed-stdout  stream ADV1 + uint32 BE length + uint64 BE elapsed ns + JPEG\n"
+       "  --count N       stop after N distinct frames (default: run until --seconds)\n"
+       "  --fps F         cap saved frames to at most F per second\n"
+       "  --seconds S     maximum collection time, including --count (default 10)\n"
+@@ -342,6 +360,7 @@
+     for(int i=5;i<argc;i++){
+         if(!strcmp(argv[i],"--dir") && i+1<argc) gOutDir=[NSString stringWithUTF8String:argv[++i]];
+         else if(!strcmp(argv[i],"--stdout")) gStdout=YES;
++        else if(!strcmp(argv[i],"--timed-stdout")){ gStdout=YES; gTimedStdout=YES; }
+         else if(!strcmp(argv[i],"--count") && i+1<argc) gMaxFrames=atoi(argv[++i]);
+         else if(!strcmp(argv[i],"--fps") && i+1<argc){ double f=atof(argv[++i]); if(f>0) gMinInterval=1.0/f; }
+         else if(!strcmp(argv[i],"--seconds") && i+1<argc) runSeconds=atof(argv[++i]);
+@@ -351,6 +370,7 @@
+     if(!gOutDir && !gStdout){ LOGE("nothing to do: pass --dir or --stdout"); return 2; }
+     if(!isfinite(runSeconds) || runSeconds<=0 || runSeconds>(double)INT64_MAX/NSEC_PER_SEC-60 || gMaxFrames<0)
+         DIE(2,"--seconds must be finite and positive; --count must be nonnegative");
++    gRecordingSeconds=runSeconds;
+     if(gOutDir){
+         NSError *error=nil;
+         if(![[NSFileManager defaultManager] createDirectoryAtPath:gOutDir withIntermediateDirectories:YES attributes:nil error:&error])
+@@ -472,7 +492,7 @@
+     if(gDaemon && active) [vs requestLastDecodedFrame];
+     // Reset the already-armed timer: requested collection time + 5s scheduling headroom.
+     // Shutdown receives a separate full budget when collection ends.
+-    armWatchdog(watchdog,watchdogQueue,runSeconds+watchdogMargin,
++    armWatchdog(watchdog,watchdogQueue,runSeconds+watchdogMargin+(gTimedStdout?12:0),
+                 collectionTimeout,sizeof collectionTimeout-1);
+     double start=nowSec();
+     while(1){
+@@ -481,11 +501,12 @@
+         pthread_mutex_lock(&gFrameLock);
+         BOOL stopped=gStopping;
+         int saved=gReportedSaved;
++        double firstEmit=gPublishedFirstEmitT;
+         BOOL rearm=gDaemon && !stopped && !gBusy && (t-gLastRequestT)>2.0;
+         if(rearm) gLastRequestT=t;
+         pthread_mutex_unlock(&gFrameLock);
+         if(stopped) break;
+-        if((t-start) >= runSeconds) break;
++        if(gTimedStdout ? (firstEmit && t-firstEmit>=runSeconds) : (t-start)>=runSeconds) break;
+         if(rearm) [vs requestLastDecodedFrame];  // daemon: re-arm on stall
+         // A static screen may stop producing frames altogether. Silence after a valid
+         // image is not proof of a failed stream; retain the requested finite budget.
+--- a/Makefile
++++ b/Makefile
+@@ -71,7 +71,7 @@
+ $(VIDEO_TARGET): $(SOURCES_DIR)/video_stream.m | $(BUILD_DIR)
+ 	clang -fobjc-arc \
+ 		-o $@ $< \
+-		-framework Foundation -framework CoreMedia -framework CoreVideo -lobjc \
++		-framework Foundation -framework CoreMedia -framework CoreVideo \
+ 		-Xlinker -undefined -Xlinker dynamic_lookup
+ 	codesign -s - -f $@ >/dev/null 2>&1 || true   # in-process path needs no entitlement
+ 

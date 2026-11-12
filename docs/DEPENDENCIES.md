@@ -24,6 +24,10 @@ The native input helper also exposes its existing `cd_uhid_long` held-touch oper
 
 The staged native extension also accepts bounded [timed gesture sequences](GESTURE-SEQUENCES.md), reusing the same 58-byte report encoder and Apple HIDReport bridge. The repository-owned scheduler validates every frame and attempts release after errors; it does not replace the pinned framework transport or add a new package dependency. The unchanged upstream checkout and retained MIT attribution still apply.
 
+## Native video helper
+
+`mise run coredevice:video-build` builds `video_stream.m` from the same pinned MIT ipb checkout, applying [the timestamped output patch](../Backends/CoreDevice/video.patch) in a separate staging tree. It installs `tmp/bin/appledevices-video`; select it with `--recording-backend coredevice`. The helper dynamically loads installed Apple CoreDevice and AVConference frameworks and returns live JPEGs. The Swift CLI uses the declared Subprocess package and built-in AVFoundation/CoreVideo for MP4 encoding; no encoder package or proprietary runtime is added. H.264/HEVC captures have scoped USB iPhone 13 mini verification, with device-side teardown explicitly unconfirmed. See [recording setup and limits](RECORDING.md).
+
 ## idevice
 
 Physical HID uses the open-source [idevice library](https://github.com/jkcoxson/idevice), by Jackson Coxson, under the MIT license. Its source is declared as a Git dependency in [the bridge manifest](../Backends/IDevice/Cargo.toml), pinned to revision `89702099f4d7552f704f93b4526756abda319ceb`. [Cargo.lock](../Backends/IDevice/Cargo.lock) records the transitive dependency versions and registry checksums. A development clone in `tmp/idevice` is investigation material and is not needed to build the shipped backend.
