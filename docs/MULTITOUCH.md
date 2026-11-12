@@ -13,7 +13,7 @@ appledevicescmd physical <UDID> pinch 0.5 0.5 0.8 0.5 0.5
 mise run cli --physical-backend coredevice physical <device> pinch 0.5 0.4 0.2 0.6 0.5
 ```
 
-`multi-drag` takes duration first, followed by two to five groups of `start-x start-y end-x end-y`. Every coordinate is normalized 0...1 with the origin at the top left. All paths start together, move linearly for the same duration, and release together. Each identity is included in every frame. Duration must be 0.03...10 seconds. A stationary path is allowed, but curved paths and independently timed finger lifts are not supported.
+`multi-drag` takes duration first, followed by two to five groups of `start-x start-y end-x end-y`. Every coordinate is normalized 0...1 with the origin at the top left. All paths start together, move linearly for the same duration, and release together. Each identity is included in every frame. Duration must be 0.03...10 seconds. A stationary path is allowed. For sampled curves or independently timed arrivals/lifts, use the native [gesture sequence](GESTURE-SEQUENCES.md) operation instead.
 
 `pinch` takes `center-x center-y start-span end-span seconds`. Spans are full horizontal separations expressed as fractions of screen width. They must be positive, different, and fit on screen around the center. Smaller end spans pinch inward; larger ones spread outward. Both contacts must remain distinct and move after conversion to the backend's 16-bit coordinates. No coordinate clipping occurs. This generates a gesture; an app decides whether it zooms or handles it differently.
 

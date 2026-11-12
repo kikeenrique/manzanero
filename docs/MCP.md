@@ -19,7 +19,7 @@ This is a configuration example, not an installation into a particular host. Hos
 
 ## Tools
 
-The 32 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
+The 33 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
 
 | Tools | Operations |
 | --- | --- |
@@ -37,6 +37,7 @@ The 32 tools have object schemas with required fields, enumerated operations whe
 | `multi_drag`, `pinch` | [Experimental physical moving multitouch](MULTITOUCH.md), with two to five coordinated linear paths or a horizontal pinch/spread |
 | `paste_text` | [Physical Unicode paste](NATIVE-INPUT.md#keyboard-and-unicode-paste) into the focused field, explicitly replacing the device clipboard |
 | `long_press` | [Native physical held touch](NATIVE-INPUT.md#long-press), normalized coordinates and 0.1...10-second requested duration; dispatch receipt does not verify UI effect or release |
+| `perform_gesture` | [Timed native touch sequence](GESTURE-SEQUENCES.md), supplied as a bounded JSON string with complete-state frames; sampled paths, holds, repeated taps, and contact arrivals/lifts |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report`, `capture_logs` | Saved physical reports and experimental finite OS trace |
 | `build_run` | The existing [Xcode build/install/restart workflow](BUILD-RUN.md) |
@@ -74,3 +75,5 @@ The opt-in check `mise run test:mcp-live <booted-simulator-UUID>` launches the r
 `mise run test:mcp-scroll <UDID> <identifier>` opts into one `scroll_to_element` call after those foreground reads. It sends a native scroll action for the explicitly supplied identifier and requires its observed visibility postcondition to pass. It saves private `physical-scroll.json` alongside the read artifacts. The target must already exist in the current snapshot. This task can move the app's scroll position; it does not press the row, send another scroll on failure, or change a setting.
 
 `mise run test:mcp-long-press <UDID> <x> <y> <seconds>` opts into one native `long_press` call at the supplied physical coordinates, followed by a screenshot and EOF shutdown. It requires the native helper, saves the receipt and PNG under ignored `tmp/mcp-live-*/`, and does not query an AX tree or automatically choose a control. Its assertions verify the protocol/receipt/capture; inspect the screenshot to establish the UI effect. No retry is sent on failure.
+
+`mise run test:mcp-gesture <UDID> <file>` similarly opts into one `perform_gesture` sequence from a local JSON file, followed by a screenshot. It can send multiple scheduled contacts/taps as specified in that one sequence. Receipts and captures remain private under ignored `tmp/mcp-live-*/`; no replay or target selection is performed.

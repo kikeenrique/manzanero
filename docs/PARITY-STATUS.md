@@ -1,6 +1,6 @@
 # Feature parity status
 
-Checkpoint: native long-press implementation, 2026-11-12. Full device-control tooling parity is not complete. This classifies the repository's [recorded parity inventory](ROADMAP.md), rather than claiming a newly audited vendor feature list. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
+Checkpoint: timed native gesture sequences, 2026-11-12. Full device-control tooling parity is not complete. This classifies the repository's [recorded parity inventory](ROADMAP.md), rather than claiming a newly audited vendor feature list. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
 
 Scope clarification: all Apple device families are in scope, explicitly including iPhone, iPad, Apple Watch, Apple TV, and Duo targets. Android is excluded and is not an unfinished requirement. The same physical iPhone result cannot verify another device family.
 
@@ -12,7 +12,8 @@ Scope clarification: all Apple device families are in scope, explicitly includin
 | Devices | Wi-Fi pairing/reconnection | Implemented, unverified | Independent pairing/tunnel path exists; hardware pairing/reconnection/input proof remains missing. |
 | Physical control | Home, tap, drag | Verified | Native CoreDevice backend on iPhone 13 mini over USB. Other buttons/orientations remain unverified. |
 | Physical control | Long-press | Partial, scoped verification | Native 0.8-second hold opened the Maps Home Screen context menu on iPhone 13 mini. Other targets/durations/orientations and failure release on hardware remain unverified. |
-| Physical control | Pinch and moving multitouch | Partial, scoped verification | Native two-contact Maps zoom in/out verified. Three-to-five-contact effects and failure cleanup on hardware remain unverified; arbitrary timed paths are missing. |
+| Physical control | Pinch and moving multitouch | Partial, scoped verification | Native two-contact Maps zoom in/out verified. Three-to-five-contact effects and failure cleanup on hardware remain unverified. |
+| Physical control | Timed paths and repeated taps | Partial, scoped verification | Native complete-state sequences implemented with one to five slots, nonuniform times, arrivals/lifts, and release attempts. One-contact sampled swipe changed Home to App Library; real MCP double-tap zoomed Maps. Independent multi-contact timing and failure release need hardware coverage. |
 | Physical control | Unicode paste / Backspace | Verified | Settings search insertion/removal observed. Paste explicitly replaces the phone clipboard; other field types, keys, and layouts need coverage. |
 | Physical control | Exact identifier/label press | Partial, scoped verification | Settings navigation observed through fresh AX targets, live state, hit, and portrait display checks. Other apps/overlays/rotations remain incomplete. |
 | Physical control | Scroll element into view | Partial, scoped verification | One native action with fresh selector/state/display guards and read-only postcondition checks. Settings movement verified through CLI; real MCP already-visible native-false case passed. Only targets already present in the bounded snapshot can be selected. |
@@ -37,7 +38,7 @@ Scope clarification: all Apple device families are in scope, explicitly includin
 | Platforms | iPad-specific coverage | Partial, unverified | Generic command paths exist; dedicated physical iPad, multitasking, and display behavior remain unverified. |
 | Platforms | Apple TV / tvOS | Missing | No dedicated control implementation or verification. |
 | Platforms | Duo targets | Missing dedicated coverage | No verified posture/display/control support; generic device-ID acceptance is insufficient. |
-| Interface | Swift CLI and shared MCP | Partial | Swift CLI and 32 stdio MCP tools share operations. Physical private protocols use an optional Rust bridge; native HID helper uses Objective-C/Swift/assembly. HTTP, general cancellation/progress, and consistent structured CLI errors remain incomplete. |
+| Interface | Swift CLI and shared MCP | Partial | Swift CLI and 33 stdio MCP tools share operations. Physical private protocols use an optional Rust bridge; native HID helper uses Objective-C/Swift/assembly. HTTP, general cancellation/progress, and consistent structured CLI errors remain incomplete. |
 
 The old idevice **HID** path returned successful receipts without visible Home/tap effects. Verified physical touch/keyboard operations use the native CoreDevice backend. The separate idevice **AX** path has verified tree reads and selector presses. These results must not be conflated.
 

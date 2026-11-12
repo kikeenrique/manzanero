@@ -123,6 +123,10 @@ struct HandoffCommandTests {
                 Issue.record("Native long-press bypassed handoff pause")
             } catch { #expect(String(describing: error).contains("Automation is paused")) }
             do {
+                _ = try await service.execute(["--physical-backend", "coredevice", "physical", udid, "gesture", NativeGestureSequenceTests().doubleTap])
+                Issue.record("Native gesture bypassed handoff pause")
+            } catch { #expect(String(describing: error).contains("Automation is paused")) }
+            do {
                 _ = try await service.execute(["--physical-backend", "coredevice", "physical", udid, "paste", "synthetic"])
                 Issue.record("Native paste bypassed handoff pause")
             } catch { #expect(String(describing: error).contains("Automation is paused")) }

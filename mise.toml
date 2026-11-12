@@ -44,6 +44,7 @@ run = '''
 mkdir -p tmp/coredevice-source/Sources
 cp tmp/ipb/Sources/* tmp/coredevice-source/Sources/
 cp Backends/CoreDevice/multitouch.inc tmp/coredevice-source/Sources/
+cp Backends/CoreDevice/gesture.inc tmp/coredevice-source/Sources/
 cat tmp/ipb/Sources/universalhid_glue.swift Backends/CoreDevice/raw-report.swift > tmp/coredevice-source/Sources/universalhid_glue.swift
 git apply --directory=tmp/coredevice-source Backends/CoreDevice/multitouch.patch
 make -C tmp/ipb SOURCES_DIR=../coredevice-source/Sources BUILD_DIR=../coredevice-build check-reports ../coredevice-build/ipb-helper 2>&1 | xcsift -f toon
@@ -62,7 +63,7 @@ run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_SIMULATOR="$usage_simulator
 [tasks."coredevice:test"]
 dir = "{{ config_root }}"
 description = "Test native multitouch scheduling, validation, and failure cleanup without a device"
-run = ["mkdir -p tmp/coredevice-tests", "clang -Wall -Wextra -Werror Backends/CoreDevice/test-multitouch.c -o tmp/coredevice-tests/multitouch", "tmp/coredevice-tests/multitouch"]
+run = ["mkdir -p tmp/coredevice-tests", "clang -Wall -Wextra -Werror Backends/CoreDevice/test-multitouch.c -o tmp/coredevice-tests/multitouch", "tmp/coredevice-tests/multitouch", "clang -Wall -Wextra -Werror Backends/CoreDevice/test-gesture.c -o tmp/coredevice-tests/gesture", "tmp/coredevice-tests/gesture"]
 
 [tasks."test:mcp-physical"]
 extends = "swift"
@@ -115,6 +116,17 @@ arg "<y>" help="Normalized y coordinate 0...1"
 arg "<seconds>" help="Hold duration 0.1...10 seconds; sends one physical action"
 '''
 run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_LONG_PRESS="$usage_x,$usage_y,$usage_seconds" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings'
+
+[tasks."test:mcp-gesture"]
+extends = "swift"
+description = "Send one native physical gesture sequence through real MCP and capture its result"
+depends = ["build"]
+env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
+usage = '''
+arg "<device>" help="Explicit physical device UDID"
+arg "<file>" help="Local JSON gesture sequence; sends one complete physical touch sequence"
+'''
+run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_GESTURE_FILE="$usage_file" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings'
 
 [tasks."idevice:build"]
 extends = "idevice"

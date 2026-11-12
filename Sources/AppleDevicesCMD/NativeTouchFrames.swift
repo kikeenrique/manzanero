@@ -20,20 +20,28 @@ struct NativeTouchFrames {
         let count = coordinates.count / 4
         reports = (0...31).map { frame in
             let step = min(frame, 30)
-            var bytes = [UInt8](repeating: 0, count: 58)
-            bytes[0] = 9; bytes[1] = UInt8(count); bytes[2] = 5; bytes[40] = 2
-            for id in 0..<count {
-                let path = id * 4, offset = 3 + id * 5
-                bytes[offset] = UInt8(id) | (frame == 31 ? 0 : 0xc0)
-                for axis in 0..<2 {
-                    let start = coordinates[path + axis], end = coordinates[path + axis + 2]
-                    let position = start + (end - start) * step / 30
-                    bytes[offset + 1 + axis * 2] = UInt8(position & 255)
-                    bytes[offset + 2 + axis * 2] = UInt8(position >> 8)
+            let positions = (0..<count).map { id in
+                (0..<2).map { axis in
+                    let start = coordinates[id * 4 + axis], end = coordinates[id * 4 + axis + 2]
+                    return start + (end - start) * step / 30
                 }
             }
-            return bytes
+            return Self.report(positions: positions, active: frame == 31 ? [] : Set(0..<count))
         }
+    }
+
+    static func report(positions: [[Int]], active: Set<Int>) -> [UInt8] {
+        var bytes = [UInt8](repeating: 0, count: 58)
+        bytes[0] = 9; bytes[1] = UInt8(positions.count); bytes[2] = 5; bytes[40] = 2
+        for (id, point) in positions.enumerated() {
+            let offset = 3 + id * 5
+            bytes[offset] = UInt8(id) | (active.contains(id) ? 0xc0 : 0)
+            for axis in 0..<2 {
+                bytes[offset + 1 + axis * 2] = UInt8(point[axis] & 255)
+                bytes[offset + 2 + axis * 2] = UInt8(point[axis] >> 8)
+            }
+        }
+        return bytes
     }
 
     var arguments: [String] {

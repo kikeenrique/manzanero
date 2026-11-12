@@ -1,6 +1,6 @@
 # Native CoreDevice input backend
 
-The optional native backend supports physical `button`, `tap`, `long-press`, `drag`, `swipe`, `multi-drag`, `pinch`, `key`, and Unicode `paste`. The default remains the experimental idevice backend; selection is explicit and a failed action never triggers an automatic retry or another backend.
+The optional native backend supports physical `button`, `tap`, `long-press`, timed `gesture`, `drag`, `swipe`, `multi-drag`, `pinch`, `key`, and Unicode `paste`. The default remains the experimental idevice backend; selection is explicit and a failed action never triggers an automatic retry or another backend.
 
 ```sh
 mise run coredevice:build
@@ -42,6 +42,8 @@ MCP `long_press` accepts `device`, normalized `x`/`y`, and `seconds`. CLI use re
 The receipt adds requested `holdSeconds`, `coordinateSpace: normalized-top-left`, and `releaseVerified: false`. It does not measure delivered timing or prove device-side release. A helper failure/timeout reports that UI effect and contact release are unknown; no replay is sent. The helper attempts release after an ordinary send failure, but a blocked framework call, transport loss, or process termination can interrupt it. The existing 40-second subprocess deadline applies.
 
 ## Moving multitouch
+
+For sampled paths, holds, repeated taps, and independently arriving/lifting contacts, use the separate [timed gesture sequence](GESTURE-SEQUENCES.md) command and MCP `perform_gesture`. It uses the same report encoder and native transport, with a bounded complete-state schedule and release attempt on failure. Its broader contact patterns have separate verification limits.
 
 Native `multi-drag` and `pinch` use the [shared gesture syntax and bounds](MULTITOUCH.md). Swift prepares an initial frame, 30 linear movement frames, and release with stable identities 0...4. The 58-byte mainTouchscreen layout follows the pinned idevice implementation; the native adapter wraps these bytes in ipb's Apple HIDReport representation. The helper validates all 32 frames before sending any contact, schedules movement against absolute monotonic offsets, then attempts release and a barrier. A send error stops movement and attempts release at the last attempted positions. Release failure prevents a successful helper exit. This is not a real-time delivery guarantee.
 

@@ -16,6 +16,8 @@ Select it explicitly with `--physical-backend coredevice` for physical Home/butt
 
 The native input helper also exposes its existing `cd_uhid_long` held-touch operation through CLI `long-press` and MCP `long_press`. The Swift adapter validates coordinates/duration and uses the same fresh identity/touchscreen discovery. No new native patch, report encoder, or dependency revision was added for this operation. CLI and real MCP context-menu effects were screenshot-verified on the selected USB iPhone 13 mini; exact delivered timing and failure release remain unverified. See [long-press limits](NATIVE-INPUT.md#long-press).
 
+The staged native extension also accepts bounded [timed gesture sequences](GESTURE-SEQUENCES.md), reusing the same 58-byte report encoder and Apple HIDReport bridge. The repository-owned scheduler validates every frame and attempts release after errors; it does not replace the pinned framework transport or add a new package dependency. The unchanged upstream checkout and retained MIT attribution still apply.
+
 ## idevice
 
 Physical HID uses the open-source [idevice library](https://github.com/jkcoxson/idevice), by Jackson Coxson, under the MIT license. Its source is declared as a Git dependency in [the bridge manifest](../Backends/IDevice/Cargo.toml), pinned to revision `89702099f4d7552f704f93b4526756abda319ceb`. [Cargo.lock](../Backends/IDevice/Cargo.lock) records the transitive dependency versions and registry checksums. A development clone in `tmp/idevice` is investigation material and is not needed to build the shipped backend.

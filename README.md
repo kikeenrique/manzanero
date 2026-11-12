@@ -154,6 +154,8 @@ Native `paste` replaces the phone clipboard and pastes once into the already-foc
 
 Native `long-press <x> <y> <seconds>` holds and releases one touch at normalized coordinates for a requested 0.1...10 seconds. MCP exposes `long_press` through the same native backend. A 0.8-second hold opened the Maps icon context menu on iPhone 13 mini. Receipts remain unverified dispatch results; gesture thresholds and delivered timing vary. See [long-press behavior and limits](docs/NATIVE-INPUT.md#long-press).
 
+Native `gesture '<JSON>'` and MCP `perform_gesture` accept [timed touch sequences](docs/GESTURE-SEQUENCES.md): 2...512 complete-state frames over at most 10 seconds, with one to five contact identities. They support sampled paths, holds, repeated taps, and contact arrivals/lifts. The entire schedule is checked before input, and failures attempt release without replay. Receipts do not verify timing, release, or UI effect.
+
 With the optional `appledevices-idevice` bridge on PATH:
 
 ```sh

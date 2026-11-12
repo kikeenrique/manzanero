@@ -11,8 +11,8 @@ struct CoreDeviceInput {
     static func parse(_ args: [String]) throws -> Self? {
         guard args.first == "--physical-backend" else { return nil }
         guard args.count >= 5, args[1] == "coredevice", args[2] == "physical",
-              ["button", "tap", "long-press", "drag", "swipe", "key", "paste", "multi-drag", "pinch"].contains(args[4]) else {
-            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|long-press|drag|swipe|key|paste|multi-drag|pinch> ... . Pairing files are not supported by this backend.")
+              ["button", "tap", "long-press", "gesture", "drag", "swipe", "key", "paste", "multi-drag", "pinch"].contains(args[4]) else {
+            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|long-press|gesture|drag|swipe|key|paste|multi-drag|pinch> ... . Pairing files are not supported by this backend.")
         }
         var operands = Array(args.dropFirst(5))
         guard !args[3].isEmpty, !args[3].hasPrefix("-") else {
@@ -22,6 +22,9 @@ struct CoreDeviceInput {
             guard operands.count == 1, (1...65536).contains(operands[0].utf8.count), !operands[0].contains("\0") else {
                 throw CommandFailure(description: "Native paste requires 1...65536 UTF-8 bytes without NUL. It replaces the device clipboard and pastes at the focused caret/selection.")
             }
+        } else if args[4] == "gesture" {
+            guard operands.count == 1 else { throw CommandFailure(description: "Native gesture requires one JSON sequence argument.") }
+            _ = try NativeGestureSequence(json: operands[0])
         } else if args[4] == "long-press" {
             guard operands.count == 3, let x = Double(operands[0]), let y = Double(operands[1]),
                   let seconds = Double(operands[2]), x.isFinite, y.isFinite, seconds.isFinite,
@@ -106,6 +109,10 @@ struct CoreDeviceInput {
             return helper(resolved, feature: Self.universal, arguments: ["cd_paste", surface])
         }
         guard let surface else { throw CommandFailure(description: "Native touch requires discovered touchscreen identity.") }
+        if operation == "gesture" {
+            let sequence = try NativeGestureSequence(json: operands[0])
+            return helper(resolved, feature: Self.universal, arguments: ["cd_gesture", surface] + sequence.arguments)
+        }
         if ["multi-drag", "pinch"].contains(operation) {
             let frames = try NativeTouchFrames(device: device, operation: operation, operands: operands)
             return helper(resolved, feature: Self.universal, arguments: ["cd_multitouch", surface] + frames.arguments)
@@ -145,6 +152,7 @@ struct CoreDeviceInput {
         catch {
             if operation == "paste" { throw CommandFailure(description: "Clipboard was replaced, but paste dispatch failed or timed out; insertion is unknown. Inspect the focused field before retrying. \(error)") }
             if operation == "long-press" { throw CommandFailure(description: "Long-press dispatch failed or timed out; UI effect and contact release are unknown. Inspect the device before retrying. \(error)") }
+            if operation == "gesture" { throw CommandFailure(description: "Gesture dispatch failed or timed out; UI effect and contact release are unknown. Inspect the device before retrying; no automatic replay. \(error)") }
             throw error
         }
         FileHandle.standardError.write(output)
@@ -153,6 +161,14 @@ struct CoreDeviceInput {
         if operation == "paste" { result["clipboard"] = "replaced"; result["insertionVerified"] = false }
         if operation == "long-press" {
             result["holdSeconds"] = Double(operands[2])
+            result["coordinateSpace"] = "normalized-top-left"
+            result["releaseVerified"] = false
+        }
+        if operation == "gesture" {
+            let sequence = try NativeGestureSequence(json: operands[0])
+            result["frameCount"] = sequence.times.count
+            result["contactSlots"] = sequence.contactCount
+            result["durationMilliseconds"] = sequence.times.last
             result["coordinateSpace"] = "normalized-top-left"
             result["releaseVerified"] = false
         }
