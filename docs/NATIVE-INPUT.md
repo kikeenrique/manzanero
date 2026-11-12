@@ -18,6 +18,16 @@ The project's bridge opens Apple's Indigo digitizer service and requires a readi
 
 On the USB iPhone 13 mini, direct tap opened Settings, drag moved the Settings list, and a 0.8-second hold opened Maps' Home Screen context menu. Other orientations/families, system edge gestures, interruption/crash release and simultaneous independent controllers remain unverified. Dispatch receipts retain `verified: false` and `releaseVerified: false`; the readiness/completion barriers prove service/transport behavior, not UIKit delivery or release. Multi-contact and arbitrary timed sequences, keys and paste remain unavailable pending their direct replacements.
 
+## Direct two-contact movement
+
+Physical `pinch` and `multi-drag` now use the same in-process Apple digitizer service by default or with explicit coredevice selection. Direct multi-drag accepts exactly two paths; larger legacy command shapes fail without sending input. Pinch derives two horizontal paths from normalized current-interface center and positive start/end spans. Smaller final span pinches inward; larger spreads outward. All endpoints must fit. Duration remains 0.03...10 seconds.
+
+The paired schedule retains both points in each of 32 events: simultaneous down, 30 movement samples and simultaneous lift 1 ms after the requested movement interval. Each point is independently rotated into portrait digitizer coordinates. The Apple `IndigoDigitizerEvent` payload adds the optional custom `pointTwo` dictionary alongside `pointOne`; slot order stays fixed. On ordinary failure, lift includes both last-attempted positions. Swift rejects paths whose continuous linear trajectories coincide or cross, even between samples. The C boundary independently rejects nonfinite, out-of-range or coincident second points before opening a connection. Display readiness/recheck, transport barriers, deadlines and no-replay behavior are shared with single-contact input.
+
+This direct two-contact implementation is **unit-tested but not yet hardware-verified**. Opening Maps on the selected iPhone 13 mini showed a location-permission prompt. No permission choice or paired gesture was sent while awaiting the user's preference. Historical ipb Maps zoom verification below does not verify this new transport. `mise run test:mcp-pinch <UDID> <center-x> <center-y> <start-span> <end-span> <seconds>` is prepared for one explicit live MCP gesture and screenshot once a suitable screen is available.
+
+Three-to-five-contact movement, independently arriving/lifting contacts, arbitrary timed schedules and multi-tap still await direct implementation. Those requirements remain in scope; two-contact support does not complete general multitouch parity.
+
 Both process runners continue to reject non-Apple device executables. The documentation below is retained as a **historical implementation reference**, not current execution instructions.
 
 ## Historical helper implementation (disabled)

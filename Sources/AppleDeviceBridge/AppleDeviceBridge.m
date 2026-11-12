@@ -62,7 +62,7 @@ static xpc_object_t ADCButtonEvent(uint64_t usage, uint64_t state, BOOL barrier)
     return event;
 }
 
-static xpc_object_t ADCTouchEvent(double x, double y, uint64_t phase, BOOL barrier) {
+static xpc_object_t ADCTouchEvent(double x, double y, const ADCTouchPoint *second, uint64_t phase, BOOL barrier) {
     xpc_object_t event = xpc_dictionary_create_empty();
     xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.digitizer");
     xpc_dictionary_set_string(event, "messageType", "IndigoDigitizerEvent");
@@ -72,6 +72,12 @@ static xpc_object_t ADCTouchEvent(double x, double y, uint64_t phase, BOOL barri
         xpc_dictionary_set_double(point, "x", x);
         xpc_dictionary_set_double(point, "y", y);
         xpc_dictionary_set_value(payload, "pointOne", point);
+        if (second) {
+            xpc_object_t pointTwo = xpc_dictionary_create_empty();
+            xpc_dictionary_set_double(pointTwo, "x", second->x);
+            xpc_dictionary_set_double(pointTwo, "y", second->y);
+            xpc_dictionary_set_value(payload, "pointTwo", pointTwo);
+        }
         xpc_dictionary_set_uint64(payload, "eventType", phase);
         xpc_dictionary_set_uint64(payload, "edge", 0);
         xpc_dictionary_set_uint64(payload, "target", 0);
@@ -87,7 +93,7 @@ static uint64_t ADCNow(void) {
 }
 
 static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
-                   unsigned hold, const ADCTouchSample *samples, size_t count, char *error, size_t capacity) {
+                   unsigned hold, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, size_t count, char *error, size_t capacity) {
     @autoreleasepool {
         if (!uuid || !version || ![[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:uuid]]) {
             return ADCFail(error, capacity, @"Invalid direct input identity.");
@@ -149,7 +155,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         activate(remote);
         if (samples) {
             ADCReplyState *ready = [ADCReplyState new];
-            request(remote, ADCTouchEvent(0, 0, 0, YES), queue, ^(xpc_object_t response) {
+            request(remote, ADCTouchEvent(0, 0, NULL, 0, YES), queue, ^(xpc_object_t response) {
                 ready.reply = response;
                 dispatch_semaphore_signal(ready.semaphore);
             });
@@ -173,18 +179,18 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
                 }
                 if (status.failed) break;
                 attempted = i;
-                send(remote, ADCTouchEvent(samples[i].x, samples[i].y, samples[i].phase, NO));
+                send(remote, ADCTouchEvent(samples[i].x, samples[i].y, secondPoints ? &secondPoints[i] : NULL, samples[i].phase, NO));
             }
             // A failed send may already have reached the device; attempt up at
             // the last attempted position without replaying any movement.
             if (samples[attempted].phase != 2)
-                send(remote, ADCTouchEvent(samples[attempted].x, samples[attempted].y, 2, NO));
+                send(remote, ADCTouchEvent(samples[attempted].x, samples[attempted].y, secondPoints ? &secondPoints[attempted] : NULL, 2, NO));
         } else {
             send(remote, ADCButtonEvent(usage, 1, NO));
             usleep(hold);
             send(remote, ADCButtonEvent(usage, 2, NO));
         }
-        xpc_object_t barrier = samples ? ADCTouchEvent(0, 0, 0, YES) : ADCButtonEvent(usage, 0, YES);
+        xpc_object_t barrier = samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : ADCButtonEvent(usage, 0, YES);
         request(remote, barrier, queue, ^(xpc_object_t response) {
             status.reply = response;
             dispatch_semaphore_signal(status.semaphore);
@@ -205,11 +211,11 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, char *error, size_t capacity) {
     if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
         return ADCFail(error, capacity, @"Invalid direct button request.");
-    return ADCPerformInput(uuid, version, usage, hold, NULL, 0, error, capacity);
+    return ADCPerformInput(uuid, version, usage, hold, NULL, NULL, 0, error, capacity);
 }
 
-int ADCPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
-                    size_t count, char *error, size_t capacity) {
+static int ADCValidateAndPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
+                    const ADCTouchPoint *secondPoints, size_t count, char *error, size_t capacity) {
     if (!samples || count < 2 || count > 8192) return ADCFail(error, capacity, @"Invalid direct touch sample count.");
     for (size_t i = 0; i < count; i++) {
         ADCTouchSample sample = samples[i];
@@ -218,6 +224,23 @@ int ADCPerformTouch(const char *uuid, const char *version, const ADCTouchSample 
             sample.phase != expectedPhase || sample.nanoseconds > 11ULL * NSEC_PER_SEC ||
             (i == 0 ? sample.nanoseconds != 0 : sample.nanoseconds <= samples[i - 1].nanoseconds))
             return ADCFail(error, capacity, @"Invalid direct touch sequence; no input sent.");
+        if (secondPoints) {
+            ADCTouchPoint second = secondPoints[i];
+            if (!isfinite(second.x) || !isfinite(second.y) || second.x < 0 || second.x > 1 || second.y < 0 || second.y > 1 ||
+                (second.x == sample.x && second.y == sample.y))
+                return ADCFail(error, capacity, @"Invalid second contact; no input sent.");
+        }
     }
-    return ADCPerformInput(uuid, version, 0, 0, samples, count, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, samples, secondPoints, count, error, capacity);
+}
+
+int ADCPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
+                    size_t count, char *error, size_t capacity) {
+    return ADCValidateAndPerformTouch(uuid, version, samples, NULL, count, error, capacity);
+}
+
+int ADCPerformTwoContactTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
+                    const ADCTouchPoint *secondPoints, size_t count, char *error, size_t capacity) {
+    if (!secondPoints) return ADCFail(error, capacity, @"Missing second contact; no input sent.");
+    return ADCValidateAndPerformTouch(uuid, version, samples, secondPoints, count, error, capacity);
 }

@@ -158,6 +158,20 @@ arg "<file>" help="Local JSON gesture sequence; sends one complete physical touc
 '''
 run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_GESTURE_FILE="$usage_file" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings'
 
+[tasks."test:mcp-pinch"]
+extends = "swift"
+description = "Send one direct Apple two-contact pinch through real MCP and capture its result"
+depends = ["build"]
+usage = '''
+arg "<device>" help="Explicit physical device UDID"
+arg "<center_x>" help="Normalized interface x coordinate"
+arg "<center_y>" help="Normalized interface y coordinate"
+arg "<start_span>" help="Initial fraction of screen width"
+arg "<end_span>" help="Final fraction of screen width"
+arg "<seconds>" help="Gesture duration 0.03...10 seconds; sends one gesture"
+'''
+run = 'APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_PINCH="$usage_center_x,$usage_center_y,$usage_start_span,$usage_end_span,$usage_seconds" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings'
+
 [tasks."idevice:build"]
 extends = "idevice"
 description = "Build the locked idevice bridge into tmp/bin"

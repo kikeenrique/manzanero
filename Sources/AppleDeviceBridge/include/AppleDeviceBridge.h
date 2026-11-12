@@ -14,7 +14,11 @@ typedef struct {
     double y;
     uint64_t phase; // 0 down, 1 move, 2 up
 } ADCTouchSample;
+typedef struct { double x; double y; } ADCTouchPoint;
 int ADCPerformTouch(const char *uuid, const char *version,
                     const ADCTouchSample *samples, size_t count,
                     char *error, size_t errorCapacity);
+int ADCPerformTwoContactTouch(const char *uuid, const char *version,
+                    const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,
+                    size_t count, char *error, size_t errorCapacity);
 #endif

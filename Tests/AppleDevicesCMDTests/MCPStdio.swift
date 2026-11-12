@@ -128,8 +128,9 @@ struct MCPStdioTests {
                 return
             }
             let hold = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_LONG_PRESS"]
+            let pinch = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PINCH"]
             let sequenceFile = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_GESTURE_FILE"]
-            if hold != nil || sequenceFile != nil {
+            if hold != nil || sequenceFile != nil || pinch != nil {
                 let operation: String
                 let name: String
                 let arguments: [String: Any]
@@ -139,6 +140,12 @@ struct MCPStdioTests {
                     _ = try NativeGestureSequence(json: json)
                     operation = "gesture"; name = "perform_gesture"
                     arguments = ["device": physical, "sequence": json]
+                } else if let pinch {
+                    let operands = pinch.split(separator: ",").map(String.init)
+                    _ = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical, "pinch"] + operands))
+                    let values = try operands.map { try #require(Double($0)) }
+                    operation = "pinch"; name = "pinch"
+                    arguments = ["device": physical, "center_x": values[0], "center_y": values[1], "start_span": values[2], "end_span": values[3], "seconds": values[4]]
                 } else {
                     let operands = try #require(hold).split(separator: ",").map(String.init)
                     let command = ["--physical-backend", "coredevice", "physical", physical, "long-press"] + operands
@@ -155,6 +162,11 @@ struct MCPStdioTests {
                 if operation == "long-press" {
                     #expect(receipt["backend"] as? String == "coredevice-direct")
                     #expect((receipt["sampleCount"] as? Int ?? 0) > 2)
+                }
+                if operation == "pinch" {
+                    #expect(receipt["backend"] as? String == "coredevice-direct")
+                    #expect(receipt["contactCount"] as? Int == 2)
+                    #expect(receipt["sampleCount"] as? Int == 32)
                 }
                 #expect(receipt["verified"] as? Bool == false)
                 let artifact = directory.appendingPathComponent("physical-\(operation).json")

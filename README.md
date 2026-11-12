@@ -31,7 +31,7 @@ mise run cli physical <UDID> button home
 mise run cli --physical-backend coredevice physical <UDID> button home
 ```
 
-Home, Settings tap/drag, and a Maps icon long-press were screenshot-verified on the USB iPhone 13 mini. Single-contact `tap`, `long-press`, `drag`, and `swipe` also default to the direct backend. Coordinates are normalized in the current interface; inspect the screen before input. Other buttons/orientations and interruption cleanup need hardware coverage. See [direct input and migration status](docs/NATIVE-INPUT.md). Legacy bridge build tasks remain as research material, not runtime setup instructions.
+Home, Settings tap/drag, and a Maps icon long-press were screenshot-verified on the USB iPhone 13 mini. Single-contact `tap`, `long-press`, `drag`, and `swipe` default to the direct backend. Direct `pinch` and exactly two-path `multi-drag` are implemented and unit-tested; their hardware verification is pending. Coordinates are normalized in the current interface; inspect the screen before input. Other buttons/orientations and interruption cleanup need hardware coverage. See [direct input and migration status](docs/NATIVE-INPUT.md). Legacy bridge build tasks remain as research material, not runtime setup instructions.
 
 ## Optional MCP interface
 
