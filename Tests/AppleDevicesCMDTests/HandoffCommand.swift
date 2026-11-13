@@ -102,6 +102,13 @@ struct HandoffCommandTests {
         while !(await gate.waiting), ContinuousClock.now < deadline { await Task.yield() }
         try #require(await gate.waiting)
         do {
+            for operands in [["multi-tap", "0.25", "0.25", "0.75", "0.25"],
+                             ["multi-drag", "1"] + Array(repeating: "0.5", count: 12)] {
+                do {
+                    _ = try await service.execute(["physical", udid] + operands)
+                    Issue.record("Standalone multitouch bypassed handoff pause")
+                } catch { #expect(String(describing: error).contains("Automation is paused")) }
+            }
             let observation = try await service.execute(["physical", udid, "readiness"])
             #expect(observation.exitCode == 0)
             do {

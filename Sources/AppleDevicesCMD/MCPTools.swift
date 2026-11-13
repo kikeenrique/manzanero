@@ -78,7 +78,7 @@ enum MCPTools {
     private static let platform = MCPField(name: "platform", choices: ["physical", "simulator"])
     private static let device = MCPField(name: "device", description: "Explicit target identifier; use the UDID from list_devices.")
     private static let pairing = MCPField(name: "pairing_file", description: "Existing private pairing file for physical idevice operations only; pair using the CLI first.", required: false)
-    private static let inputBackend = MCPField(name: "backend", description: "Physical input only. Buttons, named keys, single-contact touch, pinch and two-path multi-drag default to in-process coredevice. idevice is disabled; other input awaits direct migration. Never automatically retries with another backend.", required: false, choices: ["idevice", "coredevice"])
+    private static let inputBackend = MCPField(name: "backend", description: "Physical input only. Buttons, named keys, touch, pinch and two-to-five-path multi-drag default to in-process coredevice. idevice is disabled. Never automatically retries with another backend.", required: false, choices: ["idevice", "coredevice"])
     private static let x = MCPField(name: "x", kind: .number)
     private static let y = MCPField(name: "y", kind: .number)
 
@@ -113,13 +113,13 @@ enum MCPTools {
         .init(name: "drag", description: "Drag one physical contact through in-process Apple CoreDevice. Current-interface normalized coordinates; duration 0.03...10 seconds. Rechecks display geometry/orientation and sends a complete bounded schedule followed by release/barrier. Dispatch does not prove movement or release. Simulator AXe input and idevice are disabled.", fields: [platform, device, .init(name: "x1", kind: .number), .init(name: "y1", kind: .number), .init(name: "x2", kind: .number), .init(name: "y2", kind: .number), .init(name: "seconds", kind: .number), pairing, inputBackend]) {
             $0.deviceCommand(["drag"] + ["x1", "y1", "x2", "y2", "seconds"].map($0.number))
         },
-        .init(name: "multi_tap", description: "Physical simultaneous contact and release at two to five normalized coordinate pairs. Does not implement moving multitouch.", fields: [device, .init(name: "coordinates", kind: .array, description: "Flat numeric array [x1,y1,x2,y2,...], 4...10 values."), pairing]) {
+        .init(name: "multi_tap", description: "Physical simultaneous contact and release after 80 ms at two to five normalized coordinate pairs through in-process Apple Universal HID. Dispatch does not verify UI effect/release; no helper or replay.", fields: [device, .init(name: "coordinates", kind: .array, description: "Flat numeric array [x1,y1,x2,y2,...], 4...10 values."), pairing]) {
             let numbers = ($0["coordinates"]?.arrayValue ?? []).map { value -> String in
                 if case .int(let n) = value { return String(n) }; if case .double(let n) = value { return String(n) }; return ""
             }
             return $0.deviceCommand(["multi-tap"] + numbers, platform: "physical")
         },
-        .init(name: "multi_drag", description: "Move exactly two physical contacts along straight paths through in-process Apple CoreDevice. Current-interface normalized coordinates; duration 0.03...10 seconds. Both contacts remain present through lift. Overlapping/crossing paths are refused. Three-to-five-contact paths remain unavailable pending direct migration. Dispatch does not verify UI effect/release; no helper or replay.", fields: [device, .init(name: "paths", kind: .array, description: "Flat array [startX,startY,endX,endY,...]. Direct backend currently accepts exactly eight numbers, four per contact; larger legacy shapes are unavailable."), .init(name: "seconds", kind: .number), pairing, inputBackend]) {
+        .init(name: "multi_drag", description: "Move two to five physical contacts along straight paths through in-process Apple CoreDevice. Current-interface normalized coordinates; duration 0.03...10 seconds. Contacts start together and release 1 ms after movement. Two-path Indigo input refuses overlapping/crossing paths; three-to-five paths use Universal HID. Dispatch does not verify UI effect/release; no helper or replay.", fields: [device, .init(name: "paths", kind: .array, description: "Flat array [startX,startY,endX,endY,...], 8...20 numbers, four per contact."), .init(name: "seconds", kind: .number), pairing, inputBackend]) {
             let paths = ($0["paths"]?.arrayValue ?? []).map { value -> String in
                 if case .int(let n) = value { return String(n) }; if case .double(let n) = value { return String(n) }; return ""
             }

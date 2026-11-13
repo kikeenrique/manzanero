@@ -1,5 +1,15 @@
 # Verification records
 
+## Direct standalone multitouch commands — 2026-11-13
+
+Migrated default CLI/MCP `multi-tap` (two to five contacts) and three-to-five-path `multi-drag` to the existing in-process Apple Universal HID engine. Exactly two-path movement remains on Indigo. Fresh identity/readiness and two equal awake-display snapshots precede dispatch; no helper or dependency was added. Generated drags preserve the full requested 0.03...10-second movement, sampling 30 movements and releasing 1 ms afterward. User JSON schedules retain their 10-second limit; the C boundary permits only the additional millisecond for generated release.
+
+`mise run test` passed all 171 Swift test functions with zero errors/warnings. New parameterized coverage checks two-to-five-slot simultaneous press/release, transformed coordinates, three-to-five-path endpoints and timing at 30/10,000 ms, rejection before queries, default direct dry runs, handoff pause enforcement and the C boundary's 10,001/10,002 ms limits. `mise run build` passed without warnings; all 26 mise tasks validate. Added `test:mcp-multitouch` for a single explicit live standalone command, receipt and screenshot.
+
+Live checks used the awake/unlocked, wired iPhone 13 mini on iOS 27.2.1 (24B156), with fresh Developer Mode/DDI readiness and CoreDevice 651.32. Real MCP two-contact tap at (.35,.3)/(.65,.3) produced a two-frame, 80 ms direct receipt and visibly zoomed Maps out. Real MCP three-path movement completed 32 frames over 601 ms; it opened a place card rather than proving the intended three-contact spread. CLI five-path vertical movement completed 32 frames over 301 ms, and a subsequent screenshot remained in Maps with a place card. These larger-contact results establish dispatch/barrier completion only; they do not prove independent recognition of every contact or reliable gesture semantics. Four-contact hardware effects, exact timing, release after failures/interruption, other orientations/devices and Wi-Fi remain unverified. Receipts retain `verified: false` and `releaseVerified: false`. Home was dispatched after testing.
+
+Screenshots and MCP receipts remain in ignored `tmp/`; no local device data is committed. The broader parity goal remains incomplete, including physical accessibility, lifecycle/ownership cleanup, video and other Apple-family coverage.
+
 These are historical, task-specific observations. Earlier counts and limitations describe that revision; they are not the current feature inventory. See [ROADMAP.md](ROADMAP.md) for current status. Unless a live check is explicitly listed, build, parser, and synthetic protocol tests do not establish device behavior.
 
 ## 2026-11-11 — simulator interaction backend

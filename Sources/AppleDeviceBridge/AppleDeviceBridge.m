@@ -538,7 +538,7 @@ int ADCPerformDigitizerReports(const char *uuid, const char *version, const uint
         const uint8_t *bytes = reports + frame * 58;
         size_t contacts = bytes[1];
         if (bytes[0] != 9 || contacts < 1 || contacts > 5 || contacts != reports[1] || bytes[2] != 5 ||
-            times[frame] > 10ULL * NSEC_PER_SEC || (frame == 0 ? times[frame] != 0 : times[frame] <= times[frame - 1]))
+            times[frame] > 10ULL * NSEC_PER_SEC + NSEC_PER_MSEC || (frame == 0 ? times[frame] != 0 : times[frame] <= times[frame - 1]))
             return ADCFail(error, capacity, @"Invalid digitizer report identity or time; no input sent.");
         BOOL active = NO;
         for (size_t id = 0; id < contacts; id++) {

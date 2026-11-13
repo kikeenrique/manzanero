@@ -2,6 +2,43 @@ import AppleDeviceBridge
 import Foundation
 
 enum DirectPhysicalGesture {
+    static func handles(_ input: CoreDeviceInput) -> Bool {
+        input.operation == "gesture" || input.operation == "multi-tap" ||
+            (input.operation == "multi-drag" && input.operands.count != 9)
+    }
+
+    static func sequence(for input: CoreDeviceInput,
+                         transform: (Double, Double) -> (Double, Double) = { ($0, $1) }) throws -> NativeGestureSequence {
+        if input.operation == "gesture", input.operands.count == 1 {
+            return try NativeGestureSequence(json: input.operands[0], transform: transform)
+        }
+        guard ["multi-tap", "multi-drag"].contains(input.operation),
+              try PhysicalInteraction.plan(device: input.device, operation: input.operation, operands: input.operands) != nil else {
+            throw CommandFailure(description: "Direct gesture expects a JSON schedule, multi-tap points, or multi-drag paths; no input sent.")
+        }
+        // PhysicalInteraction validated finite coordinates and duration above.
+        let values = input.operands.compactMap(Double.init)
+        typealias Touch = NativeGestureSequence.Touch
+        typealias Frame = NativeGestureSequence.Frame
+        if input.operation == "multi-tap" {
+            let touches = stride(from: 0, to: values.count, by: 2).map {
+                Touch(id: $0 / 2, x: values[$0], y: values[$0 + 1])
+            }
+            return try NativeGestureSequence(frames: [Frame(ms: 0, touches: touches), Frame(ms: 80, touches: [])], transform: transform)
+        }
+        let duration = Int((values[0] * 1000).rounded())
+        let frames = (0...30).map { step in
+            let fraction = Double(step) / 30
+            let touches = stride(from: 1, to: values.count, by: 4).map { offset in
+                Touch(id: (offset - 1) / 4,
+                      x: values[offset] + (values[offset + 2] - values[offset]) * fraction,
+                      y: values[offset + 1] + (values[offset + 3] - values[offset + 1]) * fraction)
+            }
+            return Frame(ms: Int((Double(duration) * fraction).rounded()), touches: touches)
+        }
+        return try NativeGestureSequence(frames: frames + [Frame(ms: duration + 1, touches: [])], transform: transform)
+    }
+
     struct Request {
         let uuid: String
         let version: String
@@ -10,21 +47,18 @@ enum DirectPhysicalGesture {
 
     static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
                         send: (Request) throws -> UInt64 = dispatch) throws -> Data {
-        guard input.operation == "gesture", input.operands.count == 1 else {
-            throw CommandFailure(description: "Direct gesture expects one complete JSON schedule; no input sent.")
-        }
-        _ = try NativeGestureSequence(json: input.operands[0])
+        _ = try sequence(for: input)
         let identity = try DirectPhysicalInput.identity(input, query: query)
         let plan = DeviceCommand(arguments: ["devicectl", "device", "info", "displays", "--device", identity.uuid,
             "--timeout", "15", "--json-output", "-", "--quiet"], jsonOutput: true)
         let display = try DirectTouchDisplay(query(plan))
-        let sequence = try NativeGestureSequence(json: input.operands[0], transform: display.portrait)
+        let sequence = try sequence(for: input, transform: display.portrait)
         guard try DirectTouchDisplay(query(plan)) == display else {
             throw CommandFailure(description: "Display changed before gesture dispatch; no input sent.")
         }
         try Task.checkCancellation()
         let surface = try send(Request(uuid: identity.uuid, version: identity.version, sequence: sequence))
-        return try JSONSerialization.data(withJSONObject: ["backend": "coredevice-direct", "operation": "gesture",
+        return try JSONSerialization.data(withJSONObject: ["backend": "coredevice-direct", "operation": input.operation,
             "status": "dispatched", "verified": false, "releaseVerified": false, "device": input.device,
             "resolvedCoreDeviceUUID": identity.uuid, "surfaceID": surface,
             "frameCount": sequence.times.count, "contactSlots": sequence.contactCount,

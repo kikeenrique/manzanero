@@ -12,8 +12,8 @@ struct CoreDeviceInput {
     static func parse(_ args: [String]) throws -> Self? {
         guard args.first == "--physical-backend" else { return nil }
         guard args.count >= 5, args[1] == "coredevice", args[2] == "physical",
-              ["button", "tap", "long-press", "gesture", "drag", "swipe", "key", "type", "paste", "multi-drag", "pinch"].contains(args[4]) else {
-            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch> ... . Pairing files are not supported by this backend.")
+              ["button", "tap", "multi-tap", "long-press", "gesture", "drag", "swipe", "key", "type", "paste", "multi-drag", "pinch"].contains(args[4]) else {
+            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|multi-tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch> ... . Pairing files are not supported by this backend.")
         }
         var operands = Array(args.dropFirst(5))
         guard !args[3].isEmpty, !args[3].hasPrefix("-") else {

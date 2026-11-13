@@ -174,11 +174,22 @@ struct MCPStdioTests {
             let hold = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_LONG_PRESS"]
             let pinch = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PINCH"]
             let sequenceFile = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_GESTURE_FILE"]
-            if hold != nil || sequenceFile != nil || pinch != nil {
+            let multitouch = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_MULTITOUCH"]
+            if hold != nil || sequenceFile != nil || pinch != nil || multitouch != nil {
                 let operation: String
                 let name: String
                 let arguments: [String: Any]
-                if let sequenceFile {
+                if let multitouch {
+                    let operands = multitouch.split(separator: ",").map(String.init)
+                    operation = try #require(operands.first)
+                    try #require(["multi-tap", "multi-drag"].contains(operation))
+                    let input = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical] + operands))
+                    _ = try DirectPhysicalGesture.sequence(for: input)
+                    let values = try input.operands.map { try #require(Double($0)) }
+                    name = operation == "multi-tap" ? "multi_tap" : "multi_drag"
+                    arguments = operation == "multi-tap" ? ["device": physical, "coordinates": values] :
+                        ["device": physical, "seconds": values[0], "paths": Array(values.dropFirst())]
+                } else if let sequenceFile {
                     let bytes = try Data(contentsOf: URL(fileURLWithPath: sequenceFile), options: .mappedIfSafe)
                     let json = try #require(String(data: bytes, encoding: .utf8))
                     _ = try NativeGestureSequence(json: json)
@@ -212,7 +223,7 @@ struct MCPStdioTests {
                     #expect(receipt["contactCount"] as? Int == 2)
                     #expect(receipt["sampleCount"] as? Int == 32)
                 }
-                if operation == "gesture" {
+                if ["gesture", "multi-tap", "multi-drag"].contains(operation) {
                     #expect(receipt["backend"] as? String == "coredevice-direct")
                     #expect((receipt["frameCount"] as? Int ?? 0) >= 2)
                     #expect((receipt["contactSlots"] as? Int ?? 0) >= 1)

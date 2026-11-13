@@ -1,5 +1,7 @@
 # Development tasks
 
+`mise run test:mcp-multitouch <UDID> <multi-tap|multi-drag> <comma-separated-operands>` sends one standalone direct multitouch command through the real MCP stdio server and saves a receipt and screenshot under `tmp/`. For `multi-drag`, the operands start with seconds, followed by three to five groups of start-x, start-y, end-x, end-y. For `multi-tap`, supply two to five x,y pairs. This is a live device mutation, not a dry run.
+
 Executable Bash task files live under `mise/tasks/`. `mise.toml` selects that directory and keeps shared Swift/Rust environment templates and the pinned Rust version. No task commands remain inline in that file.
 
 | Files | Task names |
