@@ -7,6 +7,10 @@
 /// Returns 1 for a UID, 0 for another plist value, -1 if Apple symbols are absent.
 int ADCReadArchiveUID(const void *object, uint64_t *value);
 
+/// Bounded domain/code and whitelisted standard explanations from a borrowed
+/// XPC error dictionary. Does not dump arbitrary userInfo or instantiate errors.
+void ADCDescribeCoreDeviceError(const void *errorDictionary, char *output, size_t capacity);
+
 /// Opens only Apple's named remote accessibility service, without a RemoteXPC
 /// upgrade. Returns an owned FD, or -1. Close FD and owner together below.
 int ADCOpenAccessibilitySocket(const char *uuid, const char *version, void **owner,

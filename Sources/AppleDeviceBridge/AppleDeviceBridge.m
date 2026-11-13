@@ -5,6 +5,7 @@
 #include <math.h>
 #include <time.h>
 #include <fcntl.h>
+#include <string.h>
 #include "AppleDeviceBridge.h"
 
 int ADCReadArchiveUID(const void *object, uint64_t *value) {
@@ -45,6 +46,38 @@ typedef void (*ADCReply)(ADCRemote, xpc_object_t, dispatch_queue_t, xpc_handler_
 static int ADCFail(char *error, size_t capacity, NSString *message) {
     if (error && capacity) snprintf(error, capacity, "%s", message.UTF8String);
     return 1;
+}
+
+static NSString *ADCErrorText(xpc_object_t dictionary, const char *key) {
+    const char *text = xpc_dictionary_get_string(dictionary, key);
+    if (!text) return nil;
+    NSString *value = [[NSString alloc] initWithBytes:text length:strnlen(text, 256) encoding:NSUTF8StringEncoding];
+    if (!value) return @"<invalid or truncated UTF-8>";
+    return [[value componentsSeparatedByCharactersInSet:NSCharacterSet.controlCharacterSet] componentsJoinedByString:@" "];
+}
+
+void ADCDescribeCoreDeviceError(const void *errorDictionary, char *output, size_t capacity) {
+    @autoreleasepool {
+        xpc_object_t error = errorDictionary ? (__bridge xpc_object_t)errorDictionary : nil;
+        NSMutableArray<NSString *> *codes = [NSMutableArray array], *explanations = [NSMutableArray array];
+        for (NSUInteger depth = 0; depth < 3 && error && xpc_get_type(error) == XPC_TYPE_DICTIONARY; depth++) {
+            NSString *domain = ADCErrorText(error, "domain") ?: @"unknown";
+            [codes addObject:[NSString stringWithFormat:@"%@%@ %lld", depth ? @"underlying: " : @"", domain, xpc_dictionary_get_int64(error, "code")]];
+            xpc_object_t info = xpc_dictionary_get_dictionary(error, "userInfo");
+            // Never enumerate arbitrary error keys or serialize private payloads.
+            for (NSString *key in @[@"localizedDescription", @"NSLocalizedDescription", @"NSLocalizedFailureReason", @"NSLocalizedRecoverySuggestion"]) {
+                NSString *value = ADCErrorText(error, key.UTF8String);
+                if (!value && info) value = ADCErrorText(info, key.UTF8String);
+                if (value.length && ![explanations containsObject:value]) [explanations addObject:value];
+            }
+            xpc_object_t nested = info ? xpc_dictionary_get_dictionary(info, "NSUnderlyingError") : nil;
+            if (!nested) nested = xpc_dictionary_get_dictionary(error, "NSUnderlyingError");
+            if (!nested) nested = xpc_dictionary_get_dictionary(error, "underlyingError");
+            error = nested;
+        }
+        NSArray<NSString *> *parts = [codes arrayByAddingObjectsFromArray:explanations];
+        ADCFail(output, capacity, parts.count ? [parts componentsJoinedByString:@"; "] : @"unknown Apple socket failure");
+    }
 }
 
 static int ADCPrepareCoreDevice(char *error, size_t capacity) {
@@ -117,10 +150,10 @@ int ADCOpenAccessibilitySocket(const char *uuid, const char *version, void **own
         int descriptor = output ? xpc_dictionary_dup_fd(output, "fileDescriptor") : -1;
         if (descriptor < 0) {
             xpc_object_t failure = response && xpc_get_type(response) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(response, "CoreDevice.error") : NULL;
-            const char *domain = failure ? xpc_dictionary_get_string(failure, "domain") : NULL;
-            long long code = failure ? xpc_dictionary_get_int64(failure, "code") : 0;
+            char details[2048];
+            ADCDescribeCoreDeviceError(failure ? (__bridge const void *)failure : NULL, details, sizeof(details));
             xpc_connection_cancel(connection);
-            ADCFail(error, capacity, [NSString stringWithFormat:@"Apple refused the raw accessibility socket (%s %lld); no accessibility subscription sent.", domain ?: "unknown", code]);
+            ADCFail(error, capacity, [NSString stringWithFormat:@"Apple refused the raw accessibility socket; no accessibility subscription sent. %s", details]);
             return -1;
         }
         if (fcntl(descriptor, F_SETFD, FD_CLOEXEC) == -1) {
