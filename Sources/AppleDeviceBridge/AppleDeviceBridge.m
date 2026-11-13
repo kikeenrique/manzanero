@@ -135,7 +135,8 @@ int ADCOpenAccessibilitySocket(const char *uuid, const char *version, void **own
     }
 }
 
-int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUDID, void **owner, char *error, size_t capacity) {
+static int ADCOpenRSDAXSocket(const char *remoteUUID, const char *expectedUDID, BOOL browsePresent,
+                              void **owner, char *error, size_t capacity) {
     @autoreleasepool {
         if (owner) *owner = NULL;
         NSString *identifier = remoteUUID ? [NSString stringWithUTF8String:remoteUUID] : nil;
@@ -174,7 +175,43 @@ int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUD
         xpc_object_t selection = xpc_dictionary_create_empty();
         xpc_dictionary_set_string(selection, "DeviceType", typeName);
         xpc_dictionary_set_string(selection, "DeviceUUID", remoteUUID);
-        id device = CFBridgingRelease(matching(selection));
+        id device = nil;
+        if (browsePresent) {
+            // Installed remotectl browse_present caller: device argument plus
+            // nonzero completion flag, delivered on the supplied serial queue.
+            void (*browse)(int, dispatch_queue_t, void (^)(id, int)) = dlsym(RTLD_DEFAULT, "remote_device_browse_present");
+            void (*copyUUID)(id, unsigned char *) = dlsym(RTLD_DEFAULT, "remote_device_copy_uuid");
+            if (!browse || !copyUUID) {
+                ADCFail(error, capacity, @"Apple RSD one-shot browser APIs are unavailable.");
+                return -1;
+            }
+            dispatch_queue_t queue = dispatch_queue_create("appledevices.rsd.present", DISPATCH_QUEUE_SERIAL);
+            dispatch_semaphore_t finished = dispatch_semaphore_create(0);
+            NSMutableArray *choices = [NSMutableArray new];
+            __block BOOL closed = NO;
+            browse(expectedType, queue, ^(id candidate, int complete) {
+                if (complete) { dispatch_semaphore_signal(finished); return; }
+                if (!candidate || deviceType(candidate) != expectedType) return;
+                unsigned char bytes[16]; copyUUID(candidate, bytes);
+                NSUUID *uuid = [[NSUUID alloc] initWithUUIDBytes:bytes];
+                if ([identifier caseInsensitiveCompare:uuid.UUIDString] != NSOrderedSame) return;
+                @synchronized (choices) {
+                    if (!closed && choices.count < 2) [choices addObject:candidate];
+                }
+            });
+            BOOL timedOut = dispatch_semaphore_wait(finished, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)) != 0;
+            @synchronized (choices) {
+                closed = YES;
+                if (!timedOut && choices.count == 1) device = choices.firstObject;
+            }
+            if (!device) {
+                ADCFail(error, capacity, timedOut ? @"Apple RSD one-shot inventory timed out; no service opened." :
+                    @"Apple RSD one-shot inventory did not identify exactly one requested UUID; no service opened.");
+                return -1;
+            }
+        } else {
+            device = CFBridgingRelease(matching(selection));
+        }
         if (!device || state(device) != 2) {
             ADCFail(error, capacity, [NSString stringWithFormat:@"Selected Apple RSD device %@; no subscription sent.", device ? [NSString stringWithFormat:@"is not connected (state %d)", state(device)] : @"was not found"]);
             return -1;
@@ -206,7 +243,7 @@ int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUD
             return true;
         });
         if (!advertised) {
-            ADCFail(error, capacity, [NSString stringWithFormat:@"Apple RSD %s inventory (%zu services) did not advertise accessibility to this client; no subscription sent.", typeName, serviceCount]);
+            ADCFail(error, capacity, [NSString stringWithFormat:@"Apple RSD %@ %s inventory (%zu services) did not advertise accessibility to this client; no subscription sent.", browsePresent ? @"one-shot browse" : @"direct lookup", typeName, serviceCount]);
             return -1;
         }
         id endpoint = CFBridgingRelease(service(device, "com.apple.accessibility.axAuditDaemon.remoteAXService"));
@@ -230,6 +267,14 @@ int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUD
         *owner = (void *)CFBridgingRetain(lifetime);
         return descriptor;
     }
+}
+
+int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUDID, void **owner, char *error, size_t capacity) {
+    return ADCOpenRSDAXSocket(remoteUUID, expectedUDID, NO, owner, error, capacity);
+}
+
+int ADCOpenBrowsedRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUDID, void **owner, char *error, size_t capacity) {
+    return ADCOpenRSDAXSocket(remoteUUID, expectedUDID, YES, owner, error, capacity);
 }
 
 void ADCCloseAccessibilitySocket(int descriptor, void *owner) {

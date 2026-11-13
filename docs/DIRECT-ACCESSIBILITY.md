@@ -65,4 +65,14 @@ Local validation after the retry passed 163 test functions with zero errors/warn
 
 ## Further read-only discovery evidence
 
+The RSD socket probe now has an explicit `--browse` comparison:
+
+```sh
+mise run test:ax-socket <hardware-UDID> --remote-uuid <fresh-remote-UUID> --browse
+```
+
+Installed remotectl disassembly shows `show`/`dumpstate` using `remote_device_browse_present`, while lookup commands use `remote_device_copy_device_matching`. The additional bridge path follows the one-shot browse callback shape, filters the required device type and exact remote UUID, waits at most five seconds for inventory completion, and refuses zero or multiple matches. Candidate storage is synchronized; late callbacks cannot populate a closed selection. Hardware UDID, connected state, exact service inventory, encryption and descriptor ownership guards remain shared with the direct-lookup path. This diagnostic does not replace product routing or retry another backend automatically.
+
+The selected iPhone's remote UUID was freshly checked against its hardware UDID through Apple's tool. The opt-in browse probe completed but again saw zero services and failed before opening an endpoint or subscribing. Thus the direct lookup versus one-shot browse distinction did not restore inventory access. The private-entitlement hypothesis below remains unproven; no phone setting change is justified by this result. CoreDevice/raw-RSD transport and live tree semantics remain unresolved.
+
 A later fresh `remotectl show -t coredevice-device` still matched the selected iPhone hardware and advertised the AX endpoint on iOS 27.2.1 (24B156). `netstat -anv -p tcp` again returned no rows; `dumpstate` exposed service properties but no usable RSD port in the inspected output. No port was inferred or guessed. Installed `remotectl` entitlements include `com.apple.private.RemoteServiceDiscovery.device-admin`, `com.apple.private.RemoteServiceDiscovery.compute-platform` and network-client access. Those privileges differ from this project's executable and may explain an inventory discrepancy, but neither their necessity nor the failure's cause was established. No private entitlements were added, no device setting changed, and no non-Apple executable was invoked. The next live transport still needs a supported/discovered endpoint; local archive decoding can now proceed independently of it.

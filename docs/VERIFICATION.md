@@ -1,5 +1,11 @@
 # Verification records
 
+## One-shot Apple RSD discovery comparison — 2026-11-13
+
+Added an explicitly selected one-shot browse variant to the in-process RSD AX socket diagnostic. Installed Apple remotectl caller instructions establish the browse-present function and callback shape; its type and UUID filtering now run separately from direct device matching. Selection has a five-second completion deadline, synchronized candidate ownership and a late-callback close guard. Exactly one match must then pass the shared connected-state/hardware-UDID/service/encryption/descriptor checks. The CLI/MCP AX runtime remains unavailable; this is an opt-in test, not a fallback.
+
+Local `mise run test` passed 182 test functions with zero warnings/errors, including invalid-identity/cleared-owner validation of the new entry point. All 27 mise tasks validate. Before the live probe, Apple get-property freshly matched the selected remote UUID to the iPhone 13 mini UDID. The browse-selected socket test failed with a zero-service inventory before endpoint opening or subscription; its accompanying local guard test passed. The failure was not masked. The earlier direct-lookup result was also zero services, while Apple's tool advertised AX. This rules out the tested browse-versus-lookup change as a sufficient fix; it does not establish an entitlement requirement or a disabled phone setting. The last freshly observed device version remains iOS 27.2.1 (24B156), host macOS 27.2.1 (26B131), CoreDevice 651.32 and Xcode 27.2 (27B52).
+
 ## In-process keyed-archive inspection — 2026-11-13
 
 Restored CLI `decode-ax-archive` and MCP `decode_accessibility_archive` through project-owned Swift/Foundation code, replacing the disabled helper for this operation. No new dependency or separate binary was added. Foundation parses property-list data; custom bounded traversal resolves UIDs and known wrappers without NSKeyedUnarchiver or class instantiation. Unknown classes remain structural records; opaque bytes remain byte counts. JSON keeps `format: decoded-nskeyedarchive`, `experimental: true` and `parsedHierarchy: false`. This is not live AX transport, normalized tree decoding, or selector support.

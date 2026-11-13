@@ -17,6 +17,8 @@ struct AccessibilitySocketTests {
         var error = [CChar](repeating: 0, count: 512)
         #expect(ADCOpenRSDAccessibilitySocket("invalid", "invalid", &owner, &error, error.count) == -1)
         #expect(owner == nil)
+        #expect(ADCOpenBrowsedRSDAccessibilitySocket("invalid", "invalid", &owner, &error, error.count) == -1)
+        #expect(owner == nil)
         #expect(ADCOpenRSDAccessibilitySocket(UUID().uuidString, "00000000-0000000000000000\n", &owner, &error, error.count) == -1)
         #expect(owner == nil)
         ADCCloseAccessibilitySocket(-1, nil)
@@ -33,7 +35,9 @@ struct AccessibilitySocketTests {
         var error = [CChar](repeating: 0, count: 1024)
         let descriptor: Int32
         if let remote = ProcessInfo.processInfo.environment["APPLEDEVICES_AX_SOCKET_REMOTE_UUID"] {
-            descriptor = ADCOpenRSDAccessibilitySocket(remote, device, &owner, &error, error.count)
+            descriptor = ProcessInfo.processInfo.environment["APPLEDEVICES_AX_SOCKET_BROWSE"] == "1" ?
+                ADCOpenBrowsedRSDAccessibilitySocket(remote, device, &owner, &error, error.count) :
+                ADCOpenRSDAccessibilitySocket(remote, device, &owner, &error, error.count)
         } else {
             descriptor = ADCOpenAccessibilitySocket(identity.uuid, identity.version, &owner, &error, error.count)
         }

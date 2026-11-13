@@ -1,5 +1,7 @@
 # Development tasks
 
+`mise run test:ax-socket <UDID> --remote-uuid <remote-UUID> --browse` explicitly compares Apple's one-shot discovery path with the existing direct RSD lookup. It verifies hardware identity and opens only the exact AX endpoint if advertised; it sends no subscription or input. `--browse` without a remote UUID is rejected. A failed probe remains a failure, not a capability result.
+
 `mise run test:mcp-cancel-gesture <UDID> <local-sequence.json>` sends one 8...10-second direct gesture through real MCP, requests cancellation after two seconds, then queues a screenshot. It checks that the follow-up response arrives before the uncancelled schedule could finish and that no ordinary response for the cancelled request precedes it. Artifacts remain under `tmp/`. This mutates the device; it does not establish device-side release or prove when the first contact arrived.
 
 `mise run test:mcp-multitouch <UDID> <multi-tap|multi-drag> <comma-separated-operands>` sends one standalone direct multitouch command through the real MCP stdio server and saves a receipt and screenshot under `tmp/`. For `multi-drag`, the operands start with seconds, followed by three to five groups of start-x, start-y, end-x, end-y. For `multi-tap`, supply two to five x,y pairs. This is a live device mutation, not a dry run.

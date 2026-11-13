@@ -3,10 +3,19 @@
 #MISE description = "Probe Apple's raw AX service socket without enabling accessibility or sending input"
 #USAGE arg "<device>" help="Explicit physical device UDID; read-only socket-open check"
 #USAGE flag "--remote-uuid <remote_uuid>" help="Explicit remote UUID for separate raw RSD path; verifies hardware UDID"
+#USAGE flag "--browse" help="Use Apple's one-shot browser rather than direct RSD matching; requires --remote-uuid"
 
 set -e -o pipefail
 
 unset APPLEDEVICES_AX_SOCKET_REMOTE_UUID
+unset APPLEDEVICES_AX_SOCKET_BROWSE
+if [ "${usage_browse:-false}" = "true" ]; then
+  if [ -z "${usage_remote_uuid:-}" ]; then
+    echo "--browse requires --remote-uuid" >&2
+    exit 2
+  fi
+  export APPLEDEVICES_AX_SOCKET_BROWSE=1
+fi
 if [ -n "${usage_remote_uuid:-}" ]; then
   export APPLEDEVICES_AX_SOCKET_REMOTE_UUID="$usage_remote_uuid"
 fi

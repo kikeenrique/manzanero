@@ -14,6 +14,9 @@ int ADCOpenAccessibilitySocket(const char *uuid, const char *version, void **own
 /// Separate explicit RSD path; verifies UniqueDeviceID before opening AX.
 int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUDID, void **owner,
                                   char *error, size_t errorCapacity);
+/// Explicit one-shot browser comparison; uses the same hardware/service guards.
+int ADCOpenBrowsedRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUDID, void **owner,
+                                        char *error, size_t errorCapacity);
 void ADCCloseAccessibilitySocket(int descriptor, void *owner);
 
 /// Finite complete-state digitizer schedule; reports are count * 58 bytes.
