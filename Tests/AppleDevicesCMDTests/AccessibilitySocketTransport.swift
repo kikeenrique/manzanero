@@ -42,7 +42,10 @@ struct AccessibilitySocketTransportTests {
         #expect(count == 48 && received == expected)
         transport.close()
         transport.close()
-        #expect(transport.isClosed && fcntl(owned, F_GETFD) == -1)
+        var byte: UInt8 = 0
+        // A closed descriptor number may already belong to another parallel
+        // test. The still-owned peer observes this socket's actual closure.
+        #expect(transport.isClosed && recv(peer, &byte, 1, MSG_DONTWAIT) == 0)
     }
 
     @Test func cancellationAndExpiryAtFrameBoundaryKeepCleanupPossible() throws {
@@ -153,7 +156,8 @@ struct AccessibilitySocketTransportTests {
         let (owned, peer) = try pair(type: SOCK_DGRAM)
         defer { Darwin.close(peer) }
         #expect(throws: CommandFailure.self) { try AccessibilitySocketTransport(taking: owned) }
-        #expect(fcntl(owned, F_GETFD) == -1)
+        var byte: UInt8 = 0
+        #expect(send(peer, &byte, 1, MSG_NOSIGNAL) == -1)
         #expect(throws: AccessibilitySocketTransport.Failure.closed) { try AccessibilitySocketTransport(taking: -1) }
     }
 

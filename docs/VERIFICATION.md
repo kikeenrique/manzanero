@@ -548,3 +548,9 @@ Selected awake/unlocked wired iPhone 13 mini only. Fresh details still reported 
 - This is one successful General navigation after repositioning, with the failed near-bottom attempt retained. It suggests screen position/occlusion deserves attention, but does not isolate overlay interception, native hit testing, timing or transport delivery as the cause. No hardcoded exclusion region, automatic scroll/tap fallback, repeated dispatch, hold-duration change or backend switch was added. The agent should inspect each result and select any subsequent action from a fresh observation.
 
 This task changed verification and exploration guidance only. No code tests were rerun; the preceding checkpoint passed 254 local test functions. `git diff --check` passed. Private images remain ignored under `tmp/`; the record does not establish broad reliability or complete autonomous testing.
+
+## 2026-11-13 — observe socket cleanup through owned peers
+
+During RSD discovery validation, the parallel suite reported one failure in the existing non-stream rejection test: `fcntl(owned, F_GETFD) == -1`. A descriptor number can be reused by another parallel operation after closure, so querying the old number is not a reliable observation of the original socket's lifetime. The stream-close and datagram-rejection checks now observe the still-owned peer instead: EOF for the drained stream and failed delivery to the rejected datagram peer. The replacement still detects a socket left open; it does not suppress a cleanup failure. No production socket behavior changed.
+
+The full current suite then passed 260 local test functions with zero errors/warnings through xcsift. That count includes six pending RSD parser tests; this commit changes only the existing cleanup checks and this record. Host/tool versions remain macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2. No phone operation was required for this test correction.
