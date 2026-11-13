@@ -24,7 +24,11 @@ MCP `get_screen` accepts `platform`, `device`, and optional `method` (`auto`, `t
 - OCR bounds are normalized 0...1, with the origin at the top left. They describe text regions, not interactive hit targets.
 - Image-only output identifies image-pixel coordinates.
 
-No automatic conversion from OCR bounds to simulator tap points, stable element references, or OCR selector taps is provided. Capture and hierarchy queries occur sequentially, so a changing screen can produce different states. The timestamp describes capture completion, not an atomic capture-and-tree transaction. OCR has no separate deadline; cold startup can be slow.
+No automatic conversion from OCR bounds to simulator tap points, stable element references, or OCR selector taps is provided. Capture and hierarchy queries occur sequentially, so a changing screen can produce different states. The timestamp describes capture completion, not an atomic capture-and-tree transaction.
+
+OCR has a 120-second cooperative recognition deadline, starting after the local image readability check. Expiry requests cancellation, rejects late observations and drains the recognition task before returning. Apple Vision may delay cancellation, so this is not a hard wall-clock limit. Caller cancellation also drains the task and remains cancellation. Automatic mode retains the screenshot as an image-only partial result on deadline failure; forced OCR reports an error with the retained image path. Screenshot capture and hierarchy queries have their own behavior outside this recognition deadline.
+
+To check native Vision against an existing local image without querying a device, run `mise run test:ocr <image>`. The task defaults to the same 120-second allowance; `--timeout-ms 10 --expect-timeout` checks a short cooperative deadline. It writes timing/outcome metadata beneath `tmp/ocr-deadline-*/`, without copying recognized text into that record. A short deadline does not prove that native recognition had started before cancellation.
 
 ## Verification
 

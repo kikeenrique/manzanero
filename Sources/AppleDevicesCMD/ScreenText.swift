@@ -2,6 +2,10 @@ import Foundation
 import Vision
 
 struct ScreenText: Encodable, Sendable {
+    struct DeadlineExceeded: Error, CustomStringConvertible, Sendable {
+        var description: String { "Vision OCR recognition deadline exceeded; cancellation requested and recognition task drained. Native cancellation is cooperative." }
+    }
+
     struct Region: Encodable, Sendable {
         let text: String
         let confidence: Float
@@ -16,21 +20,56 @@ struct ScreenText: Encodable, Sendable {
     let coordinateSpace = "normalized-top-left"
     let regions: [Region]
 
-    static func recognize(path: String) async throws -> ScreenText {
+    static func recognize(path: String, timeout: Duration = .seconds(120),
+                          perform: @Sendable @escaping (URL) async throws -> [Region] = recognizeRegions) async throws -> ScreenText {
+        try Task.checkCancellation()
+        guard timeout > .zero, timeout <= .seconds(300) else {
+            throw CommandFailure(description: "OCR recognition deadline must be positive and at most 300 seconds.")
+        }
         let url = URL(fileURLWithPath: path)
         guard FileManager.default.isReadableFile(atPath: url.path) else {
             throw CommandFailure(description: "Image is not readable: \(path)")
         }
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        do {
+            // Structured scope drains recognition after cancellation. The
+            // deadline cannot forcibly stop an unresponsive native request.
+            let regions = try await withThrowingTaskGroup(of: [Region].self) { group in
+                group.addTask {
+                    try await ContinuousClock().sleep(until: deadline)
+                    throw DeadlineExceeded()
+                }
+                group.addTask {
+                    try Task.checkCancellation()
+                    let regions = try await perform(url)
+                    try Task.checkCancellation()
+                    guard ContinuousClock.now < deadline else { throw DeadlineExceeded() }
+                    return regions
+                }
+                defer { group.cancelAll() }
+                guard let regions = try await group.next() else { throw CancellationError() }
+                return regions
+            }
+            try Task.checkCancellation()
+            return ScreenText(source: url.path, regions: regions)
+        } catch {
+            if Task.isCancelled { throw CancellationError() }
+            throw error
+        }
+    }
+
+    private static func recognizeRegions(_ url: URL) async throws -> [Region] {
         var request = RecognizeTextRequest()
         request.recognitionLevel = .accurate
+        try Task.checkCancellation()
         let observations = try await request.perform(on: url)
-        let regions = observations.compactMap { observation -> Region? in
+        try Task.checkCancellation()
+        return observations.compactMap { observation -> Region? in
             guard let candidate = observation.topCandidates(1).first else { return nil }
             let frame = observation.boundingBox.cgRect
             return Region(text: candidate.string, confidence: candidate.confidence,
                           x: frame.minX, y: 1 - frame.maxY,
                           width: frame.width, height: frame.height)
         }
-        return ScreenText(source: url.path, regions: regions)
     }
 }
