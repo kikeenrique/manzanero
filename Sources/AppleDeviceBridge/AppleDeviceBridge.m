@@ -6,6 +6,7 @@
 #include <time.h>
 #include <fcntl.h>
 #include <libproc.h>
+#include <sys/socket.h>
 #include <string.h>
 #include "AppleDeviceBridge.h"
 
@@ -120,6 +121,117 @@ static xpc_object_t ADCEnvelope(const char *uuid, const char *version, xpc_objec
     xpc_dictionary_set_value(message, "CoreDevice.coreDeviceVersion", release);
     xpc_dictionary_set_value(message, "CoreDevice.input", input);
     return message;
+}
+
+static BOOL ADCValidHardwareUDID(const char *value) {
+    if (!value || strnlen(value, 42) > 40) return NO;
+    NSString *text = [NSString stringWithUTF8String:value];
+    return text.length && [text rangeOfString:@"^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$" options:NSRegularExpressionSearch].length == text.length;
+}
+
+int ADCValidateRSDHandshake(const void *message, const char *expectedUDID, uint16_t *axPort,
+                            char *error, size_t capacity) {
+    @autoreleasepool {
+        if (axPort) *axPort = 0;
+        xpc_object_t root = message ? (__bridge xpc_object_t)message : nil;
+        if (!axPort || !ADCValidHardwareUDID(expectedUDID) || !root || xpc_get_type(root) != XPC_TYPE_DICTIONARY)
+            return ADCFail(error, capacity, @"Invalid RSD handshake or expected hardware identity; no AX connection started.");
+        const char *type = xpc_dictionary_get_string(root, "MessageType");
+        xpc_object_t properties = xpc_dictionary_get_dictionary(root, "Properties");
+        const char *hardware = properties ? xpc_dictionary_get_string(properties, "UniqueDeviceID") : NULL;
+        if (!type || strcmp(type, "Handshake") || !hardware || !ADCValidHardwareUDID(hardware) || strcasecmp(hardware, expectedUDID))
+            return ADCFail(error, capacity, @"RSD handshake did not match the selected hardware identity; no AX connection started.");
+        xpc_object_t services = xpc_dictionary_get_dictionary(root, "Services");
+        if (!services || xpc_dictionary_get_count(services) > 4096)
+            return ADCFail(error, capacity, @"Invalid or oversized RSD service inventory; no AX connection started.");
+        xpc_object_t service = xpc_dictionary_get_dictionary(services, "com.apple.accessibility.axAuditDaemon.remoteAXService");
+        const char *port = service ? xpc_dictionary_get_string(service, "Port") : NULL;
+        xpc_object_t options = service ? xpc_dictionary_get_dictionary(service, "Properties") : NULL;
+        xpc_object_t remote = options ? xpc_dictionary_get_value(options, "UsesRemoteXPC") : nil;
+        xpc_object_t encrypted = options ? xpc_dictionary_get_value(options, "EncryptSocketData") : nil;
+        if (!port || strnlen(port, 6) == 0 || strnlen(port, 6) > 5 ||
+            !remote || xpc_get_type(remote) != XPC_TYPE_BOOL || !xpc_bool_get_value(remote) ||
+            !encrypted || xpc_get_type(encrypted) != XPC_TYPE_BOOL || xpc_bool_get_value(encrypted))
+            return ADCFail(error, capacity, @"AX service lacks a supported advertised port/protocol; no AX connection started.");
+        unsigned value = 0;
+        for (const char *p = port; *p; p++) {
+            if (*p < '0' || *p > '9') return ADCFail(error, capacity, @"Invalid advertised AX service port; no AX connection started.");
+            value = value * 10 + (unsigned)(*p - '0');
+        }
+        if (!value || value > UINT16_MAX) return ADCFail(error, capacity, @"Invalid advertised AX service port; no AX connection started.");
+        *axPort = (uint16_t)value;
+        return 0;
+    }
+}
+
+@interface ADCRSDDirectoryOwner : NSObject
+@property(nonatomic, strong) id remote;
+@end
+@implementation ADCRSDDirectoryOwner
+@end
+
+void ADCCloseRSDDirectory(void *owner) {
+    if (!owner) return;
+    ADCRSDDirectoryOwner *lifetime = CFBridgingRelease(owner);
+    ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
+    if (cancel && lifetime.remote) cancel((__bridge ADCRemote)lifetime.remote);
+}
+
+int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, uint64_t versionFlags,
+                         int (^shouldCancel)(void), uint16_t *axPort, void **owner,
+                         char *error, size_t capacity) {
+    @autoreleasepool {
+        if (owner) *owner = NULL;
+        if (axPort) *axPort = 0;
+        int type = 0; socklen_t length = sizeof(type);
+        if (!owner || !axPort || !ADCValidHardwareUDID(expectedUDID) || descriptor < 0 ||
+            getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &type, &length) || type != SOCK_STREAM ||
+            (shouldCancel && shouldCancel())) {
+            if (descriptor >= 0) close(descriptor);
+            return ADCFail(error, capacity, @"Invalid or cancelled RSD connection; no handshake started.");
+        }
+        if (ADCPrepareCoreDevice(error, capacity)) { close(descriptor); return 1; }
+        ADCCreate create = dlsym(RTLD_DEFAULT, "xpc_remote_connection_create_with_connected_fd");
+        ADCHandler handler = dlsym(RTLD_DEFAULT, "xpc_remote_connection_set_event_handler");
+        ADCActivate activate = dlsym(RTLD_DEFAULT, "xpc_remote_connection_activate");
+        ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
+        if (!create || !handler || !activate || !cancel) {
+            close(descriptor);
+            return ADCFail(error, capacity, @"Apple RemoteXPC directory interfaces are unavailable.");
+        }
+        dispatch_queue_t queue = dispatch_queue_create("appledevices.rsd.directory", DISPATCH_QUEUE_SERIAL);
+        ADCRemote remote = create(descriptor, queue, versionFlags, 0);
+        if (!remote) { close(descriptor); return ADCFail(error, capacity, @"Apple RemoteXPC directory connection creation failed."); }
+        ADCRSDDirectoryOwner *lifetime = [ADCRSDDirectoryOwner new];
+        lifetime.remote = CFBridgingRelease(remote);
+        ADCReplyState *state = [ADCReplyState new];
+        __block unsigned messages = 0;
+        handler(remote, ^(xpc_object_t event) {
+            if (xpc_get_type(event) == XPC_TYPE_ERROR || ++messages > 32) {
+                state.failed = YES; dispatch_semaphore_signal(state.semaphore); return;
+            }
+            if (xpc_get_type(event) != XPC_TYPE_DICTIONARY) return;
+            const char *kind = xpc_dictionary_get_string(event, "MessageType");
+            if (kind && strcmp(kind, "Handshake") == 0 && !state.reply) {
+                state.reply = event; dispatch_semaphore_signal(state.semaphore);
+            }
+        });
+        activate(remote);
+        uint64_t deadline = clock_gettime_nsec_np(CLOCK_MONOTONIC) + 8ULL * NSEC_PER_SEC;
+        BOOL ready = NO;
+        while (!(shouldCancel && shouldCancel()) && clock_gettime_nsec_np(CLOCK_MONOTONIC) < deadline) {
+            if (!dispatch_semaphore_wait(state.semaphore, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_MSEC))) { ready = YES; break; }
+        }
+        if (!ready || state.failed || (shouldCancel && shouldCancel())) {
+            cancel(remote);
+            return ADCFail(error, capacity, @"RSD directory handshake failed, was cancelled or exceeded its eight-second deadline; no AX connection started.");
+        }
+        if (ADCValidateRSDHandshake((__bridge const void *)state.reply, expectedUDID, axPort, error, capacity)) {
+            cancel(remote); return 1;
+        }
+        *owner = (void *)CFBridgingRetain(lifetime);
+        return 0;
+    }
 }
 
 int ADCOpenAccessibilitySocket(const char *uuid, const char *version, void **owner, char *error, size_t capacity) {

@@ -51,6 +51,18 @@ enum RSDPortDiscovery {
         return address
     }
 
+    static func socketAddress(_ text: String, port: UInt16) throws -> sockaddr_in6 {
+        let parsed = try Address(text)
+        guard port > 0 else { throw failure("Invalid zero port.") }
+        var address = sockaddr_in6()
+        address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+        address.sin6_family = sa_family_t(AF_INET6)
+        address.sin6_port = port.bigEndian
+        address.sin6_scope_id = parsed.scope
+        withUnsafeMutableBytes(of: &address.sin6_addr) { $0.copyBytes(from: parsed.bytes) }
+        return address
+    }
+
     static func candidate(in inventory: Data, tunnelAddress: String,
                           isRemoted: (Int32) -> Bool = { ADCIsRemotedProcess($0) == 1 }) throws -> UInt16 {
         let target = try Address(tunnelAddress)

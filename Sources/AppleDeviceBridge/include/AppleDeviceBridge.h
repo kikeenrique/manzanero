@@ -26,6 +26,17 @@ int ADCOpenBrowsedRSDAccessibilitySocket(const char *remoteUUID, const char *exp
                                         char *error, size_t errorCapacity);
 void ADCCloseAccessibilitySocket(int descriptor, void *owner);
 
+/// Validates a borrowed RemoteXPC RSD Handshake and returns only the exact AX
+/// service port. No class decoding or service connection. Returns zero on success.
+int ADCValidateRSDHandshake(const void *message, const char *expectedUDID, uint16_t *axPort,
+                           char *error, size_t errorCapacity);
+/// Consumes a connected stream FD on every path. Owns Apple's RemoteXPC
+/// connection until explicitly closed. Does not open AX or enable accessibility.
+int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, uint64_t versionFlags,
+                        int (^shouldCancel)(void), uint16_t *axPort, void **owner,
+                        char *error, size_t errorCapacity);
+void ADCCloseRSDDirectory(void *owner);
+
 /// Finite complete-state digitizer schedule; reports are count * 58 bytes.
 int ADCPerformDigitizerReports(const char *uuid, const char *version,
                               const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
