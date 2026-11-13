@@ -5,7 +5,9 @@ import Foundation
 struct AccessibilityDTX: Sendable {
     static let maximumBody = 16 * 1024 * 1024
     static let maximumFragments = 64
-    enum Kind: UInt32, Sendable { case acknowledgement = 0, object = 1, invocation = 2, error = 3 }
+    // DTX DATA (1) is not an archived OBJECT reply (3). Keep unsupported
+    // types rejected rather than interpreting their bytes as keyed archives.
+    enum Kind: UInt32, Sendable { case acknowledgement = 0, invocation = 2, object = 3, error = 4 }
 
     let identifier: UInt32
     let conversation: UInt32
@@ -123,6 +125,8 @@ struct AccessibilityDTX: Sendable {
             kind: object.isEmpty ? .acknowledgement : .object, auxiliary: Data(), object: object)
     }
 
+    /// Correlation only: an error reply also belongs to the request. Callers
+    /// must inspect kind before interpreting the object as a successful result.
     func isReply(to request: Self) -> Bool {
         guard let expected = try? request.reply(), !expectsReply, kind != .invocation else { return false }
         return identifier == expected.identifier && conversation == expected.conversation && channel == expected.channel

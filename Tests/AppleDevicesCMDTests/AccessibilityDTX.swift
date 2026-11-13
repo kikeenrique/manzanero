@@ -65,6 +65,29 @@ struct AccessibilityDTXTests {
         #expect((argument["$objects"] as? [Any])?.contains { ($0 as? NSNumber)?.boolValue == true } == true)
     }
 
+    @Test func independentObjectAndErrorWireTypesStayDistinct() throws {
+        // Literal wire header and payload header, independent of Kind/encoded().
+        // ID 7, conversation 1, control channel, one-byte opaque body.
+        let header: [UInt8] = [0x79, 0x5b, 0x3d, 0x1f, 32, 0, 0, 0, 0, 0, 1, 0, 17, 0, 0, 0,
+                              7, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        func fixture(_ type: UInt8) -> Data {
+            Data(header + [type, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0xab])
+        }
+        let request = try AccessibilityDTX.invocation("fixture", argument: nil, identifier: 7)
+        for (type, kind): (UInt8, AccessibilityDTX.Kind) in [(3, .object), (4, .error)] {
+            let bytes = fixture(type)
+            let message = try decode(bytes)
+            #expect(message.kind == kind && message.object == Data([0xab]))
+            #expect(message.isReply(to: request))
+            #expect(try message.encoded() == bytes)
+        }
+        for type: UInt8 in [1, 5, 6, 7, 8] {
+            #expect(throws: CommandFailure.self) { try decode(fixture(type)) }
+        }
+        let reply = try request.reply(object: Data([0xab])).encoded()
+        #expect(reply[32] == 3)
+    }
+
     @Test func fragmentedMessageUsesDeclarationThenCorrelatedFragments() throws {
         let original = try AccessibilityDTX.invocation("processDataFromRemoteDevice:", argument: NSData(data: Data("fixture".utf8)), identifier: 9)
         let encoded = try original.encoded()
@@ -112,7 +135,7 @@ struct AccessibilityDTXTests {
     @Test func refusesMalformedPayloadAndArgumentLengths() throws {
         let invocation = try AccessibilityDTX.invocation("callback:", argument: NSData(data: Data([1, 2, 3])), identifier: 1)
         let base = try invocation.encoded()
-        for (offset, value): (Int, UInt32) in [(32, 0x1002), (32, 4), (32, 0), (36, .max), (40, 1)] {
+        for (offset, value): (Int, UInt32) in [(32, 0x1002), (32, 1), (32, 5), (32, 0), (36, .max), (40, 1)] {
             var bytes = base
             put(value, at: offset, in: &bytes)
             #expect(throws: CommandFailure.self) { try decode(bytes) }
