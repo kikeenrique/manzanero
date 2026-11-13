@@ -5,8 +5,14 @@
 #include <math.h>
 #include <time.h>
 #include <fcntl.h>
+#include <libproc.h>
 #include <string.h>
 #include "AppleDeviceBridge.h"
+
+int ADCIsRemotedProcess(int pid) {
+    char path[PROC_PIDPATHINFO_MAXSIZE];
+    return pid > 0 && proc_pidpath(pid, path, sizeof(path)) > 0 && strcmp(path, "/usr/libexec/remoted") == 0;
+}
 
 int ADCReadArchiveUID(const void *object, uint64_t *value) {
     CFTypeID (*typeID)(void) = dlsym(RTLD_DEFAULT, "_CFKeyedArchiverUIDGetTypeID");

@@ -93,6 +93,8 @@ The fresh Apple inventory reports the selected iPhone 13 mini on iOS 27.2.1 (24B
 
 The next transport investigation is the ordinary paired RSD/TCP route described by the source references, with fresh directory identity checks and bounded I/O. These socket errors are not proof that the phone refuses AX or that Developer Mode/UI Automation is disabled. No additional phone setting change is justified by this evidence.
 
+A later [read-only nettop discovery primitive](TRANSPORT.md#read-only-rsd-port-discovery) now locates a current candidate directory port by exact tunnel address and verified Apple remoted process ownership. Earlier empty netstat/log observations remain valid for those tools and runs. Candidate discovery does not establish an RSD handshake, AX endpoint access or a tree; bounded directory connection/identity verification and service-session ownership remain the next integration steps.
+
 ## Local validation
 
 On 2026-11-13, `mise run test` passed 160 Swift test functions with zero errors/warnings on macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2. Seven new tests cover an independent byte fixture, outgoing subscription archives, fragment assembly/correlation, malformed header/payload/argument bounds, reply direction/overflow and opaque unknown archive class names. No phone request was sent by these tests. A successful build or codec test is not a live tree result.

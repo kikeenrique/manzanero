@@ -7,6 +7,9 @@
 /// Returns 1 for a UID, 0 for another plist value, -1 if Apple symbols are absent.
 int ADCReadArchiveUID(const void *object, uint64_t *value);
 
+/// Checks a live socket-inventory PID against Apple's exact remoted path.
+int ADCIsRemotedProcess(int pid);
+
 /// Bounded domain/code and whitelisted standard explanations from a borrowed
 /// XPC error dictionary. Does not dump arbitrary userInfo or instantiate errors.
 void ADCDescribeCoreDeviceError(const void *errorDictionary, char *output, size_t capacity);
