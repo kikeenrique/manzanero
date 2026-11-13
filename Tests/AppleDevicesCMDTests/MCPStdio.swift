@@ -236,6 +236,8 @@ struct MCPStdioTests {
                 let receipt = try #require(structured["result"] as? [String: Any])
                 #expect(receipt["backend"] as? String == "coredevice-direct")
                 #expect(receipt["verified"] as? Bool == false)
+                try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
+                    .write(to: directory.appendingPathComponent("direct-button.json"))
                 let screenshot = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-button-after.png").path]])
                 #expect((screenshot["result"] as? [String: Any])?["isError"] as? Bool == false)
                 try finish()

@@ -574,7 +574,10 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
                 return ADCFail(error, capacity, @"Apple Universal HID did not identify exactly one touchscreen; no report sent.");
             }
         }
-        if (samples || keyboard || reports) {
+        // Every input mode, including plain consumer buttons, must receive the
+        // service's readiness fence before its first down event. Activation
+        // alone does not establish that the remote HID service is ready.
+        {
             ADCReplyState *ready = [ADCReplyState new];
             xpc_object_t barrier = reports ? ADCUniversalBarrier() : (samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES));
             request(remote, barrier, queue, ^(xpc_object_t response) {
@@ -582,8 +585,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
                 dispatch_semaphore_signal(ready.semaphore);
             });
             BOOL timeout = dispatch_semaphore_wait(ready.semaphore, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC)) != 0;
-            if (timeout || status.failed || !ready.reply || xpc_get_type(ready.reply) != XPC_TYPE_DICTIONARY ||
-                xpc_dictionary_get_value(ready.reply, "CoreDevice.error") || xpc_dictionary_get_value(ready.reply, "error")) {
+            if (timeout || status.failed || !ADCValidHIDReply(ready.reply)) {
                 cancel(remote); xpc_connection_cancel(connection);
                 return ADCFail(error, capacity, @"Apple HID service did not become ready; no input sent.");
             }

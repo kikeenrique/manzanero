@@ -6,7 +6,7 @@ Checkpoint: direct Apple input including keyboard and timed schedules, 2026-11-1
 
 | Area | Current state |
 | --- | --- |
-| Physical hardware buttons | Project-owned in-process Apple CoreDevice/RemoteXPC backend; Home screenshot-verified through CLI. Other buttons and interruption cleanup need coverage. |
+| Physical hardware buttons | In-process Apple CoreDevice/RemoteXPC; plain buttons now require a readiness barrier before down, matching touch/keyboard. Three scoped post-guard Settings→Home checks observed the effect (two MCP, one CLI). Earlier mixed outcomes are retained; general reliability, other buttons and interruption cleanup need coverage. |
 | Apple Xcode operations | Inventory, readiness, app/file/report operations, screenshots, simulator recording and Build & Run retain their existing implementation and verification limits. |
 | Vision OCR / AVFoundation encoding | In-process Apple frameworks available. Spanish Settings OCR labels/bounds and one central OCR-guided navigation have scoped iPhone 13 mini verification; general accuracy and OCR selector actions remain unverified/missing. |
 | Physical single-contact touch | In-process Apple digitizer implementation for tap, long-press, drag and swipe. Settings tap/drag and Maps long-press screenshot-verified on USB iPhone 13 mini. Other orientations/families and failure release unverified. |
