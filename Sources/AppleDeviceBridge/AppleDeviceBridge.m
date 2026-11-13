@@ -290,13 +290,42 @@ static uint64_t ADCNow(void) {
     return (uint64_t)value.tv_sec * NSEC_PER_SEC + value.tv_nsec;
 }
 
+static xpc_object_t ADCUniversalRequest(const char *operation, xpc_object_t arguments) {
+    xpc_object_t message = xpc_dictionary_create_empty(), payload = xpc_dictionary_create_empty();
+    xpc_dictionary_set_string(message, "messageType", "Request");
+    xpc_dictionary_set_string(message, "featureIdentifier", "com.apple.coredevice.feature.remote.universalhidservice");
+    xpc_dictionary_set_value(payload, operation, arguments);
+    xpc_dictionary_set_value(message, "payload", payload);
+    return message;
+}
+
+static xpc_object_t ADCUniversalReport(const uint8_t *bytes, uint64_t surface) {
+    xpc_object_t arguments = xpc_dictionary_create_empty();
+    xpc_dictionary_set_data(arguments, "_0", bytes, 58);
+    xpc_dictionary_set_uint64(arguments, "_1", surface);
+    return ADCUniversalRequest("send", arguments);
+}
+
+static xpc_object_t ADCUniversalBarrier(void) {
+    xpc_object_t barrier = xpc_dictionary_create_empty();
+    xpc_dictionary_set_bool(barrier, "isBarrier", true);
+    return barrier;
+}
+
+static BOOL ADCValidHIDReply(xpc_object_t reply) {
+    return reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY &&
+        !xpc_dictionary_get_value(reply, "CoreDevice.error") && !xpc_dictionary_get_value(reply, "error");
+}
+
 static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
-                   unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys, size_t count, char *error, size_t capacity) {
+                   unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys,
+                   const uint64_t *reportTimes, const uint8_t *reports, uint64_t *resolvedSurface, size_t count, char *error, size_t capacity) {
     @autoreleasepool {
         if (!uuid || !version || ![[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:uuid]]) {
             return ADCFail(error, capacity, @"Invalid direct input identity.");
         }
-        const char *feature = samples ? "com.apple.coredevice.feature.remote.hid.digitizer" : "com.apple.coredevice.feature.remote.hid.button";
+        const char *feature = reports ? "com.apple.coredevice.feature.remote.universalhidservice" :
+            (samples ? "com.apple.coredevice.feature.remote.hid.digitizer" : "com.apple.coredevice.feature.remote.hid.button");
         // Button and keyboard events share Apple's Indigo HID service. Open its
         // registered button feature rather than inventing a standalone keyboard
         // feature socket; keyboard messages carry their own feature identifier.
@@ -343,9 +372,34 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         ADCReplyState *status = [ADCReplyState new];
         handler(remote, ^(xpc_object_t event) { if (xpc_get_type(event) == XPC_TYPE_ERROR) status.failed = YES; });
         activate(remote);
-        if (samples || keyboard) {
+        uint64_t surface = 0;
+        if (reports) {
+            ADCReplyState *discovery = [ADCReplyState new];
+            request(remote, ADCUniversalRequest("connectedServices", xpc_dictionary_create_empty()), queue, ^(xpc_object_t response) {
+                discovery.reply = response;
+                dispatch_semaphore_signal(discovery.semaphore);
+            });
+            BOOL timeout = dispatch_semaphore_wait(discovery.semaphore, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC)) != 0;
+            xpc_object_t services = ADCValidHIDReply(discovery.reply) ? xpc_dictionary_get_array(discovery.reply, "connectedServices") : NULL;
+            size_t matches = 0;
+            if (!timeout && !status.failed && services && xpc_array_get_count(services) <= 128) {
+                for (size_t i = 0; i < xpc_array_get_count(services); i++) {
+                    xpc_object_t descriptor = xpc_array_get_value(services, i);
+                    if (xpc_get_type(descriptor) != XPC_TYPE_DICTIONARY) continue;
+                    const char *product = xpc_dictionary_get_string(descriptor, "Product");
+                    xpc_object_t identifier = xpc_dictionary_get_value(descriptor, "_ServiceID");
+                    uint64_t value = identifier && xpc_get_type(identifier) == XPC_TYPE_UINT64 ? xpc_uint64_get_value(identifier) : 0;
+                    if (product && strncmp(product, "CoreDevice touchscreen(", 23) == 0 && value) { surface = value; matches++; }
+                }
+            }
+            if (matches != 1) {
+                cancel(remote); xpc_connection_cancel(connection);
+                return ADCFail(error, capacity, @"Apple Universal HID did not identify exactly one touchscreen; no report sent.");
+            }
+        }
+        if (samples || keyboard || reports) {
             ADCReplyState *ready = [ADCReplyState new];
-            xpc_object_t barrier = samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES);
+            xpc_object_t barrier = reports ? ADCUniversalBarrier() : (samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES));
             request(remote, barrier, queue, ^(xpc_object_t response) {
                 ready.reply = response;
                 dispatch_semaphore_signal(ready.semaphore);
@@ -357,7 +411,31 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
                 return ADCFail(error, capacity, @"Apple HID service did not become ready; no input sent.");
             }
         }
-        if (samples) {
+        if (reports) {
+            uint64_t start = ADCNow();
+            size_t last = 0;
+            BOOL attempted = NO;
+            for (size_t i = 0; i < count; i++) {
+                uint64_t target = start + reportTimes[i], now;
+                while ((now = ADCNow()) < target && !status.failed) {
+                    uint64_t remaining = target - now;
+                    struct timespec wait = { (time_t)(remaining / NSEC_PER_SEC), (long)(remaining % NSEC_PER_SEC) };
+                    nanosleep(&wait, NULL);
+                }
+                if (status.failed) break;
+                attempted = YES; last = i;
+                send(remote, ADCUniversalReport(reports + i * 58, surface));
+            }
+            if (attempted) {
+                uint8_t release[58]; memcpy(release, reports + last * 58, 58);
+                BOOL active = NO;
+                for (size_t id = 0; id < release[1]; id++) {
+                    if (release[3 + id * 5] & 0xc0) active = YES;
+                    release[3 + id * 5] = (uint8_t)id;
+                }
+                if (active) send(remote, ADCUniversalReport(release, surface));
+            }
+        } else if (samples) {
             uint64_t start = ADCNow();
             size_t attempted = 0;
             for (size_t i = 0; i < count; i++) {
@@ -400,7 +478,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
             usleep(hold);
             send(remote, scalarEvent(usage, 2, NO));
         }
-        xpc_object_t barrier = samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES);
+        xpc_object_t barrier = reports ? ADCUniversalBarrier() : (samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES));
         request(remote, barrier, queue, ^(xpc_object_t response) {
             status.reply = response;
             dispatch_semaphore_signal(status.semaphore);
@@ -413,6 +491,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         cancel(remote);
         xpc_connection_cancel(connection);
         if (failed) return ADCFail(error, capacity, @"Input was attempted, but the Apple service barrier was not confirmed. UI effect and release are unknown; do not replay automatically.");
+        if (resolvedSurface) *resolvedSurface = surface;
         return 0;
     }
 }
@@ -421,13 +500,13 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, char *error, size_t capacity) {
     if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
         return ADCFail(error, capacity, @"Invalid direct button request.");
-    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, 0, error, capacity);
+    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, NULL, NULL, NULL, 0, error, capacity);
 }
 
 int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage, char *error, size_t capacity) {
     if (!((usage >= 40 && usage <= 44) || (usage >= 79 && usage <= 82)))
         return ADCFail(error, capacity, @"Unsupported direct keyboard usage; no input sent.");
-    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, NULL, 0, error, capacity);
+    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, NULL, NULL, NULL, NULL, 0, error, capacity);
 }
 
 int ADCPerformKeyboard(const char *uuid, const char *version, const ADCKeyboardSample *samples,
@@ -447,7 +526,36 @@ int ADCPerformKeyboard(const char *uuid, const char *version, const ADCKeyboardS
     }
     for (size_t code = 0; code < 256; code++)
         if (pressed[code]) return ADCFail(error, capacity, @"Keyboard schedule must release every key; no input sent.");
-    return ADCPerformInput(uuid, version, 0, 0, YES, NULL, NULL, samples, count, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, YES, NULL, NULL, samples, NULL, NULL, NULL, count, error, capacity);
+}
+
+int ADCPerformDigitizerReports(const char *uuid, const char *version, const uint64_t *times,
+                              const uint8_t *reports, size_t count, uint64_t *surface, char *error, size_t capacity) {
+    if (surface) *surface = 0;
+    if (!times || !reports || count < 2 || count > 512)
+        return ADCFail(error, capacity, @"Invalid digitizer report schedule count; no input sent.");
+    for (size_t frame = 0; frame < count; frame++) {
+        const uint8_t *bytes = reports + frame * 58;
+        size_t contacts = bytes[1];
+        if (bytes[0] != 9 || contacts < 1 || contacts > 5 || contacts != reports[1] || bytes[2] != 5 ||
+            times[frame] > 10ULL * NSEC_PER_SEC || (frame == 0 ? times[frame] != 0 : times[frame] <= times[frame - 1]))
+            return ADCFail(error, capacity, @"Invalid digitizer report identity or time; no input sent.");
+        BOOL active = NO;
+        for (size_t id = 0; id < contacts; id++) {
+            size_t offset = 3 + id * 5;
+            if (bytes[offset] != id && bytes[offset] != (0xc0 | id))
+                return ADCFail(error, capacity, @"Invalid digitizer contact flags; no input sent.");
+            if (bytes[offset] & 0xc0) active = YES;
+            else if (frame && memcmp(bytes + offset + 1, reports + (frame - 1) * 58 + offset + 1, 4))
+                return ADCFail(error, capacity, @"Inactive digitizer contact moved; no input sent.");
+        }
+        if ((frame == 0 && !active) || (frame == count - 1 && active))
+            return ADCFail(error, capacity, @"Digitizer schedule must start active and end released; no input sent.");
+        for (size_t byte = 3 + contacts * 5; byte < 58; byte++)
+            if (bytes[byte] != (byte == 40 ? 2 : 0))
+                return ADCFail(error, capacity, @"Unsupported digitizer report fields; no input sent.");
+    }
+    return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, times, reports, surface, count, error, capacity);
 }
 
 static int ADCValidateAndPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
@@ -467,7 +575,7 @@ static int ADCValidateAndPerformTouch(const char *uuid, const char *version, con
                 return ADCFail(error, capacity, @"Invalid second contact; no input sent.");
         }
     }
-    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, NULL, count, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, NULL, NULL, NULL, NULL, count, error, capacity);
 }
 
 int ADCPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,

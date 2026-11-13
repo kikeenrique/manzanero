@@ -19,7 +19,7 @@ struct NativeGestureSequence {
     let reports: [[UInt8]]
     let contactCount: Int
 
-    init(json: String) throws {
+    init(json: String, transform: (Double, Double) -> (Double, Double) = { ($0, $1) }) throws {
         guard (1...65536).contains(json.utf8.count) else {
             throw CommandFailure(description: "Gesture JSON must contain 1...65536 UTF-8 bytes.")
         }
@@ -52,9 +52,13 @@ struct NativeGestureSequence {
         contactCount = identities.count
         times = frames.map(\.ms)
         var positions = Array(repeating: [0, 0], count: contactCount)
-        reports = frames.map { frame in
+        reports = try frames.map { frame in
             for touch in frame.touches {
-                positions[touch.id] = [touch.x, touch.y].map { Int(($0 * 65535).rounded()) }
+                let point = transform(touch.x, touch.y)
+                guard point.0.isFinite, point.1.isFinite, (0...1).contains(point.0), (0...1).contains(point.1) else {
+                    throw CommandFailure(description: "Gesture coordinate transform is invalid; no input sent.")
+                }
+                positions[touch.id] = [point.0, point.1].map { Int(($0 * 65535).rounded()) }
             }
             return NativeTouchFrames.report(positions: positions, active: Set(frame.touches.map(\.id)))
         }

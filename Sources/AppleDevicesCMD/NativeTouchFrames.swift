@@ -1,7 +1,7 @@
 import Foundation
 
-/// mainTouchscreen reports for the optional native helper. Matches the pinned
-/// idevice report layout; all contacts keep their identity through release.
+/// Project-owned mainTouchscreen report encoder, shared by direct schedules and
+/// historical helper plans. Contact slots retain identity through release.
 struct NativeTouchFrames {
     let milliseconds: Int
     let reports: [[UInt8]]

@@ -1,5 +1,28 @@
 # Timed physical touch sequences
 
+## Current direct implementation
+
+CLI `physical <device> gesture <JSON>` and MCP `perform_gesture` send bounded complete-state schedules through Apple's Universal HID service **in process**. No helper executable or helper build is needed. The JSON contract below remains unchanged: 2...512 frames over at most ten seconds, with one to five stable contact IDs, independent arrivals/lifts and repeated strokes. Coordinates are normalized in the current interface; fresh display metadata rotates active positions into the portrait digitizer frame before 16-bit encoding. Inactive slots retain their last encoded position.
+
+Swift validates the entire schedule before identity queries, then checks fresh identity/Developer Mode and exactly one awake integrated primary display. A second display query must match before dispatch. The bridge opens Apple's Universal HID service through CoreDevice, queries `connectedServices`, requires exactly one `CoreDevice touchscreen(...)` with a nonzero service ID, and waits for a readiness barrier. No report is sent when discovery fails or is ambiguous. It sends the existing 58-byte complete-state reports in `Request/payload/send` messages with the discovered surface ID; there is no global gesture reset or fallback.
+
+The C boundary independently validates frame/time bounds, a fixed slot count, contact IDs/flags, unchanged inactive positions, reserved fields and a final all-up state before any framework connection. Reports retain each described contact on release. Monotonic requested offsets do not guarantee exact device delivery timing. On an ordinary observed transport failure, future scheduled frames stop and an all-up report is attempted at the last attempted positions if any contacts remained active. Normal completion already includes the caller's all-up frame. A completion barrier is required; transport acknowledgement does not establish UI effect or release. Process termination, cancellation during synchronous dispatch, disconnection, simultaneous controllers and failure cleanup on hardware remain unverified.
+
+Direct receipts identify `backend: coredevice-direct`, `operation: gesture`, `surfaceID`, frame/contact counts, requested duration, `coordinateSpace: normalized-current-interface` and display rotation, with `verified: false` and `releaseVerified: false`. Dry run queries nothing and plans no helper. Existing per-device human-handoff mutation pause applies.
+
+The direct six-frame MCP swipe visibly moved Home to App Library on the USB iPhone 13 mini. A four-frame CLI double-tap at a clear map point visibly zoomed Maps, reusing the same slot across release. Five-slot encoding/rotation and independent arrival/lift have unit coverage; broad effects, other Apple families/orientations and failure release remain hardware-unverified. Standalone `multi-tap` and three-to-five-path `multi-drag` command migration remain separate work; the direct schedule can represent such contact states explicitly.
+
+A separate seven-frame MCP two-contact spread, with the second contact arriving at 20 ms and the slots lifting at 610/620 ms, visibly zoomed Maps from a 250 m scale to 75 m. This verifies the overall effect of that scheduled gesture, not the delivered timestamps or each individual lift. Three-to-five-contact effects remain hardware-unverified.
+
+```sh
+mise run cli physical <UDID> gesture '{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]},{"ms":180,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":240,"touches":[]}]}'
+mise run test:mcp-gesture <UDID> <local-sequence.json>
+```
+
+## Historical helper implementation (disabled)
+
+The following records the former helper as a migration reference. Its implementation and hardware observations are distinct from the direct backend above; instructions to build or use an intermediary do not enable that disabled runtime path.
+
 The native backend accepts a finite schedule of complete contact states. This supports sampled curved paths, stationary holds, independently arriving/lifting fingers, and repeated taps within one helper connection.
 
 ```sh

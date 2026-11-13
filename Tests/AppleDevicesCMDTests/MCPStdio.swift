@@ -212,6 +212,12 @@ struct MCPStdioTests {
                     #expect(receipt["contactCount"] as? Int == 2)
                     #expect(receipt["sampleCount"] as? Int == 32)
                 }
+                if operation == "gesture" {
+                    #expect(receipt["backend"] as? String == "coredevice-direct")
+                    #expect((receipt["frameCount"] as? Int ?? 0) >= 2)
+                    #expect((receipt["contactSlots"] as? Int ?? 0) >= 1)
+                    #expect(receipt["releaseVerified"] as? Bool == false)
+                }
                 #expect(receipt["verified"] as? Bool == false)
                 let artifact = directory.appendingPathComponent("physical-\(operation).json")
                 let data = try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])

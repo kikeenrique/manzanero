@@ -1,6 +1,6 @@
 # Feature parity status
 
-Checkpoint: direct Apple buttons and single-contact touch, 2026-11-12. Full device-control tooling parity is not complete. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
+Checkpoint: direct Apple input including keyboard and timed schedules, 2026-11-13. Full device-control tooling parity is not complete. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
 
 ## Current runtime availability
 
@@ -14,7 +14,8 @@ Checkpoint: direct Apple buttons and single-contact touch, 2026-11-12. Full devi
 | Physical named keys | Direct in-process implementation for return, escape, backspace, tab, space and arrows. Backspace has scoped Settings search verification; other keys remain hardware-unverified. |
 | Physical Unicode paste | Apple devicectl clipboard copy plus in-process Command+V. Synthetic Unicode insertion visually verified in Settings search after user-authorized Allow Paste. Replaces clipboard; other apps/families and failure release remain unverified. |
 | Physical keyboard typing | In-process US-layout ASCII, tab and LF, 1...512 characters; no clipboard operation. Mixed-case/digit/shifted punctuation has scoped Settings search verification. Other layouts/fields and failure release remain unverified. |
-| Physical three-to-five-contact/timed gestures and multi-tap | Unavailable pending direct implementation; no ipb/idevice helper fallback. |
+| Physical timed gestures | Direct in-process Universal HID schedules with one to five slots, independent arrivals/lifts and repeated taps. MCP swipe moved Home to App Library; CLI double-tap and a staggered two-contact MCP spread zoomed Maps. Three-to-five-contact effects, exact timing and failure release remain hardware-unverified. |
+| Standalone multi-tap and three-to-five-path multi-drag | Command migration pending; direct gesture schedules can express those contact states. No helper fallback. |
 | Physical accessibility | Rust idevice executable blocked; direct replacement pending. Screen auto can fall back to Vision OCR. |
 | Native physical recording | ipb video executable blocked; direct replacement pending. Default devicectl remains unsupported on the tested phone. |
 | Simulator input/accessibility | AXe executable blocked; direct replacement pending. |

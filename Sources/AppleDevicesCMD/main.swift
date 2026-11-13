@@ -17,7 +17,7 @@ Usage:
   Buttons, tap, long-press, drag, swipe, pinch and two-path multi-drag call Apple CoreDevice in process.
   Named keys and paste keys call Apple CoreDevice in process; paste uses Apple's devicectl clipboard copy.
   Physical type sends 1...512 printable US-layout ASCII characters, tab or LF in process; no clipboard change.
-  Three-to-five-contact input and arbitrary gesture sequences are awaiting migration.
+  Gesture schedules use in-process Universal HID with up to five slots; standalone multi-tap and larger multi-drag await migration.
   Non-Apple device helper executables are disabled, including AXe, idevice, and ipb helpers.
   Pairing prompts for the device's PIN; use its advertised _remotepairing._tcp endpoint.
   appledevicescmd doctor               Check Xcode and device-service access

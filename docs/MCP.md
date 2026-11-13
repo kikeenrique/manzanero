@@ -8,6 +8,8 @@
 
 `type_text` with `platform: physical` uses in-process US-layout keyboard events without changing the clipboard. It accepts 1...512 printable ASCII characters, tab and LF; focus, keyboard layout and app behavior affect output. See [direct typing and verification limits](PHYSICAL-TYPING.md#current-direct-implementation). The default simulator path remains disabled pending direct replacement.
 
+`perform_gesture` uses the in-process Universal HID backend for one-to-five-slot complete-state schedules, including independent arrivals/lifts and repeated taps. It shares fresh identity/display checks and human-handoff pause with CLI dispatch. See [current direct gesture limits](GESTURE-SEQUENCES.md#current-direct-implementation); the historical helper notes elsewhere do not imply a helper runs.
+
 Configure an MCP host to launch the built executable by absolute path with `args: ["mcp"]`. Set the working directory to this checkout and provide a PATH containing xcsift, AXe, and `tmp/bin` as needed for the selected backend. A common host configuration shape is:
 
 ```json

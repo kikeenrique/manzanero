@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #MISE extends = "swift"
-#MISE description = "Send one native physical gesture sequence through real MCP and capture its result"
+#MISE description = "Send one direct Apple physical gesture sequence through real MCP and capture its result"
 #MISE depends = ["build"]
-#MISE env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
 #USAGE arg "<device>" help="Explicit physical device UDID"
 #USAGE arg "<file>" help="Local JSON gesture sequence; sends one complete physical touch sequence"
 

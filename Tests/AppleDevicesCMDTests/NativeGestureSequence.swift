@@ -66,7 +66,7 @@ struct NativeGestureSequenceTests {
         let command = try #require(try CoreDeviceInput.parse(args))
         #expect(command.operands == [doubleTap])
         let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).execute(args, dryRun: true)
-        #expect(String(decoding: dry.data, as: UTF8.self).contains("cd_gesture"))
+        #expect(String(decoding: dry.data, as: UTF8.self).contains("coredevice-direct"))
         var sent = 0
         do {
             _ = try command.execute { plan in

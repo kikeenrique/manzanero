@@ -12,6 +12,11 @@ int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUD
                                   char *error, size_t errorCapacity);
 void ADCCloseAccessibilitySocket(int descriptor, void *owner);
 
+/// Finite complete-state digitizer schedule; reports are count * 58 bytes.
+int ADCPerformDigitizerReports(const char *uuid, const char *version,
+                              const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
+                              uint64_t *surface, char *error, size_t errorCapacity);
+
 /// Returns zero only after sending one down/up pair and a service barrier.
 /// This is transport dispatch, never verification of device UI or key release.
 int ADCPressButton(const char *uuid, const char *version, uint64_t usage,

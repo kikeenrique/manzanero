@@ -47,11 +47,18 @@ actor CommandService {
             return try json(["backend": "idevice", "executionAvailable": false, "arguments": forwarded,
                 "limitation": "The explicitly selected non-Apple executable backend is disabled; no fallback will run."])
         }
-        let nativeArguments = args.count >= 3 && args[0] == "physical" && (["button", "key", "type", "paste"] + DirectPhysicalTouch.operations).contains(args[2])
+        let nativeArguments = args.count >= 3 && args[0] == "physical" && (["button", "key", "type", "paste", "gesture"] + DirectPhysicalTouch.operations).contains(args[2])
             ? ["--physical-backend", "coredevice"] + args : args
         if let native = try CoreDeviceInput.parse(nativeArguments) {
             if dryRun {
                 let identity = try native.identityPlan()
+                if native.operation == "gesture" {
+                    let sequence = try NativeGestureSequence(json: native.operands[0])
+                    return try json(["backend": "coredevice-direct", "operation": "gesture", "identityArguments": identity.arguments,
+                        "frameCount": sequence.times.count, "contactSlots": sequence.contactCount,
+                        "durationMilliseconds": sequence.times.last ?? 0,
+                        "execution": "In-process Apple Universal HID; fresh display checks and touchscreen discovery; no helper executable or automatic replay."])
+                }
                 if native.operation == "multi-drag", native.operands.count != 9 {
                     return try json(["backend": "coredevice-direct", "executionAvailable": false,
                         "limitation": "Direct multi-drag currently supports exactly two paths; three-to-five-contact input awaits direct migration."])
@@ -96,6 +103,9 @@ actor CommandService {
             }
             if native.operation == "key" {
                 return CommandOutput(data: try DirectPhysicalKeyboard.execute(native, query: query))
+            }
+            if native.operation == "gesture" {
+                return CommandOutput(data: try DirectPhysicalGesture.execute(native, query: query))
             }
             if native.operation == "type" {
                 return CommandOutput(data: try DirectPhysicalTyping.execute(native, query: query))

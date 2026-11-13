@@ -1,6 +1,6 @@
 # appledevicescmd
 
-A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. Device operations use Apple APIs/frameworks or Apple executables. **Non-Apple device helpers are disabled. Full feature parity is not implemented.** Physical hardware buttons, named keys, US-layout typing, single-contact touch and two-contact movement use an in-process Apple CoreDevice/RemoteXPC backend. Unicode paste combines Apple's clipboard command with in-process key input. General multitouch, accessibility, and native video migration remain in progress. See the [classified feature status](docs/PARITY-STATUS.md) for current availability, historical verification, and remaining gaps.
+A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. Device operations use Apple APIs/frameworks or Apple executables. **Non-Apple device helpers are disabled. Full feature parity is not implemented.** Physical buttons, keyboard, touch and timed gestures with up to five contact slots use in-process Apple backends. Unicode paste combines Apple's clipboard command with in-process key input. Additional command wrappers, accessibility, native video and broad hardware verification remain in progress. See the [classified feature status](docs/PARITY-STATUS.md) for current availability, historical verification, and remaining gaps.
 
 See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), [investigation](docs/ANALYSIS.md), and [documentation review findings](docs/DOCUMENTATION-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
@@ -22,6 +22,8 @@ After building, `mise run cli <arguments...>` runs the executable. Third-party d
 Task scripts live under [`mise/tasks/`](mise/tasks/); `mise.toml` keeps shared configuration. Existing task names and arguments are unchanged. See [development tasks](docs/DEVELOPMENT-TASKS.md) for layout and validation.
 
 The [direct accessibility migration](docs/DIRECT-ACCESSIBILITY.md) tracks the in-process replacement for physical trees and selectors; it is not yet available in the product.
+
+Timed `gesture` / MCP `perform_gesture` runs [complete-state schedules](docs/GESTURE-SEQUENCES.md#current-direct-implementation) in process, with up to five slots and independent arrivals/lifts. Direct single-contact swipe and repeated-tap effects have scoped iPhone verification; broader multitouch effects and failure release remain unverified.
 
 `devices physical` currently returns the unfiltered CoreDevice JSON inventory, which can include simulators. `devices simulators` returns simctl JSON. `doctor` checks whether Xcode and the two discovery commands succeed; it does not verify device trust, UI Automation, input delivery, or optional-backend installation.
 

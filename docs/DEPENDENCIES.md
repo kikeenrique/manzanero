@@ -8,6 +8,8 @@ The user clarified on 2026-11-12 that device backends should communicate directl
 
 Unicode paste uses Apple devicectl for clipboard copy and our in-process bridge for Command+V. US-layout ASCII typing also runs in process without a clipboard operation. The bridge is linked into `appledevicescmd`, not shipped or launched as a separate executable. The migration remains incomplete: advanced multitouch, physical accessibility/video and simulator interaction still need direct replacements. Their former helper implementations are disabled and retained as migration references. AVFoundation/CoreVideo encoding is already in-process. Use a small C/Objective-C interoperability layer where Swift cannot express the private API, and verify each replacement on the selected iPhone 13 mini. See [the AXe implementation review](AXE-PHYSICAL-REVIEW.md).
 
+Timed physical gestures now send complete-state digitizer reports through in-process Apple Universal HID. They support up to five slots and independent arrivals/lifts; standalone multitap and larger linear multi-drag command migration and broad hardware verification remain unfinished. This direct report path discovers the Apple touchscreen service and does not build or invoke the historical helper.
+
 The main CLI is Swift 6.2+ with strict concurrency. Xcode supplies `devicectl` and `simctl`; macOS supplies Vision. Private protocol implementations stay behind optional backend boundaries.
 
 ## Swift MCP SDK
