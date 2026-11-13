@@ -43,9 +43,11 @@ struct AccessibilitySocketTests {
         }
         let description = String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         guard descriptor >= 0 else { throw CommandFailure(description: description) }
-        defer { ADCCloseAccessibilitySocket(descriptor, owner) }
+        let transport = try AccessibilitySocketTransport(taking: descriptor, owner: owner)
+        defer { transport.close() }
         #expect(owner != nil)
         #expect(fcntl(descriptor, F_GETFD) & FD_CLOEXEC != 0)
+        #expect(fcntl(descriptor, F_GETFL) & O_NONBLOCK != 0)
         // Opening an FD alone does not verify DTX negotiation or a tree.
     }
 }
