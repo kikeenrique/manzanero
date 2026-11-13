@@ -2,23 +2,37 @@ import AppleDeviceBridge
 import CoreFoundation
 import Foundation
 
-/// Structural inspection only. PropertyListSerialization parses data; no
+/// Bounded data-only decoding. PropertyListSerialization parses data; no
 /// NSKeyedUnarchiver or device-specified Objective-C class is instantiated.
 struct KeyedArchiveInspector {
     static let maximumBytes = 16 * 1024 * 1024
     private(set) var archives = 0
     private(set) var values = 0
     private var expandedBytes = 0
+    private var inspectNestedArchives = true
 
     static func inspect(_ bytes: Data) throws -> Data {
         var decoder = Self()
         let decoded = try decoder.archive(bytes, depth: 0)
         return try JSONSerialization.data(withJSONObject: [
             "format": "decoded-nskeyedarchive", "experimental": true, "parsedHierarchy": false,
-            "decoded": decoded, "statistics": ["archives": decoder.archives, "expandedValues": decoder.values],
+            "decoded": decoded.inspectionObject, "statistics": ["archives": decoder.archives, "expandedValues": decoder.values],
             "limitations": ["Structural decoding only; numeric accessibility attribute meanings and hierarchy semantics are not established.",
                 "Opaque data is represented by byte counts. No selector-targetable tree or stable element references are produced."]
         ], options: [.prettyPrinted, .sortedKeys, .fragmentsAllowed])
+    }
+
+    /// Internal protocol decoding preserves opaque token bytes. Only a root
+    /// NSData callback envelope is unwrapped; token data resembling a plist
+    /// must not be interpreted as another archive.
+    static func decodeProtocol(_ bytes: Data) throws -> AccessibilityArchiveValue {
+        var decoder = Self()
+        decoder.inspectNestedArchives = false
+        let root = try decoder.archive(bytes, depth: 0)
+        if case .data(let nested) = root {
+            return try decoder.archive(nested, depth: 1)
+        }
+        return root
     }
 
     static func inspectFile(_ path: String) throws -> Data {
@@ -52,7 +66,7 @@ struct KeyedArchiveInspector {
         expandedBytes += count
     }
 
-    private mutating func archive(_ bytes: Data, depth: Int) throws -> Any {
+    private mutating func archive(_ bytes: Data, depth: Int) throws -> AccessibilityArchiveValue {
         guard bytes.count <= Self.maximumBytes, depth <= 64, archives < 4 else {
             throw Self.invalid("archive byte, depth or nesting limit exceeded")
         }
@@ -92,28 +106,34 @@ struct KeyedArchiveInspector {
         }
     }
 
-    private mutating func value(_ item: Any, objects: [Any], stack: Set<Int>, depth: Int) throws -> Any {
+    private mutating func value(_ item: Any, objects: [Any], stack: Set<Int>, depth: Int) throws -> AccessibilityArchiveValue {
         values += 1
         guard values <= 100_000, depth <= 64 else { throw Self.invalid("value or depth limit exceeded") }
         if let index = try uid(item) {
             guard objects.indices.contains(index), !stack.contains(index) else { throw Self.invalid("cyclic or out-of-range reference") }
-            if index == 0, objects[index] as? String == "$null" { return NSNull() }
+            if index == 0, objects[index] as? String == "$null" { return .null }
             return try value(objects[index], objects: objects, stack: stack.union([index]), depth: depth + 1)
         }
-        if let string = item as? String { try charge(string.utf8.count); return string }
+        if let string = item as? String { try charge(string.utf8.count); return .string(string) }
         if let number = item as? NSNumber {
             guard number.doubleValue.isFinite else { throw Self.invalid("non-finite number") }
-            return number
-        }
-        if let date = item as? Date { return ["$date": ISO8601DateFormatter().string(from: date)] }
-        if let bytes = item as? Data {
-            if bytes.starts(with: Data("bplist00".utf8)) || bytes.starts(with: Data("<?xml".utf8)) {
-                return ["byteCount": bytes.count, "nestedArchive": try archive(bytes, depth: depth + 1)] as [String: Any]
+            if CFGetTypeID(number) == CFBooleanGetTypeID() { return .boolean(number.boolValue) }
+            switch String(cString: number.objCType) {
+            case "f", "d": return .real(number.doubleValue)
+            case "Q", "L", "I", "S", "C": return .unsigned(number.uint64Value)
+            default: return .signed(number.int64Value)
             }
-            return ["dataBytes": bytes.count]
+        }
+        if let date = item as? Date { return .date(ISO8601DateFormatter().string(from: date)) }
+        if let bytes = item as? Data {
+            if inspectNestedArchives && (bytes.starts(with: Data("bplist00".utf8)) || bytes.starts(with: Data("<?xml".utf8))) {
+                return .nestedArchive(byteCount: bytes.count, value: try archive(bytes, depth: depth + 1))
+            }
+            try charge(bytes.count)
+            return .data(bytes)
         }
         if let array = item as? [Any] {
-            return try array.map { try value($0, objects: objects, stack: stack, depth: depth + 1) }
+            return .array(try array.map { try value($0, objects: objects, stack: stack, depth: depth + 1) })
         }
         guard let fields = item as? [String: Any] else { throw Self.invalid("unsupported property-list value") }
         var className = ""
@@ -139,25 +159,22 @@ struct KeyedArchiveInspector {
             guard let keys = fields["NS.keys"] as? [Any], let entries = fields["NS.objects"] as? [Any], keys.count == entries.count else {
                 throw Self.invalid("dictionary key/value count mismatch")
             }
-            var result: [String: Any] = [:]
+            var result: [String: AccessibilityArchiveValue] = [:]
             for (key, entry) in zip(keys, entries) {
                 let decoded = try value(key, objects: objects, stack: stack, depth: depth + 1)
-                let text: String
-                if let string = decoded as? String { text = string }
-                else if let number = decoded as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() { text = number.stringValue }
-                else { throw Self.invalid("unsupported dictionary key") }
+                guard let text = decoded.dictionaryKey else { throw Self.invalid("unsupported dictionary key") }
                 try charge(text.utf8.count)
                 guard result[text] == nil else { throw Self.invalid("duplicate decoded dictionary key") }
                 result[text] = try value(entry, objects: objects, stack: stack, depth: depth + 1)
             }
-            return result
+            return .dictionary(result)
         }
-        var decoded: [String: Any] = [:]
+        var decoded: [String: AccessibilityArchiveValue] = [:]
         for (key, item) in fields where key != "$class" {
             try charge(key.utf8.count)
             decoded[key] = try value(item, objects: objects, stack: stack, depth: depth + 1)
         }
         try charge(className.utf8.count)
-        return ["className": className, "fields": decoded] as [String: Any]
+        return .object(className: className, fields: decoded)
     }
 }
