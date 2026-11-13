@@ -145,19 +145,33 @@ int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUD
         void *(*matching)(xpc_object_t) = dlsym(RTLD_DEFAULT, "remote_device_copy_device_matching");
         void *(*property)(id, const char *) = dlsym(RTLD_DEFAULT, "remote_device_copy_property");
         void *(*service)(id, const char *) = dlsym(RTLD_DEFAULT, "remote_device_copy_service");
+        void *(*serviceNames)(id) = dlsym(RTLD_DEFAULT, "remote_device_copy_service_names");
+        int (*parseType)(const char *) = dlsym(RTLD_DEFAULT, "remote_device_type_parse");
+        const char *(*describeType)(int) = dlsym(RTLD_DEFAULT, "remote_device_type_get_description");
+        int (*deviceType)(id) = dlsym(RTLD_DEFAULT, "remote_device_get_type");
         int (*state)(id) = dlsym(RTLD_DEFAULT, "remote_device_get_state");
         bool (*encrypted)(id) = dlsym(RTLD_DEFAULT, "remote_service_should_encrypt_socket_data");
         int (*connect)(id) = dlsym(RTLD_DEFAULT, "remote_service_create_connected_socket");
-        if (!framework || !matching || !property || !service || !state || !encrypted || !connect) {
+        if (!framework || !matching || !property || !service || !serviceNames || !parseType || !describeType || !deviceType || !state || !encrypted || !connect) {
             ADCFail(error, capacity, @"Installed Apple raw-service APIs are unavailable.");
             return -1;
         }
+        int expectedType = parseType("coredevice-device");
+        const char *typeName = expectedType ? describeType(expectedType) : NULL;
+        if (!typeName) {
+            ADCFail(error, capacity, @"Apple RSD does not recognize the required device type; no socket opened.");
+            return -1;
+        }
         xpc_object_t selection = xpc_dictionary_create_empty();
-        xpc_dictionary_set_string(selection, "DeviceType", "coredevice-device");
+        xpc_dictionary_set_string(selection, "DeviceType", typeName);
         xpc_dictionary_set_string(selection, "DeviceUUID", remoteUUID);
         id device = CFBridgingRelease(matching(selection));
         if (!device || state(device) != 2) {
             ADCFail(error, capacity, [NSString stringWithFormat:@"Selected Apple RSD device %@; no subscription sent.", device ? [NSString stringWithFormat:@"is not connected (state %d)", state(device)] : @"was not found"]);
+            return -1;
+        }
+        if (deviceType(device) != expectedType) {
+            ADCFail(error, capacity, @"Apple RSD resolved a different device type; no socket opened.");
             return -1;
         }
         xpc_object_t udid = CFBridgingRelease(property(device, "UniqueDeviceID"));
@@ -167,9 +181,28 @@ int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUD
             ADCFail(error, capacity, @"Apple RSD hardware identity mismatch; no socket opened.");
             return -1;
         }
+        // Match Apple's show caller: read the device's service-name inventory
+        // before asking for an endpoint. Keep missing inventory distinct from
+        // an advertised service whose endpoint lookup fails.
+        xpc_object_t names = CFBridgingRelease(serviceNames(device));
+        __block BOOL advertised = NO;
+        size_t serviceCount = names && xpc_get_type(names) == XPC_TYPE_ARRAY ? xpc_array_get_count(names) : 0;
+        if (serviceCount > 4096) {
+            ADCFail(error, capacity, @"Apple RSD service inventory exceeded its bound; no socket opened.");
+            return -1;
+        }
+        if (serviceCount) xpc_array_apply(names, ^bool(size_t index, xpc_object_t item) {
+            const char *name = xpc_get_type(item) == XPC_TYPE_STRING ? xpc_string_get_string_ptr(item) : NULL;
+            if (name && strcmp(name, "com.apple.accessibility.axAuditDaemon.remoteAXService") == 0) advertised = YES;
+            return true;
+        });
+        if (!advertised) {
+            ADCFail(error, capacity, [NSString stringWithFormat:@"Apple RSD %s inventory (%zu services) did not advertise accessibility to this client; no subscription sent.", typeName, serviceCount]);
+            return -1;
+        }
         id endpoint = CFBridgingRelease(service(device, "com.apple.accessibility.axAuditDaemon.remoteAXService"));
         if (!endpoint || encrypted(endpoint)) {
-            ADCFail(error, capacity, endpoint ? @"Raw Apple accessibility service requires encryption; no subscription sent." : @"Raw Apple accessibility service was not found; no subscription sent.");
+            ADCFail(error, capacity, endpoint ? @"Raw Apple accessibility service requires encryption; no subscription sent." : @"Apple RSD advertised accessibility, but endpoint lookup returned none; no subscription sent.");
             return -1;
         }
         int descriptor = connect(endpoint);

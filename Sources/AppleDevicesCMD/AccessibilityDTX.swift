@@ -2,10 +2,10 @@ import Foundation
 
 /// Bounded DTX framing for Apple's remote AX service. Decoding preserves archive
 /// bytes; it never instantiates classes named by device-supplied keyed archives.
-struct AccessibilityDTX {
+struct AccessibilityDTX: Sendable {
     static let maximumBody = 16 * 1024 * 1024
     static let maximumFragments = 64
-    enum Kind: UInt32 { case acknowledgement = 0, object = 1, invocation = 2, error = 3 }
+    enum Kind: UInt32, Sendable { case acknowledgement = 0, object = 1, invocation = 2, error = 3 }
 
     let identifier: UInt32
     let conversation: UInt32
@@ -72,6 +72,21 @@ struct AccessibilityDTX {
         }
         return Self(identifier: first.identifier, conversation: first.conversation, channel: first.channel,
             expectsReply: first.expectsReply, kind: kind, auxiliary: Data(body[16..<split]), object: Data(body[split...]))
+    }
+
+    /// Incremental consumers can retain an incomplete prefix without treating
+    /// malformed complete headers as incomplete or reading past one message.
+    static func decodePrefix(_ bytes: Data) throws -> (message: Self, consumed: Int)? {
+        enum Incomplete: Error { case prefix }
+        var offset = 0
+        do {
+            let message = try read { count in
+                guard count <= bytes.count - offset else { throw Incomplete.prefix }
+                defer { offset += count }
+                return Data(bytes[offset..<(offset + count)])
+            }
+            return (message, offset)
+        } catch Incomplete.prefix { return nil }
     }
 
     func encoded() throws -> Data {

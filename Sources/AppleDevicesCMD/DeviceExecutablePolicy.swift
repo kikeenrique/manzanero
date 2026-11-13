@@ -14,6 +14,8 @@ enum DeviceExecutablePolicy {
         }
         // xcsift formats host build logs; it is never a device controller.
         if executable == "/usr/bin/env", arguments.first == "xcsift" { return }
+        // Apple's remote-service client is outside the ordinary system bin dirs.
+        if executable == "/usr/libexec/remotectl" { return }
         guard name != "env", isAppleSystemExecutable else {
             throw CommandFailure(description: "The \(command) executable backend is disabled: device operations must call Apple frameworks/APIs directly or use Apple executables. Its in-process replacement is not yet available for this operation.")
         }

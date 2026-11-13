@@ -7,6 +7,7 @@ Executable Bash task files live under `mise/tasks/`. `mise.toml` selects that di
 | `mise/tasks/build`, `mise/tasks/cli` | `build`, `cli` |
 | `mise/tasks/test/_default` | `test` |
 | `mise/tasks/test/mcp-*` | `test:mcp-*` |
+| `mise/tasks/test/ax-*` | `test:ax-*` (opt-in accessibility transport diagnostics) |
 | `mise/tasks/coredevice/*` | `coredevice:*` |
 | `mise/tasks/idevice/*` | `idevice:*` |
 

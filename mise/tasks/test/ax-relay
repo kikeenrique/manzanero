@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Read a bounded DTX handshake through Apple's remote-service tool; no AX subscription or input"
+#USAGE arg "<device>" help="Explicit physical hardware UDID"
+#USAGE arg "<remote_uuid>" help="Fresh Apple remote UUID for the same hardware"
+
+set -e -o pipefail
+
+APPLEDEVICES_AX_RELAY_DEVICE="$usage_device" APPLEDEVICES_AX_RELAY_REMOTE_UUID="$usage_remote_uuid" swift test --cache-path tmp/swift-cache --filter AppleAccessibilityRelayTests 2>&1 | xcsift -f toon --warnings
