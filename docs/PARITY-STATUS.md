@@ -17,6 +17,7 @@ Checkpoint: direct Apple input including keyboard and timed schedules, 2026-11-1
 | Physical timed gestures | Direct in-process Universal HID schedules with one to five slots, independent arrivals/lifts and repeated taps. MCP swipe moved Home to App Library; CLI double-tap and a staggered two-contact MCP spread zoomed Maps. Three-to-five-contact effects, exact timing and failure release remain hardware-unverified. |
 | Standalone multi-tap and three-to-five-path multi-drag | Implemented through in-process Apple Universal HID, with shared CLI/MCP routing and local encoding/timing tests. Two-contact MCP tap visibly zoomed Maps out on USB iPhone 13 mini. Three-path MCP and five-path CLI dispatch completed; screenshots do not prove independent contact effects. Four-contact behavior and failure release remain unverified. No helper fallback. |
 | Physical accessibility | Rust idevice executable blocked; direct replacement pending. Screen auto can fall back to Vision OCR. |
+| Offline accessibility archives | Swift/Foundation data-only structural inspection works through CLI and MCP with no helper/device connection. Saved iPhone callback decoded locally; not a fresh tree or semantic accessibility implementation. |
 | Native physical recording | ipb video executable blocked; direct replacement pending. Default devicectl remains unsupported on the tested phone. |
 | Simulator input/accessibility | AXe executable blocked; direct replacement pending. |
 | CLI/MCP | Both enforce the same restriction. Full Apple-family scope remains unchanged. |

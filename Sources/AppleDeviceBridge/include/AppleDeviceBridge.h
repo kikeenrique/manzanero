@@ -3,6 +3,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/// Reads Foundation's property-list UID scalar without unarchiving a class.
+/// Returns 1 for a UID, 0 for another plist value, -1 if Apple symbols are absent.
+int ADCReadArchiveUID(const void *object, uint64_t *value);
+
 /// Opens only Apple's named remote accessibility service, without a RemoteXPC
 /// upgrade. Returns an owned FD, or -1. Close FD and owner together below.
 int ADCOpenAccessibilitySocket(const char *uuid, const char *version, void **owner,

@@ -7,6 +7,15 @@
 #include <fcntl.h>
 #include "AppleDeviceBridge.h"
 
+int ADCReadArchiveUID(const void *object, uint64_t *value) {
+    CFTypeID (*typeID)(void) = dlsym(RTLD_DEFAULT, "_CFKeyedArchiverUIDGetTypeID");
+    uint32_t (*read)(CFTypeRef) = dlsym(RTLD_DEFAULT, "_CFKeyedArchiverUIDGetValue");
+    if (!object || !value || !typeID || !read) return -1;
+    if (CFGetTypeID(object) != typeID()) return 0;
+    *value = read(object);
+    return 1;
+}
+
 // Private Apple interfaces stay in this in-process interoperability target.
 // Protocol references: docs/AXE-PHYSICAL-REVIEW.md and docs/NATIVE-INPUT.md.
 typedef void *ADCRemote;

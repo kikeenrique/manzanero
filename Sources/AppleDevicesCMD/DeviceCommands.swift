@@ -23,7 +23,8 @@ struct DeviceCommand {
             guard pairingFile == nil, args.count == 2, !args[1].isEmpty else {
                 throw CommandFailure(description: "Usage: decode-ax-archive <local-plist>")
             }
-            return Self(executable: "/usr/bin/env", arguments: ["appledevices-idevice", "decode-ax-archive", args[1]], jsonOutput: true)
+            // CommandService handles this in process; it has no external plan.
+            return nil
         }
         guard args.first == "physical" || args.first == "simulator" else { return nil }
         guard args.count >= 3 else {

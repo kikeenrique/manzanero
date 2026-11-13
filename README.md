@@ -23,6 +23,8 @@ Task scripts live under [`mise/tasks/`](mise/tasks/); `mise.toml` keeps shared c
 
 The [direct accessibility migration](docs/DIRECT-ACCESSIBILITY.md) tracks the in-process replacement for physical trees and selectors; it is not yet available in the product.
 
+Offline `decode-ax-archive <local-plist>` and MCP `decode_accessibility_archive` now inspect saved keyed archives in process through Foundation, with bounded data-only decoding and no helper. They do not capture a fresh screen tree or instantiate archived classes.
+
 Timed `gesture` / MCP `perform_gesture` runs [complete-state schedules](docs/GESTURE-SEQUENCES.md#current-direct-implementation) in process, with up to five slots and independent arrivals/lifts. Direct single-contact swipe and repeated-tap effects have scoped iPhone verification; broader multitouch effects and failure release remain unverified.
 
 `devices physical` currently returns the unfiltered CoreDevice JSON inventory, which can include simulators. `devices simulators` returns simctl JSON. `doctor` checks whether Xcode and the two discovery commands succeed; it does not verify device trust, UI Automation, input delivery, or optional-backend installation.

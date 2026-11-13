@@ -59,8 +59,11 @@ struct AccessibilityArchiveTests {
         let value = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
         #expect(value["archiveDestination"] as? String == "tmp/fixture.plist")
         let decoder = try #require(MCPTools.definitions.first { $0.name == "decode_accessibility_archive" })
-        let decode = try #require(try DeviceCommand.parse(decoder.command(["path": "tmp/My Archive.plist"])))
-        #expect(decode.arguments == ["appledevices-idevice", "decode-ax-archive", "tmp/My Archive.plist"])
+        let decode = try decoder.command(["path": "tmp/My Archive.plist"])
+        #expect(try DeviceCommand.parse(decode) == nil)
+        let inspection = try await CommandService(readinessQuery: { _ in Issue.record("Offline dry run queried device"); return Data() }).execute(decode, dryRun: true)
+        let inspectionPlan = try #require(try JSONSerialization.jsonObject(with: inspection.data) as? [String: Any])
+        #expect(inspectionPlan["backend"] as? String == "foundation" && inspectionPlan["executable"] == nil)
         for args in [["physical", "fixture", "ax-snapshot", "bad.json"], ["physical", "fixture", "ax-snapshot", "a.plist", "b.plist"], ["decode-ax-archive"]] {
             #expect(throws: CommandFailure.self) { try DeviceCommand.parse(args) }
         }
