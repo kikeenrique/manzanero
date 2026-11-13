@@ -346,6 +346,67 @@ static uint64_t ADCNow(void) {
 
 static int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
                                         size_t count, char *error, size_t capacity);
+static int ADCValidateTouchSchedule(const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,
+                                    size_t count, char *error, size_t capacity);
+static int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t count, char *error, size_t capacity);
+
+static BOOL ADCWaitForInput(uint64_t start, uint64_t offset, ADCInputShouldStop shouldStop) {
+    uint64_t target = start + offset, now;
+    while ((now = ADCNow()) < target) {
+        if (shouldStop && shouldStop()) return NO;
+        uint64_t remaining = MIN(target - now, 10ULL * NSEC_PER_MSEC);
+        struct timespec wait = { 0, (long)remaining };
+        nanosleep(&wait, NULL);
+    }
+    return !shouldStop || !shouldStop();
+}
+
+int ADCRunTouchSchedule(const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, size_t count,
+                        ADCInputShouldStop shouldStop, ADCTouchSink sendSample) {
+    if (!sendSample || ADCValidateTouchSchedule(samples, secondPoints, count, NULL, 0)) return 2;
+    uint64_t start = ADCNow();
+    size_t last = 0;
+    BOOL attempted = NO, stopped = NO;
+    for (size_t i = 0; i < count; i++) {
+        if (!ADCWaitForInput(start, samples[i].nanoseconds, shouldStop)) { stopped = YES; break; }
+        attempted = YES; last = i;
+        sendSample(&samples[i], secondPoints ? &secondPoints[i] : NULL);
+    }
+    if (attempted && samples[last].phase != 2) {
+        ADCTouchSample release = samples[last]; release.phase = 2;
+        sendSample(&release, secondPoints ? &secondPoints[last] : NULL);
+    }
+    return stopped || (shouldStop && shouldStop()) ? 1 : 0;
+}
+
+int ADCRunKeyboardSchedule(const ADCKeyboardSample *samples, size_t count,
+                           ADCInputShouldStop shouldStop, ADCKeySink sendKey) {
+    if (!sendKey || ADCValidateKeyboardSchedule(samples, count, NULL, 0)) return 2;
+    BOOL pressed[256] = {NO}, stopped = NO;
+    uint64_t start = ADCNow();
+    for (size_t i = 0; i < count; i++) {
+        if (!ADCWaitForInput(start, samples[i].nanoseconds, shouldStop)) { stopped = YES; break; }
+        pressed[samples[i].usage] = samples[i].state == 1;
+        sendKey(samples[i].usage, samples[i].state);
+    }
+    // Ordinary keys precede modifiers in this supported usage set. Cancellation
+    // and transport failure must not suppress release of an attempted down.
+    for (size_t usage = 0; usage < 256; usage++)
+        if (pressed[usage]) sendKey(usage, 2);
+    return stopped || (shouldStop && shouldStop()) ? 1 : 0;
+}
+
+int ADCRunPress(uint64_t usage, unsigned hold, ADCInputShouldStop shouldStop, ADCKeySink sendKey) {
+    BOOL supported = usage == 64 || usage == 48 || usage == 233 || usage == 234 ||
+        (usage >= 40 && usage <= 44) || (usage >= 79 && usage <= 82);
+    if (!sendKey || !supported || hold > 400000) return 2;
+    if (shouldStop && shouldStop()) return 1;
+    sendKey(usage, 1);
+    uint64_t start = ADCNow();
+    BOOL completed = ADCWaitForInput(start, (uint64_t)hold * 1000, shouldStop);
+    sendKey(usage, 2);
+    return !completed || (shouldStop && shouldStop()) ? 1 : 0;
+}
 
 int ADCRunDigitizerSchedule(const uint64_t *times, const uint8_t *reports, size_t count,
                             ADCInputShouldStop shouldStop, ADCDigitizerSink sendReport) {
@@ -354,15 +415,7 @@ int ADCRunDigitizerSchedule(const uint64_t *times, const uint8_t *reports, size_
     size_t last = 0;
     BOOL attempted = NO, stopped = NO;
     for (size_t i = 0; i < count; i++) {
-        uint64_t target = start + times[i], now;
-        while ((now = ADCNow()) < target) {
-            if (shouldStop && shouldStop()) { stopped = YES; break; }
-            // Bound cancellation/transport-error observation during long gaps.
-            uint64_t remaining = MIN(target - now, 10ULL * NSEC_PER_MSEC);
-            struct timespec wait = { 0, (long)remaining };
-            nanosleep(&wait, NULL);
-        }
-        if (stopped || (shouldStop && shouldStop())) { stopped = YES; break; }
+        if (!ADCWaitForInput(start, times[i], shouldStop)) { stopped = YES; break; }
         attempted = YES; last = i;
         sendReport(reports + i * 58);
     }
@@ -508,47 +561,19 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
                 ^int { return status.failed || (shouldCancel && shouldCancel()); },
                 ^(const uint8_t *bytes) { send(remote, ADCUniversalReport(bytes, surface)); }) != 0;
         } else if (samples) {
-            uint64_t start = ADCNow();
-            size_t attempted = 0;
-            for (size_t i = 0; i < count; i++) {
-                uint64_t target = start + samples[i].nanoseconds;
-                uint64_t now;
-                while ((now = ADCNow()) < target && !status.failed) {
-                    uint64_t remaining = target - now;
-                    struct timespec wait = { (time_t)(remaining / NSEC_PER_SEC), (long)(remaining % NSEC_PER_SEC) };
-                    nanosleep(&wait, NULL);
-                }
-                if (status.failed) break;
-                attempted = i;
-                send(remote, ADCTouchEvent(samples[i].x, samples[i].y, secondPoints ? &secondPoints[i] : NULL, samples[i].phase, NO));
-            }
-            // A failed send may already have reached the device; attempt up at
-            // the last attempted position without replaying any movement.
-            if (samples[attempted].phase != 2)
-                send(remote, ADCTouchEvent(samples[attempted].x, samples[attempted].y, secondPoints ? &secondPoints[attempted] : NULL, 2, NO));
+            scheduleStopped = ADCRunTouchSchedule(samples, secondPoints, count,
+                ^int { return status.failed || (shouldCancel && shouldCancel()); },
+                ^(const ADCTouchSample *sample, const ADCTouchPoint *second) {
+                    send(remote, ADCTouchEvent(sample->x, sample->y, second, sample->phase, NO));
+                }) != 0;
         } else if (keys) {
-            BOOL pressed[256] = {NO};
-            uint64_t start = ADCNow();
-            for (size_t i = 0; i < count; i++) {
-                uint64_t target = start + keys[i].nanoseconds, now;
-                while ((now = ADCNow()) < target && !status.failed) {
-                    uint64_t remaining = target - now;
-                    struct timespec wait = { (time_t)(remaining / NSEC_PER_SEC), (long)(remaining % NSEC_PER_SEC) };
-                    nanosleep(&wait, NULL);
-                }
-                if (status.failed) break;
-                // Mark attempted downs before sending: failure does not prove
-                // the device missed the event. Release without replaying text.
-                pressed[keys[i].usage] = keys[i].state == 1;
-                send(remote, ADCKeyboardEvent(keys[i].usage, keys[i].state, NO));
-            }
-            // Release ordinary keys before modifiers on an ordinary failure.
-            for (size_t code = 0; code < 256; code++)
-                if (pressed[code]) send(remote, ADCKeyboardEvent(code, 2, NO));
+            scheduleStopped = ADCRunKeyboardSchedule(keys, count,
+                ^int { return status.failed || (shouldCancel && shouldCancel()); },
+                ^(uint64_t code, uint64_t state) { send(remote, ADCKeyboardEvent(code, state, NO)); }) != 0;
         } else {
-            send(remote, scalarEvent(usage, 1, NO));
-            usleep(hold);
-            send(remote, scalarEvent(usage, 2, NO));
+            scheduleStopped = ADCRunPress(usage, hold,
+                ^int { return status.failed || (shouldCancel && shouldCancel()); },
+                ^(uint64_t code, uint64_t state) { send(remote, scalarEvent(code, state, NO)); }) != 0;
         }
         xpc_object_t barrier = reports ? ADCUniversalBarrier() : (samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES));
         request(remote, barrier, queue, ^(xpc_object_t response) {
@@ -563,7 +588,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         cancel(remote);
         xpc_connection_cancel(connection);
         if (scheduleStopped || (shouldCancel && shouldCancel()))
-            return ADCFail(error, capacity, @"Gesture stopped after cancellation or transport failure; release was attempted for active contacts. UI effect and device-side release are unverified; do not replay automatically.");
+            return ADCFail(error, capacity, @"Input stopped after cancellation or transport failure; release was attempted for active contacts or keys. UI effect and device-side release are unverified; do not replay automatically.");
         if (failed) return ADCFail(error, capacity, @"Input was attempted, but the Apple service barrier was not confirmed. UI effect and release are unknown; do not replay automatically.");
         if (resolvedSurface) *resolvedSurface = surface;
         return 0;
@@ -571,20 +596,25 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
 }
 
 int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
-                   unsigned hold, char *error, size_t capacity) {
+                   unsigned hold, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
         return ADCFail(error, capacity, @"Invalid direct button request.");
-    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, NULL, NULL, NULL, 0, nil, error, capacity);
+    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, NULL, NULL, NULL, 0, shouldCancel, error, capacity);
 }
 
-int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage, char *error, size_t capacity) {
+int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     if (!((usage >= 40 && usage <= 44) || (usage >= 79 && usage <= 82)))
         return ADCFail(error, capacity, @"Unsupported direct keyboard usage; no input sent.");
-    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, NULL, NULL, NULL, NULL, 0, nil, error, capacity);
+    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, NULL, NULL, NULL, NULL, 0, shouldCancel, error, capacity);
 }
 
 int ADCPerformKeyboard(const char *uuid, const char *version, const ADCKeyboardSample *samples,
-                       size_t count, char *error, size_t capacity) {
+                       size_t count, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    if (ADCValidateKeyboardSchedule(samples, count, error, capacity)) return 1;
+    return ADCPerformInput(uuid, version, 0, 0, YES, NULL, NULL, samples, NULL, NULL, NULL, count, shouldCancel, error, capacity);
+}
+
+static int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t count, char *error, size_t capacity) {
     if (!samples || count < 2 || count > 4096)
         return ADCFail(error, capacity, @"Invalid keyboard sample count; no input sent.");
     BOOL pressed[256] = {NO};
@@ -600,7 +630,7 @@ int ADCPerformKeyboard(const char *uuid, const char *version, const ADCKeyboardS
     }
     for (size_t code = 0; code < 256; code++)
         if (pressed[code]) return ADCFail(error, capacity, @"Keyboard schedule must release every key; no input sent.");
-    return ADCPerformInput(uuid, version, 0, 0, YES, NULL, NULL, samples, NULL, NULL, NULL, count, nil, error, capacity);
+    return 0;
 }
 
 int ADCPerformDigitizerReports(const char *uuid, const char *version, const uint64_t *times,
@@ -645,7 +675,13 @@ static int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *re
 }
 
 static int ADCValidateAndPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
-                    const ADCTouchPoint *secondPoints, size_t count, char *error, size_t capacity) {
+                    const ADCTouchPoint *secondPoints, size_t count, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    if (ADCValidateTouchSchedule(samples, secondPoints, count, error, capacity)) return 1;
+    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, NULL, NULL, NULL, NULL, count, shouldCancel, error, capacity);
+}
+
+static int ADCValidateTouchSchedule(const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,
+                                    size_t count, char *error, size_t capacity) {
     if (!samples || count < 2 || count > 8192) return ADCFail(error, capacity, @"Invalid direct touch sample count.");
     for (size_t i = 0; i < count; i++) {
         ADCTouchSample sample = samples[i];
@@ -661,16 +697,16 @@ static int ADCValidateAndPerformTouch(const char *uuid, const char *version, con
                 return ADCFail(error, capacity, @"Invalid second contact; no input sent.");
         }
     }
-    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, NULL, NULL, NULL, NULL, count, nil, error, capacity);
+    return 0;
 }
 
 int ADCPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
-                    size_t count, char *error, size_t capacity) {
-    return ADCValidateAndPerformTouch(uuid, version, samples, NULL, count, error, capacity);
+                    size_t count, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    return ADCValidateAndPerformTouch(uuid, version, samples, NULL, count, shouldCancel, error, capacity);
 }
 
 int ADCPerformTwoContactTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
-                    const ADCTouchPoint *secondPoints, size_t count, char *error, size_t capacity) {
+                    const ADCTouchPoint *secondPoints, size_t count, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     if (!secondPoints) return ADCFail(error, capacity, @"Missing second contact; no input sent.");
-    return ADCValidateAndPerformTouch(uuid, version, samples, secondPoints, count, error, capacity);
+    return ADCValidateAndPerformTouch(uuid, version, samples, secondPoints, count, shouldCancel, error, capacity);
 }

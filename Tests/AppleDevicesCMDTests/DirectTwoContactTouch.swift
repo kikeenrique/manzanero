@@ -56,7 +56,7 @@ struct DirectTwoContactTouchTests {
             let second = [point, point]
             var error = [CChar](repeating: 0, count: 1024)
             let status = first.withUnsafeBufferPointer { first in
-                second.withUnsafeBufferPointer { ADCPerformTwoContactTouch("invalid", "invalid", first.baseAddress, $0.baseAddress, first.count, &error, error.count) }
+                second.withUnsafeBufferPointer { ADCPerformTwoContactTouch("invalid", "invalid", first.baseAddress, $0.baseAddress, first.count, nil, &error, error.count) }
             }
             #expect(status != 0)
             #expect(String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self).contains("second contact"))

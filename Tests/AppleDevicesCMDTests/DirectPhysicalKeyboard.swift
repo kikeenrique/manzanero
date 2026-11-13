@@ -59,7 +59,7 @@ struct DirectPhysicalKeyboardTests {
     @Test func cBoundaryRejectsUnsupportedKeyUsagesBeforeFrameworkAccess() {
         for usage: UInt64 in [0, 4, 39, 45, 78, 83, 255, .max] {
             var error = [CChar](repeating: 0, count: 1024)
-            #expect(ADCPressKeyboardKey("invalid", "invalid", usage, &error, error.count) != 0)
+            #expect(ADCPressKeyboardKey("invalid", "invalid", usage, nil, &error, error.count) != 0)
             #expect(String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self).contains("Unsupported direct keyboard usage"))
         }
     }

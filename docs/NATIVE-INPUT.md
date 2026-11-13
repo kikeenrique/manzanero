@@ -2,6 +2,16 @@
 
 ## Current direct backend
 
+### Task cancellation and release attempts
+
+All direct physical HID paths now poll Swift task cancellation during dispatch: buttons, named keys, ASCII typing, Command+V paste, single-contact touch, paired movement, and Universal HID schedules. Scheduled waits share a maximum 10 ms sleep chunk and check before each event; actual scheduling/transport latency is not guaranteed. Cancellation or a detected transport failure stops future movement/typing. Touch attempts up at the last attempted position, retaining the second point when paired. Keyboard schedules release only keys with attempted downs, ordinary keys before modifiers; a cancelled button/key hold still attempts its up. Pre-cancelled schedules send no down or spurious up. Balanced completion does not duplicate release.
+
+The shared command actor does not process another synchronous mutation until the current dispatch and bounded final barrier return. This serialization is limited to that service instance; cross-process ownership/quarantine remain unfinished. Swift propagates cancellation after cleanup so MCP can suppress an ordinary cancelled-request response. Paste cancellation preserves the cancellation type and emits a stderr diagnostic: clipboard replacement may already have happened, and insertion/release remain unverified. Clipboard contents are not restored.
+
+The new polling does not interrupt CoreDevice socket creation (up to 15 seconds), readiness/discovery (up to three seconds each), the final barrier (up to three seconds), or an Apple executable already running. CLI SIGINT/SIGTERM, crashes and disconnected devices do not acquire a cleanup guarantee. Unit sink tests establish attempted event ordering, not device-side release.
+
+### Direct buttons
+
 Device operations must not invoke non-Apple intermediate executables. Physical `button home|lock|volume-up|volume-down` now calls Apple CoreDevice/RemoteXPC **in process**, through the project's `AppleDeviceBridge` interoperability target. Both `physical <device> button <name>` and explicit `--physical-backend coredevice` use it. There is no ipb helper build, helper launch, Swift private-value ABI shim, or third-party runtime dependency in this button path.
 
 Swift validates the operation, queries fresh identity/readiness with Apple's `devicectl`, checks the requested UUID/UDID and reported CoreDevice version, then enters the bridge. The bridge dynamically loads the installed Apple framework, requests the button service socket, sends one `IndigoButtonEvent` down/up pair, and waits for a service barrier before closing its connections. The socket request has a 15-second deadline and the barrier a 3-second deadline. Up is attempted after down even if a connection error is observed. A failed dispatch is never replayed. Normal dispatch does not prove UI effect or release; receipts report `backend: coredevice-direct`, `verified: false`, `releaseVerified: false`. SIGINT/crash release and other buttons are not hardware-verified.

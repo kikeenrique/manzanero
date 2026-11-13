@@ -39,9 +39,9 @@ int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version,
 /// Returns zero only after sending one down/up pair and a service barrier.
 /// This is transport dispatch, never verification of device UI or key release.
 int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
-                   unsigned holdMicroseconds, char *error, size_t errorCapacity);
+                   unsigned holdMicroseconds, ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage,
-                       char *error, size_t errorCapacity);
+                       ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 typedef struct {
     uint64_t nanoseconds;
     uint64_t usage;
@@ -49,7 +49,7 @@ typedef struct {
 } ADCKeyboardSample;
 int ADCPerformKeyboard(const char *uuid, const char *version,
                        const ADCKeyboardSample *samples, size_t count,
-                       char *error, size_t errorCapacity);
+                       ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 
 typedef struct {
     uint64_t nanoseconds;
@@ -60,8 +60,20 @@ typedef struct {
 typedef struct { double x; double y; } ADCTouchPoint;
 int ADCPerformTouch(const char *uuid, const char *version,
                     const ADCTouchSample *samples, size_t count,
-                    char *error, size_t errorCapacity);
+                    ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 int ADCPerformTwoContactTouch(const char *uuid, const char *version,
                     const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,
-                    size_t count, char *error, size_t errorCapacity);
+                    size_t count, ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
+
+/// Production Indigo schedulers with synchronous local-sink test boundaries.
+/// Return 0 completed, 1 interrupted with release attempted if needed,
+/// 2 invalid before callbacks. Sinks run synchronously; sample pointers are
+/// borrowed only for the duration of the sink call and must not be retained.
+typedef void (^ADCTouchSink)(const ADCTouchSample *, const ADCTouchPoint *);
+typedef void (^ADCKeySink)(uint64_t usage, uint64_t state);
+int ADCRunTouchSchedule(const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, size_t count,
+                        ADCInputShouldStop shouldStop, ADCTouchSink sendSample);
+int ADCRunKeyboardSchedule(const ADCKeyboardSample *samples, size_t count,
+                           ADCInputShouldStop shouldStop, ADCKeySink sendKey);
+int ADCRunPress(uint64_t usage, unsigned holdMicroseconds, ADCInputShouldStop shouldStop, ADCKeySink sendKey);
 #endif

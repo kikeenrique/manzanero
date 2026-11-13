@@ -86,25 +86,49 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
-            if let file = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_GESTURE_FILE"] {
-                let json = try String(contentsOfFile: file, encoding: .utf8)
-                let sequence = try NativeGestureSequence(json: json)
-                try #require((8000...10000).contains(sequence.times.last ?? 0))
+            let cancelFile = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_GESTURE_FILE"]
+            let cancelHold = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_LONG_PRESS"]
+            if cancelFile != nil || cancelHold != nil {
+                let name: String, arguments: [String: Any], milliseconds: Int
+                if let file = cancelFile {
+                    let json = try String(contentsOfFile: file, encoding: .utf8)
+                    let sequence = try NativeGestureSequence(json: json)
+                    milliseconds = sequence.times.last ?? 0
+                    name = "perform_gesture"; arguments = ["device": physical, "sequence": json]
+                } else {
+                    let operands = try #require(cancelHold).split(separator: ",").map(String.init)
+                    _ = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical, "long-press"] + operands))
+                    let numbers = try operands.map { try #require(Double($0)) }
+                    milliseconds = Int((numbers[2] * 1000).rounded())
+                    name = "long_press"; arguments = ["device": physical, "x": numbers[0], "y": numbers[1], "seconds": numbers[2]]
+                }
+                try #require((8000...10000).contains(milliseconds))
                 let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical,
                     "path": directory.appendingPathComponent("cancel-before.png").path]])
                 try #require((before["result"] as? [String: Any])?["isError"] as? Bool == false)
+                let baselineStart = ContinuousClock.now
+                let baseline = try request(40, "tools/call", ["name": "device_readiness", "arguments": ["device": physical]])
+                try #require((baseline["result"] as? [String: Any])?["isError"] as? Bool == false)
+                let baselineDuration = baselineStart.duration(to: .now)
                 let start = ContinuousClock.now
-                try send(["jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": ["name": "perform_gesture",
-                    "arguments": ["device": physical, "sequence": json]]])
+                try send(["jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": ["name": name, "arguments": arguments]])
                 try await Task.sleep(for: .seconds(2))
                 try send(["jsonrpc": "2.0", "method": "notifications/cancelled", "params": ["requestId": 5, "reason": "Explicit live cancellation verification"]])
-                let after = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical,
+                // This call must enter the same command actor after input's
+                // cleanup; screenshot latency is measured separately below.
+                let ready = try request(6, "tools/call", ["name": "device_readiness", "arguments": ["device": physical]])
+                try #require((ready["result"] as? [String: Any])?["isError"] as? Bool == false)
+                let actorAvailable = start.duration(to: .now)
+                #expect(actorAvailable < .seconds(8))
+                let captureStart = ContinuousClock.now
+                let after = try request(7, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical,
                     "path": directory.appendingPathComponent("cancel-after.png").path]])
                 try #require((after["result"] as? [String: Any])?["isError"] as? Bool == false)
                 let elapsed = start.duration(to: .now)
-                #expect(elapsed < .seconds(8))
-                try JSONSerialization.data(withJSONObject: ["cancelledRequest": 5, "followupRequest": 6,
-                    "elapsed": String(describing: elapsed), "plannedMilliseconds": sequence.times.last ?? 0,
+                try JSONSerialization.data(withJSONObject: ["cancelledRequest": 5, "followupRequest": 6, "screenshotRequest": 7,
+                    "operation": name, "elapsed": String(describing: elapsed), "plannedMilliseconds": milliseconds,
+                    "baselineReadiness": String(describing: baselineDuration), "actorAvailableElapsed": String(describing: actorAvailable),
+                    "captureElapsed": String(describing: captureStart.duration(to: .now)),
                     "deviceSideReleaseVerified": false], options: [.prettyPrinted, .sortedKeys])
                     .write(to: directory.appendingPathComponent("cancel-result.json"))
                 try finish()

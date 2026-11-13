@@ -84,7 +84,7 @@ struct DirectPhysicalPasteTests {
             [.init(nanoseconds: 0, usage: 25, state: 1), .init(nanoseconds: 32_000_000_000, usage: 25, state: 2)]]
         for sequence in invalid {
             var error = [CChar](repeating: 0, count: 1024)
-            let result = sequence.withUnsafeBufferPointer { ADCPerformKeyboard("invalid", "invalid", $0.baseAddress, $0.count, &error, error.count) }
+            let result = sequence.withUnsafeBufferPointer { ADCPerformKeyboard("invalid", "invalid", $0.baseAddress, $0.count, nil, &error, error.count) }
             #expect(result != 0)
             #expect(String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self).lowercased().contains("keyboard"))
         }

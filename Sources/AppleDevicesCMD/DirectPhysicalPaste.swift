@@ -27,12 +27,18 @@ enum DirectPhysicalPaste {
                   (value["info"] as? [String: Any])?["outcome"] as? String == "success" else {
                 throw CommandFailure(description: "Apple clipboard writer did not confirm success.")
             }
+        } catch is CancellationError {
+            FileHandle.standardError.write(Data("Paste cancelled during clipboard write; clipboard state may have changed. No paste keys were sent.\n".utf8))
+            throw CancellationError()
         } catch {
             throw CommandFailure(description: "Clipboard write failed or was not confirmed; clipboard state may have changed. No paste keys were sent. \(error)")
         }
         do {
             try Task.checkCancellation()
             try send(Dispatch(uuid: identity.uuid, version: identity.version, samples: samples))
+        } catch is CancellationError {
+            FileHandle.standardError.write(Data("Paste cancelled after clipboard replacement; insertion and key release are unverified. Inspect before retrying.\n".utf8))
+            throw CancellationError()
         } catch {
             throw CommandFailure(description: "Clipboard was replaced, but paste dispatch failed or was cancelled; insertion and key release are unknown. Inspect the focused field before retrying; no automatic replay. \(error)")
         }

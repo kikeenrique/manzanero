@@ -21,8 +21,9 @@ enum DirectPhysicalKeyboard {
     static func dispatchSequence(_ value: Sequence) throws {
         var error = [CChar](repeating: 0, count: 1024)
         let status = value.samples.withUnsafeBufferPointer {
-            ADCPerformKeyboard(value.uuid, value.version, $0.baseAddress, $0.count, &error, error.count)
+            ADCPerformKeyboard(value.uuid, value.version, $0.baseAddress, $0.count, { Task.isCancelled ? 1 : 0 }, &error, error.count)
         }
+        try Task.checkCancellation()
         guard status == 0 else {
             throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }
@@ -44,7 +45,8 @@ enum DirectPhysicalKeyboard {
 
     private static func dispatch(_ key: Key) throws {
         var error = [CChar](repeating: 0, count: 1024)
-        let status = ADCPressKeyboardKey(key.uuid, key.version, key.usage, &error, error.count)
+        let status = ADCPressKeyboardKey(key.uuid, key.version, key.usage, { Task.isCancelled ? 1 : 0 }, &error, error.count)
+        try Task.checkCancellation()
         guard status == 0 else {
             throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }

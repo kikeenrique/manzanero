@@ -78,7 +78,7 @@ struct DirectPhysicalTouchTests {
             [ADCTouchSample(nanoseconds: 0, x: 0, y: 0, phase: 0), ADCTouchSample(nanoseconds: 0, x: 0, y: 0, phase: 2)],
             [ADCTouchSample(nanoseconds: 0, x: 0, y: 0, phase: 0), ADCTouchSample(nanoseconds: 1, x: 0, y: 0, phase: 1)]
         ] {
-            let status = samples.withUnsafeBufferPointer { ADCPerformTouch("invalid", "invalid", $0.baseAddress, $0.count, &error, error.count) }
+            let status = samples.withUnsafeBufferPointer { ADCPerformTouch("invalid", "invalid", $0.baseAddress, $0.count, nil, &error, error.count) }
             #expect(status != 0)
             #expect(String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self).contains("sequence"))
         }

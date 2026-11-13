@@ -164,12 +164,13 @@ enum DirectPhysicalTouch {
             let second = samples.compactMap(\.second).map { ADCTouchPoint(x: $0.x, y: $0.y) }
             guard second.count == wire.count else { throw CommandFailure(description: "Incomplete second-contact schedule; no input sent.") }
             status = wire.withUnsafeBufferPointer { first in
-                second.withUnsafeBufferPointer { ADCPerformTwoContactTouch(uuid, version, first.baseAddress, $0.baseAddress, first.count, &error, error.count) }
+                second.withUnsafeBufferPointer { ADCPerformTwoContactTouch(uuid, version, first.baseAddress, $0.baseAddress, first.count, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
             }
         } else {
             guard samples.allSatisfy({ $0.second == nil }) else { throw CommandFailure(description: "Changing contact count is unsupported; no input sent.") }
-            status = wire.withUnsafeBufferPointer { ADCPerformTouch(uuid, version, $0.baseAddress, $0.count, &error, error.count) }
+            status = wire.withUnsafeBufferPointer { ADCPerformTouch(uuid, version, $0.baseAddress, $0.count, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
         }
+        try Task.checkCancellation()
         guard status == 0 else { throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)) }
     }
 }

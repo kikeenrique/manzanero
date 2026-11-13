@@ -37,7 +37,8 @@ enum DirectPhysicalInput {
 
     private static func dispatch(_ button: Button) throws {
         var error = [CChar](repeating: 0, count: 1024)
-        let status = ADCPressButton(button.uuid, button.version, button.usage, button.holdMicroseconds, &error, error.count)
+        let status = ADCPressButton(button.uuid, button.version, button.usage, button.holdMicroseconds, { Task.isCancelled ? 1 : 0 }, &error, error.count)
+        try Task.checkCancellation()
         guard status == 0 else {
             throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }
