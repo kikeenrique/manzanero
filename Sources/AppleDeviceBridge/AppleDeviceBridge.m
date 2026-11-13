@@ -339,7 +339,7 @@ int ADCIsRSDDirectoryActive(void *owner) {
     return lifetime.state && !lifetime.state.failed;
 }
 
-int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *localUUID, uint64_t versionFlags,
+int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *localUUID, uint64_t versionFlags, uint64_t modeFlags,
                          int (^shouldCancel)(void), uint16_t *axPort, void **owner,
                          char *error, size_t capacity) {
     @autoreleasepool {
@@ -347,7 +347,7 @@ int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *lo
         if (axPort) *axPort = 0;
         NSUUID *host = localUUID ? [[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:localUUID]] : nil;
         int type = 0; socklen_t length = sizeof(type);
-        if (!owner || !axPort || !host || !ADCValidHardwareUDID(expectedUDID) || descriptor < 0 ||
+        if (!owner || !axPort || !host || !ADCValidHardwareUDID(expectedUDID) || (modeFlags != 0 && modeFlags != 4) || descriptor < 0 ||
             getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &type, &length) || type != SOCK_STREAM ||
             (shouldCancel && shouldCancel())) {
             if (descriptor >= 0) close(descriptor);
@@ -364,7 +364,7 @@ int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *lo
             return ADCFail(error, capacity, @"Apple RemoteXPC directory interfaces are unavailable.");
         }
         dispatch_queue_t queue = dispatch_queue_create("appledevices.rsd.directory", DISPATCH_QUEUE_SERIAL);
-        ADCRemote remote = create(descriptor, queue, versionFlags, 0);
+        ADCRemote remote = create(descriptor, queue, versionFlags, modeFlags);
         if (!remote) { close(descriptor); return ADCFail(error, capacity, @"Apple RemoteXPC directory connection creation failed."); }
         ADCRSDDirectoryOwner *lifetime = [ADCRSDDirectoryOwner new];
         lifetime.remote = CFBridgingRelease(remote);
@@ -467,13 +467,14 @@ int ADCOpenAccessibilitySocket(const char *uuid, const char *version, void **own
     }
 }
 
-static int ADCOpenRSDAXSocket(const char *remoteUUID, const char *expectedUDID, BOOL browsePresent,
+static int ADCOpenRSDAXSocket(const char *remoteUUID, const char *expectedUDID, BOOL browsePresent, ADCRemoteTransportProfile *profile,
                               void **owner, char *error, size_t capacity) {
     @autoreleasepool {
         if (owner) *owner = NULL;
         NSString *identifier = remoteUUID ? [NSString stringWithUTF8String:remoteUUID] : nil;
         NSString *hardware = expectedUDID ? [NSString stringWithUTF8String:expectedUDID] : nil;
-        if (!owner || !identifier || ![[NSUUID alloc] initWithUUIDString:identifier] || !hardware ||
+        BOOL byHardware = profile && browsePresent && !remoteUUID;
+        if (!owner || (!byHardware && (!identifier || ![[NSUUID alloc] initWithUUIDString:identifier])) || !hardware ||
             [hardware rangeOfString:@"^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$" options:NSRegularExpressionSearch].length != hardware.length || hardware.length == 0) {
             ADCFail(error, capacity, @"Invalid RSD accessibility identity or owner.");
             return -1;
@@ -506,7 +507,7 @@ static int ADCOpenRSDAXSocket(const char *remoteUUID, const char *expectedUDID, 
         }
         xpc_object_t selection = xpc_dictionary_create_empty();
         xpc_dictionary_set_string(selection, "DeviceType", typeName);
-        xpc_dictionary_set_string(selection, "DeviceUUID", remoteUUID);
+        if (!byHardware) xpc_dictionary_set_string(selection, "DeviceUUID", remoteUUID);
         id device = nil;
         if (browsePresent) {
             // Installed remotectl browse_present caller: device argument plus
@@ -524,9 +525,15 @@ static int ADCOpenRSDAXSocket(const char *remoteUUID, const char *expectedUDID, 
             browse(expectedType, queue, ^(id candidate, int complete) {
                 if (complete) { dispatch_semaphore_signal(finished); return; }
                 if (!candidate || deviceType(candidate) != expectedType) return;
-                unsigned char bytes[16]; copyUUID(candidate, bytes);
-                NSUUID *uuid = [[NSUUID alloc] initWithUUIDBytes:bytes];
-                if ([identifier caseInsensitiveCompare:uuid.UUIDString] != NSOrderedSame) return;
+                if (byHardware) {
+                    xpc_object_t value = CFBridgingRelease(property(candidate, "UniqueDeviceID"));
+                    const char *actual = value && xpc_get_type(value) == XPC_TYPE_STRING ? xpc_string_get_string_ptr(value) : NULL;
+                    if (!actual || strcasecmp(actual, hardware.UTF8String)) return;
+                } else {
+                    unsigned char bytes[16]; copyUUID(candidate, bytes);
+                    NSUUID *uuid = [[NSUUID alloc] initWithUUIDBytes:bytes];
+                    if ([identifier caseInsensitiveCompare:uuid.UUIDString] != NSOrderedSame) return;
+                }
                 @synchronized (choices) {
                     if (!closed && choices.count < 2) [choices addObject:candidate];
                 }
@@ -558,6 +565,17 @@ static int ADCOpenRSDAXSocket(const char *remoteUUID, const char *expectedUDID, 
         if (!actualIdentifier || [hardware caseInsensitiveCompare:actualIdentifier] != NSOrderedSame) {
             ADCFail(error, capacity, @"Apple RSD hardware identity mismatch; no socket opened.");
             return -1;
+        }
+        if (profile) {
+            // Signatures verified in installed shared-cache disassembly.
+            uint64_t (*versionFlags)(id) = dlsym(RTLD_DEFAULT, "remote_device_get_xpc_remote_connection_version_flags");
+            uint64_t (*modeFlags)(id) = dlsym(RTLD_DEFAULT, "remote_device_get_xpc_remote_connection_mode_flags");
+            bool (*tlsEnabled)(id) = dlsym(RTLD_DEFAULT, "remote_device_xpc_remote_connection_tls_enabled");
+            if (!versionFlags || !modeFlags || !tlsEnabled) return ADCFail(error, capacity, @"Apple RSD transport profile APIs are unavailable; no socket opened.");
+            profile->versionFlags = versionFlags(device);
+            profile->modeFlags = modeFlags(device);
+            profile->tlsEnabled = tlsEnabled(device) ? 1 : 0;
+            return 0;
         }
         // Match Apple's show caller: read the device's service-name inventory
         // before asking for an endpoint. Keep missing inventory distinct from
@@ -602,11 +620,25 @@ static int ADCOpenRSDAXSocket(const char *remoteUUID, const char *expectedUDID, 
 }
 
 int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUDID, void **owner, char *error, size_t capacity) {
-    return ADCOpenRSDAXSocket(remoteUUID, expectedUDID, NO, owner, error, capacity);
+    return ADCOpenRSDAXSocket(remoteUUID, expectedUDID, NO, NULL, owner, error, capacity);
 }
 
 int ADCOpenBrowsedRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUDID, void **owner, char *error, size_t capacity) {
-    return ADCOpenRSDAXSocket(remoteUUID, expectedUDID, YES, owner, error, capacity);
+    return ADCOpenRSDAXSocket(remoteUUID, expectedUDID, YES, NULL, owner, error, capacity);
+}
+
+int ADCReadRSDTransportProfile(const char *remoteUUID, const char *expectedUDID, ADCRemoteTransportProfile *profile, char *error, size_t capacity) {
+    if (!profile) return ADCFail(error, capacity, @"RSD transport profile output is required; no socket opened.");
+    *profile = (ADCRemoteTransportProfile){ .tlsEnabled = -1 };
+    void *owner = NULL;
+    return ADCOpenRSDAXSocket(remoteUUID, expectedUDID, NO, profile, &owner, error, capacity);
+}
+
+int ADCReadRSDTransportProfileForHardware(const char *expectedUDID, ADCRemoteTransportProfile *profile, char *error, size_t capacity) {
+    if (!profile) return ADCFail(error, capacity, @"RSD transport profile output is required; no socket opened.");
+    *profile = (ADCRemoteTransportProfile){ .tlsEnabled = -1 };
+    void *owner = NULL;
+    return ADCOpenRSDAXSocket(NULL, expectedUDID, YES, profile, &owner, error, capacity);
 }
 
 void ADCCloseAccessibilitySocket(int descriptor, void *owner) {

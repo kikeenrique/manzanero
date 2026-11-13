@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Capture Apple's native RemoteXPC initialization on an owned loopback peer; no device query"
+#USAGE flag "--mode <mode>" default="0" help="Explicit observed Apple mode: 0 for baseline, 4 for the current CoreDevice service profile"
+
+set -e -o pipefail
+
+APPLEDEVICES_NATIVE_RSD_WIRE=1 APPLEDEVICES_NATIVE_RSD_WIRE_MODE="$usage_mode" swift test --cache-path tmp/swift-cache --filter NativeRemoteXPCWireTests 2>&1 | xcsift -f toon --warnings

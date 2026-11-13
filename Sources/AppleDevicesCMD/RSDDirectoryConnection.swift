@@ -21,9 +21,9 @@ final class RSDDirectoryConnection {
         var owner: UnsafeMutableRawPointer?
         var servicePort: UInt16 = 0
         var error = [CChar](repeating: 0, count: 1024)
-        // Recorded Apple CoreDevice RemoteXPC version flags, not a new wire
-        // encoder. This explicit probe does not retry other flag combinations.
-        let status = ADCOpenRSDDirectory(descriptor, expectedUDID, host, 0x0100000000000006,
+        // Baseline diagnostic settings only. The service profile's mode flags
+        // must not be assumed to describe directory-control initialization.
+        let status = ADCOpenRSDDirectory(descriptor, expectedUDID, host, 0x0100000000000006, 0,
             { Task.isCancelled ? 1 : 0 }, &servicePort, &owner, &error, error.count)
         // The bridge consumes descriptor even if setup/validation fails.
         if Task.isCancelled {

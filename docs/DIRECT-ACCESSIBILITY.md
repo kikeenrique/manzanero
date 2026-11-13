@@ -101,6 +101,8 @@ Later tree-probe and directory-control attempts failed before AX with native `Co
 
 An explicit [native Apple tunnel assertion](TRANSPORT.md#native-apple-tunnel-assertion) now has scoped acquisition/release verification. Holding it through a subsequent RSD tree attempt did not resolve `Connection invalid`; that attempt stopped before AX, and assertion release was acknowledged. Missing assertion ownership alone is therefore not a demonstrated repair. Native directory wire/API compatibility and session behavior still need investigation. No pairing, setting change, daemon suspension or automatic action replay was introduced.
 
+The [local wire/service-profile comparison](TRANSPORT.md#local-native-wire-and-service-profile-comparison) now verifies HTTP/2 initialization against an owned local peer and exposes Apple's identity-checked service flags. The mode-4 service-profile experiment did not restore AX. Installed remoted inspection distinguishes its failsafe directory-control bootstrap from those service settings; this distinction is the next implementation target. Local prefix/profile checks do not establish a complete directory exchange or a physical tree.
+
 ## Local validation
 
 On 2026-11-13, `mise run test` passed 160 Swift test functions with zero errors/warnings on macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2. Seven new tests cover an independent byte fixture, outgoing subscription archives, fragment assembly/correlation, malformed header/payload/argument bounds, reply direction/overflow and opaque unknown archive class names. No phone request was sent by these tests. A successful build or codec test is not a live tree result.

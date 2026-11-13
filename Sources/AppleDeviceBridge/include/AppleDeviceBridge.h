@@ -24,6 +24,18 @@ int ADCOpenRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUD
 /// Explicit one-shot browser comparison; uses the same hardware/service guards.
 int ADCOpenBrowsedRSDAccessibilitySocket(const char *remoteUUID, const char *expectedUDID, void **owner,
                                         char *error, size_t errorCapacity);
+typedef struct {
+    uint64_t versionFlags;
+    uint64_t modeFlags;
+    int tlsEnabled;
+} ADCRemoteTransportProfile;
+/// Reads service transport metadata for an identity-checked Apple RSD device.
+/// Directory-control bootstrap settings are a separate contract.
+/// Does not read credentials, open a service socket or subscribe to AX.
+int ADCReadRSDTransportProfile(const char *remoteUUID, const char *expectedUDID,
+                               ADCRemoteTransportProfile *profile, char *error, size_t errorCapacity);
+int ADCReadRSDTransportProfileForHardware(const char *expectedUDID, ADCRemoteTransportProfile *profile,
+                                          char *error, size_t errorCapacity);
 void ADCCloseAccessibilitySocket(int descriptor, void *owner);
 
 /// Validates a borrowed RemoteXPC RSD Handshake and returns only the exact AX
@@ -32,7 +44,7 @@ int ADCValidateRSDHandshake(const void *message, const char *expectedUDID, uint1
                            char *error, size_t errorCapacity);
 /// Consumes a connected stream FD on every path. Owns Apple's RemoteXPC
 /// connection until explicitly closed. Does not open AX or enable accessibility.
-int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *localUUID, uint64_t versionFlags,
+int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *localUUID, uint64_t versionFlags, uint64_t modeFlags,
                         int (^shouldCancel)(void), uint16_t *axPort, void **owner,
                         char *error, size_t errorCapacity);
 void ADCCloseRSDDirectory(void *owner);
