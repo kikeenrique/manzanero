@@ -1,5 +1,7 @@
 # Development tasks
 
+`mise run test:cli-interrupt <UDID> <x> <y> <seconds> <SIGINT|SIGTERM>` starts one owned CLI process with an 8...10-second physical long-press, sends the selected signal after two seconds and checks normal exit 130/143, early completion and empty stdout. It waits through the CLI's own cleanup grace before force-killing a stalled test child. Artifacts remain under `tmp/`; no release guarantee follows from process exit.
+
 `mise run test:mcp-long-press <UDID> <x> <y> <seconds> --cancel` requests cancellation after two seconds of an 8...10-second Indigo long-press, then queues a readiness request through the same command actor. It checks that this reply arrives before eight seconds and that no ordinary cancelled-call response precedes it. A subsequent screenshot is timed separately. This is an explicit live action; it does not prove device-side contact release. Without `--cancel`, the task retains its normal full-hold verification behavior.
 
 `mise run test:ax-socket <UDID> --remote-uuid <remote-UUID> --browse` explicitly compares Apple's one-shot discovery path with the existing direct RSD lookup. It verifies hardware identity and opens only the exact AX endpoint if advertised; it sends no subscription or input. `--browse` without a remote UUID is rejected. A failed probe remains a failure, not a capability result.

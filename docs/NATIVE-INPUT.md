@@ -8,7 +8,15 @@ All direct physical HID paths now poll Swift task cancellation during dispatch: 
 
 The shared command actor does not process another synchronous mutation until the current dispatch and bounded final barrier return. This serialization is limited to that service instance; cross-process ownership/quarantine remain unfinished. Swift propagates cancellation after cleanup so MCP can suppress an ordinary cancelled-request response. Paste cancellation preserves the cancellation type and emits a stderr diagnostic: clipboard replacement may already have happened, and insertion/release remain unverified. Clipboard contents are not restored.
 
-The new polling does not interrupt CoreDevice socket creation (up to 15 seconds), readiness/discovery (up to three seconds each), the final barrier (up to three seconds), or an Apple executable already running. CLI SIGINT/SIGTERM, crashes and disconnected devices do not acquire a cleanup guarantee. Unit sink tests establish attempted event ordering, not device-side release.
+The polling does not interrupt CoreDevice socket creation (up to 15 seconds), readiness/discovery (up to three seconds each), or the final barrier (up to three seconds). Cancellation of an Apple executable depends on its runner/deadline. Crashes and disconnected devices do not acquire a cleanup guarantee. Unit sink tests establish attempted event ordering, not device-side release.
+
+### CLI signals
+
+Validated direct physical HID commands install scoped SIGINT/SIGTERM dispatch handlers before launching their command task. The first signal cancels that task and allows its existing bounded dispatch/release/barrier cleanup to return. Interrupted commands emit diagnostics on stderr, suppress normal success output and exit 130 (SIGINT) or 143 (SIGTERM), even if the action raced to completion. Input may already have affected the phone; the signal is not rollback. Paste may already have replaced the clipboard.
+
+Another delivered signal or a 30-second cleanup grace expiry forces process exit. Force exit, SIGKILL, crashes and disconnection cannot promise release or child-process cleanup. The signal handlers run on a dedicated Dispatch queue, outside a raw POSIX signal handler, and their previous dispositions are restored when the scope finishes. Signal arrival before task binding is retained so cancellation is not lost. Dry runs, invalid/non-HID commands and the MCP server process keep their existing signal behavior. MCP request cancellation works separately; MCP process termination/EOF recovery is still unfinished. Cross-process ownership and quarantine remain missing.
+
+On USB iPhone 13 mini, live nine-second holds interrupted after two seconds exited normally with codes 130/143 at 2.127/2.057 seconds respectively and no stdout success receipt. These results establish scoped process interruption, not exact contact delivery/release or broad signal recovery across every input type. Local tests cover cancellation binding races, repeated-signal force exit, deadline enforcement/disarming and scope selection.
 
 ### Direct buttons
 

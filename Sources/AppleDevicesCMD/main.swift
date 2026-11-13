@@ -9,7 +9,7 @@ Usage:
   appledevicescmd devices simulators   List available simulators as JSON
   appledevicescmd pair wifi <host> <port> <new-record.pairing.plist>
   appledevicescmd --pairing-file <record> physical <UDID> <bridge-operation> ...
-  appledevicescmd --physical-backend coredevice physical <device> <button|tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch> ...
+  appledevicescmd --physical-backend coredevice physical <device> <button|tap|multi-tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch> ...
   appledevicescmd --physical-backend coredevice physical <device> gesture '<JSON with frames:[{ms,touches:[{id,x,y}]}]>'
   appledevicescmd --recording-backend coredevice physical <device> record <new.mp4> <seconds> [h264|hevc]
   appledevicescmd --physical-backend coredevice physical <device> long-press <x> <y> <seconds: 0.1...10>
@@ -17,7 +17,9 @@ Usage:
   Buttons, tap, long-press, drag, swipe, pinch and two-path multi-drag call Apple CoreDevice in process.
   Named keys and paste keys call Apple CoreDevice in process; paste uses Apple's devicectl clipboard copy.
   Physical type sends 1...512 printable US-layout ASCII characters, tab or LF in process; no clipboard change.
-  Gesture schedules use in-process Universal HID with up to five slots; standalone multi-tap and larger multi-drag await migration.
+  Gesture schedules, multi-tap and three-to-five-path multi-drag use in-process Universal HID.
+  During direct physical input, SIGINT/SIGTERM cancels and attempts release, exiting 130/143.
+  A second signal or a 30-second cleanup deadline forces exit; device-side release is unverified.
   Non-Apple device helper executables are disabled, including AXe, idevice, and ipb helpers.
   Pairing prompts for the device's PIN; use its advertised _remotepairing._tcp endpoint.
   appledevicescmd doctor               Check Xcode and device-service access
@@ -62,7 +64,7 @@ Usage:
   appledevicescmd physical <UDID> button <home|lock|volume-up|volume-down>
   appledevicescmd physical <UDID> key <return|escape|backspace|tab|space|up|down|left|right>
   appledevicescmd physical <UDID> type <text>   Experimental US-layout ASCII, 1...512 characters
-  Physical input, ax-snapshot, and logs require the optional appledevices-idevice bridge on PATH.
+  Physical ax-snapshot/tree/selector actions and logs are unavailable pending direct Apple replacements.
   Logs capture a finite experimental OS trace, capped at 2000 entries/4 MiB of entry JSON.
   Physical coordinates are normalized 0...1, with the origin at the top left.
   appledevicescmd simulator <device> <apps|boot|shutdown>
@@ -76,7 +78,7 @@ Usage:
   appledevicescmd simulator <UDID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
   appledevicescmd simulator <UDID> type <text>
   appledevicescmd simulator <UDID> button <name>
-  Simulator input and tree commands require AXe on PATH and an explicit UDID.
+  Simulator input and tree commands are unavailable pending direct Apple replacements.
   Prefix a planned command with --dry-run to print its invocation without executing.
   appledevicescmd --help
   appledevicescmd --version
@@ -97,7 +99,16 @@ do {
     if args == ["--version"] { print("appledevicescmd 0.1.0-dev"); exit(0) }
     let dryRun = args.first == "--dry-run"
     if dryRun { args.removeFirst() }
-    let result = try await CommandService().execute(args, dryRun: dryRun, allowInteractive: true)
+    let commandArgs = args
+    let result: CommandOutput
+    if CLIInputSignals.applies(to: commandArgs, dryRun: dryRun) {
+        result = try await CLIInputSignals.run {
+            try await CommandService().execute(commandArgs, allowInteractive: true)
+        }
+    } else {
+        result = try await CommandService().execute(commandArgs, dryRun: dryRun, allowInteractive: true)
+    }
+    if result.data.isEmpty, result.exitCode != 0 { exit(result.exitCode) }
     FileHandle.standardOutput.write(result.data)
     if result.data.last != 10 { print() }
     exit(result.exitCode)

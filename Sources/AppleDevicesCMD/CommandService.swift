@@ -52,8 +52,7 @@ actor CommandService {
             return try json(["backend": "idevice", "executionAvailable": false, "arguments": forwarded,
                 "limitation": "The explicitly selected non-Apple executable backend is disabled; no fallback will run."])
         }
-        let nativeArguments = args.count >= 3 && args[0] == "physical" && (["button", "key", "type", "paste", "gesture", "multi-tap"] + DirectPhysicalTouch.operations).contains(args[2])
-            ? ["--physical-backend", "coredevice"] + args : args
+        let nativeArguments = CoreDeviceInput.selectDefaultBackend(args)
         if let native = try CoreDeviceInput.parse(nativeArguments) {
             if dryRun {
                 let identity = try native.identityPlan()

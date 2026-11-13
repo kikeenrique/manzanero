@@ -9,6 +9,12 @@ struct CoreDeviceInput {
     static let action = "com.apple.coredevice.action.createservicesocket"
     static let universal = "com.apple.coredevice.feature.remote.universalhidservice"
 
+    static func selectDefaultBackend(_ args: [String]) -> [String] {
+        args.count >= 3 && args[0] == "physical" &&
+            (["button", "key", "type", "paste", "gesture", "multi-tap"] + DirectPhysicalTouch.operations).contains(args[2])
+            ? ["--physical-backend", "coredevice"] + args : args
+    }
+
     static func parse(_ args: [String]) throws -> Self? {
         guard args.first == "--physical-backend" else { return nil }
         guard args.count >= 5, args[1] == "coredevice", args[2] == "physical",

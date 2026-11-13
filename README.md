@@ -23,6 +23,8 @@ Task scripts live under [`mise/tasks/`](mise/tasks/); `mise.toml` keeps shared c
 
 The [direct accessibility migration](docs/DIRECT-ACCESSIBILITY.md) tracks the in-process replacement for physical trees and selectors; it is not yet available in the product.
 
+During direct physical HID commands, Ctrl-C/SIGINT and SIGTERM cancel dispatch, attempt contact/key release, and exit with 130/143 without a success receipt. Another delivered signal or a 30-second cleanup deadline forces exit. Device-side release and MCP process-shutdown cleanup remain unverified/incomplete; see [interruption limits](docs/NATIVE-INPUT.md#cli-signals).
+
 Offline `decode-ax-archive <local-plist>` and MCP `decode_accessibility_archive` now inspect saved keyed archives in process through Foundation, with bounded data-only decoding and no helper. They do not capture a fresh screen tree or instantiate archived classes.
 
 Timed `gesture` / MCP `perform_gesture` runs [complete-state schedules](docs/GESTURE-SEQUENCES.md#current-direct-implementation) in process, with up to five slots and independent arrivals/lifts. Direct single-contact swipe and repeated-tap effects have scoped iPhone verification; broader multitouch effects and failure release remain unverified.
