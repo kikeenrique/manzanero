@@ -21,13 +21,15 @@ final class AccessibilitySocketTransport: AccessibilitySessionTransport {
 
     private var descriptor: Int32
     private var owner: UnsafeMutableRawPointer?
+    private var directory: RSDDirectoryConnection?
     var isClosed: Bool { descriptor < 0 }
 
     /// Ownership transfers even when setup throws. Never close or reuse the
     /// original descriptor/owner after calling this initializer.
-    init(taking descriptor: Int32, owner: UnsafeMutableRawPointer? = nil) throws {
+    init(taking descriptor: Int32, owner: UnsafeMutableRawPointer? = nil, directory: RSDDirectoryConnection? = nil) throws {
         self.descriptor = descriptor
         self.owner = owner
+        self.directory = directory
         do {
             guard descriptor >= 0 else { throw Failure.closed }
             var type: Int32 = 0
@@ -56,6 +58,8 @@ final class AccessibilitySocketTransport: AccessibilitySessionTransport {
         descriptor = -1
         owner = nil
         if savedDescriptor >= 0 || savedOwner != nil { ADCCloseAccessibilitySocket(savedDescriptor, savedOwner) }
+        directory?.close()
+        directory = nil
     }
 
     func read(until deadline: ContinuousClock.Instant, cancelled: () -> Bool) throws -> AccessibilityDTX {

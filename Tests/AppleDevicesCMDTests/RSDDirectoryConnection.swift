@@ -74,7 +74,7 @@ struct RSDDirectoryConnectionTests {
         var owner: UnsafeMutableRawPointer? = UnsafeMutableRawPointer(bitPattern: 1)
         var port: UInt16 = 123
         var error = [CChar](repeating: 0, count: 512)
-        #expect(ADCOpenRSDDirectory(sockets[0], hardware, 0, { 1 }, &port, &owner, &error, error.count) != 0)
+        #expect(ADCOpenRSDDirectory(sockets[0], hardware, "11111111-1111-1111-1111-111111111111", 0, { 1 }, &port, &owner, &error, error.count) != 0)
         #expect(owner == nil && port == 0)
         var byte: UInt8 = 0
         #expect(recv(sockets[1], &byte, 1, MSG_DONTWAIT) == 0)
@@ -85,6 +85,14 @@ struct RSDDirectoryConnectionTests {
         #expect(throws: CommandFailure.self) { try RSDDirectoryConnection(tunnelAddress: "fd12::1", port: 1, expectedUDID: "alias") }
         #expect(throws: CommandFailure.self) { try RSDDirectoryConnection(tunnelAddress: "::1", port: 1, expectedUDID: hardware) }
         #expect(throws: CommandFailure.self) { try RSDDirectoryConnection(tunnelAddress: "fd12::1", port: 0, expectedUDID: hardware) }
+    }
+
+    @Test func localHostIdentityNeverFallsBackToARemoteDeviceUUID() throws {
+        let uuid = "11111111-1111-1111-1111-111111111111"
+        #expect(try RSDDirectoryConnection.localPeerUUID(in: Data("Local device\n\tUUID: \(uuid)\nRemote device\n\tUUID: 22222222-2222-2222-2222-222222222222".utf8)) == uuid)
+        for text in ["", "Remote device\n\tUUID: \(uuid)", "Local device\n\tUUID: invalid\nRemote device\n\tUUID: \(uuid)"] {
+            #expect(throws: CommandFailure.self) { try RSDDirectoryConnection.localPeerUUID(in: Data(text.utf8)) }
+        }
     }
 
     @Test(.enabled(if: ProcessInfo.processInfo.environment["APPLEDEVICES_RSD_DIRECTORY_DEVICE"] != nil))

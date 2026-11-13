@@ -7,19 +7,23 @@ import Foundation
 final class RSDDirectoryConnection {
     let accessibilityPort: UInt16
     private var owner: UnsafeMutableRawPointer?
+    private let tunnelAddress: String
+    private var serviceOpened = false
 
     init(tunnelAddress: String, port: UInt16, expectedUDID: String) throws {
         try Task.checkCancellation()
         guard expectedUDID.range(of: "^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$", options: .regularExpression) != nil else {
             throw CommandFailure(description: "RSD directory requires an explicit hardware UDID; no connection started.")
         }
+        _ = try RSDPortDiscovery.socketAddress(tunnelAddress, port: port)
+        let host = try Self.localPeerUUID(in: ToolRunner().run(["dumpstate"], executable: "/usr/libexec/remotectl", timeout: 5))
         let descriptor = try Self.connect(address: tunnelAddress, port: port)
         var owner: UnsafeMutableRawPointer?
         var servicePort: UInt16 = 0
         var error = [CChar](repeating: 0, count: 1024)
         // Recorded Apple CoreDevice RemoteXPC version flags, not a new wire
         // encoder. This explicit probe does not retry other flag combinations.
-        let status = ADCOpenRSDDirectory(descriptor, expectedUDID, 0x0100000000000006,
+        let status = ADCOpenRSDDirectory(descriptor, expectedUDID, host, 0x0100000000000006,
             { Task.isCancelled ? 1 : 0 }, &servicePort, &owner, &error, error.count)
         // The bridge consumes descriptor even if setup/validation fails.
         if Task.isCancelled {
@@ -31,7 +35,21 @@ final class RSDDirectoryConnection {
             throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }
         self.owner = owner
+        self.tunnelAddress = tunnelAddress
         accessibilityPort = servicePort
+    }
+
+    static func localPeerUUID(in dump: Data) throws -> String {
+        guard dump.count <= 4 * 1024 * 1024, let text = String(data: dump, encoding: .utf8) else {
+            throw CommandFailure(description: "Invalid or oversized Apple RSD host inventory; no connection started.")
+        }
+        let lines = text.split(whereSeparator: \.isNewline)
+        guard lines.count >= 2, lines[0] == "Local device",
+              lines[1].trimmingCharacters(in: .whitespaces).hasPrefix("UUID: "),
+              let uuid = UUID(uuidString: String(lines[1].trimmingCharacters(in: .whitespaces).dropFirst(6))) else {
+            throw CommandFailure(description: "Apple RSD host identity was not available; no connection started.")
+        }
+        return uuid.uuidString
     }
 
     deinit { close() }
@@ -39,6 +57,22 @@ final class RSDDirectoryConnection {
         let saved = owner
         owner = nil
         ADCCloseRSDDirectory(saved)
+    }
+
+    /// Transfers lifetime responsibility to the one owned AX transport. It must
+    /// close its service socket before releasing the directory connection.
+    func openAccessibility() throws -> AccessibilitySocketTransport {
+        guard let owner, !serviceOpened, ADCIsRSDDirectoryActive(owner) == 1 else {
+            throw CommandFailure(description: "RSD directory is closed, failed or already has an AX service owner; no new service connection started.")
+        }
+        serviceOpened = true
+        do {
+            let descriptor = try Self.connect(address: tunnelAddress, port: accessibilityPort)
+            return try AccessibilitySocketTransport(taking: descriptor, directory: self)
+        } catch {
+            close()
+            throw error
+        }
     }
 
     private static func connect(address: String, port: UInt16) throws -> Int32 {

@@ -37,6 +37,7 @@ typedef void (*ADCReply)(ADCRemote, xpc_object_t, dispatch_queue_t, xpc_handler_
 @property(nonatomic, strong) dispatch_semaphore_t semaphore;
 @property(atomic, strong) xpc_object_t reply;
 @property(atomic) BOOL failed;
+@property(atomic, copy) NSString *failureText;
 @end
 @implementation ADCReplyState
 - (instancetype)init { if ((self = [super init])) _semaphore = dispatch_semaphore_create(0); return self; }
@@ -166,6 +167,7 @@ int ADCValidateRSDHandshake(const void *message, const char *expectedUDID, uint1
 
 @interface ADCRSDDirectoryOwner : NSObject
 @property(nonatomic, strong) id remote;
+@property(nonatomic, strong) ADCReplyState *state;
 @end
 @implementation ADCRSDDirectoryOwner
 @end
@@ -173,18 +175,26 @@ int ADCValidateRSDHandshake(const void *message, const char *expectedUDID, uint1
 void ADCCloseRSDDirectory(void *owner) {
     if (!owner) return;
     ADCRSDDirectoryOwner *lifetime = CFBridgingRelease(owner);
+    lifetime.state.failed = YES;
     ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
     if (cancel && lifetime.remote) cancel((__bridge ADCRemote)lifetime.remote);
 }
 
-int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, uint64_t versionFlags,
+int ADCIsRSDDirectoryActive(void *owner) {
+    if (!owner) return 0;
+    ADCRSDDirectoryOwner *lifetime = (__bridge ADCRSDDirectoryOwner *)owner;
+    return lifetime.state && !lifetime.state.failed;
+}
+
+int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *localUUID, uint64_t versionFlags,
                          int (^shouldCancel)(void), uint16_t *axPort, void **owner,
                          char *error, size_t capacity) {
     @autoreleasepool {
         if (owner) *owner = NULL;
         if (axPort) *axPort = 0;
+        NSUUID *host = localUUID ? [[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:localUUID]] : nil;
         int type = 0; socklen_t length = sizeof(type);
-        if (!owner || !axPort || !ADCValidHardwareUDID(expectedUDID) || descriptor < 0 ||
+        if (!owner || !axPort || !host || !ADCValidHardwareUDID(expectedUDID) || descriptor < 0 ||
             getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &type, &length) || type != SOCK_STREAM ||
             (shouldCancel && shouldCancel())) {
             if (descriptor >= 0) close(descriptor);
@@ -195,7 +205,8 @@ int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, uint64_t versi
         ADCHandler handler = dlsym(RTLD_DEFAULT, "xpc_remote_connection_set_event_handler");
         ADCActivate activate = dlsym(RTLD_DEFAULT, "xpc_remote_connection_activate");
         ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
-        if (!create || !handler || !activate || !cancel) {
+        ADCSend send = dlsym(RTLD_DEFAULT, "xpc_remote_connection_send_message");
+        if (!create || !handler || !activate || !cancel || !send) {
             close(descriptor);
             return ADCFail(error, capacity, @"Apple RemoteXPC directory interfaces are unavailable.");
         }
@@ -205,9 +216,16 @@ int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, uint64_t versi
         ADCRSDDirectoryOwner *lifetime = [ADCRSDDirectoryOwner new];
         lifetime.remote = CFBridgingRelease(remote);
         ADCReplyState *state = [ADCReplyState new];
+        lifetime.state = state;
         __block unsigned messages = 0;
         handler(remote, ^(xpc_object_t event) {
-            if (xpc_get_type(event) == XPC_TYPE_ERROR || ++messages > 32) {
+            if (xpc_get_type(event) == XPC_TYPE_ERROR) {
+                const char *description = xpc_dictionary_get_string(event, XPC_ERROR_KEY_DESCRIPTION);
+                state.failureText = description ? [[NSString alloc] initWithBytes:description length:strnlen(description, 256) encoding:NSUTF8StringEncoding] : @"RemoteXPC connection error";
+                state.failed = YES; dispatch_semaphore_signal(state.semaphore); return;
+            }
+            if (++messages > 32) {
+                state.failureText = @"Unrelated directory message limit exceeded";
                 state.failed = YES; dispatch_semaphore_signal(state.semaphore); return;
             }
             if (xpc_get_type(event) != XPC_TYPE_DICTIONARY) return;
@@ -217,6 +235,16 @@ int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, uint64_t versi
             }
         });
         activate(remote);
+        xpc_object_t handshake = xpc_dictionary_create_empty(), properties = xpc_dictionary_create_empty();
+        uuid_t hostBytes; [host getUUIDBytes:hostBytes];
+        xpc_dictionary_set_string(handshake, "MessageType", "Handshake");
+        xpc_dictionary_set_uint64(handshake, "MessagingProtocolVersion", 7);
+        xpc_dictionary_set_value(handshake, "UUID", xpc_uuid_create(hostBytes));
+        xpc_dictionary_set_uint64(properties, "RemoteXPCVersionFlags", versionFlags);
+        xpc_dictionary_set_bool(properties, "SensitivePropertiesVisible", YES);
+        xpc_dictionary_set_value(handshake, "Properties", properties);
+        xpc_dictionary_set_value(handshake, "Services", xpc_dictionary_create_empty());
+        send(remote, handshake);
         uint64_t deadline = clock_gettime_nsec_np(CLOCK_MONOTONIC) + 8ULL * NSEC_PER_SEC;
         BOOL ready = NO;
         while (!(shouldCancel && shouldCancel()) && clock_gettime_nsec_np(CLOCK_MONOTONIC) < deadline) {
@@ -224,7 +252,7 @@ int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, uint64_t versi
         }
         if (!ready || state.failed || (shouldCancel && shouldCancel())) {
             cancel(remote);
-            return ADCFail(error, capacity, @"RSD directory handshake failed, was cancelled or exceeded its eight-second deadline; no AX connection started.");
+            return ADCFail(error, capacity, [NSString stringWithFormat:@"RSD directory handshake failed, was cancelled or exceeded its eight-second deadline; no AX connection started. %@", state.failureText ?: @"No native connection error detail."]);
         }
         if (ADCValidateRSDHandshake((__bridge const void *)state.reply, expectedUDID, axPort, error, capacity)) {
             cancel(remote); return 1;

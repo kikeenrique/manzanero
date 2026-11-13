@@ -97,6 +97,8 @@ A later [read-only nettop discovery primitive](TRANSPORT.md#read-only-rsd-port-d
 
 The subsequent [native directory handshake](TRANSPORT.md#native-directory-handshake) passed on the selected iPhone through Apple's own RemoteXPC framework, matching its hardware UDID and validating the advertised AX service port. This supersedes the missing-directory-connection obstacle for that scoped check. It does not supersede the failed CoreDevice named-socket route or prove AX access: the directory probe sends no accessibility subscription and opens no AX socket. Direct RSD/AX session integration is the next step.
 
+Later tree-probe and directory-control attempts failed before AX with native `Connection invalid`; the successful peer directory response has not proved repeatable. An explicit host RSD handshake, using the local UUID from Apple's tool, did not fix the next attempt. The owned AX transport/lifetime integration now exists behind `test:rsd-tree`, but has no live service/tree result. Product routing remains unchanged. See the [transport follow-up](TRANSPORT.md#native-directory-handshake) for failures and remaining tunnel-assertion/identity work; no phone setting change is justified by these results.
+
 ## Local validation
 
 On 2026-11-13, `mise run test` passed 160 Swift test functions with zero errors/warnings on macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2. Seven new tests cover an independent byte fixture, outgoing subscription archives, fragment assembly/correlation, malformed header/payload/argument bounds, reply direction/overflow and opaque unknown archive class names. No phone request was sent by these tests. A successful build or codec test is not a live tree result.
