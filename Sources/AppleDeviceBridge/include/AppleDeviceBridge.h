@@ -17,6 +17,18 @@ int ADCPerformDigitizerReports(const char *uuid, const char *version,
                               const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
                               uint64_t *surface, char *error, size_t errorCapacity);
 
+typedef int (^ADCInputShouldStop)(void);
+typedef void (^ADCDigitizerSink)(const uint8_t *report);
+/// Shared scheduler, also exercised with a local sink. Returns 0 completed,
+/// 1 stopped (with release attempted), or 2 invalid (no callbacks invoked).
+/// Callbacks run synchronously on the calling thread and are never retained.
+int ADCRunDigitizerSchedule(const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
+                            ADCInputShouldStop shouldStop, ADCDigitizerSink sendReport);
+int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version,
+                              const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
+                              ADCInputShouldStop shouldCancel, uint64_t *surface,
+                              char *error, size_t errorCapacity);
+
 /// Returns zero only after sending one down/up pair and a service barrier.
 /// This is transport dispatch, never verification of device UI or key release.
 int ADCPressButton(const char *uuid, const char *version, uint64_t usage,

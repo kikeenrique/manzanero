@@ -179,6 +179,8 @@ enum MCPTools {
                 }
             }
             return .init(content: content, structuredContent: value.map { .object(["result": $0]) }, isError: output.exitCode != 0)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             return .init(content: [.text(text: String(describing: error), annotations: nil, _meta: nil)], isError: true)
         }

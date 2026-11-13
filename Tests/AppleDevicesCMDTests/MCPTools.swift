@@ -4,6 +4,16 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct MCPToolsTests {
+    @Test func cancellationPropagatesToSDKInsteadOfToolErrorResponse() async throws {
+        do {
+            _ = try await MCPTools.call(name: "press_button", arguments: ["device": "fixture", "platform": "physical", "button": "home"]) { _ in
+                throw CancellationError()
+            }
+            Issue.record("Cancellation became an ordinary MCP response")
+        } catch is CancellationError {
+            // The SDK owns suppression of the cancelled request's response.
+        }
+    }
     @Test func multitouchToolsUseTheSharedPhysicalPlanner() throws {
         let pinch = try #require(MCPTools.definitions.first { $0.name == "pinch" })
         let args = try pinch.command(["device": "fixture", "center_x": 0.5, "center_y": 0.5, "start_span": 1, "end_span": 0.5, "seconds": 1])

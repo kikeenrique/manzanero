@@ -86,6 +86,30 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
+            if let file = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_GESTURE_FILE"] {
+                let json = try String(contentsOfFile: file, encoding: .utf8)
+                let sequence = try NativeGestureSequence(json: json)
+                try #require((8000...10000).contains(sequence.times.last ?? 0))
+                let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical,
+                    "path": directory.appendingPathComponent("cancel-before.png").path]])
+                try #require((before["result"] as? [String: Any])?["isError"] as? Bool == false)
+                let start = ContinuousClock.now
+                try send(["jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": ["name": "perform_gesture",
+                    "arguments": ["device": physical, "sequence": json]]])
+                try await Task.sleep(for: .seconds(2))
+                try send(["jsonrpc": "2.0", "method": "notifications/cancelled", "params": ["requestId": 5, "reason": "Explicit live cancellation verification"]])
+                let after = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical,
+                    "path": directory.appendingPathComponent("cancel-after.png").path]])
+                try #require((after["result"] as? [String: Any])?["isError"] as? Bool == false)
+                let elapsed = start.duration(to: .now)
+                #expect(elapsed < .seconds(8))
+                try JSONSerialization.data(withJSONObject: ["cancelledRequest": 5, "followupRequest": 6,
+                    "elapsed": String(describing: elapsed), "plannedMilliseconds": sequence.times.last ?? 0,
+                    "deviceSideReleaseVerified": false], options: [.prettyPrinted, .sortedKeys])
+                    .write(to: directory.appendingPathComponent("cancel-result.json"))
+                try finish()
+                return
+            }
             if let text = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PASTE"] ?? ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_TYPE"] {
                 let paste = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PASTE"] != nil
                 let operation = paste ? "paste" : "type"

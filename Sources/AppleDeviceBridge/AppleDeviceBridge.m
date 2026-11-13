@@ -290,6 +290,41 @@ static uint64_t ADCNow(void) {
     return (uint64_t)value.tv_sec * NSEC_PER_SEC + value.tv_nsec;
 }
 
+static int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
+                                        size_t count, char *error, size_t capacity);
+
+int ADCRunDigitizerSchedule(const uint64_t *times, const uint8_t *reports, size_t count,
+                            ADCInputShouldStop shouldStop, ADCDigitizerSink sendReport) {
+    if (!sendReport || ADCValidateDigitizerSchedule(times, reports, count, NULL, 0)) return 2;
+    uint64_t start = ADCNow();
+    size_t last = 0;
+    BOOL attempted = NO, stopped = NO;
+    for (size_t i = 0; i < count; i++) {
+        uint64_t target = start + times[i], now;
+        while ((now = ADCNow()) < target) {
+            if (shouldStop && shouldStop()) { stopped = YES; break; }
+            // Bound cancellation/transport-error observation during long gaps.
+            uint64_t remaining = MIN(target - now, 10ULL * NSEC_PER_MSEC);
+            struct timespec wait = { 0, (long)remaining };
+            nanosleep(&wait, NULL);
+        }
+        if (stopped || (shouldStop && shouldStop())) { stopped = YES; break; }
+        attempted = YES; last = i;
+        sendReport(reports + i * 58);
+    }
+    if (attempted) {
+        uint8_t release[58]; memcpy(release, reports + last * 58, 58);
+        BOOL active = NO;
+        for (size_t id = 0; id < release[1]; id++) {
+            if (release[3 + id * 5] & 0xc0) active = YES;
+            release[3 + id * 5] = (uint8_t)id;
+        }
+        // Cancellation must never suppress this final best-effort release.
+        if (active) sendReport(release);
+    }
+    return stopped || (shouldStop && shouldStop()) ? 1 : 0;
+}
+
 static xpc_object_t ADCUniversalRequest(const char *operation, xpc_object_t arguments) {
     xpc_object_t message = xpc_dictionary_create_empty(), payload = xpc_dictionary_create_empty();
     xpc_dictionary_set_string(message, "messageType", "Request");
@@ -319,8 +354,10 @@ static BOOL ADCValidHIDReply(xpc_object_t reply) {
 
 static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys,
-                   const uint64_t *reportTimes, const uint8_t *reports, uint64_t *resolvedSurface, size_t count, char *error, size_t capacity) {
+                   const uint64_t *reportTimes, const uint8_t *reports, uint64_t *resolvedSurface, size_t count,
+                   ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     @autoreleasepool {
+        if (shouldCancel && shouldCancel()) return ADCFail(error, capacity, @"Input cancelled before transport setup; no input sent.");
         if (!uuid || !version || ![[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:uuid]]) {
             return ADCFail(error, capacity, @"Invalid direct input identity.");
         }
@@ -411,30 +448,11 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
                 return ADCFail(error, capacity, @"Apple HID service did not become ready; no input sent.");
             }
         }
+        BOOL scheduleStopped = NO;
         if (reports) {
-            uint64_t start = ADCNow();
-            size_t last = 0;
-            BOOL attempted = NO;
-            for (size_t i = 0; i < count; i++) {
-                uint64_t target = start + reportTimes[i], now;
-                while ((now = ADCNow()) < target && !status.failed) {
-                    uint64_t remaining = target - now;
-                    struct timespec wait = { (time_t)(remaining / NSEC_PER_SEC), (long)(remaining % NSEC_PER_SEC) };
-                    nanosleep(&wait, NULL);
-                }
-                if (status.failed) break;
-                attempted = YES; last = i;
-                send(remote, ADCUniversalReport(reports + i * 58, surface));
-            }
-            if (attempted) {
-                uint8_t release[58]; memcpy(release, reports + last * 58, 58);
-                BOOL active = NO;
-                for (size_t id = 0; id < release[1]; id++) {
-                    if (release[3 + id * 5] & 0xc0) active = YES;
-                    release[3 + id * 5] = (uint8_t)id;
-                }
-                if (active) send(remote, ADCUniversalReport(release, surface));
-            }
+            scheduleStopped = ADCRunDigitizerSchedule(reportTimes, reports, count,
+                ^int { return status.failed || (shouldCancel && shouldCancel()); },
+                ^(const uint8_t *bytes) { send(remote, ADCUniversalReport(bytes, surface)); }) != 0;
         } else if (samples) {
             uint64_t start = ADCNow();
             size_t attempted = 0;
@@ -490,6 +508,8 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
             xpc_dictionary_get_value(barrierReply, "error") != NULL;
         cancel(remote);
         xpc_connection_cancel(connection);
+        if (scheduleStopped || (shouldCancel && shouldCancel()))
+            return ADCFail(error, capacity, @"Gesture stopped after cancellation or transport failure; release was attempted for active contacts. UI effect and device-side release are unverified; do not replay automatically.");
         if (failed) return ADCFail(error, capacity, @"Input was attempted, but the Apple service barrier was not confirmed. UI effect and release are unknown; do not replay automatically.");
         if (resolvedSurface) *resolvedSurface = surface;
         return 0;
@@ -500,13 +520,13 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, char *error, size_t capacity) {
     if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
         return ADCFail(error, capacity, @"Invalid direct button request.");
-    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, NULL, NULL, NULL, 0, error, capacity);
+    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, NULL, NULL, NULL, 0, nil, error, capacity);
 }
 
 int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage, char *error, size_t capacity) {
     if (!((usage >= 40 && usage <= 44) || (usage >= 79 && usage <= 82)))
         return ADCFail(error, capacity, @"Unsupported direct keyboard usage; no input sent.");
-    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, NULL, NULL, NULL, NULL, 0, error, capacity);
+    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, NULL, NULL, NULL, NULL, 0, nil, error, capacity);
 }
 
 int ADCPerformKeyboard(const char *uuid, const char *version, const ADCKeyboardSample *samples,
@@ -526,12 +546,24 @@ int ADCPerformKeyboard(const char *uuid, const char *version, const ADCKeyboardS
     }
     for (size_t code = 0; code < 256; code++)
         if (pressed[code]) return ADCFail(error, capacity, @"Keyboard schedule must release every key; no input sent.");
-    return ADCPerformInput(uuid, version, 0, 0, YES, NULL, NULL, samples, NULL, NULL, NULL, count, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, YES, NULL, NULL, samples, NULL, NULL, NULL, count, nil, error, capacity);
 }
 
 int ADCPerformDigitizerReports(const char *uuid, const char *version, const uint64_t *times,
                               const uint8_t *reports, size_t count, uint64_t *surface, char *error, size_t capacity) {
+    return ADCPerformCancellableDigitizerReports(uuid, version, times, reports, count, nil, surface, error, capacity);
+}
+
+int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version, const uint64_t *times,
+                              const uint8_t *reports, size_t count, ADCInputShouldStop shouldCancel,
+                              uint64_t *surface, char *error, size_t capacity) {
     if (surface) *surface = 0;
+    if (ADCValidateDigitizerSchedule(times, reports, count, error, capacity)) return 1;
+    return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, times, reports, surface, count, shouldCancel, error, capacity);
+}
+
+static int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
+                                        size_t count, char *error, size_t capacity) {
     if (!times || !reports || count < 2 || count > 512)
         return ADCFail(error, capacity, @"Invalid digitizer report schedule count; no input sent.");
     for (size_t frame = 0; frame < count; frame++) {
@@ -555,7 +587,7 @@ int ADCPerformDigitizerReports(const char *uuid, const char *version, const uint
             if (bytes[byte] != (byte == 40 ? 2 : 0))
                 return ADCFail(error, capacity, @"Unsupported digitizer report fields; no input sent.");
     }
-    return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, times, reports, surface, count, error, capacity);
+    return 0;
 }
 
 static int ADCValidateAndPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
@@ -575,7 +607,7 @@ static int ADCValidateAndPerformTouch(const char *uuid, const char *version, con
                 return ADCFail(error, capacity, @"Invalid second contact; no input sent.");
         }
     }
-    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, NULL, NULL, NULL, NULL, count, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, NULL, NULL, NULL, NULL, count, nil, error, capacity);
 }
 
 int ADCPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,

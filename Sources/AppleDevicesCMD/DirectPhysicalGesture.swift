@@ -73,10 +73,13 @@ enum DirectPhysicalGesture {
         var error = [CChar](repeating: 0, count: 1024), surface: UInt64 = 0
         let status = times.withUnsafeBufferPointer { times in
             bytes.withUnsafeBufferPointer { reports in
-                ADCPerformDigitizerReports(request.uuid, request.version, times.baseAddress, reports.baseAddress,
-                    times.count, &surface, &error, error.count)
+                ADCPerformCancellableDigitizerReports(request.uuid, request.version, times.baseAddress, reports.baseAddress,
+                    times.count, { Task.isCancelled ? 1 : 0 }, &surface, &error, error.count)
             }
         }
+        // The C loop has completed its release/barrier cleanup before this
+        // escapes to MCP's request-cancellation handler.
+        try Task.checkCancellation()
         guard status == 0 else {
             throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }

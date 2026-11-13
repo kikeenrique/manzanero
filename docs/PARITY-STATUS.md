@@ -20,6 +20,8 @@ Checkpoint: direct Apple input including keyboard and timed schedules, 2026-11-1
 | Native physical recording | ipb video executable blocked; direct replacement pending. Default devicectl remains unsupported on the tested phone. |
 | Simulator input/accessibility | AXe executable blocked; direct replacement pending. |
 | CLI/MCP | Both enforce the same restriction. Full Apple-family scope remains unchanged. |
+| Agent exploration loop | Screenshots plus direct coordinate input allow observe/act/observe testing of installed apps on the verified iPhone. Reliable label-based interaction and semantic assertions await direct accessibility. Automatic prompt handling, durable sessions and recovery remain incomplete. |
+| Gesture cancellation | Swift task cancellation now stops Universal HID schedules, attempts all-up at last attempted positions and runs a final barrier before returning cancellation. Real MCP cancellation/follow-up screenshot check passed on USB iPhone 13 mini. Device-side release, Indigo dispatch cancellation, CLI signals/crashes, cross-process ownership and quarantine remain incomplete. |
 
 ## Historical feature inventory
 

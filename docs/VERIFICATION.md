@@ -1,5 +1,15 @@
 # Verification records
 
+## Universal HID task cancellation — 2026-11-13
+
+The direct complete-state schedule loop now checks Swift task cancellation and transport failure before every report and during waits at intervals of at most 10 ms. This interval bounds the requested sleep chunk, not actual OS scheduling or end-to-end latency. On interruption, it sends no future movement and attempts one all-up report retaining the last attempted positions, then performs the existing final service barrier. Cancellation propagates from Swift only after cleanup returns. The MCP adapter preserves `CancellationError` for the pinned SDK's cancelled-request handling rather than returning an ordinary tool-error response. `gesture`, standalone `multi-tap` and three-to-five-path `multi-drag` share this behavior. Other Indigo input paths remain unchanged.
+
+The production report scheduler is exercised with local sinks: cancellation before input invokes no sink; interruption after movement releases the last attempted coordinates without replay or later movement; a real Swift task cancelled during the long gap interrupts the synchronous C scheduler; balanced completion does not duplicate release; malformed schedules invoke no callback. A separate test verifies cancellation escapes the MCP adapter. The full suite passed 176 test functions with no warnings/errors. Build passed, and all 27 mise tasks validate.
+
+`mise run test:mcp-cancel-gesture` ran against the same awake/unlocked USB iPhone 13 mini on iOS 27.2.1 (24B156), CoreDevice 651.32. It sent a 9,001 ms Maps schedule, requested MCP cancellation after two seconds, then queued a screenshot. The screenshot response arrived 7.226 seconds after the gesture request began, before the uncancelled schedule could finish. No ordinary response for the cancelled request preceded it. Maps remained visible in the captured result. This verifies the bounded request cancellation/follow-up path, not when the first contact arrived, exactly which samples reached the phone, or device-side release. Artifacts remain under ignored `tmp/`.
+
+Socket creation (up to 15 seconds), discovery/readiness (up to three seconds each) and final barrier (up to three seconds) still use bounded blocking waits. CLI SIGINT/SIGTERM, process crashes, connection-loss recovery, per-device ownership across processes, quarantine after uncertain release, and cancellation of the other Indigo input paths remain unfinished. Successful local sink tests do not establish those hardware properties.
+
 ## Direct standalone multitouch commands — 2026-11-13
 
 Migrated default CLI/MCP `multi-tap` (two to five contacts) and three-to-five-path `multi-drag` to the existing in-process Apple Universal HID engine. Exactly two-path movement remains on Indigo. Fresh identity/readiness and two equal awake-display snapshots precede dispatch; no helper or dependency was added. Generated drags preserve the full requested 0.03...10-second movement, sampling 30 movements and releasing 1 ms afterward. User JSON schedules retain their 10-second limit; the C boundary permits only the additional millisecond for generated release.
