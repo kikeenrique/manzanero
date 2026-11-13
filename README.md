@@ -23,7 +23,7 @@ Task scripts live under [`mise/tasks/`](mise/tasks/); `mise.toml` keeps shared c
 
 The [direct accessibility migration](docs/DIRECT-ACCESSIBILITY.md) tracks the in-process replacement for physical trees and selectors; it is not yet available in the product.
 
-During direct physical HID commands, Ctrl-C/SIGINT and SIGTERM cancel dispatch, attempt contact/key release, and exit with 130/143 without a success receipt. Another delivered signal or a 30-second cleanup deadline forces exit. Device-side release and MCP process-shutdown cleanup remain unverified/incomplete; see [interruption limits](docs/NATIVE-INPUT.md#cli-signals).
+During direct physical HID commands, Ctrl-C/SIGINT and SIGTERM cancel dispatch, attempt contact/key release, and exit with 130/143 without a success receipt. MCP stdin EOF and process signals now close tool admissions, cancel owned work and wait for cleanup; EOF normally exits 0. Cleanup has a 30-second runtime grace before force exit. Device-side release, forced exits/crashes and cross-process ownership remain unverified/incomplete; see [interruption limits](docs/NATIVE-INPUT.md#cli-signals) and [MCP shutdown](docs/MCP.md#shutdown-and-operation-ownership).
 
 Offline `decode-ax-archive <local-plist>` and MCP `decode_accessibility_archive` now inspect saved keyed archives in process through Foundation, with bounded data-only decoding and no helper. They do not capture a fresh screen tree or instantiate archived classes.
 

@@ -5,6 +5,7 @@ appledevicescmd — Apple device tools for terminals and agents
 
 Usage:
   appledevicescmd mcp                  Serve MCP tools over stdio
+  MCP stdin EOF and SIGINT/SIGTERM cancel owned tools and wait for cleanup; forced exit cannot guarantee release.
   appledevicescmd devices physical     List CoreDevice devices as JSON
   appledevicescmd devices simulators   List available simulators as JSON
   appledevicescmd pair wifi <host> <port> <new-record.pairing.plist>
@@ -92,8 +93,11 @@ Temporary process output is created beneath ./tmp and normally cleaned up on exi
 do {
     var args = Array(CommandLine.arguments.dropFirst())
     if args == ["mcp"] {
-        try await AppleMCPServer.run()
-        exit(0)
+        let result = try await CLIInputSignals.run(context: "MCP server") {
+            try await AppleMCPServer.run()
+            return CommandOutput(data: Data())
+        }
+        exit(result.exitCode)
     }
     if args.isEmpty || args == ["--help"] || args == ["-h"] { print(help); exit(0) }
     if args == ["--version"] { print("appledevicescmd 0.1.0-dev"); exit(0) }

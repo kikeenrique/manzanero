@@ -22,7 +22,7 @@ Checkpoint: direct Apple input including keyboard and timed schedules, 2026-11-1
 | Simulator input/accessibility | AXe executable blocked; direct replacement pending. |
 | CLI/MCP | Both enforce the same restriction. Full Apple-family scope remains unchanged. |
 | Agent exploration loop | Screenshots plus direct coordinate input allow observe/act/observe testing of installed apps on the verified iPhone. Reliable label-based interaction and semantic assertions await direct accessibility. Automatic prompt handling, durable sessions and recovery remain incomplete. |
-| Physical HID cancellation | Swift task cancellation stops Universal HID and Indigo touch/keyboard/button schedules with release/barrier attempts. Real MCP request cancellation passed on USB iPhone 13 mini. Direct physical CLI SIGINT/SIGTERM now cancel their owned task and suppress success output; live holds exited 130/143 after 2.127/2.057 seconds. Device-side release, forced exits/crashes, MCP process shutdown, cross-process ownership and quarantine remain incomplete. |
+| Physical HID cancellation | Swift task cancellation stops Universal HID and Indigo input with release/barrier attempts. Direct physical CLI signals and MCP request cancellation have scoped iPhone 13 mini checks. MCP now owns tool tasks, closes admissions and cancels/drains on stdin EOF or process signals; live holds exited 0/130/143 after about two seconds. Device-side release, forced exits/crashes, cross-process ownership and quarantine remain incomplete. |
 
 ## Historical feature inventory
 

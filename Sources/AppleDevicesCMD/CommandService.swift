@@ -39,6 +39,7 @@ actor CommandService {
 
     func execute(_ args: [String], dryRun: Bool = false, allowInteractive: Bool = false,
                  handoffConfirmation: (@Sendable (HandoffCommand) async throws -> HandoffStatus)? = nil) async throws -> CommandOutput {
+        try Task.checkCancellation()
         if args.first == "decode-ax-archive" {
             guard args.count == 2, !args[1].isEmpty else { throw CommandFailure(description: "Usage: decode-ax-archive <local-plist>") }
             if dryRun { return try json(["backend": "foundation", "operation": "decode-ax-archive", "path": args[1], "execution": "In-process structural inspection; no device query or helper executable."]) }

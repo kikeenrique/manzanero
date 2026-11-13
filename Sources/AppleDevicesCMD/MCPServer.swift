@@ -3,6 +3,7 @@ import MCP
 enum AppleMCPServer {
     static func make(service: CommandService) async -> AppleMCPServerSession {
         let handoff = MCPHandoffChannel()
+        let operations = MCPToolOperations()
         let server = Server(name: "appledevicescmd", version: "0.1.0-dev",
             instructions: "Apple device CLI operations. Physical input/accessibility are experimental. Inspect fresh state after input. Pair interactively using the CLI before supplying a pairing_file. Paths are relative to the server working directory. No built-in approval policy: the MCP host controls approvals.",
             capabilities: .init(tools: .init(listChanged: false)), configuration: .strict)
@@ -11,33 +12,61 @@ enum AppleMCPServer {
         }
         await server.withMethodHandler(CallTool.self) { [weak server] params in
             guard let server else { throw MCPError.internalError("Server unavailable") }
-            return try await MCPTools.call(name: params.name, arguments: params.arguments ?? [:]) {
-                try await service.execute($0, handoffConfirmation: { command in
-                    try await handoff.confirm(command, server: server)
-                })
+            return try await operations.perform {
+                try await MCPTools.call(name: params.name, arguments: params.arguments ?? [:]) {
+                    try await service.execute($0, handoffConfirmation: { command in
+                        try await handoff.confirm(command, server: server)
+                    })
+                }
             }
         }
-        return AppleMCPServerSession(server: server, handoff: handoff)
+        return AppleMCPServerSession(server: server, handoff: handoff, operations: operations)
     }
 
     static func run() async throws {
         let server = await make(service: CommandService())
-        try await server.start(transport: StdioTransport())
-        await server.waitUntilCompleted()
+        let deadline = MCPShutdownDeadline()
+        try await withTaskCancellationHandler {
+            do {
+                try Task.checkCancellation()
+                try await server.start(transport: StdioTransport())
+                try Task.checkCancellation()
+                await server.server.waitUntilCompleted()
+            } catch {
+                await server.stop()
+                throw error
+            }
+            if !Task.isCancelled { deadline.arm() }
+            await server.stop()
+            deadline.complete()
+        } onCancel: {
+            // The CLI signal scope supplies the process deadline on signals.
+            Task { await server.stop() }
+        }
     }
 }
 
 struct AppleMCPServerSession: Sendable {
     let server: Server
     let handoff: MCPHandoffChannel
+    let operations: MCPToolOperations
 
     func start(transport: any Transport) async throws {
+        try await operations.checkOpen()
         try await server.start(transport: transport, initializeHook: { _, capabilities in
             await handoff.configure(supportsForm: capabilities.elicitation?.form != nil)
         })
     }
-    func stop() async { await server.stop() }
-    func waitUntilCompleted() async { await server.waitUntilCompleted() }
+    func stop() async {
+        await operations.cancel()
+        // Resolve pending SDK elicitation continuations before draining tools.
+        await server.stop()
+        await operations.drain()
+    }
+    func waitUntilCompleted() async {
+        await server.waitUntilCompleted()
+        await stop()
+    }
 }
 
 actor MCPHandoffChannel {

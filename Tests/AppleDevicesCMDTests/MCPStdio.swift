@@ -88,6 +88,8 @@ struct MCPStdioTests {
         if let physical {
             let cancelFile = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_GESTURE_FILE"]
             let cancelHold = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_LONG_PRESS"]
+            let shutdownMode = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_SHUTDOWN"]
+            if let shutdownMode { try #require(["EOF", "SIGINT", "SIGTERM"].contains(shutdownMode)) }
             if cancelFile != nil || cancelHold != nil {
                 let name: String, arguments: [String: Any], milliseconds: Int
                 if let file = cancelFile {
@@ -113,6 +115,52 @@ struct MCPStdioTests {
                 let start = ContinuousClock.now
                 try send(["jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": ["name": name, "arguments": arguments]])
                 try await Task.sleep(for: .seconds(2))
+                if let shutdownMode {
+                    let exitCode: Int32
+                    switch shutdownMode {
+                    case "EOF": try input.fileHandleForWriting.close(); exitCode = 0
+                    case "SIGINT": try #require(Darwin.kill(process.processIdentifier, SIGINT) == 0); exitCode = 130
+                    default: try #require(Darwin.kill(process.processIdentifier, SIGTERM) == 0); exitCode = 143
+                    }
+                    // Allow the runtime's own 30-second grace before the test
+                    // cleanup may kill this owned child on a genuine stall.
+                    let deadline = ContinuousClock.now + .seconds(35)
+                    while process.isRunning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+                    try #require(!process.isRunning, "MCP process did not finish its shutdown grace")
+                    process.waitUntilExit()
+                    let elapsed = start.duration(to: .now)
+                    #expect(elapsed < .seconds(8))
+                    #expect(process.terminationReason == .exit && process.terminationStatus == exitCode)
+                    // All previous responses were consumed. Shutdown must not
+                    // publish a normal success receipt for the interrupted call.
+                    while true {
+                        var descriptor = pollfd(fd: output.fileHandleForReading.fileDescriptor, events: Int16(POLLIN), revents: 0)
+                        let ready = poll(&descriptor, 1, 0)
+                        if ready < 0, errno == EINTR { continue }
+                        try #require(ready >= 0)
+                        if ready == 0 { break }
+                        var bytes = [UInt8](repeating: 0, count: 4096)
+                        let count = Darwin.read(descriptor.fd, &bytes, bytes.count)
+                        if count < 0, errno == EINTR { continue }
+                        try #require(count >= 0)
+                        if count == 0 { break }
+                        buffer.append(contentsOf: bytes.prefix(count))
+                        try #require(buffer.count <= 65536)
+                    }
+                    #expect(buffer.isEmpty)
+                    let diagnostic = try String(contentsOf: errorsURL, encoding: .utf8)
+                    #expect(!diagnostic.contains("forcing exit"))
+                    if shutdownMode != "EOF" { #expect(diagnostic.contains("Interrupted by \(shutdownMode)")) }
+                    try JSONSerialization.data(withJSONObject: ["shutdown": shutdownMode, "exitCode": process.terminationStatus,
+                        "elapsed": String(describing: elapsed), "plannedMilliseconds": milliseconds,
+                        "pendingOutputBytes": buffer.count, "forcedExitDiagnostic": diagnostic.contains("forcing exit"),
+                        "deviceSideReleaseVerified": false], options: [.prettyPrinted, .sortedKeys])
+                        .write(to: directory.appendingPathComponent("shutdown-result.json"))
+                    let screenshot = try await CommandService().execute(["physical", physical, "screenshot",
+                        directory.appendingPathComponent("shutdown-after.png").path])
+                    #expect(screenshot.exitCode == 0)
+                    return
+                }
                 try send(["jsonrpc": "2.0", "method": "notifications/cancelled", "params": ["requestId": 5, "reason": "Explicit live cancellation verification"]])
                 // This call must enter the same command actor after input's
                 // cleanup; screenshot latency is measured separately below.

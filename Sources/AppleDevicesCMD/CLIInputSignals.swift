@@ -2,8 +2,8 @@ import Darwin
 import Foundation
 import Synchronization
 
-/// One CLI command owns these process-wide handlers. MCP keeps its separate
-/// request cancellation lifecycle; this scope is only for direct physical HID.
+/// One CLI runtime owns these process-wide handlers. Direct HID and MCP runtime
+/// shutdown use the scope; MCP request cancellation remains a separate path.
 enum CLIInputSignals {
     static func applies(to args: [String], dryRun: Bool) -> Bool {
         !dryRun && (try? CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args))) != nil
@@ -20,11 +20,12 @@ enum CLIInputSignals {
         private let diagnostic: @Sendable (String) -> Void
         private let queue: DispatchQueue
         private let grace: DispatchTimeInterval
+        private let context: String
 
-        init(queue: DispatchQueue, grace: DispatchTimeInterval = .seconds(30),
+        init(queue: DispatchQueue, grace: DispatchTimeInterval = .seconds(30), context: String = "physical input",
              forceExit: @escaping @Sendable (Int32) -> Void = { Darwin._exit($0) },
              diagnostic: @escaping @Sendable (String) -> Void = { FileHandle.standardError.write(Data($0.utf8)) }) {
-            self.queue = queue; self.grace = grace; self.forceExit = forceExit; self.diagnostic = diagnostic
+            self.queue = queue; self.grace = grace; self.context = context; self.forceExit = forceExit; self.diagnostic = diagnostic
         }
 
         func bind(_ task: Task<CommandOutput, any Error>) {
@@ -46,12 +47,12 @@ enum CLIInputSignals {
             }
             guard let decision else { return }
             if !decision.first { forceExit(128 + signal); return }
-            diagnostic("Interrupted by \(signal == SIGINT ? "SIGINT" : "SIGTERM"); stopping physical input and attempting release. UI effect and release remain unverified. A second signal forces exit.\n")
             decision.task?.cancel()
+            diagnostic("Interrupted by \(signal == SIGINT ? "SIGINT" : "SIGTERM"); stopping \(context) and attempting release. UI effect and release remain unverified. A second signal forces exit.\n")
             queue.asyncAfter(deadline: .now() + grace) { [self] in
                 let pending = state.withLock { $0.finished ? nil : $0.signal }
                 if let pending {
-                    diagnostic("Physical input cleanup exceeded its 30-second grace period; forcing exit. Device-side release is unknown.\n")
+                    diagnostic("\(context) cleanup exceeded its 30-second grace period; forcing exit. Device-side release is unknown.\n")
                     forceExit(128 + pending)
                 }
             }
@@ -66,9 +67,9 @@ enum CLIInputSignals {
         }
     }
 
-    static func run(_ operation: @escaping @Sendable () async throws -> CommandOutput) async throws -> CommandOutput {
+    static func run(context: String = "physical input", _ operation: @escaping @Sendable () async throws -> CommandOutput) async throws -> CommandOutput {
         let queue = DispatchQueue(label: "appledevices.cli.input-signals")
-        let controller = Controller(queue: queue)
+        let controller = Controller(queue: queue, context: context)
         let oldInterrupt = Darwin.signal(SIGINT, SIG_IGN)
         let oldTerminate = Darwin.signal(SIGTERM, SIG_IGN)
         let sources = [SIGINT, SIGTERM].map { signal in

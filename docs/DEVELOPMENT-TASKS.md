@@ -1,5 +1,7 @@
 # Development tasks
 
+`mise run test:mcp-shutdown <UDID> <x> <y> <seconds> <EOF|SIGINT|SIGTERM>` stops an owned MCP process after two seconds of an explicit 8...10-second physical long-press. It checks normal exit 0/130/143 before eight seconds, absence of a late ordinary tool response and non-use of the force-exit path, then captures a separate screenshot. It preserves the runtime's cleanup grace before force-killing a stalled test child. Results and private images remain under ignored `tmp/`; process exit does not verify device-side contact release.
+
 `mise run test:cli-interrupt <UDID> <x> <y> <seconds> <SIGINT|SIGTERM>` starts one owned CLI process with an 8...10-second physical long-press, sends the selected signal after two seconds and checks normal exit 130/143, early completion and empty stdout. It waits through the CLI's own cleanup grace before force-killing a stalled test child. Artifacts remain under `tmp/`; no release guarantee follows from process exit.
 
 `mise run test:mcp-long-press <UDID> <x> <y> <seconds> --cancel` requests cancellation after two seconds of an 8...10-second Indigo long-press, then queues a readiness request through the same command actor. It checks that this reply arrives before eight seconds and that no ordinary cancelled-call response precedes it. A subsequent screenshot is timed separately. This is an explicit live action; it does not prove device-side contact release. Without `--cancel`, the task retains its normal full-hold verification behavior.
