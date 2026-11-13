@@ -3,6 +3,22 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct KeyedArchiveInspectorTests {
+    @Test func protocolDepthAccommodatesSnapshotWrappersWithoutWideningOfflineInspection() throws {
+        var nested: NSObject = "leaf" as NSString
+        for _ in 0..<100 { nested = [nested] as NSArray }
+        let bytes = try NSKeyedArchiver.archivedData(withRootObject: nested, requiringSecureCoding: true)
+        var decoded = try KeyedArchiveInspector.decodeProtocol(bytes)
+        for _ in 0..<100 {
+            guard case .array(let children) = decoded, children.count == 1 else { Issue.record("Missing nested collection"); return }
+            decoded = children[0]
+        }
+        #expect(decoded == .string("leaf"))
+        #expect(throws: CommandFailure.self) { try KeyedArchiveInspector.inspect(bytes) }
+        for _ in 0..<100 { nested = [nested] as NSArray }
+        let tooDeep = try NSKeyedArchiver.archivedData(withRootObject: nested, requiringSecureCoding: true)
+        #expect(throws: CommandFailure.self) { try KeyedArchiveInspector.decodeProtocol(tooDeep) }
+    }
+
     /// Foundation creates genuine binary UID scalars; table contents below are
     /// independent malformed/unknown-class fixtures, not decoded Swift objects.
     private func references() throws -> (root: Any, two: Any, three: Any) {
