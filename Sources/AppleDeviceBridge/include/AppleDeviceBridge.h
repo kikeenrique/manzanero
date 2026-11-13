@@ -38,6 +38,16 @@ int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *lo
 void ADCCloseRSDDirectory(void *owner);
 int ADCIsRSDDirectoryActive(void *owner);
 
+/// Exact-UDID pairing-daemon assertion, without initiating pairing. Open owns
+/// browse/device connections and an opaque assertion UUID; close consumes owner
+/// and separately reports whether release was acknowledged. No device input.
+int ADCValidateTunnelAssertionReply(const void *reply, char *address, size_t addressCapacity,
+                                    char *error, size_t errorCapacity);
+int ADCOpenNativeTunnelAssertion(const char *expectedUDID, int (^shouldCancel)(void),
+                                 char *address, size_t addressCapacity, void **owner,
+                                 char *error, size_t errorCapacity);
+int ADCCloseNativeTunnelAssertion(void *owner, char *error, size_t errorCapacity);
+
 /// Finite complete-state digitizer schedule; reports are count * 58 bytes.
 int ADCPerformDigitizerReports(const char *uuid, const char *version,
                               const uint64_t *nanoseconds, const uint8_t *reports, size_t count,

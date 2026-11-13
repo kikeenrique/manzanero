@@ -38,6 +38,7 @@ typedef void (*ADCReply)(ADCRemote, xpc_object_t, dispatch_queue_t, xpc_handler_
 @property(atomic, strong) xpc_object_t reply;
 @property(atomic) BOOL failed;
 @property(atomic, copy) NSString *failureText;
+@property(atomic) BOOL finished;
 @end
 @implementation ADCReplyState
 - (instancetype)init { if ((self = [super init])) _semaphore = dispatch_semaphore_create(0); return self; }
@@ -128,6 +129,158 @@ static BOOL ADCValidHardwareUDID(const char *value) {
     if (!value || strnlen(value, 42) > 40) return NO;
     NSString *text = [NSString stringWithUTF8String:value];
     return text.length && [text rangeOfString:@"^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$" options:NSRegularExpressionSearch].length == text.length;
+}
+
+static xpc_object_t ADCMercuryMessage(const char *type, xpc_object_t value) {
+    xpc_object_t message = xpc_dictionary_create_empty();
+    xpc_dictionary_set_string(message, "mangledTypeName", type);
+    xpc_dictionary_set_value(message, "value", value);
+    return message;
+}
+
+static BOOL ADCWaitForReply(ADCReplyState *state, uint64_t deadline, int (^cancelled)(void)) {
+    while (!(cancelled && cancelled()) && clock_gettime_nsec_np(CLOCK_MONOTONIC) < deadline) {
+        if (!dispatch_semaphore_wait(state.semaphore, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_MSEC))) return YES;
+    }
+    return NO;
+}
+
+int ADCValidateTunnelAssertionReply(const void *reply, char *address, size_t addressCapacity,
+                                    char *error, size_t capacity) {
+    if (address && addressCapacity) address[0] = 0;
+    xpc_object_t root = reply ? (__bridge xpc_object_t)reply : nil;
+    if (!address || !addressCapacity || !root || xpc_get_type(root) != XPC_TYPE_DICTIONARY || xpc_dictionary_get_value(root, "error"))
+        return ADCFail(error, capacity, @"Apple tunnel assertion reply failed or was malformed; acquisition outcome may be unknown.");
+    xpc_object_t response = xpc_dictionary_get_dictionary(root, "response");
+    xpc_object_t token = response ? xpc_dictionary_get_value(response, "assertionIdentifier") : nil;
+    xpc_object_t info = response ? xpc_dictionary_get_dictionary(response, "info") : nil;
+    const char *ip = info ? xpc_dictionary_get_string(info, "tunnelIPAddress") : NULL;
+    if (!token || xpc_get_type(token) != XPC_TYPE_UUID || !ip || !*ip || strnlen(ip, 128) >= 128 || strlen(ip) >= addressCapacity)
+        return ADCFail(error, capacity, @"Apple tunnel assertion omitted its opaque UUID or bounded address; acquisition outcome may be unknown.");
+    memcpy(address, ip, strlen(ip) + 1);
+    return 0;
+}
+
+@interface ADCNativeTunnelOwner : NSObject
+@property(nonatomic, strong) xpc_connection_t browse;
+@property(nonatomic, strong) xpc_connection_t device;
+@property(nonatomic, strong) xpc_object_t assertion;
+@property(nonatomic, strong) dispatch_queue_t queue;
+@end
+@implementation ADCNativeTunnelOwner
+@end
+
+int ADCCloseNativeTunnelAssertion(void *owner, char *error, size_t capacity) {
+    @autoreleasepool {
+        if (!owner) return 0;
+        ADCNativeTunnelOwner *lifetime = CFBridgingRelease(owner);
+        BOOL confirmed = lifetime.assertion == nil;
+        if (lifetime.assertion && lifetime.device) {
+            xpc_object_t value = xpc_dictionary_create_empty();
+            xpc_dictionary_set_value(value, "assertionIdentifier", lifetime.assertion);
+            ADCReplyState *state = [ADCReplyState new];
+            xpc_connection_send_message_with_reply(lifetime.device, ADCMercuryMessage("RemotePairing.ReleaseAssertionRequest", value), lifetime.queue, ^(xpc_object_t reply) {
+                state.reply = reply; dispatch_semaphore_signal(state.semaphore);
+            });
+            BOOL ready = ADCWaitForReply(state, clock_gettime_nsec_np(CLOCK_MONOTONIC) + 2ULL * NSEC_PER_SEC, nil);
+            xpc_object_t reply = state.reply;
+            confirmed = ready && reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY &&
+                !xpc_dictionary_get_value(reply, "error") && xpc_dictionary_get_value(reply, "response");
+        }
+        if (lifetime.device) xpc_connection_cancel(lifetime.device);
+        if (lifetime.browse) xpc_connection_cancel(lifetime.browse);
+        return confirmed ? 0 : ADCFail(error, capacity, @"Apple tunnel assertion release was not acknowledged; owned connections closed, remote cleanup unconfirmed.");
+    }
+}
+
+int ADCOpenNativeTunnelAssertion(const char *expectedUDID, int (^shouldCancel)(void),
+                                 char *address, size_t addressCapacity, void **owner,
+                                 char *error, size_t capacity) {
+    @autoreleasepool {
+        if (owner) *owner = NULL;
+        if (address && addressCapacity) address[0] = 0;
+        if (!owner || !address || addressCapacity < 2 || !ADCValidHardwareUDID(expectedUDID) || (shouldCancel && shouldCancel()))
+            return ADCFail(error, capacity, @"Invalid or cancelled tunnel assertion target; no pairing-daemon request sent.");
+        NSString *hardware = [NSString stringWithUTF8String:expectedUDID];
+        ADCNativeTunnelOwner *lifetime = [ADCNativeTunnelOwner new];
+        lifetime.queue = dispatch_queue_create("appledevices.native-tunnel", DISPATCH_QUEUE_SERIAL);
+        lifetime.browse = xpc_connection_create_mach_service("com.apple.CoreDevice.remotepairingd", lifetime.queue, 0);
+        if (!lifetime.browse) return ADCFail(error, capacity, @"Cannot create Apple pairing-daemon connection; no assertion requested.");
+        ADCReplyState *selection = [ADCReplyState new];
+        __block unsigned events = 0;
+        xpc_connection_set_event_handler(lifetime.browse, ^(xpc_object_t event) {
+            @synchronized(selection) {
+                if (selection.finished) return;
+                if (xpc_get_type(event) == XPC_TYPE_ERROR || ++events > 256) {
+                    selection.failed = YES; dispatch_semaphore_signal(selection.semaphore); return;
+                }
+                if (xpc_get_type(event) != XPC_TYPE_DICTIONARY) return;
+                xpc_object_t value = xpc_dictionary_get_dictionary(event, "value");
+                xpc_object_t found = value ? xpc_dictionary_get_dictionary(value, "deviceFound") : nil;
+                xpc_object_t payload = found ? xpc_dictionary_get_dictionary(found, "_0") : nil;
+                xpc_object_t info = payload ? xpc_dictionary_get_dictionary(payload, "deviceInfo") : nil;
+                const char *udid = info ? xpc_dictionary_get_string(info, "udid") : NULL;
+                if (!udid || !ADCValidHardwareUDID(udid) || strcasecmp(udid, hardware.UTF8String)) return;
+                xpc_object_t endpoint = xpc_dictionary_get_value(info, "endpoint");
+                if (!endpoint || xpc_get_type(endpoint) != XPC_TYPE_ENDPOINT || selection.reply) selection.failed = YES;
+                else selection.reply = endpoint;
+                dispatch_semaphore_signal(selection.semaphore);
+            }
+        });
+        xpc_connection_resume(lifetime.browse);
+        xpc_object_t options = xpc_dictionary_create_empty();
+        xpc_dictionary_set_bool(options, "currentDevicesOnly", YES);
+        xpc_connection_send_message_with_reply(lifetime.browse, ADCMercuryMessage("RemotePairing.BrowseRequest", options), lifetime.queue, ^(xpc_object_t reply) {
+            if (xpc_get_type(reply) == XPC_TYPE_ERROR || (xpc_get_type(reply) == XPC_TYPE_DICTIONARY && xpc_dictionary_get_value(reply, "error"))) {
+                @synchronized(selection) {
+                    if (!selection.finished) { selection.failed = YES; dispatch_semaphore_signal(selection.semaphore); }
+                }
+            }
+        });
+        uint64_t deadline = clock_gettime_nsec_np(CLOCK_MONOTONIC) + 12ULL * NSEC_PER_SEC;
+        BOOL selected = ADCWaitForReply(selection, deadline, shouldCancel);
+        xpc_object_t endpoint;
+        @synchronized(selection) {
+            selection.finished = YES;
+            endpoint = selected && !selection.failed ? selection.reply : nil;
+        }
+        if (!endpoint || (shouldCancel && shouldCancel())) {
+            xpc_connection_cancel(lifetime.browse);
+            return ADCFail(error, capacity, @"Apple pairing daemon did not select the exact hardware endpoint within the bounded browse; no assertion or pairing requested.");
+        }
+        lifetime.device = xpc_connection_create_from_endpoint(endpoint);
+        if (!lifetime.device) {
+            xpc_connection_cancel(lifetime.browse);
+            return ADCFail(error, capacity, @"Cannot create selected pairing-daemon endpoint connection; no assertion requested.");
+        }
+        xpc_connection_set_target_queue(lifetime.device, lifetime.queue);
+        xpc_connection_set_event_handler(lifetime.device, ^(xpc_object_t event) {});
+        xpc_connection_resume(lifetime.device);
+        xpc_object_t flags = xpc_dictionary_create_empty();
+        xpc_dictionary_set_int64(flags, "flags", 0);
+        ADCReplyState *assertion = [ADCReplyState new];
+        xpc_connection_send_message_with_reply(lifetime.device, ADCMercuryMessage("RemotePairing.CreateAssertionCommand", flags), lifetime.queue, ^(xpc_object_t reply) {
+            assertion.reply = reply; dispatch_semaphore_signal(assertion.semaphore);
+        });
+        BOOL received = ADCWaitForReply(assertion, deadline, shouldCancel);
+        xpc_object_t reply = assertion.reply;
+        xpc_object_t response = reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(reply, "response") : nil;
+        xpc_object_t token = response ? xpc_dictionary_get_value(response, "assertionIdentifier") : nil;
+        if (token && xpc_get_type(token) == XPC_TYPE_UUID) lifetime.assertion = token;
+        if (!received || ADCValidateTunnelAssertionReply((__bridge const void *)reply, address, addressCapacity, error, capacity) || (shouldCancel && shouldCancel())) {
+            if (!received) ADCFail(error, capacity, @"Apple assertion acquisition cancelled or timed out; its remote outcome may be unknown. Owned connections will close.");
+            else if (shouldCancel && shouldCancel()) ADCFail(error, capacity, @"Apple assertion acquisition cancelled after reply; release attempted.");
+            char cleanup[512] = {0};
+            if (ADCCloseNativeTunnelAssertion((void *)CFBridgingRetain(lifetime), cleanup, sizeof(cleanup))) {
+                NSString *original = error && capacity ? [NSString stringWithUTF8String:error] : @"Assertion acquisition failed";
+                ADCFail(error, capacity, [NSString stringWithFormat:@"%@ %s", original, cleanup]);
+            }
+            if (addressCapacity) address[0] = 0;
+            return 1;
+        }
+        *owner = (void *)CFBridgingRetain(lifetime);
+        return 0;
+    }
 }
 
 int ADCValidateRSDHandshake(const void *message, const char *expectedUDID, uint16_t *axPort,

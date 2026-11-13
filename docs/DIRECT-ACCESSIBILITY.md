@@ -99,6 +99,8 @@ The subsequent [native directory handshake](TRANSPORT.md#native-directory-handsh
 
 Later tree-probe and directory-control attempts failed before AX with native `Connection invalid`; the successful peer directory response has not proved repeatable. An explicit host RSD handshake, using the local UUID from Apple's tool, did not fix the next attempt. The owned AX transport/lifetime integration now exists behind `test:rsd-tree`, but has no live service/tree result. Product routing remains unchanged. See the [transport follow-up](TRANSPORT.md#native-directory-handshake) for failures and remaining tunnel-assertion/identity work; no phone setting change is justified by these results.
 
+An explicit [native Apple tunnel assertion](TRANSPORT.md#native-apple-tunnel-assertion) now has scoped acquisition/release verification. Holding it through a subsequent RSD tree attempt did not resolve `Connection invalid`; that attempt stopped before AX, and assertion release was acknowledged. Missing assertion ownership alone is therefore not a demonstrated repair. Native directory wire/API compatibility and session behavior still need investigation. No pairing, setting change, daemon suspension or automatic action replay was introduced.
+
 ## Local validation
 
 On 2026-11-13, `mise run test` passed 160 Swift test functions with zero errors/warnings on macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2. Seven new tests cover an independent byte fixture, outgoing subscription archives, fragment assembly/correlation, malformed header/payload/argument bounds, reply direction/overflow and opaque unknown archive class names. No phone request was sent by these tests. A successful build or codec test is not a live tree result.
