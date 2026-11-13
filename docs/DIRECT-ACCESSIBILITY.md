@@ -1,6 +1,6 @@
 # Direct physical accessibility migration
 
-Physical accessibility remains unavailable in the current product runtime: the former idevice executable is disabled. The replacement must operate in `appledevicescmd` against Apple interfaces, without launching an intermediary. This page tracks implementation separately from live device evidence.
+Live physical accessibility remains unavailable: the former idevice executable is disabled and the opt-in direct explicit-PID route currently fails opening the Apple AX endpoint. The replacement operates in `appledevicescmd` against Apple interfaces, without launching an intermediary. This page tracks implementation separately from live device evidence.
 
 ## DTX framing
 
@@ -58,7 +58,17 @@ Nodes preserve scalar label/hint/identifier/value fields, signed/unsigned trait 
 
 Local tests cover tree links, missing fields, token redaction, scalar/trait/visibility conversion, malformed rectangles/counts/roots/attributes, repeated identities, foreign references, and the exact node/depth limits. A synthetic binary native snapshot with UI depth 20 decodes through the typed protocol path and normalizes to 21 nodes while exceeding the public inspector's intentionally lower wrapper limit. Another fixture exercises deep protocol wrappers and rejection beyond depth 512. The complete local suite passed 240 test functions with zero errors/warnings; enabling the saved historical callback regression passed 241. These are host-side fixture results, not a fresh phone hierarchy or live normalization verification.
 
-The project-owned socket-opening paths exist behind the bridge, with an opt-in read-only integration probe. None has opened the AX endpoint successfully on the selected phone. Product CLI/MCP accessibility routing remains disabled. Live socket/session/capture integration, root/display stability checks and selector guards still need direct implementation and hardware verification. Historical results below other documentation headings are acceptance targets, not verification of this codec or transport.
+## Opt-in explicit-PID capture
+
+The shared command service now exposes `--physical-backend coredevice physical <device> tree <positive-pid>`. MCP `get_ui_tree` accepts `platform: physical`, `backend: coredevice`, and `pid`. The backend is opt-in; historical/default helper routes remain disabled. Simulator selection, omitted PID and pairing-file prefixes are rejected for this direct route. Dry runs validate and describe the operation without querying a device. CLI signals use the existing bounded cancellation scope; physical AX signal cleanup has not been verified live.
+
+`DirectPhysicalAccessibility` validates PID before device access, resolves fresh hardware/CoreDevice identity and Developer Mode, opens the owned Apple socket, negotiates the session, looks up the application root, requests/normalizes the snapshot and looks up the application root again. PID/object identity changes discard the observation. The result reports explicit-PID selection, logical-point coordinates, snapshot-local IDs, `atomic: false` and `rootStabilityScope: application-identity`. It does not check foreground/display selection or descendant stability. Root tokens remain private. All successful and failed capture paths close the session/transport. Successful hierarchy data may carry unconfirmed subscription cleanup; inspect `cleanup.subscriptionStop`, `confirmed` and diagnostic rather than treating a returned tree as teardown proof. Cancellation stays cancellation rather than an ordinary tool error; no request is replayed.
+
+Six local capture/routing tests cover root rechecks, malformed snapshots, cleanup loss, PID/readiness guards, fresh identity before one owned open, and matching CLI/MCP dry runs. The full local suite passed 246 test functions with zero errors/warnings. Build passed through xcsift. No successful live tree is claimed.
+
+On 2026-11-13 a fresh Apple process inventory on the selected iPhone 13 mini identified the current Settings PID. The built CLI attempted the direct tree against that PID and exited 1 with `com.apple.dt.CoreDeviceError 4000` opening the raw AX socket, before any accessibility subscription. JSON stdout was empty. Private process inventory and failure diagnostics remain under ignored `tmp/`. This verifies an attempted product route and its failure reporting, not negotiation, hierarchy capture, cleanup or MCP live behavior. Host remains macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2; the previous selected-phone inventory recorded iOS 27.2.1 (24B156). No phone setting was changed and no non-Apple device executable ran.
+
+The project-owned socket-opening paths exist behind the bridge, with an opt-in read-only integration probe. None has opened the AX endpoint successfully on the selected phone. Live endpoint access and capture verification, foreground/display selection and selector guards remain unfinished. Historical results below other documentation headings are acceptance targets, not verification of this codec or transport.
 
 ## Socket-opening investigation
 

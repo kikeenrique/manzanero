@@ -109,6 +109,7 @@ final class AccessibilitySession {
             _ = try invoke("processDataFromHost:", argument: archive as NSData, until: phase())
             let responseDeadline = phase()
             while results.isEmpty { _ = try receive(until: responseDeadline) }
+            try check(responseDeadline)
             guard results.count == 1 else { throw invalid("multiple matching semantic callbacks") }
             return results[0]
         } catch {
@@ -138,7 +139,9 @@ final class AccessibilitySession {
             case .acknowledgement: return nil
             case .object:
                 guard frame.auxiliary.isEmpty else { throw invalid("object reply has unexpected arguments") }
-                return try KeyedArchiveInspector.decodeProtocol(frame.object)
+                let value = try KeyedArchiveInspector.decodeProtocol(frame.object)
+                try check(limit)
+                return value
             default: throw invalid("remote DTX error reply")
             }
         }
@@ -186,6 +189,7 @@ final class AccessibilitySession {
             }
         default: throw invalid("unsupported callback selector")
         }
+        try check(limit)
         return frame
     }
 

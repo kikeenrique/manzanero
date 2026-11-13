@@ -14,6 +14,8 @@ Usage:
   appledevicescmd --physical-backend coredevice physical <device> gesture '<JSON with frames:[{ms,touches:[{id,x,y}]}]>'
   appledevicescmd --recording-backend coredevice physical <device> record <new.mp4> <seconds> [h264|hevc]
   appledevicescmd --physical-backend coredevice physical <device> long-press <x> <y> <seconds: 0.1...10>
+  appledevicescmd --physical-backend coredevice physical <device> tree <positive-pid>
+  Direct AX tree is opt-in and live-unverified; the tested phone currently refuses its socket before subscription.
   Native paste replaces the device clipboard with Unicode text, then pastes at the focused caret/selection.
   Buttons, tap, long-press, drag, swipe, pinch and two-path multi-drag call Apple CoreDevice in process.
   Named keys and paste keys call Apple CoreDevice in process; paste uses Apple's devicectl clipboard copy.
@@ -52,7 +54,7 @@ Usage:
   Build & Run targets iOS, defaults to Debug, and requires xcsift on PATH.
   appledevicescmd physical <UDID> hid-info
   appledevicescmd physical <UDID> ax-snapshot [new-local-archive.plist]  Experimental raw archive
-  appledevicescmd physical <UDID> tree [positive-pid]  Default selects the app at display centre
+  appledevicescmd physical <UDID> tree [positive-pid]  Historical helper route is disabled; direct syntax above requires PID
   appledevicescmd physical <UDID> <press-id|press-label> [positive-pid] <exact-selector>
   appledevicescmd physical <UDID> <scroll-id|scroll-label> [positive-pid] <exact-selector>
   AX press resolves a fresh unique visible/enabled element; native acceptance does not verify UI effect.

@@ -3,7 +3,7 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct AccessibilitySessionTests {
-    private final class Transport: AccessibilitySessionTransport {
+    final class Transport: AccessibilitySessionTransport {
         var incoming: [AccessibilityDTX]
         var outgoing: [AccessibilityDTX] = []
         var closed = false
@@ -25,17 +25,18 @@ struct AccessibilitySessionTests {
         func close() { closed = true }
     }
 
-    private func reply(_ id: UInt32, value: NSObject? = nil, kind: AccessibilityDTX.Kind? = nil) throws -> AccessibilityDTX {
+    func reply(_ id: UInt32, value: NSObject? = nil, kind: AccessibilityDTX.Kind? = nil) throws -> AccessibilityDTX {
         let bytes = try value.map { try NSKeyedArchiver.archivedData(withRootObject: $0, requiringSecureCoding: true) } ?? Data()
         return AccessibilityDTX(identifier: id, conversation: 1, channel: 0, expectsReply: false,
             kind: kind ?? (bytes.isEmpty ? .acknowledgement : .object), auxiliary: Data(), object: bytes)
     }
 
-    private func callback(kind: Int, attribute: Int = 0, id: UInt32 = 90, pid: Int32 = 42) throws -> AccessibilityDTX {
+    func callback(kind: Int, attribute: Int = 0, id: UInt32 = 90, pid: Int32 = 42,
+                  rootID: UInt64 = .max, nativeSnapshot: Bool = false) throws -> AccessibilityDTX {
         let coder = NSKeyedArchiver(requiringSecureCoding: true)
         coder.setClassName("AXPTranslatorResponse", for: ResponseFixture.self)
         coder.setClassName("AXPTranslationObject", for: TokenFixture.self)
-        coder.encode(ResponseFixture(kind: kind, attribute: attribute, pid: pid), forKey: NSKeyedArchiveRootObjectKey)
+        coder.encode(ResponseFixture(kind: kind, attribute: attribute, pid: pid, rootID: rootID, nativeSnapshot: nativeSnapshot), forKey: NSKeyedArchiveRootObjectKey)
         coder.finishEncoding()
         if let error = coder.error { throw error }
         return try AccessibilityDTX.invocation("processDataFromRemoteDevice:", argument: coder.encodedData as NSData, identifier: id)
@@ -182,11 +183,12 @@ struct AccessibilitySessionTests {
     private final class TokenFixture: NSObject, NSSecureCoding {
         static var supportsSecureCoding: Bool { true }
         let pid: Int32
-        init(pid: Int32) { self.pid = pid }
+        let objectID: UInt64
+        init(pid: Int32, objectID: UInt64 = .max) { self.pid = pid; self.objectID = objectID }
         required init?(coder: NSCoder) { return nil }
         func encode(with coder: NSCoder) {
             coder.encode(pid, forKey: "pid")
-            coder.encode(NSNumber(value: UInt64.max), forKey: "objectID")
+            coder.encode(NSNumber(value: objectID), forKey: "objectID")
             coder.encode(nil as NSObject?, forKey: "rawElementData")
             coder.encode(nil as NSObject?, forKey: "bridgeDelegateToken")
             coder.encode(true, forKey: "isApplicationElement")
@@ -200,15 +202,25 @@ struct AccessibilitySessionTests {
         let kind: Int
         let attribute: Int
         let pid: Int32
-        init(kind: Int, attribute: Int, pid: Int32) { self.kind = kind; self.attribute = attribute; self.pid = pid }
+        let rootID: UInt64
+        let nativeSnapshot: Bool
+        init(kind: Int, attribute: Int, pid: Int32, rootID: UInt64, nativeSnapshot: Bool) {
+            self.kind = kind; self.attribute = attribute; self.pid = pid; self.rootID = rootID; self.nativeSnapshot = nativeSnapshot
+        }
         required init?(coder: NSCoder) { return nil }
         func encode(with coder: NSCoder) {
             coder.encode(kind, forKey: "associatedRequestType")
             coder.encode(attribute, forKey: "attribute")
             coder.encode(0, forKey: "error")
             coder.encode(0, forKey: "notification")
-            coder.encode(kind == 1 ? nil : TokenFixture(pid: pid), forKey: "associatedTranslationObject")
-            let result: NSObject = kind == 1 ? TokenFixture(pid: pid) : ["fixture": "result"] as NSDictionary
+            coder.encode(kind == 1 ? nil : TokenFixture(pid: pid, objectID: rootID), forKey: "associatedTranslationObject")
+            let result: NSObject
+            if kind == 1 { result = TokenFixture(pid: pid, objectID: rootID) }
+            else if nativeSnapshot {
+                result = ["UIAccessibilitySnapshotKeyElement": TokenFixture(pid: pid, objectID: rootID),
+                    "UIAccessibilitySnapshotKeyAttributes": [NSNumber(value: 2001): "Fixture"],
+                    "UIAccessibilitySnapshotKeyChildren": [], "UIAccessibilitySnapshotKeyChildrenCount": 0] as NSDictionary
+            } else { result = ["fixture": "result"] as NSDictionary }
             coder.encode(result, forKey: "resultData")
         }
     }

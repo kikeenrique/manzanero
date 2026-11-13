@@ -18,14 +18,19 @@ struct CoreDeviceInput {
     static func parse(_ args: [String]) throws -> Self? {
         guard args.first == "--physical-backend" else { return nil }
         guard args.count >= 5, args[1] == "coredevice", args[2] == "physical",
-              ["button", "tap", "multi-tap", "long-press", "gesture", "drag", "swipe", "key", "type", "paste", "multi-drag", "pinch"].contains(args[4]) else {
-            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|multi-tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch> ... . Pairing files are not supported by this backend.")
+              ["button", "tap", "multi-tap", "long-press", "gesture", "drag", "swipe", "key", "type", "paste", "multi-drag", "pinch", "tree"].contains(args[4]) else {
+            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|multi-tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch|tree> ... . Tree requires an explicit PID. Pairing files are not supported by this backend.")
         }
         var operands = Array(args.dropFirst(5))
         guard !args[3].isEmpty, !args[3].hasPrefix("-") else {
             throw CommandFailure(description: "Invalid native physical input target or operands.")
         }
-        if args[4] == "type" {
+        if args[4] == "tree" {
+            guard operands.count == 1, let pid = Int32(operands[0]), pid > 0 else {
+                throw CommandFailure(description: "Direct physical tree requires an explicit PID in 1...2147483647; automatic foreground selection is unfinished.")
+            }
+            operands = [String(pid)]
+        } else if args[4] == "type" {
             guard operands.count == 1 else { throw CommandFailure(description: "Physical typing expects one text operand.") }
             _ = try DirectPhysicalTyping.samples(operands[0])
         } else if args[4] == "paste" {

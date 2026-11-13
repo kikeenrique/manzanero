@@ -21,7 +21,7 @@ After building, `mise run cli <arguments...>` runs the executable. Third-party d
 
 Task scripts live under [`mise/tasks/`](mise/tasks/); `mise.toml` keeps shared configuration. Existing task names and arguments are unchanged. See [development tasks](docs/DEVELOPMENT-TASKS.md) for layout and validation.
 
-The [direct accessibility migration](docs/DIRECT-ACCESSIBILITY.md) tracks the in-process replacement for physical trees and selectors; it is not yet available in the product.
+The [direct accessibility migration](docs/DIRECT-ACCESSIBILITY.md) tracks the in-process replacement for physical trees and selectors. An opt-in explicit-PID tree route is implemented through CLI/MCP, but the tested phone currently refuses its AX socket before subscription, so live trees remain unavailable. Use `--physical-backend coredevice physical <UDID> tree <positive-pid>` (MCP `get_ui_tree` with `platform: physical`, `backend: coredevice`, and `pid`). Foreground selection and direct selectors remain unfinished; no helper fallback runs.
 
 During direct physical HID commands, Ctrl-C/SIGINT and SIGTERM cancel dispatch, attempt contact/key release, and exit with 130/143 without a success receipt. MCP stdin EOF and process signals now close tool admissions, cancel owned work and wait for cleanup; EOF normally exits 0. Cleanup has a 30-second runtime grace before force exit. Device-side release, forced exits/crashes and cross-process ownership remain unverified/incomplete; see [interruption limits](docs/NATIVE-INPUT.md#cli-signals) and [MCP shutdown](docs/MCP.md#shutdown-and-operation-ownership).
 
