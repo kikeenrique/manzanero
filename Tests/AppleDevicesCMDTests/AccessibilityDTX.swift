@@ -3,6 +3,30 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct AccessibilityDTXTests {
+    @Test func auxiliaryTagIgnoresOpaqueUpperMetadataAndPreservesExactArchive() throws {
+        // Independent single-object auxiliary fixture, with four opaque bytes.
+        let bytes: [UInt8] = [0xf0, 0x03, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0,
+            10, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0x62, 0x70, 0x6c, 0x69]
+        for flag: UInt8 in [0, 1, 3, 0xb9, 255] {
+            var auxiliary = Data(bytes)
+            auxiliary[1] = flag
+            let message = AccessibilityDTX(identifier: 1, conversation: 0, channel: 0, expectsReply: false,
+                kind: .invocation, auxiliary: auxiliary, object: Data())
+            #expect(try message.archiveArgument() == Data([0x62, 0x70, 0x6c, 0x69]))
+        }
+        var opaque = Data(bytes)
+        opaque.replaceSubrange(1..<8, with: [UInt8](repeating: 255, count: 7))
+        #expect(try AccessibilityDTX(identifier: 1, conversation: 0, channel: 0, expectsReply: false,
+            kind: .invocation, auxiliary: opaque, object: Data()).archiveArgument() == Data([0x62, 0x70, 0x6c, 0x69]))
+        for tag: UInt8 in [0, 1, 0xef, 0xf1, 255] {
+            var auxiliary = Data(bytes)
+            auxiliary[0] = tag
+            let message = AccessibilityDTX(identifier: 1, conversation: 0, channel: 0, expectsReply: false,
+                kind: .invocation, auxiliary: auxiliary, object: Data())
+            #expect(throws: CommandFailure.self) { try message.archiveArgument() }
+        }
+    }
+
     @Test func incrementalPrefixWaitsForExactFrameAndRejectsMalformedHeaderEarly() throws {
         let frame = try AccessibilityDTX.invocation("fixture:", argument: NSNumber(value: true), identifier: 11).encoded()
         for cut in 0..<frame.count {

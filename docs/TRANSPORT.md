@@ -1,5 +1,28 @@
 # Physical transport investigation
 
+## Current Network directory and native AX route
+
+As of 2026-11-13, shared CLI/MCP explicit-PID trees use a native Apple tunnel assertion, a freshly discovered exact-address directory port, an unstarted Network connection and Apple's RemoteXPC directory handshake. They then connect raw DTX to the identity-validated AX port. The diagnostic, CLI and real MCP each returned 106 Settings nodes on the selected iPhone 13 mini. Earlier failed transports below are retained as investigation history; they do not describe current product routing.
+
+Installed Apple `RSDRemoteCoreDeviceDevice.needsConnect` distinguishes the directory bootstrap from service transport flags. The implementation calls `xpc_remote_connection_setup_nw_parameters` with client mode 2, creates an unstarted `nw_connection_t`, and supplies `xpc_remote_connection_get_failsafe_version_flags()` to `xpc_remote_connection_create_with_nw_connection`. The installed getter returns `0x0100000000000000`; the separately serialized host RSD capability advertisement remains `0x0100000000000006`, protocol 7, with the local UUID from Apple `remotectl dumpstate`. The connected-FD diagnostic also uses the failsafe getter but still failed on the phone; it is not an automatic fallback.
+
+Network creates the lower TCP parameters with `NW_PARAMETERS_DISABLE_PROTOCOL` for TLS, matching the inspected Apple lower-transport helper; certificate verification is not overridden. A separate RemoteXPC TLS lifecycle and all Apple's interface-binding parameters have not been reproduced. This scoped success does not establish compatibility across hosts, pairing states, transports or OS versions. No custom HTTP/2 encoder, credential extraction, private entitlement or third-party device executable was added. Network.framework is linked as a built-in Apple framework.
+
+The Network connection/handshake has an eight-second wait with cancellation polling. The validated AX socket has a separate bounded TCP connect; session read/cleanup limits remain in [direct accessibility](DIRECT-ACCESSIBILITY.md). Owners retain the assertion and directory through AX cleanup. Close cancels RemoteXPC and Network, closes the AX descriptor, and records assertion release independently. Cancellation requests and protocol acknowledgements do not independently prove remote teardown. Late assertion acquisition and forced process exits retain cleanup uncertainty.
+
+```sh
+mise run cli physical <hardware-UDID> tree <positive-PID>
+mise run test:rsd-tree <hardware-UDID> <positive-PID> --native-tunnel --network
+# Owned loopback peer only; expected incomplete directory failure:
+mise run test:rsd-wire --network
+```
+
+The low-byte DTX auxiliary tag correction allowed callbacks past framing validation. The successful tree retained the existing semantic response matching, bounded data-only archive decoding, root recheck and snapshot normalization. Explicit PID does not verify foreground/display selection. See [verification](VERIFICATION.md) for exact outcomes and private artifact locations.
+
+## Historical investigation
+
+The following sections record earlier configurations and results in order. References to unavailable trees and proposed next steps belong to those checkpoints; use the current route above for present availability.
+
 ## 2026-11-11 — Apple Wi-Fi tunnel versus an independent pairing
 
 Environment: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), physical iPhone running iOS 27.2.1. Read-only `devicectl device info details` succeeded outside the sandbox. It reported manual pairing, local-network transport, a connected TCP tunnel, and Developer Mode enabled. Local outputs are under ignored `tmp/`; device identifiers, addresses, and serial numbers are omitted here.

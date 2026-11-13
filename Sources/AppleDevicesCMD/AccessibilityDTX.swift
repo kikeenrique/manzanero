@@ -154,12 +154,17 @@ struct AccessibilityDTX: Sendable {
     /// One archived argument, still opaque. Semantic decoding is a separate
     /// bounded, data-only step; this is not a normalized accessibility tree.
     func archiveArgument() throws -> Data {
-        guard auxiliary.count >= 28, Self.integer(auxiliary, 0, UInt64.self) == 0x1f0,
+        guard auxiliary.count >= 28 else { throw Self.invalid("argument framing (auxiliaryBytes=\(auxiliary.count), minimum=28)") }
+        // Upper header metadata varies with the sender's primitive buffer.
+        // Recognize only the low-byte tag; never allocate or infer payload size
+        // from that metadata. Declared size, argument types and length stay exact.
+        guard Self.integer(auxiliary, 0, UInt64.self) & 0xff == 0xf0,
               Self.integer(auxiliary, 8, UInt64.self) == UInt64(auxiliary.count - 16),
               Self.integer(auxiliary, 16, UInt32.self) == 10,
               Self.integer(auxiliary, 20, UInt32.self) == 2,
               Self.integer(auxiliary, 24, UInt32.self) == UInt32(auxiliary.count - 28) else {
-            throw Self.invalid("argument framing")
+            // Header scalars only; never include an archive, token or UI text.
+            throw Self.invalid("argument framing (tagWord=0x\(String(Self.integer(auxiliary, 0, UInt64.self), radix: 16)), declared=\(Self.integer(auxiliary, 8, UInt64.self)), auxiliaryBytes=\(auxiliary.count), keyType=\(Self.integer(auxiliary, 16, UInt32.self)), valueType=\(Self.integer(auxiliary, 20, UInt32.self)), archiveBytes=\(Self.integer(auxiliary, 24, UInt32.self)))")
         }
         return Data(auxiliary[28...])
     }

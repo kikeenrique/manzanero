@@ -87,6 +87,21 @@ struct RSDDirectoryConnectionTests {
         #expect(throws: CommandFailure.self) { try RSDDirectoryConnection(tunnelAddress: "fd12::1", port: 0, expectedUDID: hardware) }
     }
 
+    @Test func networkBootstrapRejectsInvalidOrCancelledTargetsBeforeCreation() throws {
+        var address = try RSDPortDiscovery.socketAddress("fd12::1", port: 12345)
+        var owner = UnsafeMutableRawPointer(bitPattern: 1)
+        var port: UInt16 = 123
+        var error = [CChar](repeating: 0, count: 512)
+        let cancelled = withUnsafePointer(to: &address) {
+            ADCOpenRSDDirectoryNetwork($0, MemoryLayout<sockaddr_in6>.size, hardware, "11111111-1111-1111-1111-111111111111",
+                0x0100000000000006, { 1 }, &port, &owner, &error, error.count)
+        }
+        #expect(cancelled != 0 && owner == nil && port == 0)
+        #expect(ADCOpenRSDDirectoryNetwork(nil, 0, hardware, "11111111-1111-1111-1111-111111111111",
+            0x0100000000000006, { 0 }, &port, &owner, &error, error.count) != 0)
+        #expect(owner == nil && port == 0)
+    }
+
     @Test func localHostIdentityNeverFallsBackToARemoteDeviceUUID() throws {
         let uuid = "11111111-1111-1111-1111-111111111111"
         #expect(try RSDDirectoryConnection.localPeerUUID(in: Data("Local device\n\tUUID: \(uuid)\nRemote device\n\tUUID: 22222222-2222-2222-2222-222222222222".utf8)) == uuid)

@@ -2,12 +2,64 @@ import AppleDeviceBridge
 import Foundation
 
 enum DirectPhysicalAccessibility {
-    static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
-                        open: (String, String) throws -> any AccessibilitySessionTransport = openSocket) throws -> Data {
-        guard input.operation == "tree", input.operands.count == 1,
-              let pid = Int32(input.operands[0]), pid > 0 else {
+    private static func applicationPID(_ input: CoreDeviceInput) throws -> Int32 {
+        guard input.operation == "tree", input.operands.count == 1, let pid = Int32(input.operands[0]), pid > 0 else {
             throw CommandFailure(description: "Direct physical tree requires one positive application PID.")
         }
+        return pid
+    }
+
+    /// Remain on the caller's actor while retaining non-Sendable native owners.
+    /// Only local discovery subprocess work suspends; no owner crosses tasks.
+    static func executeNativeRSD(_ input: CoreDeviceInput, isolation: isolated (any Actor)? = #isolation,
+                                 query: (DeviceCommand) throws -> Data) async throws -> Data {
+        try Task.checkCancellation()
+        let pid = try applicationPID(input)
+        let details = try query(input.identityPlan())
+        let identity = try DirectPhysicalInput.identity(input, query: { _ in details })
+        guard let root = try JSONSerialization.jsonObject(with: details) as? [String: Any],
+              let result = root["result"] as? [String: Any], let properties = result["properties"] as? [String: Any],
+              let hardware = properties["hardware"] as? [String: Any], let udid = hardware["udid"] as? String else {
+            throw CommandFailure(description: "Native physical tree requires fresh hardware identity; no connection started.")
+        }
+        let address = try RSDPortDiscovery.tunnelAddress(details: details, expectedUDID: udid)
+        let assertion = try NativeTunnelAssertion(device: udid, details: details)
+        defer { assertion.close() }
+        do {
+            let port = try await RSDPortDiscovery.discover(tunnelAddress: address)
+            try Task.checkCancellation()
+            let directory = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: udid, transport: .network)
+            defer { directory.close() }
+            let transport = try directory.openAccessibility()
+            let bytes = try capture(device: input.device, resolved: identity.uuid, pid: pid, session: AccessibilitySession(transport: transport))
+            directory.close()
+            let release = assertion.close()
+            try Task.checkCancellation()
+            return try annotateNativeCleanup(bytes, release: release)
+        } catch {
+            let release = assertion.close()
+            if Task.isCancelled || error is CancellationError {
+                if !release.confirmed { FileHandle.standardError.write(Data("\(release.diagnostic ?? "Native tunnel release unconfirmed")\n".utf8)) }
+                throw CancellationError()
+            }
+            throw CommandFailure(description: "\(error) Tunnel assertion release: \(release.status); confirmed=\(release.confirmed). \(release.diagnostic ?? "")")
+        }
+    }
+
+    static func annotateNativeCleanup(_ bytes: Data, release: NativeTunnelAssertion.Release) throws -> Data {
+        guard var root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
+            throw CommandFailure(description: "Invalid internal native tree result.")
+        }
+        root["transport"] = "apple-network-rsd"
+        var cleanup: [String: Any] = ["tunnelAssertionRelease": release.status, "confirmed": release.confirmed]
+        if let diagnostic = release.diagnostic { cleanup["diagnostic"] = diagnostic }
+        root["connectionCleanup"] = cleanup
+        return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
+                        open: (String, String) throws -> any AccessibilitySessionTransport = openSocket) throws -> Data {
+        let pid = try applicationPID(input)
         let identity = try DirectPhysicalInput.identity(input, query: query)
         try Task.checkCancellation()
         let transport = try open(identity.uuid, identity.version)

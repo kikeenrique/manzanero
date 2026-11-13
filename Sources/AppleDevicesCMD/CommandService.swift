@@ -60,7 +60,7 @@ actor CommandService {
                 if native.operation == "tree" {
                     return try json(["backend": "coredevice-direct", "operation": "tree", "pid": Int(native.operands[0]) ?? 0,
                         "identityArguments": identity.arguments, "liveVerified": false,
-                        "execution": "In-process Apple AX socket, DTX/AXP reads, bounded normalization and application identity recheck; no helper or fallback. Endpoint connectivity remains unresolved."])
+                        "execution": "Native Apple tunnel assertion, exact-address RSD discovery, Apple Network/RemoteXPC directory, raw AX DTX reads and application identity recheck; no helper, foreground guarantee or fallback."])
                 }
                 if DirectPhysicalGesture.handles(native) {
                     let sequence = try DirectPhysicalGesture.sequence(for: native)
@@ -108,7 +108,7 @@ actor CommandService {
                 return try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40)
             }
             if native.operation == "tree" {
-                return CommandOutput(data: try DirectPhysicalAccessibility.execute(native, query: query))
+                return CommandOutput(data: try await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
             }
             if native.operation == "key" {
                 return CommandOutput(data: try DirectPhysicalKeyboard.execute(native, query: query))

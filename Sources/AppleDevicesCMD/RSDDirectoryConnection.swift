@@ -3,29 +3,41 @@ import Darwin
 import Foundation
 
 /// Own on one task, retain while using advertised services, then close explicitly.
-/// This opt-in investigation path has no product routing or retry/fallback.
+/// The product selects Network transport; connected-FD remains diagnostic.
+/// No retry or alternate-transport fallback is attempted.
 final class RSDDirectoryConnection {
+    enum Transport: String { case connectedFD = "connected-fd", network }
     let accessibilityPort: UInt16
     private var owner: UnsafeMutableRawPointer?
     private let tunnelAddress: String
     private var serviceOpened = false
 
-    init(tunnelAddress: String, port: UInt16, expectedUDID: String) throws {
+    init(tunnelAddress: String, port: UInt16, expectedUDID: String, transport: Transport = .connectedFD) throws {
         try Task.checkCancellation()
         guard expectedUDID.range(of: "^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$", options: .regularExpression) != nil else {
             throw CommandFailure(description: "RSD directory requires an explicit hardware UDID; no connection started.")
         }
         _ = try RSDPortDiscovery.socketAddress(tunnelAddress, port: port)
         let host = try Self.localPeerUUID(in: ToolRunner().run(["dumpstate"], executable: "/usr/libexec/remotectl", timeout: 5))
-        let descriptor = try Self.connect(address: tunnelAddress, port: port)
         var owner: UnsafeMutableRawPointer?
         var servicePort: UInt16 = 0
         var error = [CChar](repeating: 0, count: 1024)
-        // Baseline diagnostic settings only. The service profile's mode flags
-        // must not be assumed to describe directory-control initialization.
-        let status = ADCOpenRSDDirectory(descriptor, expectedUDID, host, 0x0100000000000006, 0,
-            { Task.isCancelled ? 1 : 0 }, &servicePort, &owner, &error, error.count)
-        // The bridge consumes descriptor even if setup/validation fails.
+        // Native bootstrap flags come from Apple's failsafe getter. These flags
+        // are only the host's RSD capability advertisement. Connected-FD mode
+        // remains separate from Apple's unstarted Network-connection mode.
+        let status: Int32
+        switch transport {
+        case .connectedFD:
+            let descriptor = try Self.connect(address: tunnelAddress, port: port)
+            status = ADCOpenRSDDirectory(descriptor, expectedUDID, host, 0x0100000000000006, 0,
+                { Task.isCancelled ? 1 : 0 }, &servicePort, &owner, &error, error.count)
+        case .network:
+            var target = try RSDPortDiscovery.socketAddress(tunnelAddress, port: port)
+            status = withUnsafePointer(to: &target) {
+                ADCOpenRSDDirectoryNetwork($0, MemoryLayout<sockaddr_in6>.size, expectedUDID, host, 0x0100000000000006,
+                    { Task.isCancelled ? 1 : 0 }, &servicePort, &owner, &error, error.count)
+            }
+        }
         if Task.isCancelled {
             ADCCloseRSDDirectory(owner)
             throw CancellationError()

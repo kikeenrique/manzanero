@@ -1,6 +1,27 @@
 # Direct physical accessibility migration
 
-Live physical accessibility remains unavailable: the former idevice executable is disabled and the opt-in direct explicit-PID route currently fails opening the Apple AX endpoint. The replacement operates in `appledevicescmd` against Apple interfaces, without launching an intermediary. This page tracks implementation separately from live device evidence.
+Native explicit-PID physical trees now work through CLI and MCP on the selected iPhone 13 mini. The replacement operates in `appledevicescmd` against Apple interfaces, without launching an intermediary. Foreground selection and selector actions remain unfinished. This page separates current scoped verification from the migration history below.
+
+## Current native tree route
+
+```sh
+mise run cli physical <hardware-UDID> tree <positive-PID>
+mise run test:mcp-physical <hardware-UDID> <positive-PID>
+# Explicit diagnostic with the same Network bootstrap:
+mise run test:rsd-tree <hardware-UDID> <positive-PID> --native-tunnel --network
+```
+
+Explicit-PID trees default to the direct backend. MCP `get_ui_tree` accepts `platform: physical`, `device` and `pid`; `backend: coredevice` is optional. Fresh CoreDevice details establish the selected physical hardware and tunnel address. A native Apple assertion is retained while Apple's Network/RemoteXPC directory handshake verifies the exact hardware and service properties, then raw DTX connects to that directory's AX port. The application/snapshot/application sequence checks root identity before returning bounded normalized nodes. The [transport record](TRANSPORT.md#current-network-directory-and-native-ax-route) describes bootstrap and ownership details.
+
+On 2026-11-13, the explicit diagnostic, actual CLI and real MCP stdio each captured 106 Settings nodes for the explicitly selected PID on iPhone 13 mini. A fresh 1125×2436 screenshot of General matched labels and row frames on the tree's 375×812 logical-point grid. Subscription stop and tunnel assertion release were acknowledged separately; MCP also completed EOF shutdown. These are protocol acknowledgements, not independent proof of phone-side teardown. Full local validation passed 272 test functions with zero errors/warnings.
+
+The PID can identify a background app. Snapshot IDs/paths are local to one non-atomic observation, and are not action handles. A visible flag or frame does not establish hittability, complete coverage or stable descendants. Automatic foreground/display selection, guarded element actions, screen-tree integration, crash recovery and other-device coverage remain incomplete. No action is replayed automatically.
+
+DTX auxiliary dictionaries identify their tag by the low byte `0xf0`; upper header metadata varies. Live callbacks contained header words `0x3f0` and `0xb9f0`. The parser preserves that metadata as opaque and still requires exact auxiliary/archive lengths and supported entry types. It never allocates from the upper header word. Independent byte fixtures cover alternate upper metadata, wrong tags and malformed lengths. Installed Apple DTX reader inspection and the retained AXe source reference support this framing distinction; neither executable is invoked for device operations.
+
+## Migration history and local implementation
+
+The chronological records below describe earlier implementation checkpoints and failed probes. Their statements about unavailable trees or next steps apply to those checkpoints; the current route above supersedes them. The CoreDevice named-socket and old connected-FD failures remain failures.
 
 ## DTX framing
 

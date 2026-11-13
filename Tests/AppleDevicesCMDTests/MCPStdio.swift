@@ -358,10 +358,24 @@ struct MCPStdioTests {
             }
             let cleanup = try #require(tree["cleanup"] as? [String: Any])
             let stop = try #require(cleanup["subscriptionStop"] as? String)
-            #expect(["confirmed", "connection-closed-before-ack"].contains(stop))
-            if stop == "connection-closed-before-ack" {
-                #expect(cleanup["confirmed"] as? Bool == false)
-                #expect(!(cleanup["warning"] as? String ?? "").isEmpty)
+            if pid != nil {
+                #expect(tree["backend"] as? String == "coredevice-direct")
+                #expect(tree["transport"] as? String == "apple-network-rsd")
+                #expect(application["selection"] as? String == "explicit-pid")
+                #expect(["acknowledged", "unconfirmed"].contains(stop))
+                #expect(cleanup["confirmed"] as? Bool == (stop == "acknowledged"))
+                if stop == "unconfirmed" { #expect(!(cleanup["diagnostic"] as? String ?? "").isEmpty) }
+                let connectionCleanup = try #require(tree["connectionCleanup"] as? [String: Any])
+                let release = try #require(connectionCleanup["tunnelAssertionRelease"] as? String)
+                #expect(["acknowledged", "unconfirmed"].contains(release))
+                #expect(connectionCleanup["confirmed"] as? Bool == (release == "acknowledged"))
+                if release == "unconfirmed" { #expect(!(connectionCleanup["diagnostic"] as? String ?? "").isEmpty) }
+            } else {
+                #expect(["confirmed", "connection-closed-before-ack"].contains(stop))
+                if stop == "connection-closed-before-ack" {
+                    #expect(cleanup["confirmed"] as? Bool == false)
+                    #expect(!(cleanup["warning"] as? String ?? "").isEmpty)
+                }
             }
             let nodes = try #require(tree["nodes"] as? [[String: Any]])
             #expect(!nodes.isEmpty)

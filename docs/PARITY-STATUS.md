@@ -1,6 +1,6 @@
 # Feature parity status
 
-Checkpoint: direct Apple input including keyboard and timed schedules, 2026-11-13. Full device-control tooling parity is not complete. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
+Checkpoint: direct Apple input and native explicit-PID accessibility trees, 2026-11-13. Full device-control tooling parity is not complete. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
 
 ## Current runtime availability
 
@@ -16,12 +16,12 @@ Checkpoint: direct Apple input including keyboard and timed schedules, 2026-11-1
 | Physical keyboard typing | In-process US-layout ASCII, tab and LF, 1...512 characters; no clipboard operation. Mixed-case/digit/shifted punctuation has scoped Settings search verification. Other layouts/fields and failure release remain unverified. |
 | Physical timed gestures | Direct in-process Universal HID schedules with one to five slots, independent arrivals/lifts and repeated taps. MCP swipe moved Home to App Library; CLI double-tap and a staggered two-contact MCP spread zoomed Maps. Three-to-five-contact effects, exact timing and failure release remain hardware-unverified. |
 | Standalone multi-tap and three-to-five-path multi-drag | Implemented through in-process Apple Universal HID, with shared CLI/MCP routing and local encoding/timing tests. Two-contact MCP tap visibly zoomed Maps out on USB iPhone 13 mini. Three-path MCP and five-path CLI dispatch completed; screenshots do not prove independent contact effects. Four-contact behavior and failure release remain unverified. No helper fallback. |
-| Physical accessibility | Opt-in direct CoreDevice explicit-PID tree route now connects the owned socket/session, response checks, normalization and application root recheck. CLI attempt on iPhone 13 mini still failed with CoreDeviceError 4000 before subscription; no live direct tree. Default legacy helper route remains blocked; foreground selection/selectors unfinished. Screen auto can fall back to Vision OCR. |
+| Physical accessibility | Native Apple Network/RemoteXPC directory plus raw AX DTX now defaults for explicit-PID trees. CLI and real MCP each captured 106 Settings nodes on iPhone 13 mini; labels/frames matched a fresh screenshot. Separate subscription-stop and tunnel-release acknowledgements recorded. Non-atomic, snapshot-local IDs; foreground selection/selectors unfinished. Screen auto still uses OCR fallback. |
 | Offline accessibility archives | Swift/Foundation data-only structural inspection works through CLI and MCP with no helper/device connection. Saved iPhone callback decoded locally; not a fresh tree or semantic accessibility implementation. |
 | Native physical recording | ipb video executable blocked; direct replacement pending. Default devicectl remains unsupported on the tested phone. |
 | Simulator input/accessibility | AXe executable blocked; direct replacement pending. |
 | CLI/MCP | Both enforce the same restriction. Full Apple-family scope remains unchanged. |
-| Agent exploration loop | Screenshot/OCR → visually checked coordinate action → fresh observation has scoped Settings verification on iPhone 13 mini. General opened after scrolling it higher and selecting its fresh row centre; another near-bottom tap left the root visible. Earlier misses remain recorded; reliable targeting/delivery is incomplete. Semantic assertions await direct AX. Automatic prompt handling, durable sessions and recovery remain incomplete. |
+| Agent exploration loop | Screenshot/OCR → visually checked coordinate action → fresh observation has scoped Settings verification on iPhone 13 mini. Explicit-PID native AX now adds labels and logical-point frames. Automatic foreground selection, guarded semantic actions/assertions and reliable targeting remain incomplete. Earlier coordinate misses remain recorded. Automatic prompt handling, durable sessions and recovery remain incomplete. |
 | Physical HID cancellation | Swift task cancellation stops Universal HID and Indigo input with release/barrier attempts. Direct physical CLI signals and MCP request cancellation have scoped iPhone 13 mini checks. MCP now owns tool tasks, closes admissions and cancels/drains on stdin EOF or process signals; live holds exited 0/130/143 after about two seconds. Device-side release, forced exits/crashes, cross-process ownership and quarantine remain incomplete. |
 
 ## Historical feature inventory

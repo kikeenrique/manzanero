@@ -44,9 +44,17 @@ int ADCValidateRSDHandshake(const void *message, const char *expectedUDID, uint1
                            char *error, size_t errorCapacity);
 /// Consumes a connected stream FD on every path. Owns Apple's RemoteXPC
 /// connection until explicitly closed. Does not open AX or enable accessibility.
+/// The native bootstrap uses Apple's failsafe getter; versionFlags advertises
+/// host capabilities in the RSD message and is not a bootstrap override.
 int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *localUUID, uint64_t versionFlags, uint64_t modeFlags,
                         int (^shouldCancel)(void), uint16_t *axPort, void **owner,
                         char *error, size_t errorCapacity);
+/// Separate explicit Network-based control bootstrap. Copies a sockaddr_in6;
+/// no FD is transferred. Owns/cancels the Network and RemoteXPC connections.
+int ADCOpenRSDDirectoryNetwork(const void *address, size_t addressLength, const char *expectedUDID,
+                               const char *localUUID, uint64_t advertisedVersionFlags,
+                               int (^shouldCancel)(void), uint16_t *axPort, void **owner,
+                               char *error, size_t errorCapacity);
 void ADCCloseRSDDirectory(void *owner);
 int ADCIsRSDDirectoryActive(void *owner);
 

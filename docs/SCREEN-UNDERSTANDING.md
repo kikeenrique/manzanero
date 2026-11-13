@@ -1,6 +1,6 @@
 # Screen inspection
 
-Current runtime: screenshot capture and Vision OCR run through Apple tools/frameworks without a device helper. Physical foreground trees and simulator helper-based hierarchies are unavailable under the current executable policy, so `auto` falls back to OCR. The opt-in direct explicit-PID tree command is separate and still fails endpoint access on the tested phone; it is not integrated as a foreground screen tree. Historical hierarchy observations below remain migration evidence.
+Current runtime: screenshot capture and Vision OCR run through Apple tools/frameworks without a device helper. Physical foreground trees and simulator helper-based hierarchies are unavailable under the current executable policy, so `auto` falls back to OCR. The separate [native explicit-PID tree command](DIRECT-ACCESSIBILITY.md#current-native-tree-route) now has CLI/MCP Settings verification on iPhone 13 mini; it is not integrated as a foreground screen tree. Historical foreground hierarchy observations below remain migration evidence.
 
 ```sh
 appledevicescmd simulator <UUID> screen auto

@@ -10,10 +10,11 @@ struct NativeRemoteXPCWireTests {
         let diagnostic: String
     }
 
-    private func localPair() throws -> (Int32, Int32) {
+    private func localListener() throws -> (Int32, sockaddr_in6) {
         let listener = socket(AF_INET6, SOCK_STREAM, 0)
         try #require(listener >= 0)
-        defer { Darwin.close(listener) }
+        var transferred = false
+        defer { if !transferred { Darwin.close(listener) } }
         var address = sockaddr_in6()
         address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
         address.sin6_family = sa_family_t(AF_INET6)
@@ -27,6 +28,15 @@ struct NativeRemoteXPCWireTests {
             pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(listener, $0, &size) }
         }
         try #require(named == 0)
+        transferred = true
+        return (listener, address)
+    }
+
+    private func localPair() throws -> (Int32, Int32) {
+        let (listener, selected) = try localListener()
+        defer { Darwin.close(listener) }
+        var address = selected
+        let size = socklen_t(MemoryLayout<sockaddr_in6>.size)
         let client = socket(AF_INET6, SOCK_STREAM, 0)
         try #require(client >= 0)
         var transferred = false
@@ -105,17 +115,53 @@ struct NativeRemoteXPCWireTests {
     func observesAppleRemoteXPCPrefixOnlyOnOwnedLoopbackPeer() async throws {
         let mode = UInt64(ProcessInfo.processInfo.environment["APPLEDEVICES_NATIVE_RSD_WIRE_MODE"] ?? "0") ?? UInt64.max
         try #require(mode == 0 || mode == 4)
-        let (client, peer) = try localPair()
-        defer { Darwin.close(peer) }
-        let call = Task { @concurrent in
-            var port: UInt16 = 0
-            var owner: UnsafeMutableRawPointer?
-            var error = [CChar](repeating: 0, count: 1024)
-            let status = ADCOpenRSDDirectory(client, "00000000-0000000000000001", "11111111-1111-1111-1111-111111111111",
-                0x0100000000000006, mode, { Task.isCancelled ? 1 : 0 }, &port, &owner, &error, error.count)
-            ADCCloseRSDDirectory(owner)
-            return Outcome(status: status, diagnostic: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+        let network = ProcessInfo.processInfo.environment["APPLEDEVICES_NATIVE_RSD_WIRE_NETWORK"] == "1"
+        try #require(!network || mode == 0)
+        let peer: Int32
+        let call: Task<Outcome, Never>
+        if network {
+            let (listener, selected) = try localListener()
+            let networkPort = selected.sin6_port
+            call = Task { @concurrent in
+                var target = sockaddr_in6()
+                target.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+                target.sin6_family = sa_family_t(AF_INET6)
+                target.sin6_addr = in6addr_loopback
+                target.sin6_port = networkPort
+                var port: UInt16 = 0
+                var owner: UnsafeMutableRawPointer?
+                var error = [CChar](repeating: 0, count: 1024)
+                let status = withUnsafePointer(to: &target) {
+                    ADCOpenRSDDirectoryNetwork($0, MemoryLayout<sockaddr_in6>.size, "00000000-0000000000000001", "11111111-1111-1111-1111-111111111111",
+                        0x0100000000000006, { Task.isCancelled ? 1 : 0 }, &port, &owner, &error, error.count)
+                }
+                ADCCloseRSDDirectory(owner)
+                return Outcome(status: status, diagnostic: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+            }
+            var pending = pollfd(fd: listener, events: Int16(POLLIN), revents: 0)
+            let ready = poll(&pending, 1, 2000)
+            peer = ready > 0 ? accept(listener, nil, nil) : -1
+            Darwin.close(listener)
+            if peer < 0 {
+                call.cancel()
+                let result = await call.value
+                throw CommandFailure(description: "Native Network loopback peer did not connect: \(result.diagnostic)")
+            }
+        } else {
+            let pair = try localPair()
+            peer = pair.1
+            let client = pair.0
+            call = Task { @concurrent in
+                var port: UInt16 = 0
+                var owner: UnsafeMutableRawPointer?
+                var error = [CChar](repeating: 0, count: 1024)
+                let status = ADCOpenRSDDirectory(client, "00000000-0000000000000001", "11111111-1111-1111-1111-111111111111",
+                    0x0100000000000006, mode, { Task.isCancelled ? 1 : 0 }, &port, &owner, &error, error.count)
+                ADCCloseRSDDirectory(owner)
+                return Outcome(status: status, diagnostic: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+            }
         }
+        defer { Darwin.close(peer) }
         let bytes: Data
         do { bytes = try capture(peer) }
         catch {
@@ -132,8 +178,9 @@ struct NativeRemoteXPCWireTests {
         try bytes.write(to: directory.appendingPathComponent("client-prefix.bin"))
         let frames = frameMetadata(bytes)
         let metadata: [String: Any] = ["source": "native Apple RemoteXPC to owned IPv6 loopback peer", "physicalDeviceQueried": false,
-            "byteCount": bytes.count, "modeFlags": mode, "startsWithHTTP2Preface": bytes.starts(with: preface), "frames": frames,
-            "bridgeStatus": result.status, "bridgeDiagnostic": result.diagnostic, "directoryHandshakeCompleted": false]
+            "byteCount": bytes.count, "transport": network ? "network" : "connected-fd", "modeFlags": network ? 2 : mode, "startsWithHTTP2Preface": bytes.starts(with: preface), "frames": frames,
+            "bridgeStatus": result.status, "bridgeDiagnostic": result.diagnostic, "directoryHandshakeCompleted": false,
+            "bootstrapVersionFlagsSource": "Apple xpc_remote_connection_get_failsafe_version_flags", "advertisedVersionFlagsHex": "100000000000006"]
         try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys]).write(to: directory.appendingPathComponent("result.json"))
         #expect(bytes.starts(with: preface))
         #expect(frames.isEmpty == false)

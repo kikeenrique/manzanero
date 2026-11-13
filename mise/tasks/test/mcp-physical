@@ -2,7 +2,6 @@
 #MISE extends = "swift"
 #MISE description = "Verify MCP stdio physical AX tree for an explicitly selected device and PID"
 #MISE depends = ["build"]
-#MISE env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
 #USAGE arg "<device>" help="Explicit physical device UDID"
 #USAGE arg "<pid>" help="Current application PID to inspect; may be a background app"
 

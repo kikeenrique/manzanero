@@ -1,5 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <xpc/xpc.h>
+#import <Network/Network.h>
+#include <netinet/in.h>
 #include <dlfcn.h>
 #include <unistd.h>
 #include <math.h>
@@ -321,6 +323,7 @@ int ADCValidateRSDHandshake(const void *message, const char *expectedUDID, uint1
 @interface ADCRSDDirectoryOwner : NSObject
 @property(nonatomic, strong) id remote;
 @property(nonatomic, strong) ADCReplyState *state;
+@property(nonatomic, strong) nw_connection_t network;
 @end
 @implementation ADCRSDDirectoryOwner
 @end
@@ -331,6 +334,7 @@ void ADCCloseRSDDirectory(void *owner) {
     lifetime.state.failed = YES;
     ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
     if (cancel && lifetime.remote) cancel((__bridge ADCRemote)lifetime.remote);
+    if (lifetime.network) nw_connection_cancel(lifetime.network);
 }
 
 int ADCIsRSDDirectoryActive(void *owner) {
@@ -339,35 +343,18 @@ int ADCIsRSDDirectoryActive(void *owner) {
     return lifetime.state && !lifetime.state.failed;
 }
 
-int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *localUUID, uint64_t versionFlags, uint64_t modeFlags,
+static int ADCCompleteRSDDirectory(ADCRSDDirectoryOwner *lifetime, const char *expectedUDID, NSUUID *host, uint64_t versionFlags,
                          int (^shouldCancel)(void), uint16_t *axPort, void **owner,
                          char *error, size_t capacity) {
     @autoreleasepool {
-        if (owner) *owner = NULL;
-        if (axPort) *axPort = 0;
-        NSUUID *host = localUUID ? [[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:localUUID]] : nil;
-        int type = 0; socklen_t length = sizeof(type);
-        if (!owner || !axPort || !host || !ADCValidHardwareUDID(expectedUDID) || (modeFlags != 0 && modeFlags != 4) || descriptor < 0 ||
-            getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &type, &length) || type != SOCK_STREAM ||
-            (shouldCancel && shouldCancel())) {
-            if (descriptor >= 0) close(descriptor);
-            return ADCFail(error, capacity, @"Invalid or cancelled RSD connection; no handshake started.");
-        }
-        if (ADCPrepareCoreDevice(error, capacity)) { close(descriptor); return 1; }
-        ADCCreate create = dlsym(RTLD_DEFAULT, "xpc_remote_connection_create_with_connected_fd");
+        ADCRemote remote = (__bridge ADCRemote)lifetime.remote;
         ADCHandler handler = dlsym(RTLD_DEFAULT, "xpc_remote_connection_set_event_handler");
         ADCActivate activate = dlsym(RTLD_DEFAULT, "xpc_remote_connection_activate");
-        ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
         ADCSend send = dlsym(RTLD_DEFAULT, "xpc_remote_connection_send_message");
-        if (!create || !handler || !activate || !cancel || !send) {
-            close(descriptor);
+        if (!handler || !activate || !send) {
+            ADCCloseRSDDirectory((void *)CFBridgingRetain(lifetime));
             return ADCFail(error, capacity, @"Apple RemoteXPC directory interfaces are unavailable.");
         }
-        dispatch_queue_t queue = dispatch_queue_create("appledevices.rsd.directory", DISPATCH_QUEUE_SERIAL);
-        ADCRemote remote = create(descriptor, queue, versionFlags, modeFlags);
-        if (!remote) { close(descriptor); return ADCFail(error, capacity, @"Apple RemoteXPC directory connection creation failed."); }
-        ADCRSDDirectoryOwner *lifetime = [ADCRSDDirectoryOwner new];
-        lifetime.remote = CFBridgingRelease(remote);
         ADCReplyState *state = [ADCReplyState new];
         lifetime.state = state;
         __block unsigned messages = 0;
@@ -404,14 +391,76 @@ int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *lo
             if (!dispatch_semaphore_wait(state.semaphore, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_MSEC))) { ready = YES; break; }
         }
         if (!ready || state.failed || (shouldCancel && shouldCancel())) {
-            cancel(remote);
+            ADCCloseRSDDirectory((void *)CFBridgingRetain(lifetime));
             return ADCFail(error, capacity, [NSString stringWithFormat:@"RSD directory handshake failed, was cancelled or exceeded its eight-second deadline; no AX connection started. %@", state.failureText ?: @"No native connection error detail."]);
         }
         if (ADCValidateRSDHandshake((__bridge const void *)state.reply, expectedUDID, axPort, error, capacity)) {
-            cancel(remote); return 1;
+            ADCCloseRSDDirectory((void *)CFBridgingRetain(lifetime)); return 1;
         }
         *owner = (void *)CFBridgingRetain(lifetime);
         return 0;
+    }
+}
+
+int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *localUUID, uint64_t versionFlags, uint64_t modeFlags,
+                         int (^shouldCancel)(void), uint16_t *axPort, void **owner, char *error, size_t capacity) {
+    @autoreleasepool {
+        if (owner) *owner = NULL;
+        if (axPort) *axPort = 0;
+        NSUUID *host = localUUID ? [[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:localUUID]] : nil;
+        int type = 0; socklen_t length = sizeof(type);
+        if (!owner || !axPort || !host || !ADCValidHardwareUDID(expectedUDID) || (modeFlags != 0 && modeFlags != 4) || descriptor < 0 ||
+            getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &type, &length) || type != SOCK_STREAM || (shouldCancel && shouldCancel())) {
+            if (descriptor >= 0) close(descriptor);
+            return ADCFail(error, capacity, @"Invalid or cancelled RSD connection; no handshake started.");
+        }
+        if (ADCPrepareCoreDevice(error, capacity)) { close(descriptor); return 1; }
+        ADCCreate create = dlsym(RTLD_DEFAULT, "xpc_remote_connection_create_with_connected_fd");
+        uint64_t (*failsafe)(void) = dlsym(RTLD_DEFAULT, "xpc_remote_connection_get_failsafe_version_flags");
+        ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
+        if (!create || !failsafe || !cancel) { close(descriptor); return ADCFail(error, capacity, @"Apple directory bootstrap APIs are unavailable."); }
+        dispatch_queue_t queue = dispatch_queue_create("appledevices.rsd.fd", DISPATCH_QUEUE_SERIAL);
+        ADCRemote remote = create(descriptor, queue, failsafe(), modeFlags);
+        if (!remote) { close(descriptor); return ADCFail(error, capacity, @"Apple RemoteXPC directory connection creation failed."); }
+        ADCRSDDirectoryOwner *lifetime = [ADCRSDDirectoryOwner new];
+        lifetime.remote = CFBridgingRelease(remote);
+        return ADCCompleteRSDDirectory(lifetime, expectedUDID, host, versionFlags, shouldCancel, axPort, owner, error, capacity);
+    }
+}
+
+int ADCOpenRSDDirectoryNetwork(const void *address, size_t addressLength, const char *expectedUDID,
+                               const char *localUUID, uint64_t advertisedVersionFlags,
+                               int (^shouldCancel)(void), uint16_t *axPort, void **owner, char *error, size_t capacity) {
+    @autoreleasepool {
+        if (owner) *owner = NULL;
+        if (axPort) *axPort = 0;
+        NSUUID *host = localUUID ? [[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:localUUID]] : nil;
+        const struct sockaddr_in6 *target = address;
+        if (!owner || !axPort || !host || !ADCValidHardwareUDID(expectedUDID) || !target || addressLength != sizeof(*target) ||
+            target->sin6_len != sizeof(*target) || target->sin6_family != AF_INET6 || target->sin6_port == 0 || (shouldCancel && shouldCancel()))
+            return ADCFail(error, capacity, @"Invalid or cancelled Network RSD target; no connection created.");
+        if (ADCPrepareCoreDevice(error, capacity)) return 1;
+        ADCRemote (*create)(nw_connection_t, dispatch_queue_t, uint64_t, uint64_t) = dlsym(RTLD_DEFAULT, "xpc_remote_connection_create_with_nw_connection");
+        void (*configure)(nw_parameters_t, uint64_t) = dlsym(RTLD_DEFAULT, "xpc_remote_connection_setup_nw_parameters");
+        uint64_t (*failsafe)(void) = dlsym(RTLD_DEFAULT, "xpc_remote_connection_get_failsafe_version_flags");
+        ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
+        if (!create || !configure || !failsafe || !cancel) return ADCFail(error, capacity, @"Apple Network RSD bootstrap APIs are unavailable.");
+        nw_endpoint_t endpoint = nw_endpoint_create_address((const struct sockaddr *)target);
+        // Match Apple's lower TCP construction. No certificate check is
+        // overridden; a separately required RemoteXPC TLS setup remains distinct.
+        nw_parameters_t parameters = nw_parameters_create_secure_tcp(NW_PARAMETERS_DISABLE_PROTOCOL, NW_PARAMETERS_DEFAULT_CONFIGURATION);
+        if (!endpoint || !parameters) return ADCFail(error, capacity, @"Cannot create Apple Network endpoint/parameters.");
+        nw_parameters_set_local_only(parameters, false);
+        configure(parameters, 2);
+        nw_connection_t network = nw_connection_create(endpoint, parameters);
+        if (!network) return ADCFail(error, capacity, @"Cannot create Apple Network directory connection.");
+        dispatch_queue_t queue = dispatch_queue_create("appledevices.rsd.network", DISPATCH_QUEUE_SERIAL);
+        ADCRemote remote = create(network, queue, failsafe(), 2);
+        if (!remote) { nw_connection_cancel(network); return ADCFail(error, capacity, @"Cannot create Apple Network RemoteXPC directory connection."); }
+        ADCRSDDirectoryOwner *lifetime = [ADCRSDDirectoryOwner new];
+        lifetime.remote = CFBridgingRelease(remote);
+        lifetime.network = network;
+        return ADCCompleteRSDDirectory(lifetime, expectedUDID, host, advertisedVersionFlags, shouldCancel, axPort, owner, error, capacity);
     }
 }
 

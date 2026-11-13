@@ -4,6 +4,23 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct DirectPhysicalAccessibilityTests {
+    @Test func nativePipelineRejectsInvalidPIDsBeforeAnyQueryAndRetainsCleanupUncertainty() async throws {
+        for operands in [[], ["0"], ["-1"], ["42", "extra"]] {
+            await #expect(throws: CommandFailure.self) {
+                try await DirectPhysicalAccessibility.executeNativeRSD(.init(device: "fixture", operation: "tree", operands: operands),
+                    query: { _ in Issue.record("Invalid native tree queried"); return Data() })
+            }
+        }
+        let bytes = try DirectPhysicalAccessibility.capture(device: "fixture", resolved: UUID().uuidString, pid: 42,
+            session: AccessibilitySession(transport: wire()))
+        let annotated = try DirectPhysicalAccessibility.annotateNativeCleanup(bytes,
+            release: .init(confirmed: false, status: "unconfirmed", diagnostic: "Fixture release lost"))
+        let root = try #require(JSONSerialization.jsonObject(with: annotated) as? [String: Any])
+        #expect((root["cleanup"] as? [String: Any])?["confirmed"] as? Bool == true)
+        #expect((root["connectionCleanup"] as? [String: Any])?["confirmed"] as? Bool == false)
+        #expect((root["connectionCleanup"] as? [String: Any])?["diagnostic"] as? String == "Fixture release lost")
+        #expect(root["transport"] as? String == "apple-network-rsd")
+    }
     private func wire(afterRoot: UInt64 = 1, validSnapshot: Bool = true, cleanup: Bool = true) throws -> AccessibilitySessionTests.Transport {
         let fixture = AccessibilitySessionTests()
         var incoming = [try fixture.reply(1, value: NSNumber(value: 26)), try fixture.reply(2),

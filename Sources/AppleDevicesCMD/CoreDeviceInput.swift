@@ -11,7 +11,7 @@ struct CoreDeviceInput {
 
     static func selectDefaultBackend(_ args: [String]) -> [String] {
         args.count >= 3 && args[0] == "physical" &&
-            (["button", "key", "type", "paste", "gesture", "multi-tap"] + DirectPhysicalTouch.operations).contains(args[2])
+            (["button", "key", "type", "paste", "gesture", "multi-tap", "tree"] + DirectPhysicalTouch.operations).contains(args[2])
             ? ["--physical-backend", "coredevice"] + args : args
     }
 
