@@ -8,7 +8,7 @@ Checkpoint: direct Apple input including keyboard and timed schedules, 2026-11-1
 | --- | --- |
 | Physical hardware buttons | Project-owned in-process Apple CoreDevice/RemoteXPC backend; Home screenshot-verified through CLI. Other buttons and interruption cleanup need coverage. |
 | Apple Xcode operations | Inventory, readiness, app/file/report operations, screenshots, simulator recording and Build & Run retain their existing implementation and verification limits. |
-| Vision OCR / AVFoundation encoding | In-process Apple frameworks remain available. |
+| Vision OCR / AVFoundation encoding | In-process Apple frameworks available. Spanish Settings OCR labels/bounds and one central OCR-guided navigation have scoped iPhone 13 mini verification; general accuracy and OCR selector actions remain unverified/missing. |
 | Physical single-contact touch | In-process Apple digitizer implementation for tap, long-press, drag and swipe. Settings tap/drag and Maps long-press screenshot-verified on USB iPhone 13 mini. Other orientations/families and failure release unverified. |
 | Physical two-contact movement | Direct spread/inward pinch visibly zoomed Maps through CLI and real MCP on USB iPhone 13 mini. Two-path multi-drag implemented/unit-tested; general independent paths, other orientations/families and failure release still unverified. |
 | Physical named keys | Direct in-process implementation for return, escape, backspace, tab, space and arrows. Backspace has scoped Settings search verification; other keys remain hardware-unverified. |
@@ -21,7 +21,7 @@ Checkpoint: direct Apple input including keyboard and timed schedules, 2026-11-1
 | Native physical recording | ipb video executable blocked; direct replacement pending. Default devicectl remains unsupported on the tested phone. |
 | Simulator input/accessibility | AXe executable blocked; direct replacement pending. |
 | CLI/MCP | Both enforce the same restriction. Full Apple-family scope remains unchanged. |
-| Agent exploration loop | Screenshots plus direct coordinate input allow observe/act/observe testing of installed apps on the verified iPhone. Reliable label-based interaction and semantic assertions await direct accessibility. Automatic prompt handling, durable sessions and recovery remain incomplete. |
+| Agent exploration loop | Screenshot/OCR → visually checked coordinate action → fresh screenshot/OCR navigation verified in Settings on iPhone 13 mini. Two visible General taps and one Home dispatch in the same run had no observed effect despite success receipts; reliable targeting/delivery remains incomplete. Semantic assertions await direct AX. Automatic prompt handling, durable sessions and recovery remain incomplete. |
 | Physical HID cancellation | Swift task cancellation stops Universal HID and Indigo input with release/barrier attempts. Direct physical CLI signals and MCP request cancellation have scoped iPhone 13 mini checks. MCP now owns tool tasks, closes admissions and cancels/drains on stdin EOF or process signals; live holds exited 0/130/143 after about two seconds. Device-side release, forced exits/crashes, cross-process ownership and quarantine remain incomplete. |
 
 ## Historical feature inventory
