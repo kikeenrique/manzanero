@@ -103,7 +103,7 @@ do {
         exit(result.exitCode)
     }
     if args.isEmpty || args == ["--help"] || args == ["-h"] { print(help); exit(0) }
-    if args == ["--version"] { print("appledevicescmd 0.1.0-dev"); exit(0) }
+    if args == ["--version"] { print("appledevicescmd \(appleDevicesVersion)"); exit(0) }
     let dryRun = args.first == "--dry-run"
     if dryRun { args.removeFirst() }
     let commandArgs = args

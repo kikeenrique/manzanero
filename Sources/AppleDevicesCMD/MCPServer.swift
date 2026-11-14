@@ -4,7 +4,7 @@ enum AppleMCPServer {
     static func make(service: CommandService) async -> AppleMCPServerSession {
         let handoff = MCPHandoffChannel()
         let operations = MCPToolOperations()
-        let server = Server(name: "appledevicescmd", version: "0.1.0-dev",
+        let server = Server(name: "appledevicescmd", version: appleDevicesVersion,
             instructions: "Apple device CLI operations. Physical input/accessibility are experimental. Inspect fresh state after input. Pair interactively using the CLI before supplying a pairing_file. Paths are relative to the server working directory. No built-in approval policy: the MCP host controls approvals.",
             capabilities: .init(tools: .init(listChanged: false)), configuration: .strict)
         await server.withMethodHandler(ListTools.self) { _ in

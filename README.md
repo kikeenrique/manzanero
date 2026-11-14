@@ -2,6 +2,8 @@
 
 A Swift CLI in development for Apple-device device control, with an optional stdio MCP interface. Device operations use Apple APIs/frameworks or Apple executables. **Non-Apple device helpers are disabled. Full feature parity is not implemented.** Physical buttons, keyboard, touch and timed gestures with up to five contact slots use in-process Apple backends. Unicode paste combines Apple's clipboard command with in-process key input. Additional command wrappers, accessibility, native video and broad hardware verification remain in progress. See the [classified feature status](docs/PARITY-STATUS.md) for current availability, historical verification, and remaining gaps.
 
+Beta distribution: [tester setup](docs/BETA-TESTING.md) and [release packaging/Homebrew workflow](docs/RELEASING.md). The initial release and tap formula must be published before the Homebrew install command becomes available.
+
 See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), [investigation](docs/ANALYSIS.md), and [documentation review findings](docs/DOCUMENTATION-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
 ## Build and run

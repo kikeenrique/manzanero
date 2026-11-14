@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Build, ad-hoc sign and smoke-test universal macOS beta archives under tmp/dist"
+set -euo pipefail
+
+version=$(sed -n 's/^let appleDevicesVersion = "\(.*\)"$/\1/p' Sources/AppleDevicesCMD/Version.swift)
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || { echo "Invalid release version" >&2; exit 1; }
+mkdir -p tmp/dist
+work=$(mktemp -d tmp/package.XXXXXX)
+destination="$PWD/tmp/dist/$version"
+mkdir -p "$destination" "$work/payload/ThirdParty/packages"
+
+for architecture in arm64 x86_64; do
+  swift build -c release --arch "$architecture" --product appledevicescmd --force-resolved-versions --cache-path tmp/swift-cache --scratch-path tmp/release-build 2>&1 | xcsift -f toon --warnings
+  products=$(swift build -c release --arch "$architecture" --show-bin-path --scratch-path tmp/release-build)
+  cp "$products/appledevicescmd" "$work/appledevicescmd-$architecture"
+done
+xcrun lipo -create "$work/appledevicescmd-arm64" "$work/appledevicescmd-x86_64" -output "$work/payload/appledevicescmd"
+xcrun lipo "$work/payload/appledevicescmd" -verify_arch arm64
+xcrun lipo "$work/payload/appledevicescmd" -verify_arch x86_64
+mkdir -p "$work/payload/lib"
+xcrun swift-stdlib-tool --copy --platform macosx --scan-executable "$work/payload/appledevicescmd" --destination "$work/payload/lib" --sign - --Xcodesign --timestamp=none
+# Remove build-host rpaths from both slices. Resolve required Swift back-deploy
+# libraries beside the executable, both after extraction and in Homebrew libexec.
+while IFS= read -r search_path; do
+  case "$search_path" in
+    /usr/lib/swift|@loader_path) ;;
+    *) xcrun install_name_tool -delete_rpath "$search_path" "$work/payload/appledevicescmd" ;;
+  esac
+done < <(otool -l "$work/payload/appledevicescmd" | awk '/cmd LC_RPATH/{getline; getline; print $2}' | sort -u)
+xcrun install_name_tool -add_rpath @loader_path/lib "$work/payload/appledevicescmd"
+codesign --force --sign - --timestamp=none "$work/payload/appledevicescmd"
+codesign --verify --strict "$work/payload/appledevicescmd"
+test "$("$work/payload/appledevicescmd" --version)" = "appledevicescmd $version"
+"$work/payload/appledevicescmd" --help > "$work/help.txt"
+grep -q 'Apple device tools for terminals and agents' "$work/help.txt"
+# Fail on non-system dynamic dependencies or a build-machine path. Apple private
+# device frameworks are loaded at runtime and are never copied into the archive.
+otool -L "$work/payload/appledevicescmd" > "$work/linkage.txt"
+while IFS= read -r dependency; do
+  case "$dependency" in
+    /System/Library/*|/usr/lib/*) ;;
+    @rpath/*) test -f "$work/payload/lib/${dependency#@rpath/}" || { echo "Unbundled runtime: $dependency" >&2; exit 1; } ;;
+    *) echo "Non-system dependency: $dependency" >&2; exit 1 ;;
+  esac
+done < <(awk '/compatibility version/{print $1}' "$work/linkage.txt" | sort -u)
+for runtime in "$work/payload/lib/"*.dylib; do
+  [ -f "$runtime" ] || continue
+  xcrun lipo "$runtime" -verify_arch arm64
+  xcrun lipo "$runtime" -verify_arch x86_64
+  codesign --verify --strict "$runtime"
+done
+
+cp ThirdParty/* "$work/payload/ThirdParty/"
+cp Package.resolved "$work/payload/ThirdParty/Package.resolved"
+for dependency in eventsource swift-atomics swift-collections swift-log swift-nio swift-sdk swift-subprocess swift-system; do
+  # SPM's resolved sources are the authoritative notices for the linked graph.
+  mkdir -p "$work/payload/ThirdParty/packages/$dependency"
+  notices=0
+  for notice in LICENSE LICENSE.txt LICENSE.md NOTICE NOTICE.txt; do
+    path="tmp/release-build/checkouts/$dependency/$notice"
+    if [ -f "$path" ]; then
+      cp "$path" "$work/payload/ThirdParty/packages/$dependency/"
+      notices=$((notices + 1))
+    fi
+  done
+  test "$notices" -gt 0 || { echo "Missing notices for $dependency" >&2; exit 1; }
+done
+# llhttp's separate MIT notice belongs to the C module linked by SwiftNIO.
+mkdir -p "$work/payload/ThirdParty/packages/swift-nio/CNIOLLHTTP"
+cp tmp/release-build/checkouts/swift-nio/Sources/CNIOLLHTTP/LICENSE "$work/payload/ThirdParty/packages/swift-nio/CNIOLLHTTP/"
+cp docs/BETA-TESTING.md "$work/payload/BETA-TESTING.md"
+if [ -f LICENSE ]; then cp LICENSE "$work/payload/"; fi
+cp "$work/linkage.txt" "$destination/linkage.txt"
+# One universal payload under both target-triple names, matching cmagic's tap.
+COPYFILE_DISABLE=1 tar -cf "$work/payload.tar" -C "$work/payload" .
+gzip -n -c "$work/payload.tar" > "$destination/appledevicescmd-aarch64-apple-darwin.tar.gz"
+cp "$destination/appledevicescmd-aarch64-apple-darwin.tar.gz" "$destination/appledevicescmd-x86_64-apple-darwin.tar.gz"
+(
+  cd "$destination"
+  shasum -a 256 appledevicescmd-*-apple-darwin.tar.gz > SHA256SUMS
+  shasum -a 256 -c SHA256SUMS
+)
+echo "Packaged $version in $destination (ad-hoc signed; not notarized)"
