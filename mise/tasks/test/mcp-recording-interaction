@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Record 20 seconds while reading physical AX and pressing Home through real MCP"
+#MISE depends = ["build"]
+#USAGE arg "<device>" help="Explicit physical UDID; launches Settings, reads AX and returns Home during capture"
+
+set -e -o pipefail
+
+APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_RECORDING_INTERACTION=1 swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings

@@ -1,5 +1,6 @@
 import Darwin
 import AVFoundation
+import CoreImage
 import Foundation
 import ImageIO
 import Testing
@@ -86,6 +87,105 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
+            if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_RECORDING_INTERACTION"] == "1" {
+                func metadata(_ response: [String: Any]) throws -> [String: Any] {
+                    let result = try #require(response["result"] as? [String: Any])
+                    try #require(result["isError"] as? Bool == false)
+                    let structured = try #require(result["structuredContent"] as? [String: Any])
+                    return try #require(structured["result"] as? [String: Any])
+                }
+                func status(_ id: Int) throws -> [String: Any] {
+                    try metadata(request(id, "tools/call", ["name": "inspect_device", "arguments": [
+                        "platform": "physical", "device": physical, "query": "media-status"]]))
+                }
+                var evidence: [String: Any] = ["requestedSeconds": 20]
+                func save() throws {
+                    try JSONSerialization.data(withJSONObject: evidence, options: [.prettyPrinted, .sortedKeys])
+                        .write(to: directory.appendingPathComponent("recording-interaction.json"))
+                }
+                let baseline = try status(40)
+                try #require(baseline["running"] as? Bool == false && baseline["sessionCount"] as? Int == 0)
+                _ = try metadata(request(41, "tools/call", ["name": "app_action", "arguments": [
+                    "platform": "physical", "device": physical, "operation": "launch", "value": "com.apple.Preferences"]]))
+                try await Task.sleep(for: .seconds(1))
+                let before = try metadata(request(42, "tools/call", ["name": "get_ui_tree", "arguments": ["platform": "physical", "device": physical]]))
+                let beforePID = try #require((before["application"] as? [String: Any])?["pid"] as? Int)
+                try #require(before["parsedHierarchy"] as? Bool == true && (before["nodeCount"] as? Int ?? 0) > 0)
+                let path = directory.appendingPathComponent("interaction-hevc.mp4")
+                try send(["jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": ["name": "record_screen", "arguments": [
+                    "platform": "physical", "device": physical, "path": path.path, "seconds": 20,
+                    "codec": "hevc", "recording_backend": "coredevice"]]])
+                let deadline = ContinuousClock.now + .seconds(20)
+                while !(try String(contentsOf: errorsURL, encoding: .utf8)).contains("Recording started (native video first frame).") {
+                    try #require(process.isRunning && ContinuousClock.now < deadline, "Recording did not produce a first frame")
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                let started = ContinuousClock.now
+                evidence["firstFrameObserved"] = true
+                try save()
+                // Preserve a Settings segment before input. The snapshot runs
+                // through the same MCP service while capture is awaiting frames.
+                try await Task.sleep(for: .seconds(1))
+                let during = try metadata(request(5, "tools/call", ["name": "get_ui_tree", "arguments": ["platform": "physical", "device": physical]]))
+                try #require(during["parsedHierarchy"] as? Bool == true && (during["nodeCount"] as? Int ?? 0) > 0)
+                try #require((during["application"] as? [String: Any])?["pid"] as? Int == beforePID)
+                evidence["treeNodeCountDuringCapture"] = during["nodeCount"]
+                let active = try status(6)
+                try #require(active["running"] as? Bool == true && active["sessionCount"] as? Int == 1)
+                evidence["activeAfterTree"] = true
+                let home = try metadata(request(7, "tools/call", ["name": "press_button", "arguments": [
+                    "platform": "physical", "device": physical, "button": "home"]]))
+                evidence["home"] = home
+                evidence["homeResponseElapsed"] = String(describing: started.duration(to: .now))
+                try #require(started.duration(to: .now) < .seconds(15), "Home response was too late for the planned movie samples")
+                try await Task.sleep(for: .seconds(1))
+                let afterInput = try status(8)
+                try #require(afterInput["running"] as? Bool == true && afterInput["sessionCount"] as? Int == 1)
+                evidence["activeAfterHome"] = true
+                try save()
+                let response = try receive()
+                try #require(response["id"] as? Int == 4)
+                let receipt = try metadata(response)
+                try #require((receipt["cleanup"] as? [String: Any])?["deviceStopConfirmed"] as? Bool == true)
+                let artifact = try await VideoArtifact.inspect(path)
+                try #require(artifact.codec == "hvc1" && abs(artifact.duration - 20) < 0.02)
+                evidence["recording"] = receipt
+                let after = try status(9)
+                try #require(after["running"] as? Bool == false && after["sessionCount"] as? Int == 0)
+                evidence["postRecordingSessionCount"] = after["sessionCount"]
+                try save()
+                let generator = AVAssetImageGenerator(asset: AVURLAsset(url: path))
+                generator.requestedTimeToleranceBefore = CMTime(seconds: 0.5, preferredTimescale: 1000)
+                generator.requestedTimeToleranceAfter = CMTime(seconds: 0.5, preferredTimescale: 1000)
+                let context = CIContext()
+                var samples: [[UInt8]] = []
+                var sampleTimes: [Double] = []
+                for (name, seconds) in [("settings", 0.5), ("home", 19.0)] {
+                    let frame = try await generator.image(at: CMTime(seconds: seconds, preferredTimescale: 1000))
+                    try #require(abs(frame.actualTime.seconds - seconds) <= 0.51)
+                    sampleTimes.append(frame.actualTime.seconds)
+                    let file = directory.appendingPathComponent("interaction-\(name).png")
+                    let destination = try #require(CGImageDestinationCreateWithURL(file as CFURL, "public.png" as CFString, 1, nil))
+                    CGImageDestinationAddImage(destination, frame.image, nil)
+                    try #require(CGImageDestinationFinalize(destination))
+                    var pixels = [UInt8](repeating: 0, count: 32 * 32 * 4)
+                    let image = CIImage(cgImage: frame.image).transformed(by: CGAffineTransform(
+                        scaleX: 32.0 / Double(frame.image.width), y: 32.0 / Double(frame.image.height)))
+                    context.render(image, toBitmap: &pixels, rowBytes: 32 * 4, bounds: CGRect(x: 0, y: 0, width: 32, height: 32),
+                        format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+                    samples.append(pixels)
+                }
+                let difference = samples[0].indices.filter { $0 % 4 != 3 }.reduce(0) { $0 + abs(Int(samples[0][$1]) - Int(samples[1][$1])) }
+                let meanDifference = Double(difference) / Double(32 * 32 * 3)
+                evidence["sampleActualSeconds"] = sampleTimes
+                evidence["sampleMeanRGBDifference"] = meanDifference
+                // A numerical image change is not a semantic Home assertion;
+                // exported frames also need independent visual inspection.
+                #expect(meanDifference > 15)
+                try save()
+                try finish()
+                return
+            }
             if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_RECORDING"] == "1" {
                 let shutdown = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_RECORDING_SHUTDOWN"]
                 if let shutdown { try #require(["EOF", "SIGINT", "SIGTERM"].contains(shutdown)) }
