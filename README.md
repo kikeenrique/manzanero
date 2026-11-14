@@ -4,6 +4,8 @@ A Swift command-line tool for inspecting and automating Apple devices, with an o
 
 *Manzanero* is Spanish for an apple tree or a person who grows or gathers apples—a fitting name for a tool that tends to your Apple devices.
 
+<img src="docs/assets/manzanero.png" alt="A cheerful apple picker harvesting phones, a tablet, a watch and an Apple TV with its remote from an apple tree." width="560">
+
 The project is in beta. Physical iPhone control is the current priority; complete feature parity and reliable unattended testing are still unfinished. iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope. Android is not. Most live evidence comes from one iPhone 13 mini; see [feature status](docs/PARITY-STATUS.md) before relying on another device or operation.
 
 ## Build and start
