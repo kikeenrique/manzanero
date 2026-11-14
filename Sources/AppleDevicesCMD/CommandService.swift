@@ -40,6 +40,15 @@ actor CommandService {
     func execute(_ args: [String], dryRun: Bool = false, allowInteractive: Bool = false,
                  handoffConfirmation: (@Sendable (HandoffCommand) async throws -> HandoffStatus)? = nil) async throws -> CommandOutput {
         try Task.checkCancellation()
+        if let device = try NativeMediaInspection.parse(args) {
+            if dryRun {
+                return try json(["backend": "coredevice-direct", "operation": "media-status", "readOnly": true,
+                    "execution": "Read native Apple media support/status only; no stream start/stop, negotiation or decoding."])
+            }
+            return CommandOutput(data: try NativeMediaInspection.execute(device: device, query: { plan in
+                try self.runner.run(plan.arguments, executable: plan.executable, timeout: 20)
+            }))
+        }
         if args.first == "decode-ax-archive" {
             guard args.count == 2, !args[1].isEmpty else { throw CommandFailure(description: "Usage: decode-ax-archive <local-plist>") }
             if dryRun { return try json(["backend": "foundation", "operation": "decode-ax-archive", "path": args[1], "execution": "In-process structural inspection; no device query or helper executable."]) }

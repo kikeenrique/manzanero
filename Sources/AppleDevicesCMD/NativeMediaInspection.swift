@@ -1,0 +1,42 @@
+import AppleDeviceBridge
+import Foundation
+
+/// Read-only control evidence for the in-process video implementation. No
+/// negotiator offer, stream start/stop, decoder hook or media socket is created.
+enum NativeMediaInspection {
+    static func parse(_ args: [String]) throws -> String? {
+        guard args.count >= 3, args[0] == "physical", args[2] == "media-status" else { return nil }
+        guard args.count == 3, !args[1].isEmpty, !args[1].hasPrefix("-") else {
+            throw CommandFailure(description: "Usage: physical <device> media-status")
+        }
+        return args[1]
+    }
+
+    static func execute(device: String, query: (DeviceCommand) throws -> Data) throws -> Data {
+        try Task.checkCancellation()
+        let input = CoreDeviceInput(device: device, operation: "media-status", operands: [])
+        let details = try query(input.identityPlan())
+        let identity = try DirectPhysicalInput.identity(input, query: { _ in details })
+        guard let root = try JSONSerialization.jsonObject(with: details) as? [String: Any],
+              let properties = (root["result"] as? [String: Any])?["properties"] as? [String: Any],
+              let udid = (properties["hardware"] as? [String: Any])?["udid"] as? String else {
+            throw CommandFailure(description: "Media inspection requires fresh physical hardware identity.")
+        }
+        _ = try RSDPortDiscovery.tunnelAddress(details: details, expectedUDID: udid)
+        var result = ADCMediaInspection(), error = [CChar](repeating: 0, count: 1024)
+        let status = ADCInspectMedia(identity.uuid, identity.version, { Task.isCancelled ? 1 : 0 }, &result, &error, error.count)
+        try Task.checkCancellation()
+        guard status == 0 else {
+            throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+        }
+        let version = withUnsafeBytes(of: result.avcVersion) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        return try JSONSerialization.data(withJSONObject: ["backend": "coredevice-direct", "operation": "media-status", "device": device,
+            "resolvedCoreDeviceUUID": identity.uuid, "supportedFeatures": result.supportedFeatures, "avcFrameworkVersion": version,
+            "running": result.running != 0, "sessionCount": result.sessionCount, "runDurationSeconds": result.runDurationSeconds,
+            "streamMutationRequested": false, "localConnectionCloseRequested": true,
+            "limitations": ["Capability flags and server status do not prove recording, decoding or session-specific teardown.",
+                "Session identifiers, negotiation data and keys are not exported. Existing sessions are never stopped.",
+                "Local connection cancellation is requested; independent remote teardown is not verified."]
+        ], options: [.prettyPrinted, .sortedKeys])
+    }
+}

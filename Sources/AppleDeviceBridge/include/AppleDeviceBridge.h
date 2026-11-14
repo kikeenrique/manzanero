@@ -68,6 +68,20 @@ int ADCOpenNativeTunnelAssertion(const char *expectedUDID, int (^shouldCancel)(v
                                  char *error, size_t errorCapacity);
 int ADCCloseNativeTunnelAssertion(void *owner, char *error, size_t errorCapacity);
 
+typedef struct {
+    uint64_t supportedFeatures;
+    uint64_t sessionCount;
+    double runDurationSeconds;
+    int running;
+    char avcVersion[128];
+} ADCMediaInspection;
+/// Read-only media control inspection. No offer, stream start, stop or UDP media
+/// socket. Exposes counts/capabilities only, never session identities or keys.
+int ADCValidateMediaInspection(const void *supportReply, const void *statusReply,
+                               ADCMediaInspection *result, char *error, size_t errorCapacity);
+int ADCInspectMedia(const char *uuid, const char *version, int (^shouldCancel)(void),
+                    ADCMediaInspection *result, char *error, size_t errorCapacity);
+
 /// Finite complete-state digitizer schedule; reports are count * 58 bytes.
 int ADCPerformDigitizerReports(const char *uuid, const char *version,
                               const uint64_t *nanoseconds, const uint8_t *reports, size_t count,

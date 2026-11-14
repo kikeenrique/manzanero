@@ -206,6 +206,23 @@ struct MCPStdioTests {
                 try finish()
                 return
             }
+            if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_MEDIA"] == "1" {
+                let response = try request(4, "tools/call", ["name": "inspect_device", "arguments": ["platform": "physical", "device": physical, "query": "media-status"]])
+                let result = try #require(response["result"] as? [String: Any])
+                try #require(result["isError"] as? Bool == false)
+                let structured = try #require(result["structuredContent"] as? [String: Any])
+                let metadata = try #require(structured["result"] as? [String: Any])
+                #expect(metadata["backend"] as? String == "coredevice-direct" && metadata["operation"] as? String == "media-status")
+                #expect(metadata["streamMutationRequested"] as? Bool == false)
+                #expect((metadata["sessionCount"] as? Int ?? -1) >= 0 && metadata["running"] as? Bool != nil)
+                #expect((metadata["avcFrameworkVersion"] as? String ?? "").isEmpty == false)
+                #expect(metadata["sessions"] == nil && metadata["keys"] == nil)
+                let bytes = try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys])
+                #expect(FileManager.default.createFile(atPath: directory.appendingPathComponent("media-status.json").path,
+                    contents: bytes, attributes: [.posixPermissions: 0o600]))
+                try finish()
+                return
+            }
             if let text = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PRESS_TEXT"] {
                 let by = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PRESS_BY"] ?? "identifier"
                 try #require(["identifier", "label"].contains(by))

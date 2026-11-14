@@ -872,6 +872,142 @@ static BOOL ADCValidHIDReply(xpc_object_t reply) {
         !xpc_dictionary_get_value(reply, "CoreDevice.error") && !xpc_dictionary_get_value(reply, "error");
 }
 
+static BOOL ADCMediaUInt(xpc_object_t value, uint64_t *number) {
+    if (!value) return NO;
+    if (xpc_get_type(value) == XPC_TYPE_UINT64) { *number = xpc_uint64_get_value(value); return YES; }
+    if (xpc_get_type(value) == XPC_TYPE_INT64 && xpc_int64_get_value(value) >= 0) { *number = (uint64_t)xpc_int64_get_value(value); return YES; }
+    return NO;
+}
+
+int ADCValidateMediaInspection(const void *supportReply, const void *statusReply,
+                               ADCMediaInspection *result, char *error, size_t capacity) {
+    if (result) memset(result, 0, sizeof(*result));
+    xpc_object_t support = supportReply ? (__bridge xpc_object_t)supportReply : nil;
+    xpc_object_t status = statusReply ? (__bridge xpc_object_t)statusReply : nil;
+    if (!result || !ADCValidHIDReply(support) || !ADCValidHIDReply(status))
+        return ADCFail(error, capacity, @"Media inspection reply failed or is not a successful dictionary.");
+    xpc_object_t capabilities = xpc_dictionary_get_dictionary(support, "CoreDevice.output");
+    xpc_object_t state = xpc_dictionary_get_dictionary(status, "CoreDevice.output");
+    xpc_object_t features = capabilities ? xpc_dictionary_get_value(capabilities, "supportedFeatures") : nil;
+    const char *version = capabilities ? xpc_dictionary_get_string(capabilities, "avcFrameworkVersion") : NULL;
+    xpc_object_t running = state ? xpc_dictionary_get_value(state, "running") : nil;
+    xpc_object_t sessions = state ? xpc_dictionary_get_array(state, "sessions") : nil;
+    xpc_object_t duration = state ? xpc_dictionary_get_value(state, "runDurationSeconds") : nil;
+    uint64_t flags = 0, integerDuration = 0;
+    double seconds = -1;
+    if (duration && xpc_get_type(duration) == XPC_TYPE_DOUBLE) seconds = xpc_double_get_value(duration);
+    else if (ADCMediaUInt(duration, &integerDuration)) seconds = (double)integerDuration;
+    if (!ADCMediaUInt(features, &flags) || !version || !*version || strnlen(version, sizeof(result->avcVersion)) >= sizeof(result->avcVersion) ||
+        !running || xpc_get_type(running) != XPC_TYPE_BOOL || !sessions || xpc_array_get_count(sessions) > 128 || !isfinite(seconds) || seconds < 0)
+        return ADCFail(error, capacity, @"Media inspection fields have unsupported types, sizes or duration.");
+    BOOL digit = NO;
+    for (const char *p = version; *p; p++) {
+        if (*p >= '0' && *p <= '9') digit = YES;
+        else if (*p == '.' && digit) digit = NO;
+        else return ADCFail(error, capacity, @"Unsupported AVConference version shape.");
+    }
+    if (!digit) return ADCFail(error, capacity, @"Unsupported AVConference version shape.");
+    result->supportedFeatures = flags;
+    result->sessionCount = xpc_array_get_count(sessions);
+    result->runDurationSeconds = seconds;
+    result->running = xpc_bool_get_value(running);
+    snprintf(result->avcVersion, sizeof(result->avcVersion), "%s", version);
+    return 0;
+}
+
+static xpc_object_t ADCMediaRead(ADCRemote remote, ADCReply request, dispatch_queue_t queue, const char *uuid,
+                                const char *version, const char *action, uint64_t deadline,
+                                int (^shouldCancel)(void), char *error, size_t capacity) {
+    if ((shouldCancel && shouldCancel()) || clock_gettime_nsec_np(CLOCK_MONOTONIC) >= deadline) {
+        ADCFail(error, capacity, @"Media inspection cancelled or expired before the read-only action.");
+        return nil;
+    }
+    xpc_object_t message = ADCEnvelope(uuid, version, xpc_dictionary_create_empty());
+    xpc_dictionary_set_string(message, "CoreDevice.actionIdentifier", action);
+    ADCReplyState *state = [ADCReplyState new];
+    request(remote, message, queue, ^(xpc_object_t reply) { state.reply = reply; dispatch_semaphore_signal(state.semaphore); });
+    if (!ADCWaitForReply(state, MIN(deadline, clock_gettime_nsec_np(CLOCK_MONOTONIC) + 8ULL * NSEC_PER_SEC), shouldCancel)) {
+        ADCFail(error, capacity, @"Read-only media request was cancelled or exceeded its deadline; no stream mutation was requested.");
+        return nil;
+    }
+    xpc_object_t reply = state.reply;
+    if (!ADCValidHIDReply(reply)) {
+        char detail[768] = {0};
+        xpc_object_t failure = reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(reply, "CoreDevice.error") : nil;
+        ADCDescribeCoreDeviceError(failure ? (__bridge const void *)failure : NULL, detail, sizeof(detail));
+        ADCFail(error, capacity, [NSString stringWithFormat:@"Read-only media action %s failed: %s", action, detail]);
+        return nil;
+    }
+    return reply;
+}
+
+int ADCInspectMedia(const char *uuid, const char *version, int (^shouldCancel)(void),
+                    ADCMediaInspection *result, char *error, size_t capacity) {
+    @autoreleasepool {
+        if (result) memset(result, 0, sizeof(*result));
+        NSString *identity = uuid ? [NSString stringWithUTF8String:uuid] : nil;
+        NSString *release = version && strnlen(version, 64) < 64 ? [NSString stringWithUTF8String:version] : nil;
+        if (!result || !identity || ![[NSUUID alloc] initWithUUIDString:identity] || !release ||
+            [release rangeOfString:@"^[0-9]+(\\.[0-9]+){0,3}$" options:NSRegularExpressionSearch].location == NSNotFound ||
+            (shouldCancel && shouldCancel())) return ADCFail(error, capacity, @"Invalid or cancelled media inspection identity; no connection started.");
+        if (ADCPrepareCoreDevice(error, capacity)) return 1;
+        ADCCreate create = dlsym(RTLD_DEFAULT, "xpc_remote_connection_create_with_connected_fd");
+        ADCHandler handler = dlsym(RTLD_DEFAULT, "xpc_remote_connection_set_event_handler");
+        ADCActivate activate = dlsym(RTLD_DEFAULT, "xpc_remote_connection_activate");
+        ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
+        ADCReply request = dlsym(RTLD_DEFAULT, "xpc_remote_connection_send_message_with_reply");
+        if (!create || !handler || !activate || !cancel || !request) return ADCFail(error, capacity, @"Apple native media control APIs are unavailable.");
+        dispatch_queue_t queue = dispatch_queue_create("appledevices.media.inspection", DISPATCH_QUEUE_SERIAL);
+        xpc_connection_t connection = xpc_connection_create("com.apple.CoreDevice.CoreDeviceService", queue);
+        if (!connection) return ADCFail(error, capacity, @"Cannot create Apple media control connection.");
+        xpc_connection_set_event_handler(connection, ^(xpc_object_t event) {});
+        xpc_connection_resume(connection);
+        ADCRemote remote = NULL;
+        __attribute__((objc_precise_lifetime)) id remoteOwner = nil;
+        int descriptor = -1;
+        uint64_t deadline = clock_gettime_nsec_np(CLOCK_MONOTONIC) + 20ULL * NSEC_PER_SEC;
+        @try {
+            xpc_object_t input = xpc_dictionary_create_empty();
+            xpc_dictionary_set_string(input, "featureIdentifier", "com.apple.coredevice.feature.getmediasupportinfo");
+            ADCReplyState *socketReply = [ADCReplyState new];
+            xpc_connection_send_message_with_reply(connection, ADCEnvelope(uuid, version, input), queue, ^(xpc_object_t reply) {
+                socketReply.reply = reply; dispatch_semaphore_signal(socketReply.semaphore);
+            });
+            if (!ADCWaitForReply(socketReply, MIN(deadline, clock_gettime_nsec_np(CLOCK_MONOTONIC) + 15ULL * NSEC_PER_SEC), shouldCancel))
+                return ADCFail(error, capacity, @"Media service socket request was cancelled or exceeded its deadline.");
+            xpc_object_t reply = socketReply.reply;
+            xpc_object_t output = ADCValidHIDReply(reply) ? xpc_dictionary_get_dictionary(reply, "CoreDevice.output") : nil;
+            uint64_t flags = 0;
+            if (!output || !ADCMediaUInt(xpc_dictionary_get_value(output, "remoteXPCVersionFlags"), &flags))
+                return ADCFail(error, capacity, @"Apple media service socket reply has no supported transport output.");
+            descriptor = xpc_dictionary_dup_fd(output, "fileDescriptor");
+            if (descriptor < 0) return ADCFail(error, capacity, @"Apple media service returned no socket.");
+            int type = 0, descriptorFlags = fcntl(descriptor, F_GETFD);
+            socklen_t typeSize = sizeof(type);
+            if (descriptorFlags < 0 || getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &type, &typeSize) || type != SOCK_STREAM ||
+                fcntl(descriptor, F_SETFD, descriptorFlags | FD_CLOEXEC))
+                return ADCFail(error, capacity, @"Apple media service did not return a configurable owned stream socket.");
+            remote = create(descriptor, queue, flags, 0);
+            if (!remote) return ADCFail(error, capacity, @"Cannot create native media RemoteXPC connection.");
+            descriptor = -1; // native connection consumed the descriptor
+            remoteOwner = CFBridgingRelease(remote);
+            handler(remote, ^(xpc_object_t event) {});
+            activate(remote);
+            xpc_object_t support = ADCMediaRead(remote, request, queue, uuid, version, "com.apple.coredevice.action.mediastreamgetsupportinfo", deadline, shouldCancel, error, capacity);
+            if (!support) return 1;
+            xpc_object_t status = ADCMediaRead(remote, request, queue, uuid, version, "com.apple.coredevice.action.mediastreamstatus", deadline, shouldCancel, error, capacity);
+            if (!status) return 1;
+            if (shouldCancel && shouldCancel()) return ADCFail(error, capacity, @"Media inspection cancelled after its read-only replies.");
+            return ADCValidateMediaInspection((__bridge const void *)support, (__bridge const void *)status, result, error, capacity);
+        } @finally {
+            if (descriptor >= 0) close(descriptor);
+            if (remote) cancel(remote);
+            xpc_connection_cancel(connection);
+            (void)remoteOwner;
+        }
+    }
+}
+
 static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys,
                    const uint64_t *reportTimes, const uint8_t *reports, uint64_t *resolvedSurface, size_t count,

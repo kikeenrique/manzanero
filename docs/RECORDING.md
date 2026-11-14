@@ -2,6 +2,22 @@
 
 **Current availability:** the `coredevice` recording option below is disabled because it launches a non-Apple ipb executable. Its direct Apple API replacement is pending. Simulator simctl recording remains available; physical devicectl recording retains its documented capability failure. Native recording implementation details and evidence below are historical migration references.
 
+## Native media control inspection
+
+```sh
+mise run cli physical <device> media-status
+mise run test:media-status <hardware-UDID>
+mise run test:mcp-media <hardware-UDID>
+```
+
+MCP `inspect_device` accepts `platform: physical`, `query: media-status`. This read-only operation resolves fresh paired/connected physical identity and Developer Mode, opens Apple's media feature control socket in process, then requests only `mediastreamgetsupportinfo` and `mediastreamstatus`. It returns raw support flags, AVC version, running state, duration and session count. It does not generate an offer, create a media UDP socket, install a decoder hook, start/stop any stream or export session identities/keys. No helper or new dependency is used.
+
+Socket reply waits have a 15-second limit; each media reply wait has at most eight seconds within a shared 20-second control budget, with cancellation polling. Those limits cover waits, not an independently enforced bound on every synchronous Apple framework call. Close requests native RemoteXPC and host XPC cancellation; independent remote teardown is not verified. The parser checks typed scalar fields and an inventory cap of 128 sessions after Apple's wire decode; it does not audit framework allocations or turn support flags into verified recording availability.
+
+On 2026-11-14, the opt-in integration check, actual CLI and real MCP stdio read the designated iPhone 13 mini successfully: flags 972, AVC `2260.15.1`, `running: false`, zero sessions and zero duration. MCP EOF shutdown passed. This is current server-status evidence, not proof of how historical sessions ended. Recording/frame delivery and session-specific stop remain unfinished. The reference helper's process-wide decoder globals/hook and process-exit watchdog cannot be transplanted as an owned reusable MCP session without additional lifecycle work.
+
+## Historical recording contract
+
 ```sh
 appledevicescmd simulator <UUID> record tmp/demo.mp4 5
 appledevicescmd simulator <UUID> record 'tmp/My Demo.mp4' 5 hevc

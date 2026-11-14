@@ -33,6 +33,8 @@ Timed `gesture` / MCP `perform_gesture` runs [complete-state schedules](docs/GES
 
 For a physical target, run `appledevicescmd physical <device> readiness` to report Developer Mode, developer-image services, connection/pairing, and preparation steps. Known disabled Developer Mode is also reported before developer-operation dispatch. See [readiness checks and limits](docs/READINESS.md).
 
+`physical <device> media-status` and MCP `inspect_device` with `query: media-status` read native Apple media support/status without starting or stopping a stream. The iPhone 13 mini control channel has CLI/MCP verification; in-process physical recording remains unfinished. See [media inspection and recording status](docs/RECORDING.md#native-media-control-inspection).
+
 Physical buttons need no helper build:
 
 ```sh
