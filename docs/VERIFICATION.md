@@ -37,11 +37,11 @@ The latest CLI and real MCP readiness checks reported:
 
 This verifies state reporting, not current UI unlock or UI Automation permission. The two UI queries are sequential. Wrong/missing identity, malformed Boolean data, ambiguous displays, failures and cancellation have local coverage.
 
-Relevant checkpoints: `6a23f11` (initial readiness), `6c3adac` (actionable display preflight), `f3f16f1` (separate UI observations). See [readiness](READINESS.md).
+Relevant checkpoints: `182ad0e` (initial readiness), `37ecf0a` (actionable display preflight), `cddd4a0` (separate UI observations). See [readiness](READINESS.md).
 
 ### Transient wake, not reliable unattended wake
 
-At `2355143`, a fresh Apple display read showed off, one native `button lock` dispatch preceded an immediate active-display read, and the next media probe found it off again. The probe stopped before starting a stream. No passcode or unlock action was attempted and no button was replayed.
+At `d58a229`, a fresh Apple display read showed off, one native `button lock` dispatch preceded an immediate active-display read, and the next media probe found it off again. The probe stopped before starting a stream. No passcode or unlock action was attempted and no button was replayed.
 
 This is a transient observed state change, not a durable wake/unlock guarantee. Earlier native Home dispatch while off also left the display off. The side button can turn an awake screen off and is not an idempotent wake command.
 
@@ -71,7 +71,7 @@ Material negative results remain relevant:
 
 The project added a readiness barrier before ordinary button down events after mixed outcomes. Later Home checks succeeded, but that does not prove general reliability.
 
-Key direct checkpoints: `ceb7e65`, `4d61060`, `4fc934d`, `7c7762c`, `4eb18a2`, `ec81da8`, `9341f73`, `7d1e280`, `410f731`, `6ce7944`, `859862e`, `84bd025`. Contracts and limits are in [physical input](NATIVE-INPUT.md), [multitouch](MULTITOUCH.md), [sequences](GESTURE-SEQUENCES.md) and [typing](PHYSICAL-TYPING.md).
+Key direct checkpoints: `5131483`, `98b5db5`, `0250200`, `49aa19a`, `1496281`, `f623d5b`, `6e9be0b`, `4f38e85`, `fb8c29c`, `3dbf7f2`, `1db8c86`, `e8c609f`. Contracts and limits are in [physical input](NATIVE-INPUT.md), [multitouch](MULTITOUCH.md), [sequences](GESTURE-SEQUENCES.md) and [typing](PHYSICAL-TYPING.md).
 
 ## Input cancellation and process shutdown
 
@@ -83,7 +83,7 @@ Owned CLI SIGINT/SIGTERM and MCP EOF/SIGINT/SIGTERM hold tests exited normally w
 
 The MCP registry closes admissions, cancels and drains owned tasks. Local tests cover late admission, repeated shutdown, pending elicitation and the 30-second grace/force-exit path. Force-exit expiry itself was not demonstrated on a live device.
 
-Checkpoints: `7776917`, `931d9a5`, `90f7d81`, `16411be`. SIGKILL, crashes, cable loss, blocked synchronous calls, interrupted setup, cross-process ownership and quarantine after uncertain release remain unresolved. Text/clipboard changes are not rolled back.
+Checkpoints: `63f1c27`, `b34ae14`, `181d699`, `9087b03`. SIGKILL, crashes, cable loss, blocked synchronous calls, interrupted setup, cross-process ownership and quarantine after uncertain release remain unresolved. Text/clipboard changes are not rolled back.
 
 ## Physical accessibility and screen understanding
 
@@ -99,7 +99,7 @@ A CLI identifier press navigated General → Información; a real MCP label pres
 
 A CLI scroll moved a Settings row from outside/near the bottom into view. A later real MCP already-visible case returned native false with unchanged geometry and a passing visibility/hit postcondition. Subscription disable acknowledgement was unconfirmed in that MCP call, while tunnel release was acknowledged. Useful result data did not become cleanup proof.
 
-Checkpoints: `471d0aa`, `56d1051`, `87fbc66`, `069279d`. Broader apps, overlays, rotated/multiple displays, secure content, stable reusable handles and interruption recovery remain incomplete. See [native AX](DIRECT-ACCESSIBILITY.md).
+Checkpoints: `dc85a7f`, `3e286f4`, `ded174a`, `86f0f57`. Broader apps, overlays, rotated/multiple displays, secure content, stable reusable handles and interruption recovery remain incomplete. See [native AX](DIRECT-ACCESSIBILITY.md).
 
 ### Earlier transport/decoder failures
 
@@ -140,7 +140,7 @@ Short CLI H.264 and MCP HEVC movies finalized and independently decoded with own
 
 The interaction check establishes one AX-read/Home workflow during recording, not all gestures or every movie frame. The five-minute check does not prove motion quality or sustained frame rate.
 
-Key checkpoints: `2bbba39`, `691b425`, `25ab9a2`, `f043499`, `9a39c36`, `667e247`, `4f26c68`.
+Key checkpoints: `68beb1f`, `504ca28`, `d8aba6f`, `f88327f`, `d0c3e30`, `2ed88bc`, `3b5727b`.
 
 ### Material media failures
 
@@ -157,9 +157,9 @@ Receiver-report counts are local sends/validated received reports, not remote ac
 
 ### Recording interruption and reuse
 
-At `1fda88c`, real MCP cancelled a 30-second requested recording after its first frame and an active-status check. Owned cleanup was observed about 0.107 seconds after cancellation, fresh status found zero sessions, no cancelled destination was published and a new two-second HEVC recording succeeded.
+At `2bc1c3e`, real MCP cancelled a 30-second requested recording after its first frame and an active-status check. Owned cleanup was observed about 0.107 seconds after cancellation, fresh status found zero sessions, no cancelled destination was published and a new two-second HEVC recording succeeded.
 
-At `543943f`, active EOF/SIGINT/SIGTERM checks each passed once:
+At `ab422a6`, active EOF/SIGINT/SIGTERM checks each passed once:
 
 | Event | Exit | Observed host shutdown interval |
 | --- | --- | --- |
@@ -173,7 +173,7 @@ Forced exits, startup/finalization interruption, blocked framework calls and ind
 
 ## Apps, files, reports and development
 
-Physical Settings launch and app inventory succeeded. The launch option-order fix (`65031d9`) ensures devicectl options precede the bundle operand. One Safari URL preflight failed; broad physical URL/lifecycle claims are not made.
+Physical Settings launch and app inventory succeeded. The launch option-order fix (`4c47998`) ensures devicectl options precede the bundle operand. One Safari URL preflight failed; broad physical URL/lifecycle claims are not made.
 
 App-data command plans and an Apple-tool-owned temporary-domain synthetic copy round trip were checked. This is not actual app-container access/round-trip evidence. Physical saved-report listing passed. Download is implemented but hardware-unverified; parsing, symbolication, filtering and deletion are missing. See [feature status](PARITY-STATUS.md).
 
@@ -198,7 +198,7 @@ The current policy is project-owned Apple API/framework calls or Apple executabl
 
 ## Distribution and privacy checkpoints
 
-`9ed8e52` added local universal beta archives, checksum/formula generation and the tag/manual workflow. Both architectures built, native version/help ran, signatures/linkage and Homebrew-style extraction/symlink smoke passed. The optimized archive was about 4.1 MiB and needed no supplemental Swift compatibility library. Root project licensing and hosting remain undecided; GitHub Actions, actual public release and public Homebrew install have not run.
+`8681d00` added local universal beta archives, checksum/formula generation and the tag/manual workflow. Both architectures built, native version/help ran, signatures/linkage and Homebrew-style extraction/symlink smoke passed. The optimized archive was about 4.1 MiB and needed no supplemental Swift compatibility library. Root project licensing and hosting remain undecided; GitHub Actions, actual public release and public Homebrew install have not run.
 
 The earlier source/history privacy review used Gitleaks 8.30.1 against the pre-cleanup snapshot and its 88 reachable commits and found no detected leaks. Those scan results apply to the original history, not the rewritten trees. The later publication cleanup preserved author identities, removed personal paths and private investigation material, and verified those specific removals throughout reachable history. No additional secrets scan was requested. See [public readiness](PUBLIC-READINESS.md).
 
