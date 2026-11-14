@@ -100,6 +100,25 @@ int ADCValidateVideoEndpoints(const void *reply, const char *hostAddress, const 
 int ADCCreateVideoSession(const char *uuid, const char *version, const char *interface,
                           const char *hostAddress, const char *deviceAddress, int (^cancelled)(void),
                           void **owner, char *error, size_t errorCapacity);
+/// Experimental standard-RTP receiver. Uses Apple's negotiator, not
+/// AVCStreamOutput. Start rejects encrypted/non-RTP replies. Same close owner.
+int ADCCreateVideoPacketSession(const char *uuid, const char *version, const char *interface,
+                                const char *hostAddress, const char *deviceAddress, int (^cancelled)(void),
+                                void **owner, char *error, size_t errorCapacity);
+/// Synchronously borrows one datagram (max 65535 bytes); 1 delivered, 0 pending,
+/// -1 failure. This is transport data, not a decoded video frame.
+int ADCCopyNextVideoPacket(void *owner, int (^cancelled)(void),
+                           void (^sink)(const uint8_t *, size_t), char *error, size_t errorCapacity);
+typedef struct {
+    uint64_t negotiatorMode;
+    uint64_t width;
+    uint64_t height;
+    uint64_t frameRate;
+    uint64_t payloadType;
+} ADCVideoPacketProfile;
+int ADCValidateVideoPacketProfile(const void *reply, ADCVideoPacketProfile *profile, char *error, size_t errorCapacity);
+/// Whitelisted negotiated video metadata only; no identities/keys or packets.
+int ADCReadVideoPacketProfile(void *owner, ADCVideoPacketProfile *profile);
 int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void), char *error, size_t errorCapacity);
 /// Returns 1 for one JPEG delivered synchronously to sink, 0 when none is ready,
 /// -1 on error. Bytes are borrowed only during sink. Time starts at first JPEG.

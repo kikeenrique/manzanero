@@ -18,10 +18,16 @@ final class NativeMediaFrames {
     private var owner: UnsafeMutableRawPointer?
     private var cleanup: Cleanup?
 
-    init(endpoint: NativeMediaEndpoint, version: String) throws {
+    init(endpoint: NativeMediaEndpoint, version: String, packets: Bool = false) throws {
         var pointer: UnsafeMutableRawPointer?, error = [CChar](repeating: 0, count: 1024)
-        let result = ADCCreateVideoSession(endpoint.uuid, version, endpoint.interface, endpoint.host, endpoint.device,
-            { Task.isCancelled ? 1 : 0 }, &pointer, &error, error.count)
+        let result: Int32
+        if packets {
+            result = ADCCreateVideoPacketSession(endpoint.uuid, version, endpoint.interface, endpoint.host, endpoint.device,
+                { Task.isCancelled ? 1 : 0 }, &pointer, &error, error.count)
+        } else {
+            result = ADCCreateVideoSession(endpoint.uuid, version, endpoint.interface, endpoint.host, endpoint.device,
+                { Task.isCancelled ? 1 : 0 }, &pointer, &error, error.count)
+        }
         guard result == 0, let pointer else { throw CommandFailure(description: Self.text(error)) }
         owner = pointer
     }
@@ -45,6 +51,25 @@ final class NativeMediaFrames {
         try Task.checkCancellation()
         guard result >= 0 else { throw CommandFailure(description: Self.text(error)) }
         return frame
+    }
+
+    /// Experimental transport path. Packets are not decoded frames.
+    func nextPacket() throws -> Data? {
+        try Task.checkCancellation()
+        var error = [CChar](repeating: 0, count: 1024), packet: Data?
+        let result = ADCCopyNextVideoPacket(owner, { Task.isCancelled ? 1 : 0 }, { bytes, count in
+            if let bytes { packet = Data(bytes: bytes, count: count) }
+        }, &error, error.count)
+        try Task.checkCancellation()
+        guard result >= 0 else { throw CommandFailure(description: Self.text(error)) }
+        return packet
+    }
+
+    func packetProfile() -> [String: UInt64]? {
+        var profile = ADCVideoPacketProfile()
+        guard ADCReadVideoPacketProfile(owner, &profile) == 0 else { return nil }
+        return ["negotiatorMode": profile.negotiatorMode, "width": profile.width, "height": profile.height,
+            "frameRate": profile.frameRate, "payloadType": profile.payloadType]
     }
 
     @discardableResult

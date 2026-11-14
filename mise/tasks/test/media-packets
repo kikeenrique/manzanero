@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Probe standard-RTP delivery from one owned native media session; saves counts only"
+#USAGE arg "<device>" help="Explicit physical hardware UDID; starts a screen-sharing session"
+
+set -e -o pipefail
+
+APPLEDEVICES_MEDIA_PACKETS_DEVICE="$usage_device" swift test --cache-path tmp/swift-cache --filter NativeMediaPacketsTests 2>&1 | xcsift -f toon --warnings

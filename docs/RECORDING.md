@@ -24,6 +24,14 @@ The current host denies access to Apple's `AVCStreamOutput` for our process. The
 
 Earlier probes reached a successful start reply but captured zero frames. Session-specific stop was acknowledged and fresh status reported zero sessions; tunnel assertion release was acknowledged. One probe also configured the in-process decoder before output access was denied. Local cleanup fields describe stop/release requests, not independently verified decoder destruction. Synchronous private calls have no independent hard deadline. Cancellation, crash recovery, overlapping controllers and other Apple families remain unverified. See the dated [verification record](VERIFICATION.md).
 
+## Experimental standard-RTP transport
+
+`mise run test:media-packets <hardware-UDID>` tests another transport path toward frame decoding. Project code uses Apple's media negotiator and the paired device tunnel, with the standard-RTP options described in the [AXe reference review](AXE-PHYSICAL-REVIEW.md). It does not instantiate `AVCStreamOutput`, invoke another device binary or replace framework methods. Apple's installed settings factory resolves the concrete CoreDevice screen-sharing class before an offer is generated. Negotiator mode and the settings' operating mode are different enums.
+
+Before consuming packets, the probe requires the selected tunnel endpoints, RTP transport, zero SRTP/SRTCP cipher selectors, typed dimensions up to 8192 per axis/20 megapixels, frame rate 1...240 and payload type 0...127. Each nonblocking read borrows at most 65535 bytes. The probe observes two seconds after its first packet, capped at 10000 datagrams/32 MiB, and retains only counts and whitelisted negotiated metadata. It sends no receiver reports yet and does not export raw packets, SSRCs, negotiation blobs or keys.
+
+On the designated phone, one probe received 235 datagrams (233 with RTP header prefixes and two with RTCP header prefixes), negotiated 1136×2448 at 60 fps/payload 100, and acknowledged its owned stop, empty-session status and tunnel assertion release. Earlier probes received no packets within six seconds, so reliable startup is unresolved. Header classification is not complete RTP validation, codec identification or decoded-frame evidence. VideoToolbox decoding, receiver-report handling, recording integration and longer-lived stream behavior remain unfinished.
+
 ## Historical recording contract
 
 ```sh
