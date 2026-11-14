@@ -2,7 +2,6 @@ import AVFoundation
 import CoreImage
 import CoreVideo
 import Foundation
-import ImageIO
 
 @available(macOS 26.0, *)
 actor NativeVideoEncoder {
@@ -26,23 +25,19 @@ actor NativeVideoEncoder {
         self.codec = codec
     }
 
-    func consume(_ frame: TimedVideoFrame) async throws {
+    func consume(_ frame: NativeVideoFrame) async throws {
         guard frame.nanoseconds < UInt64(seconds * 1_000_000_000), frameCount < 10_000,
-            frameCount == 0 ? frame.nanoseconds == 0 : frame.nanoseconds > lastTime,
-            (4...8 * 1024 * 1024).contains(frame.jpeg.count)
+            frameCount == 0 ? frame.nanoseconds == 0 : frame.nanoseconds > lastTime
         else {
-            throw CommandFailure(description: "Invalid native frame timestamp, size or count budget.")
+            throw CommandFailure(description: "Invalid native frame timestamp or count budget.")
         }
         try Task.checkCancellation()
-        guard let source = CGImageSourceCreateWithData(frame.jpeg as CFData, nil),
-            CGImageSourceGetType(source) as String? == "public.jpeg",
-            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-            let width = properties[kCGImagePropertyPixelWidth] as? Int,
-            let height = properties[kCGImagePropertyPixelHeight] as? Int,
+        let width = frame.pixels.size.width, height = frame.pixels.size.height
+        guard
             (1...8192).contains(width), (1...8192).contains(height), width * height <= 20_000_000,
-            let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+            frame.pixels.pixelFormatType.rawValue == kCVPixelFormatType_32BGRA
         else {
-            throw CommandFailure(description: "Native video frame has unsupported image data or dimensions.")
+            throw CommandFailure(description: "Native video frame has unsupported pixel format or dimensions.")
         }
         if let dimensions {
             guard dimensions == (width, height) else {
@@ -72,16 +67,21 @@ actor NativeVideoEncoder {
         }
         let outWidth = (width + 1) / 2 * 2
         let outHeight = (height + 1) / 2 * 2
-        let pixel = try CVMutablePixelBuffer(
-            .init(
-                pixelFormatType: CVPixelFormatType(rawValue: kCVPixelFormatType_32BGRA),
-                size: .init(width: outWidth, height: outHeight)))
-        let background = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 1))
-            .cropped(to: CGRect(x: 0, y: 0, width: outWidth, height: outHeight))
-        pixel.withUnsafeBuffer {
-            context.render(CIImage(cgImage: image).composited(over: background), to: $0)
+        let buffer: CVReadOnlyPixelBuffer
+        if width == outWidth && height == outHeight {
+            buffer = frame.pixels
+        } else {
+            let pixel = try CVMutablePixelBuffer(
+                .init(
+                    pixelFormatType: CVPixelFormatType(rawValue: kCVPixelFormatType_32BGRA),
+                    size: .init(width: outWidth, height: outHeight)))
+            let background = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 1))
+                .cropped(to: CGRect(x: 0, y: 0, width: outWidth, height: outHeight))
+            frame.pixels.withUnsafeBuffer { source in
+                pixel.withUnsafeBuffer { context.render(CIImage(cvPixelBuffer: source).composited(over: background), to: $0) }
+            }
+            buffer = CVReadOnlyPixelBuffer(pixel)
         }
-        let buffer = CVReadOnlyPixelBuffer(pixel)
         guard let receiver else { throw CommandFailure(description: "Native encoder receiver is unavailable.") }
         try await receiver.append(buffer, with: CMTime(value: Int64(frame.nanoseconds), timescale: 1_000_000_000))
         last = buffer
@@ -165,7 +165,6 @@ struct NativeRecordingReceipt: Sendable {
             var last: UInt64 = 0
             var checked = DispatchTime.now().uptimeNanoseconds
             var received = 0
-            var emitted = 0
             while true {
                 try Task.checkCancellation()
                 let now = DispatchTime.now().uptimeNanoseconds
@@ -187,17 +186,13 @@ struct NativeRecordingReceipt: Sendable {
                         let unit = try assembler.accept(packet)
                     {
                         unitCount += 1
-                        guard let jpeg = try decoder?.decode(unit, emitJPEG: first == nil || now - last >= 33_333_333)
+                        guard let pixels = try decoder?.decodePixels(unit, emit: first == nil || now - last >= 33_333_333)
                         else { continue }
                         decodedCount += 1
                         let time = DispatchTime.now().uptimeNanoseconds
                         if first == nil { first = time }
                         guard let first, time - first < duration else { break }
-                        emitted += jpeg.count
-                        guard emitted <= 1024 * 1024 * 1024 else {
-                            throw CommandFailure(description: "Native recording exceeded its one-GiB JPEG budget.")
-                        }
-                        try await encoder.consume(TimedVideoFrame(nanoseconds: time - first, jpeg: jpeg))
+                        try await encoder.consume(NativeVideoFrame(nanoseconds: time - first, pixels: pixels))
                         last = time
                     }
                 } else {
@@ -226,7 +221,7 @@ struct NativeRecordingReceipt: Sendable {
             let release = assertion.close()
             await encoder.cancel()
             await sessions.end(endpoint.uuid)
-            let detail = "\(error) Capture: packets=\(packetCount), access units=\(unitCount), JPEG frames=\(decodedCount). Cleanup: owned stop=\(cleanup?.stopAcknowledged ?? false), stream absent=\(cleanup?.ownedStreamAbsent ?? false), tunnel release=\(release.status). \(cleanup?.diagnostic ?? "")"
+            let detail = "\(error) Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount). Cleanup: owned stop=\(cleanup?.stopAcknowledged ?? false), stream absent=\(cleanup?.ownedStreamAbsent ?? false), tunnel release=\(release.status). \(cleanup?.diagnostic ?? "")"
             if error is CancellationError || Task.isCancelled {
                 FileHandle.standardError.write(Data("\(detail)\n".utf8))
                 throw CancellationError()

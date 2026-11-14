@@ -1,11 +1,28 @@
 import AVFoundation
 import CoreImage
+import CoreVideo
 import Foundation
 import MCP
 import Testing
 @testable import AppleDevicesCMD
 
 struct NativeVideoTests {
+    @available(macOS 26.0, *)
+    @Test func decodedPixelsAreCopiedBeforeSourceReuse() throws {
+        let context = CIContext()
+        let source = try CVMutablePixelBuffer(.init(pixelFormatType: .init(rawValue: kCVPixelFormatType_32BGRA), size: .init(width: 64, height: 64)))
+        let bounds = CGRect(x: 0, y: 0, width: 64, height: 64)
+        source.withUnsafeBuffer { context.render(CIImage(color: .init(red: 1, green: 0, blue: 0)).cropped(to: bounds), to: $0) }
+        let copy = try source.withUnsafeBuffer { try NativeVideoFrame.copy($0, context: context) }
+        source.withUnsafeBuffer { context.render(CIImage(color: .init(red: 0, green: 0, blue: 1)).cropped(to: bounds), to: $0) }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        copy.withUnsafeBuffer { context.render(CIImage(cvPixelBuffer: $0), toBitmap: &pixel, rowBytes: 4,
+            bounds: CGRect(x: 1, y: 1, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB()) }
+        #expect(pixel[0] > 200 && pixel[2] < 40)
+        let unsupported = try CVMutablePixelBuffer(.init(pixelFormatType: .init(rawValue: kCVPixelFormatType_OneComponent8), size: .init(width: 64, height: 64)))
+        #expect(throws: CommandFailure.self) { try unsupported.withUnsafeBuffer { try NativeVideoFrame.copy($0, context: context) } }
+    }
+
     @Test func recordingReservationsRejectDuplicateUUIDsAndReleaseForReuse() async throws {
         let sessions = NativeRecordingSessions()
         try await sessions.begin("ABCD")
@@ -17,8 +34,9 @@ struct NativeVideoTests {
         await sessions.end("other-device")
     }
 
-    func packet(_ time: UInt64 = 0, jpeg: Data = Data([0xff, 0xd8, 0xff, 0xd9])) -> TimedVideoFrame {
-        TimedVideoFrame(nanoseconds: time, jpeg: jpeg)
+    @available(macOS 26.0, *)
+    func packet(_ time: UInt64 = 0, pixels: CVReadOnlyPixelBuffer) -> NativeVideoFrame {
+        NativeVideoFrame(nanoseconds: time, pixels: pixels)
     }
 
     @Test func tunnelSelectionRequiresMatchingIdentityAndUniqueActivePrefix() throws {
@@ -61,16 +79,18 @@ struct NativeVideoTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let context = CIContext()
         let space = try #require(CGColorSpace(name: CGColorSpace.sRGB))
-        func jpeg(_ color: CIColor, width: Int = 64) throws -> Data {
-            try #require(context.jpegRepresentation(of: CIImage(color: color).cropped(to: CGRect(x: 0, y: 0, width: width, height: 63)), colorSpace: space))
+        func pixels(_ color: CIColor, width: Int = 64) throws -> CVReadOnlyPixelBuffer {
+            let pixel = try CVMutablePixelBuffer(.init(pixelFormatType: .init(rawValue: kCVPixelFormatType_32BGRA), size: .init(width: width, height: 63)))
+            pixel.withUnsafeBuffer { context.render(CIImage(color: color).cropped(to: CGRect(x: 0, y: 0, width: width, height: 63)), to: $0) }
+            return CVReadOnlyPixelBuffer(pixel)
         }
-        let red = try jpeg(CIColor(red: 1, green: 0, blue: 0))
-        let blue = try jpeg(CIColor(red: 0, green: 0, blue: 1))
+        let red = try pixels(CIColor(red: 1, green: 0, blue: 0))
+        let blue = try pixels(CIColor(red: 0, green: 0, blue: 1))
         for changing in [false, true] {
             let path = root.appendingPathComponent("\(changing).mp4")
             let encoder = try NativeVideoEncoder(destination: path, seconds: 1, codec: codec)
-            try await encoder.consume(packet(jpeg: red))
-            if changing { try await encoder.consume(packet(500_000_000, jpeg: blue)) }
+            try await encoder.consume(packet(pixels: red))
+            if changing { try await encoder.consume(packet(500_000_000, pixels: blue)) }
             #expect(try await encoder.finish() == (changing ? 2 : 1))
             let artifact = try await VideoArtifact.inspect(path)
             #expect(abs(artifact.duration - 1) < 0.02)
@@ -90,16 +110,13 @@ struct NativeVideoTests {
             }
         }
         let invalid = try NativeVideoEncoder(destination: root.appendingPathComponent("invalid.mp4"), seconds: 1, codec: codec)
-        try await invalid.consume(packet(jpeg: red))
-        await #expect(throws: CommandFailure.self) { try await invalid.consume(packet(100, jpeg: jpeg(CIColor(red: 0, green: 0, blue: 0), width: 32))) }
+        try await invalid.consume(packet(pixels: red))
+        await #expect(throws: CommandFailure.self) { try await invalid.consume(packet(100, pixels: pixels(CIColor(red: 0, green: 0, blue: 0), width: 32))) }
         await invalid.cancel()
-        let malformed = try NativeVideoEncoder(destination: root.appendingPathComponent("malformed.mp4"), seconds: 1, codec: codec)
-        await #expect(throws: CommandFailure.self) { try await malformed.consume(packet()) }
-        await malformed.cancel()
         for times: [UInt64] in [[1], [0, 0], [0, 1_000_000_000]] {
             let invalidTime = try NativeVideoEncoder(destination: root.appendingPathComponent("time-\(UUID().uuidString).mp4"), seconds: 1, codec: codec)
             do {
-                for time in times { try await invalidTime.consume(packet(time, jpeg: red)) }
+                for time in times { try await invalidTime.consume(packet(time, pixels: red)) }
                 Issue.record("Invalid frame timeline was accepted")
             } catch { #expect(error is CommandFailure) }
             await invalidTime.cancel()

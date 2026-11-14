@@ -75,7 +75,7 @@ struct RecordingCommand {
                 "artifact": ["durationSeconds": video.duration, "width": video.width, "height": video.height, "codec": video.codec, "frameDecoded": true]]
             if let nativeReceipt {
                 result["sourceFrames"] = nativeReceipt.frames
-                result["timeline"] = "host-jpeg-emission"
+                result["timeline"] = "host-pixel-delivery"
                 result["audio"] = false
                 result["rtcp"] = ["receiverReportsSent": nativeReceipt.receiverReportsSent,
                     "senderReportsObserved": nativeReceipt.senderReportsObserved]

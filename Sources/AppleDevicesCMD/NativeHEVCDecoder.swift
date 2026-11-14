@@ -5,6 +5,13 @@ import Foundation
 import Synchronization
 import VideoToolbox
 
+private struct NativeDecodedOutput<Value: Sendable>: Sendable {
+    var status: OSStatus = 0
+    var value: Value?
+    var invalid = false
+    var error: (any Error)?
+}
+
 /// Uses public VideoToolbox decoding. Both async/temporal flags are clear, so
 /// Apple's contract completes the output handler before decode returns.
 @MainActor
@@ -36,6 +43,28 @@ final class NativeHEVCDecoder {
     }
 
     func decode(_ unit: MediaHEVCAccessUnit, emitJPEG: Bool = true) throws -> Data? {
+        let context = context
+        return try decodeOutput(unit) { image in
+            guard emitJPEG else { return nil }
+            guard let jpeg = context.jpegRepresentation(of: CIImage(cvPixelBuffer: image), colorSpace: CGColorSpaceCreateDeviceRGB(), options: [:]),
+                  jpeg.count <= 8 * 1024 * 1024 else {
+                throw CommandFailure(description: "Native HEVC decoder produced invalid JPEG output.")
+            }
+            return jpeg
+        }
+    }
+
+    @available(macOS 26.0, *)
+    func decodePixels(_ unit: MediaHEVCAccessUnit, emit: Bool) throws -> CVReadOnlyPixelBuffer? {
+        let context = context
+        return try decodeOutput(unit) { image in
+            guard emit else { return nil }
+            return try NativeVideoFrame.copy(image, context: context)
+        }
+    }
+
+    private func decodeOutput<Value: Sendable>(_ unit: MediaHEVCAccessUnit,
+        transform: @escaping @Sendable (CVPixelBuffer) throws -> Value?) throws -> Value? {
         try Task.checkCancellation()
         guard !closed else { throw failure("decoder is closed") }
         guard unit.parameterSets.count == 3, unit.parameterSets.allSatisfy({ (2...65_535).contains($0.count) }),
@@ -72,25 +101,26 @@ final class NativeHEVCDecoder {
             sampleCount: 1, sampleTimingEntryCount: 1, sampleTimingArray: &timing,
             sampleSizeEntryCount: 1, sampleSizeArray: &size, sampleBufferOut: &sample), "create sample")
         guard let sample else { throw failure("missing sample") }
-        struct Output: Sendable { var status: OSStatus = 0; var jpeg: Data?; var invalid = false }
-        let result = Mutex(Output())
+        let result = Mutex(NativeDecodedOutput<Value>())
         guard let codedDimensions else { throw failure("coded dimensions are unavailable") }
-        let width = codedDimensions.0, height = codedDimensions.1, context = context
+        let width = codedDimensions.0, height = codedDimensions.1
         let status = VTDecompressionSessionDecodeFrame(session, sampleBuffer: sample, flags: [], infoFlagsOut: nil) { status, _, image, _, _ in
             guard status == 0, let image else { result.withLock { $0.status = status }; return }
             guard CVPixelBufferGetWidth(image) == width, CVPixelBufferGetHeight(image) == height else {
                 result.withLock { $0.invalid = true }; return
             }
-            guard emitJPEG else { return }
-            let jpeg = context.jpegRepresentation(of: CIImage(cvPixelBuffer: image), colorSpace: CGColorSpaceCreateDeviceRGB(), options: [:])
-            result.withLock { $0.jpeg = jpeg; $0.invalid = jpeg == nil || (jpeg?.count ?? 0) > 8 * 1024 * 1024 }
+            do {
+                let value = try transform(image)
+                result.withLock { $0.value = value }
+            } catch { result.withLock { $0.error = error } }
         }
         try check(status, "decode sample")
         let output = result.withLock { $0 }
         try check(output.status, "output sample")
-        guard !output.invalid else { throw failure("invalid decoded dimensions or JPEG output") }
+        guard !output.invalid else { throw failure("invalid decoded dimensions") }
+        if let error = output.error { throw error }
         try Task.checkCancellation()
-        return output.jpeg
+        return output.value
     }
 
     private func configure(_ sets: [Data]) throws {
