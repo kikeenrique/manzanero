@@ -119,6 +119,21 @@ typedef struct {
 int ADCValidateVideoPacketProfile(const void *reply, ADCVideoPacketProfile *profile, char *error, size_t errorCapacity);
 /// Whitelisted negotiated video metadata only; no identities/keys or packets.
 int ADCReadVideoPacketProfile(void *owner, ADCVideoPacketProfile *profile);
+typedef struct {
+    uint32_t senderSSRC;
+    uint32_t receiverSSRC;
+    double reportIntervalSeconds;
+} ADCVideoRTCPProfile;
+/// In-memory transport identity only. Never serialize this profile in receipts.
+int ADCValidateVideoRTCPProfile(const void *reply, uint32_t offeredReceiver, uint16_t receiverPort,
+                                ADCVideoRTCPProfile *profile, char *error, size_t errorCapacity);
+int ADCReadVideoRTCPProfile(void *owner, ADCVideoRTCPProfile *profile);
+int ADCValidateVideoReceiverReport(const uint8_t *packet, size_t length, uint32_t sender, uint32_t receiver,
+                                   char *error, size_t errorCapacity);
+/// Sends one bounded compound receiver report to the owned connected peer.
+/// Returns 1 sent, 0 transient drop, -1 failure; does not retry or change peers.
+int ADCSendVideoReceiverReport(void *owner, const uint8_t *packet, size_t length,
+                               int (^cancelled)(void), char *error, size_t errorCapacity);
 /// Read-only owned-session status: 1 present, 0 absent, -1 unknown/error.
 int ADCVideoSessionActive(void *owner, int (^cancelled)(void), char *error, size_t errorCapacity);
 int ADCValidateOwnedVideoStatus(const void *reply, uint32_t identifier, char *error, size_t errorCapacity);

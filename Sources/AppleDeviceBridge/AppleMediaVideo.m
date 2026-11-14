@@ -10,6 +10,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <dlfcn.h>
+#include <math.h>
 #include "AppleDeviceBridge.h"
 #import "AppleMediaControl.h"
 
@@ -26,6 +27,7 @@
 @end
 @interface AVCMediaStreamNegotiatorSettings : NSObject
 + (id)negotiatorSettingsForMode:(long)mode deviceRole:(int)role options:(NSDictionary *)options errorString:(NSString **)error;
+- (uint32_t)localSSRC;
 @end
 @interface AVCVideoStream : NSObject
 - (instancetype)initWithNetworkSockets:(id)sockets options:(id)options error:(NSError **)error;
@@ -52,6 +54,31 @@ static BOOL VideoUInt(xpc_object_t object, uint64_t *value) {
     return NO;
 }
 static uint64_t VideoNow(void) { return clock_gettime_nsec_np(CLOCK_MONOTONIC); }
+
+int ADCValidateVideoRTCPProfile(const void *borrowed, uint32_t offeredReceiver, uint16_t receiverPort,
+                                ADCVideoRTCPProfile *profile, char *error, size_t capacity) {
+    if (profile) memset(profile, 0, sizeof(*profile));
+    xpc_object_t reply = borrowed ? (__bridge xpc_object_t)borrowed : nil;
+    if (!profile || !offeredReceiver || !receiverPort || !reply || xpc_get_type(reply) != XPC_TYPE_DICTIONARY || xpc_dictionary_get_value(reply, "CoreDevice.error"))
+        return VideoFail(error, capacity, @"Invalid native RTCP profile reply.");
+    xpc_object_t output = xpc_dictionary_get_dictionary(reply, "CoreDevice.output");
+    xpc_object_t connection = output ? xpc_dictionary_get_dictionary(output, "connection") : nil;
+    xpc_object_t config = connection ? xpc_dictionary_get_dictionary(connection, "streamConfig") : nil;
+    uint64_t sender = 0, receiver = 0, port = 0;
+    xpc_object_t enabled = config ? xpc_dictionary_get_value(config, "RTCPEnabled") : nil;
+    xpc_object_t interval = config ? xpc_dictionary_get_value(config, "RTCPSendInterval") : nil;
+    if (!config || !VideoUInt(xpc_dictionary_get_value(config, "LocalSSRC"), &sender) || !sender || sender > UINT32_MAX ||
+        !VideoUInt(xpc_dictionary_get_value(config, "RemoteSSRC"), &receiver) || receiver != offeredReceiver || sender == receiver ||
+        !VideoUInt(xpc_dictionary_get_value(config, "RTCPRemotePort"), &port) || port != receiverPort ||
+        !enabled || xpc_get_type(enabled) != XPC_TYPE_BOOL || !xpc_bool_get_value(enabled) ||
+        !interval || xpc_get_type(interval) != XPC_TYPE_DOUBLE)
+        return VideoFail(error, capacity, @"Native RTCP reply did not confirm the owned receiver and sender.");
+    double seconds = xpc_double_get_value(interval);
+    if (!isfinite(seconds) || seconds < 0.2 || seconds > 10)
+        return VideoFail(error, capacity, @"Native RTCP report interval is unsupported.");
+    profile->senderSSRC = (uint32_t)sender; profile->receiverSSRC = (uint32_t)receiver; profile->reportIntervalSeconds = seconds;
+    return 0;
+}
 
 int ADCValidateVideoPacketProfile(const void *reply, ADCVideoPacketProfile *profile, char *error, size_t capacity) {
     if (profile) memset(profile, 0, sizeof(*profile));
@@ -129,6 +156,7 @@ int ADCValidateVideoEndpoints(const void *reply, const char *hostAddress, const 
 @property(nonatomic) BOOL configured;
 @property(nonatomic) BOOL packetMode;
 @property(nonatomic) ADCVideoPacketProfile packetProfile;
+@property(nonatomic) ADCVideoRTCPProfile rtcpProfile;
 @property(nonatomic) BOOL closing;
 @property(nonatomic, copy) NSString *failure;
 @property(nonatomic) CMSampleBufferRef latest;
@@ -202,7 +230,8 @@ static BOOL VideoAPIAvailable(BOOL packets, char *error, size_t capacity) {
     }
     Class settings = NSClassFromString(@"AVCMediaStreamNegotiatorSettingsCoreDeviceScreenSharing");
     if (!settings || ![NSClassFromString(@"AVCMediaStreamNegotiatorSettings") respondsToSelector:@selector(negotiatorSettingsForMode:deviceRole:options:errorString:)] ||
-        ![NSClassFromString(@"AVCMediaStreamNegotiator") instancesRespondToSelector:@selector(negotiatorSettings)]) {
+        ![NSClassFromString(@"AVCMediaStreamNegotiator") instancesRespondToSelector:@selector(negotiatorSettings)] ||
+        ![NSClassFromString(@"AVCMediaStreamNegotiatorSettings") instancesRespondToSelector:@selector(localSSRC)]) {
         VideoFail(error, capacity, @"Installed Apple screen-sharing negotiation settings are unavailable; no stream started."); return NO;
     }
     // Ask Apple's own access validator using the actual process identity before
@@ -352,6 +381,10 @@ int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void),
         if (ADCValidateVideoPacketProfile((__bridge const void *)reply, &profile, error, capacity)) return 1;
         profile.negotiatorMode = state.packetProfile.negotiatorMode;
         state.packetProfile = profile;
+        ADCVideoRTCPProfile feedback;
+        AVCMediaStreamNegotiatorSettings *settings = state.negotiator.negotiatorSettings;
+        if (ADCValidateVideoRTCPProfile((__bridge const void *)reply, settings.localSSRC, state.receiverPort, &feedback, error, capacity)) return 1;
+        state.rtcpProfile = feedback;
     }
     size_t answerLength = 0;
     const void *answer = xpc_dictionary_get_data(output, "negotiatorAnswer", &answerLength);
@@ -409,6 +442,49 @@ int ADCReadVideoPacketProfile(void *owner, ADCVideoPacketProfile *profile) {
     if (!state || !state.packetMode || !profile || state.closing || ![NSThread isMainThread]) return 1;
     *profile = state.packetProfile;
     return 0;
+}
+
+int ADCReadVideoRTCPProfile(void *owner, ADCVideoRTCPProfile *profile) {
+    if (profile) memset(profile, 0, sizeof(*profile));
+    ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
+    if (!state || !state.packetMode || !state.configured || state.closing || !profile || ![NSThread isMainThread]) return 1;
+    *profile = state.rtcpProfile;
+    return 0;
+}
+
+int ADCValidateVideoReceiverReport(const uint8_t *packet, size_t length, uint32_t sender, uint32_t receiver, char *error, size_t capacity) {
+    if (!packet || length < 20 || length > 1024 || !sender || !receiver || sender == receiver)
+        return VideoFail(error, capacity, @"Native RTCP compound report bounds are invalid.");
+    // Only compound RR + SDES packets generated by our receiver are accepted.
+    size_t first = (((size_t)packet[2] << 8) | packet[3]) * 4 + 4;
+    uint32_t source = ((uint32_t)packet[4] << 24) | ((uint32_t)packet[5] << 16) | ((uint32_t)packet[6] << 8) | packet[7];
+    if (packet[0] >> 6 != 2 || packet[1] != 201 || (packet[0] & 63) > 1 || first != 8 + (packet[0] & 31) * 24 ||
+        first > length - 12 || source != receiver || packet[first] != 0x81 || packet[first + 1] != 202 ||
+        ((((size_t)packet[first + 2] << 8) | packet[first + 3]) + 1) * 4 != length - first) {
+        return VideoFail(error, capacity, @"Native RTCP compound receiver report is invalid.");
+    }
+    if (first == 32) {
+        uint32_t target = ((uint32_t)packet[8] << 24) | ((uint32_t)packet[9] << 16) | ((uint32_t)packet[10] << 8) | packet[11];
+        if (target != sender) return VideoFail(error, capacity, @"Native RTCP report block refers to another sender.");
+    }
+    uint32_t cnameSource = ((uint32_t)packet[first + 4] << 24) | ((uint32_t)packet[first + 5] << 16) | ((uint32_t)packet[first + 6] << 8) | packet[first + 7];
+    size_t end = first + 10 + packet[first + 9];
+    if (cnameSource != source || packet[first + 8] != 1 || !packet[first + 9] || end >= length || packet[end] != 0)
+        return VideoFail(error, capacity, @"Native RTCP CNAME differs from its owned receiver or is invalid.");
+    for (size_t i = end; i < length; i++) if (packet[i]) return VideoFail(error, capacity, @"Native RTCP CNAME padding is invalid.");
+    return 0;
+}
+
+int ADCSendVideoReceiverReport(void *owner, const uint8_t *packet, size_t length, int (^cancelled)(void), char *error, size_t capacity) {
+    ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
+    if (!state || !state.packetMode || !state.configured || state.closing || ![NSThread isMainThread] || (cancelled && cancelled())) {
+        VideoFail(error, capacity, @"Native RTCP report send is unavailable or cancelled."); return -1;
+    }
+    if (ADCValidateVideoReceiverReport(packet, length, state.rtcpProfile.senderSSRC, state.rtcpProfile.receiverSSRC, error, capacity)) return -1;
+    ssize_t count = send(state.socket, packet, length, MSG_DONTWAIT);
+    if (count < 0 && (errno == EAGAIN || errno == EINTR || errno == ENOBUFS)) return 0;
+    if (count != (ssize_t)length) { VideoFail(error, capacity, @"Native RTCP receiver report send failed."); return -1; }
+    return 1;
 }
 
 int ADCValidateOwnedVideoStatus(const void *borrowed, uint32_t ownedIdentifier, char *error, size_t capacity) {

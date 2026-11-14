@@ -6,6 +6,38 @@ import XPC
 @testable import AppleDevicesCMD
 
 struct NativeMediaPacketsTests {
+    @Test(arguments: ["valid", "receiver", "sender-zero", "sender-wide", "same-source", "port", "disabled", "interval-type", "interval-small", "interval-nan", "error"])
+    func rtcpProfileRequiresOfferedReceiverAndOwnedEndpoint(mutation: String) {
+        let reply = xpc_dictionary_create(nil, nil, 0), output = xpc_dictionary_create(nil, nil, 0)
+        let connection = xpc_dictionary_create(nil, nil, 0), config = xpc_dictionary_create(nil, nil, 0)
+        xpc_dictionary_set_uint64(config, "LocalSSRC", 43)
+        xpc_dictionary_set_uint64(config, "RemoteSSRC", 42)
+        xpc_dictionary_set_uint64(config, "RTCPRemotePort", 50000)
+        xpc_dictionary_set_bool(config, "RTCPEnabled", true)
+        xpc_dictionary_set_double(config, "RTCPSendInterval", 1)
+        xpc_dictionary_set_value(connection, "streamConfig", config)
+        xpc_dictionary_set_value(output, "connection", connection)
+        xpc_dictionary_set_value(reply, "CoreDevice.output", output)
+        switch mutation {
+        case "receiver": xpc_dictionary_set_uint64(config, "RemoteSSRC", 44)
+        case "sender-zero": xpc_dictionary_set_uint64(config, "LocalSSRC", 0)
+        case "sender-wide": xpc_dictionary_set_uint64(config, "LocalSSRC", UInt64(UInt32.max) + 1)
+        case "same-source": xpc_dictionary_set_uint64(config, "LocalSSRC", 42)
+        case "port": xpc_dictionary_set_uint64(config, "RTCPRemotePort", 50001)
+        case "disabled": xpc_dictionary_set_bool(config, "RTCPEnabled", false)
+        case "interval-type": xpc_dictionary_set_uint64(config, "RTCPSendInterval", 1)
+        case "interval-small": xpc_dictionary_set_double(config, "RTCPSendInterval", 0.1)
+        case "interval-nan": xpc_dictionary_set_double(config, "RTCPSendInterval", .nan)
+        case "error": xpc_dictionary_set_value(reply, "CoreDevice.error", xpc_dictionary_create(nil, nil, 0))
+        default: break
+        }
+        var profile = ADCVideoRTCPProfile(), error = [CChar](repeating: 0, count: 512)
+        profile.receiverSSRC = 99
+        let status = ADCValidateVideoRTCPProfile(Unmanaged.passUnretained(reply).toOpaque(), 42, 50000, &profile, &error, error.count)
+        #expect((status == 0) == (mutation == "valid"))
+        #expect(profile.receiverSSRC == (mutation == "valid" ? 42 : 0))
+    }
+
     @Test(arguments: ["owned", "other", "empty", "stopped", "error", "duplicate", "malformed", "oversized-id", "running-type"])
     func activeStatusRequiresOneOwnedRunningStream(mutation: String) {
         let reply = xpc_dictionary_create(nil, nil, 0), output = xpc_dictionary_create(nil, nil, 0)
@@ -161,6 +193,7 @@ struct NativeMediaPacketsTests {
                 } else { try await Task.sleep(for: .milliseconds(2)) }
             }
             if let decoder { decoder.close(); metadata["videoToolboxInvalidationReturned"] = true }
+            metadata["receiverReportsSent"] = frames?.receiverReportsSent
             let cleanup = try #require(frames?.close())
             metadata["cleanup"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(cleanup))
             metadata["assertionRelease"] = assertion.close().status
@@ -169,6 +202,7 @@ struct NativeMediaPacketsTests {
             #expect(rtp > 0 && cleanup.stopAcknowledged && cleanup.ownedStreamAbsent)
             if decode { #expect(decoded > 0) }
         } catch {
+            metadata["receiverReportsSent"] = frames?.receiverReportsSent
             if let decoder { decoder.close(); metadata["videoToolboxInvalidationReturned"] = true }
             metadata["negotiated"] = frames?.packetProfile()
             if let cleanup = frames?.close() { metadata["cleanup"] = try? JSONSerialization.jsonObject(with: JSONEncoder().encode(cleanup)) }

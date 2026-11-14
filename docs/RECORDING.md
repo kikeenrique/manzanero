@@ -1,6 +1,6 @@
 # Screen recording
 
-**Current availability:** explicit `coredevice` physical recording now uses in-process Apple negotiation, HEVC RTP/VideoToolbox decoding and AVFoundation encoding. Two-second CLI H.264 and real MCP HEVC movies have iPhone 13 mini verification, including owned stop/absence and tunnel-release acknowledgements. Startup remains intermittent; RTCP reports, long captures and recovery are unfinished or unverified. Simulator recording remains available; default physical devicectl recording retains its documented capability failure.
+**Current availability:** explicit `coredevice` physical recording uses in-process Apple negotiation, HEVC RTP/VideoToolbox decoding and AVFoundation encoding. Two-second CLI H.264/MCP HEVC and 35-second CLI HEVC movies have iPhone 13 mini verification, including owned cleanup. Native receiver reports are implemented. Startup remains intermittent; keyframe/crash recovery and captures beyond verified durations remain incomplete or unverified. Simulator recording remains available; default physical devicectl recording retains its documented capability failure.
 
 ## Native physical movies
 
@@ -17,6 +17,10 @@ The controller reserves the resolved device UUID in this process, retains a tunn
 Read-only status checks approximately once per second and at capture end require exactly one running session matching the owned start identifier. Missing, malformed or ambiguous ownership fails capture. Publication requires returned VideoToolbox invalidation, acknowledged owned stream stop, fresh absence status, acknowledged tunnel release and an independently decodable staged movie. Existing destinations are refused, including files created during capture. Private staging directories remain under `tmp/recording-<UUID>/`. Failure/cancellation does not publish a success receipt; live recording cancellation still needs verification.
 
 Receipts use `backend: coredevice-videotoolbox`, actual artifact duration/dimensions/codec, `sourceFrames`, `timeline: host-jpeg-emission`, `audio: false` and explicit cleanup results. `deviceStopConfirmed` refers to the owned stop acknowledgement plus fresh server absence, not every native resource's destruction. Independent controllers are not coordinated and synchronous framework calls lack hard deadlines.
+
+Native packet sessions now send compound RTCP Receiver Reports plus one random, per-session CNAME. The receiver SSRC must match Apple's offered local SSRC, the peer SSRC must be distinct and nonzero, and the reply must confirm the bound receiver port, RTCP enablement and a finite 0.2...10-second report interval. Those identities stay in memory and are not serialized. Reports carry sequence/loss, 90-kHz HEVC interarrival jitter and last-sender-report/delay fields. A main-actor heartbeat checks every 100 ms and sends at the negotiated interval, including while movie encoding awaits. It is cancelled when the media owner closes. Main-actor blocking calls can still delay this schedule.
+
+The native send boundary accepts only a bounded owned RR + CNAME compound packet for the already connected peer. It checks sources, report-block target, lengths and CNAME padding. Transient nonblocking send failures drop that report; persistent send failures fail capture. `rtcp.receiverReportsSent` counts successful local UDP sends, not remote acknowledgements; `senderReportsObserved` counts validated reports from the negotiated sender. A 35-second HEVC CLI check produced 559 source frames and 35 report sends, with decoded 1136×2464 output and acknowledged cleanup. A subsequent two-second MCP movie observed two sender reports and sent two receiver reports. This is scoped liveness evidence, not proof that reports caused it or that every movie frame was inspected. Keyframe feedback requests are not implemented yet.
 
 An initial CLI attempt timed out waiting for its first frame with an active stream and acknowledged cleanup. A later two-second CLI H.264 recording during one native Home press produced 39 source frames; real MCP HEVC recording without UI input produced 28. Both finalized as decodable 1136×2464 movies with two-second duration. These scoped checks do not establish reliable startup, sustained frame rate, long captures, RTCP recovery or other device families. Sections explicitly labeled historical below describe retired helper behavior, not current setup.
 
@@ -46,9 +50,9 @@ Earlier probes reached a successful start reply but captured zero frames. Sessio
 
 `mise run test:media-packets <hardware-UDID>` tests another transport path toward frame decoding. Project code uses Apple's media negotiator and the paired device tunnel, with the standard-RTP options described in the [AXe reference review](AXE-PHYSICAL-REVIEW.md). It does not instantiate `AVCStreamOutput`, invoke another device binary or replace framework methods. Apple's installed settings factory resolves the concrete CoreDevice screen-sharing class before an offer is generated. Negotiator mode and the settings' operating mode are different enums.
 
-Before consuming packets, the probe requires the selected tunnel endpoints, RTP transport, zero SRTP/SRTCP cipher selectors, typed dimensions up to 8192 per axis/20 megapixels, frame rate 1...240 and payload type 0...127. Each nonblocking read borrows at most 65535 bytes. The probe observes two seconds after its first packet, capped at 10000 datagrams/32 MiB, and retains only counts and whitelisted negotiated metadata. It sends no receiver reports yet and does not export raw packets, SSRCs, negotiation blobs or keys.
+Before consuming packets, the probe requires the selected tunnel endpoints, RTP transport, zero SRTP/SRTCP cipher selectors, typed dimensions up to 8192 per axis/20 megapixels, frame rate 1...240 and payload type 0...127. Each nonblocking read borrows at most 65535 bytes. The probe observes two seconds after its first packet, capped at 10000 datagrams/32 MiB, and retains only counts and whitelisted negotiated metadata. It inherits the owned receiver-report lifecycle and does not export raw packets, SSRCs, negotiation blobs or keys.
 
-On the designated phone, one probe received 235 datagrams (233 with RTP header prefixes and two with RTCP header prefixes), negotiated 1136×2448 at 60 fps/payload 100, and acknowledged its owned stop, empty-session status and tunnel assertion release. Earlier probes received no packets within six seconds, so reliable startup is unresolved. Header classification alone is not complete RTP validation, codec identification or decoded-frame evidence. HEVC decoding has since been verified below; receiver-report handling, recording integration and longer-lived stream behavior remain unfinished.
+On the designated phone, one early probe received 235 datagrams (233 with RTP header prefixes and two with RTCP header prefixes), negotiated 1136×2448 at 60 fps/payload 100, and acknowledged owned cleanup. Earlier probes received no packets within six seconds, so reliable startup is unresolved. Header classification alone is not codec/frame evidence. HEVC decoding, movie integration and receiver reports have since been verified in the scoped checks described here.
 
 ## Experimental HEVC frame decoding
 
@@ -78,7 +82,7 @@ mise run cli --recording-backend coredevice physical <UDID> record tmp/native-ph
 
 Duration must be finite and between 1 and 300 seconds. Codec defaults to `h264`; `hevc` is also supported by the wrapped tools. The destination must end in `.mp4`, its parent must exist, and existing destinations are refused. Simulator recording requires an explicit UUID. Only the default display is selected; there is no audio option or live-mirroring session.
 
-## Backends and completion
+## Historical helper backends and completion
 
 Simulator capture uses `simctl io recordVideo`. The controller waits up to 30 seconds for the documented `Recording started` message on stderr, including messages split across writes. Duration starts when that first-frame message is observed. It then sends SIGINT to its owned recorder and waits up to 30 seconds for encoding/finalization. Startup/early-exit/finalization failures return errors; an unresponsive owned child is killed and reaped. Task cancellation during the monitored interval requests the same cleanup. Killing the parent process can bypass cleanup.
 
@@ -98,6 +102,6 @@ Success is one JSON object containing `status: recorded`, backend, output path, 
 
 The shared operation is exposed as MCP `record_screen`, with optional physical `recording_backend: coredevice`; it returns metadata and a saved path, not inline video. Native capture permits interleaved service requests and rejects another native recording for the same resolved CoreDevice UUID in this process. Independent CLI processes and other controllers are not coordinated. Avoid simultaneous idevice HID input: that backend uses a stop-all media request.
 
-## Evidence
+## Historical helper evidence
 
 Simulator H.264 and HEVC captures were finalized and decoded locally. On the selected USB iPhone 13 mini, the explicit native backend produced two-second H.264 (CLI) and HEVC (real MCP stdio) recordings with decodable 1136×2464 video. `mise run test:mcp-recording <UDID>` checks HEVC capture, duration, codec, cleanup disclosure, first-frame export and a subsequent screenshot. This does not verify moving app interaction during capture or device teardown. See [verification records](VERIFICATION.md) and [roadmap](ROADMAP.md).

@@ -17,8 +17,15 @@ final class NativeMediaFrames {
     }
     private var owner: UnsafeMutableRawPointer?
     private var cleanup: Cleanup?
+    private let packetMode: Bool
+    private var feedback: MediaRTCPReceiver?
+    private var heartbeat: Task<Void, Never>?
+    private var feedbackFailure: String?
+    private(set) var receiverReportsSent: UInt64 = 0
+    private(set) var senderReportsObserved: UInt64 = 0
 
     init(endpoint: NativeMediaEndpoint, version: String, packets: Bool = false) throws {
+        packetMode = packets
         var pointer: UnsafeMutableRawPointer?, error = [CChar](repeating: 0, count: 1024)
         let result: Int32
         if packets {
@@ -40,6 +47,22 @@ final class NativeMediaFrames {
         let result = ADCStartVideoSession(owner, displayID, { Task.isCancelled ? 1 : 0 }, &error, error.count)
         try Task.checkCancellation()
         guard result == 0 else { throw CommandFailure(description: Self.text(error)) }
+        if packetMode {
+            var profile = ADCVideoRTCPProfile()
+            guard ADCReadVideoRTCPProfile(owner, &profile) == 0, let payload = packetProfile()?["payloadType"],
+                  let payload = UInt8(exactly: payload) else { throw CommandFailure(description: "Native media has no owned RTCP profile.") }
+            feedback = try MediaRTCPReceiver(sender: profile.senderSSRC, receiver: profile.receiverSSRC,
+                payloadType: payload, cname: UUID().uuidString.lowercased() + "@appledevicescmd",
+                intervalSeconds: profile.reportIntervalSeconds, now: DispatchTime.now().uptimeNanoseconds)
+            heartbeat = Task { [weak self] in
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
+                    guard let self, self.owner != nil else { return }
+                    do { try self.flushReceiverReport() }
+                    catch { self.feedbackFailure = String(describing: error); return }
+                }
+            }
+        }
     }
 
     func next() throws -> TimedVideoFrame? {
@@ -56,13 +79,30 @@ final class NativeMediaFrames {
     /// Experimental transport path. Packets are not decoded frames.
     func nextPacket() throws -> Data? {
         try Task.checkCancellation()
+        if let feedbackFailure { throw CommandFailure(description: feedbackFailure) }
         var error = [CChar](repeating: 0, count: 1024), packet: Data?
         let result = ADCCopyNextVideoPacket(owner, { Task.isCancelled ? 1 : 0 }, { bytes, count in
             if let bytes { packet = Data(bytes: bytes, count: count) }
         }, &error, error.count)
         try Task.checkCancellation()
         guard result >= 0 else { throw CommandFailure(description: Self.text(error)) }
+        if let packet {
+            try feedback?.observe(packet, now: DispatchTime.now().uptimeNanoseconds)
+            senderReportsObserved = feedback?.senderReportsObserved ?? 0
+        }
         return packet
+    }
+
+    private func flushReceiverReport() throws {
+        try Task.checkCancellation()
+        guard let report = feedback?.reportIfDue(now: DispatchTime.now().uptimeNanoseconds) else { return }
+        var error = [CChar](repeating: 0, count: 512)
+        let sent = report.withUnsafeBytes {
+            ADCSendVideoReceiverReport(owner, $0.bindMemory(to: UInt8.self).baseAddress, $0.count,
+                { Task.isCancelled ? 1 : 0 }, &error, error.count)
+        }
+        guard sent >= 0 else { throw CommandFailure(description: Self.text(error)) }
+        if sent == 1 { receiverReportsSent += 1 }
     }
 
     func packetProfile() -> [String: UInt64]? {
@@ -85,6 +125,7 @@ final class NativeMediaFrames {
     @discardableResult
     func close() -> Cleanup {
         if let cleanup { return cleanup }
+        heartbeat?.cancel(); heartbeat = nil; feedback = nil
         let saved = owner; owner = nil
         var result = ADCVideoCleanup(), error = [CChar](repeating: 0, count: 1024)
         let status = ADCCloseVideoSession(saved, &result, &error, error.count)

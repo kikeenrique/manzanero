@@ -77,11 +77,13 @@ struct RecordingCommand {
                 result["sourceFrames"] = nativeReceipt.frames
                 result["timeline"] = "host-jpeg-emission"
                 result["audio"] = false
+                result["rtcp"] = ["receiverReportsSent": nativeReceipt.receiverReportsSent,
+                    "senderReportsObserved": nativeReceipt.senderReportsObserved]
                 result["cleanup"] = ["ownedStopAcknowledged": nativeReceipt.media.stopAcknowledged,
                     "ownedStreamAbsent": nativeReceipt.media.ownedStreamAbsent,
                     "deviceStopConfirmed": nativeReceipt.media.stopAcknowledged && nativeReceipt.media.ownedStreamAbsent,
                     "videoToolboxInvalidationReturned": true, "tunnelAssertionRelease": nativeReceipt.assertionRelease] as [String: Any]
-                result["warnings"] = ["Experimental HEVC input. RTCP receiver reports, long captures and crash recovery remain unfinished or unverified; synchronous Apple media calls have no independent hard deadline."]
+                result["warnings"] = ["Experimental HEVC input. Reliable startup, keyframe recovery and crash recovery remain unfinished or unverified; synchronous Apple media calls have no independent hard deadline. RTCP send counts are local sends, not remote acknowledgements."]
             }
             return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         } catch {

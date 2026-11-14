@@ -115,6 +115,8 @@ struct NativeRecordingReceipt: Sendable {
     let frames: Int
     let media: NativeMediaFrames.Cleanup
     let assertionRelease: String
+    let receiverReportsSent: UInt64
+    let senderReportsObserved: UInt64
 }
 
 @available(macOS 26.0, *)
@@ -216,7 +218,9 @@ struct NativeRecordingReceipt: Sendable {
             try Task.checkCancellation()
             let frames = try await encoder.finish()
             await sessions.end(endpoint.uuid)
-            return NativeRecordingReceipt(frames: frames, media: cleanup, assertionRelease: release.status)
+            return NativeRecordingReceipt(frames: frames, media: cleanup, assertionRelease: release.status,
+                receiverReportsSent: capture?.receiverReportsSent ?? 0,
+                senderReportsObserved: capture?.senderReportsObserved ?? 0)
         } catch {
             let cleanup = closeMedia()
             let release = assertion.close()
