@@ -12,6 +12,8 @@ The phone had Developer Mode and Enable UI Automation enabled for the successful
 
 Raw screenshots, movies, app/process inventories, addresses, device IDs, archives and stderr remain under ignored `tmp/`. They are not public fixtures. The Git commits named below retain the detailed implementation checkpoints; temporary artifact UUID lists and intermediate test counts are omitted here.
 
+Checkpoint hashes below refer to the rewritten public history. The publication cleanup changed paths and documentation, not the recorded device observations.
+
 ## Current local validation
 
 The latest implementation checkpoint passed 314 default Swift test functions through xcsift with zero errors/warnings; all 48 mise tasks validated. Default tests are local regression checks, not hardware runs. Live checks are explicitly enabled and may have device effects.
@@ -35,11 +37,11 @@ The latest CLI and real MCP readiness checks reported:
 
 This verifies state reporting, not current UI unlock or UI Automation permission. The two UI queries are sequential. Wrong/missing identity, malformed Boolean data, ambiguous displays, failures and cancellation have local coverage.
 
-Relevant checkpoints: `35579c5` (initial readiness), `6bd6846` (actionable display preflight), `0e63b39` (separate UI observations). See [readiness](READINESS.md).
+Relevant checkpoints: `e9d23d6` (initial readiness), `57cedd8` (actionable display preflight), `aafcde1` (separate UI observations). See [readiness](READINESS.md).
 
 ### Transient wake, not reliable unattended wake
 
-At `173678c`, a fresh Apple display read showed off, one native `button lock` dispatch preceded an immediate active-display read, and the next media probe found it off again. The probe stopped before starting a stream. No passcode or unlock action was attempted and no button was replayed.
+At `a418603`, a fresh Apple display read showed off, one native `button lock` dispatch preceded an immediate active-display read, and the next media probe found it off again. The probe stopped before starting a stream. No passcode or unlock action was attempted and no button was replayed.
 
 This is a transient observed state change, not a durable wake/unlock guarantee. Earlier native Home dispatch while off also left the display off. The side button can turn an awake screen off and is not an idempotent wake command.
 
@@ -69,7 +71,7 @@ Material negative results remain relevant:
 
 The project added a readiness barrier before ordinary button down events after mixed outcomes. Later Home checks succeeded, but that does not prove general reliability.
 
-Key direct checkpoints: `81f48de`, `031253b`, `cd0d4e1`, `e7bee7c`, `47bbe97`, `37869db`, `68413ed`, `e1e1523`, `4941919`, `70d5869`, `7d1fc05`, `361d398`. Contracts and limits are in [physical input](NATIVE-INPUT.md), [multitouch](MULTITOUCH.md), [sequences](GESTURE-SEQUENCES.md) and [typing](PHYSICAL-TYPING.md).
+Key direct checkpoints: `8ab608a`, `2ed4874`, `220cb80`, `5beb815`, `59c0f26`, `9fb1026`, `dd0d975`, `997b73b`, `862b48e`, `c1f8de8`, `77d5b7a`, `20f7544`. Contracts and limits are in [physical input](NATIVE-INPUT.md), [multitouch](MULTITOUCH.md), [sequences](GESTURE-SEQUENCES.md) and [typing](PHYSICAL-TYPING.md).
 
 ## Input cancellation and process shutdown
 
@@ -81,7 +83,7 @@ Owned CLI SIGINT/SIGTERM and MCP EOF/SIGINT/SIGTERM hold tests exited normally w
 
 The MCP registry closes admissions, cancels and drains owned tasks. Local tests cover late admission, repeated shutdown, pending elicitation and the 30-second grace/force-exit path. Force-exit expiry itself was not demonstrated on a live device.
 
-Checkpoints: `b9c8be4`, `5369d4b`, `72965b4`, `8f29f99`. SIGKILL, crashes, cable loss, blocked synchronous calls, interrupted setup, cross-process ownership and quarantine after uncertain release remain unresolved. Text/clipboard changes are not rolled back.
+Checkpoints: `a11f889`, `196b55b`, `892b26c`, `bc62ba9`. SIGKILL, crashes, cable loss, blocked synchronous calls, interrupted setup, cross-process ownership and quarantine after uncertain release remain unresolved. Text/clipboard changes are not rolled back.
 
 ## Physical accessibility and screen understanding
 
@@ -97,7 +99,7 @@ A CLI identifier press navigated General → Información; a real MCP label pres
 
 A CLI scroll moved a Settings row from outside/near the bottom into view. A later real MCP already-visible case returned native false with unchanged geometry and a passing visibility/hit postcondition. Subscription disable acknowledgement was unconfirmed in that MCP call, while tunnel release was acknowledged. Useful result data did not become cleanup proof.
 
-Checkpoints: `db7494b`, `2f9d3ad`, `0c151ea`, `c665bc7`. Broader apps, overlays, rotated/multiple displays, secure content, stable reusable handles and interruption recovery remain incomplete. See [native AX](DIRECT-ACCESSIBILITY.md).
+Checkpoints: `2c6a934`, `5f297bf`, `fac788e`, `0ed966a`. Broader apps, overlays, rotated/multiple displays, secure content, stable reusable handles and interruption recovery remain incomplete. See [native AX](DIRECT-ACCESSIBILITY.md).
 
 ### Earlier transport/decoder failures
 
@@ -138,7 +140,7 @@ Short CLI H.264 and MCP HEVC movies finalized and independently decoded with own
 
 The interaction check establishes one AX-read/Home workflow during recording, not all gestures or every movie frame. The five-minute check does not prove motion quality or sustained frame rate.
 
-Key checkpoints: `beff1d8`, `962fcf6`, `f8d9b3e`, `65a30b0`, `83a18f1`, `d691799`, `7022375`.
+Key checkpoints: `9537a85`, `20f0691`, `8353da4`, `4c640e8`, `80fd762`, `ad9486f`, `544ec91`.
 
 ### Material media failures
 
@@ -155,9 +157,9 @@ Receiver-report counts are local sends/validated received reports, not remote ac
 
 ### Recording interruption and reuse
 
-At `4a6040a`, real MCP cancelled a 30-second requested recording after its first frame and an active-status check. Owned cleanup was observed about 0.107 seconds after cancellation, fresh status found zero sessions, no cancelled destination was published and a new two-second HEVC recording succeeded.
+At `a5af8ac`, real MCP cancelled a 30-second requested recording after its first frame and an active-status check. Owned cleanup was observed about 0.107 seconds after cancellation, fresh status found zero sessions, no cancelled destination was published and a new two-second HEVC recording succeeded.
 
-At `3913304`, active EOF/SIGINT/SIGTERM checks each passed once:
+At `0683351`, active EOF/SIGINT/SIGTERM checks each passed once:
 
 | Event | Exit | Observed host shutdown interval |
 | --- | --- | --- |
@@ -171,7 +173,7 @@ Forced exits, startup/finalization interruption, blocked framework calls and ind
 
 ## Apps, files, reports and development
 
-Physical Settings launch and app inventory succeeded. The launch option-order fix (`47e962d`) ensures devicectl options precede the bundle operand. One Safari URL preflight failed; broad physical URL/lifecycle claims are not made.
+Physical Settings launch and app inventory succeeded. The launch option-order fix (`24554cd`) ensures devicectl options precede the bundle operand. One Safari URL preflight failed; broad physical URL/lifecycle claims are not made.
 
 App-data command plans and an Apple-tool-owned temporary-domain synthetic copy round trip were checked. This is not actual app-container access/round-trip evidence. Physical saved-report listing passed. Download is implemented but hardware-unverified; parsing, symbolication, filtering and deletion are missing. See [feature status](PARITY-STATUS.md).
 
@@ -196,9 +198,9 @@ The current policy is project-owned Apple API/framework calls or Apple executabl
 
 ## Distribution and privacy checkpoints
 
-`7bb4b66` added local universal beta archives, checksum/formula generation and the tag/manual workflow. Both architectures built, native version/help ran, signatures/linkage and Homebrew-style extraction/symlink smoke passed. The optimized archive was about 4.1 MiB and needed no supplemental Swift compatibility library. Root project licensing and hosting remain undecided; GitHub Actions, actual public release and public Homebrew install have not run.
+`348760f` added local universal beta archives, checksum/formula generation and the tag/manual workflow. Both architectures built, native version/help ran, signatures/linkage and Homebrew-style extraction/symlink smoke passed. The optimized archive was about 4.1 MiB and needed no supplemental Swift compatibility library. Root project licensing and hosting remain undecided; GitHub Actions, actual public release and public Homebrew install have not run.
 
-The source/history privacy review at `0626e20` scanned the earlier `7022375` snapshot and 88 reachable commits with Gitleaks 8.30.1 and found no detected leaks. It did not license the project, rewrite author metadata or approve commercial research publication. See [public readiness](PUBLIC-READINESS.md).
+The earlier source/history privacy review used Gitleaks 8.30.1 against the pre-cleanup snapshot and its 88 reachable commits and found no detected leaks. Those scan results apply to the original history, not the rewritten trees. The later publication cleanup preserved author identities, removed personal paths and private investigation material, and verified those specific removals throughout reachable history. No additional secrets scan was requested. See [public readiness](PUBLIC-READINESS.md).
 
 ## What these records do not establish
 

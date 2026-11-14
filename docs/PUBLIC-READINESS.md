@@ -9,7 +9,7 @@ The remaining publication decisions are the root license and, as the final step,
 | Root license | Pending owner selection. Preserve separate notices in `ThirdParty/` and reflect the license in the README and Homebrew formula. |
 | Repository instructions | Portable instructions replace the personal home-directory import. Local execution permissions remain in ignored `.codex/config.toml`. |
 | Git identity | Keep existing author and committer names and email addresses, as requested by the owner. |
-| History privacy | Remove personal home paths, local execution configuration and the private investigation document from publishable Git history. Verify this cleanup before publication. |
+| History privacy | Complete: all 95 existing commits were rewritten to remove personal home paths, local execution configuration and the private investigation document. Targeted checks passed across reachable history; author/committer identities and timestamps were preserved. |
 | Documentation | Describe supported operations and distinguish implementation from observed device behavior. See [verification](VERIFICATION.md). |
 | Hosting and releases | Deferred until other preparation is complete. Select the repository, run the beta workflow and test the Homebrew formula. See [releasing](RELEASING.md). |
 
