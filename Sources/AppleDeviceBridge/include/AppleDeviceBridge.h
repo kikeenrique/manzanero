@@ -82,6 +82,33 @@ int ADCValidateMediaInspection(const void *supportReply, const void *statusReply
 int ADCInspectMedia(const char *uuid, const char *version, int (^shouldCancel)(void),
                     ADCMediaInspection *result, char *error, size_t errorCapacity);
 
+typedef struct {
+    int startAttempted;
+    int stopAcknowledged;
+    int ownedStreamAbsent;
+    int localDecoderStopRequested;
+    int localOutputReleaseRequested;
+    uint64_t decodedFrames;
+    uint64_t droppedFrames;
+} ADCVideoCleanup;
+/// Validates negotiated IPv6 endpoints against the selected tunnel and bound
+/// receiver. Returns only the sender port; never exports stream keys or IDs.
+int ADCValidateVideoEndpoints(const void *reply, const char *hostAddress, const char *deviceAddress,
+                              uint16_t receiverPort, uint16_t *senderPort, char *error, size_t errorCapacity);
+/// Main-thread, single-owner capture. Create prepares only local resources and
+/// a control channel. Start requests one media stream. No global hooks/state.
+int ADCCreateVideoSession(const char *uuid, const char *version, const char *interface,
+                          const char *hostAddress, const char *deviceAddress, int (^cancelled)(void),
+                          void **owner, char *error, size_t errorCapacity);
+int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void), char *error, size_t errorCapacity);
+/// Returns 1 for one JPEG delivered synchronously to sink, 0 when none is ready,
+/// -1 on error. Bytes are borrowed only during sink. Time starts at first JPEG.
+int ADCCopyNextVideoFrame(void *owner, int (^cancelled)(void),
+                          void (^sink)(const uint8_t *, size_t, uint64_t), char *error, size_t errorCapacity);
+/// Consumes owner, gates callbacks, stops local objects and requests only its
+/// reply-derived RemoteSSRC with stopAll=false. No stop-all fallback.
+int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size_t errorCapacity);
+
 /// Finite complete-state digitizer schedule; reports are count * 58 bytes.
 int ADCPerformDigitizerReports(const char *uuid, const char *version,
                               const uint64_t *nanoseconds, const uint8_t *reports, size_t count,

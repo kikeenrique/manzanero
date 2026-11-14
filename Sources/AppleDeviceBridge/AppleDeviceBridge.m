@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <string.h>
 #include "AppleDeviceBridge.h"
+#import "AppleMediaControl.h"
 
 int ADCIsRemotedProcess(int pid) {
     char path[PROC_PIDPATHINFO_MAXSIZE];
@@ -915,96 +916,136 @@ int ADCValidateMediaInspection(const void *supportReply, const void *statusReply
     return 0;
 }
 
-static xpc_object_t ADCMediaRead(ADCRemote remote, ADCReply request, dispatch_queue_t queue, const char *uuid,
-                                const char *version, const char *action, uint64_t deadline,
-                                int (^shouldCancel)(void), char *error, size_t capacity) {
-    if ((shouldCancel && shouldCancel()) || clock_gettime_nsec_np(CLOCK_MONOTONIC) >= deadline) {
-        ADCFail(error, capacity, @"Media inspection cancelled or expired before the read-only action.");
-        return nil;
+@interface ADCMediaControl ()
+@property(nonatomic, strong) xpc_connection_t connection;
+@property(nonatomic, strong) id remote;
+@property(nonatomic, strong) dispatch_queue_t queue;
+@property(nonatomic, copy) NSString *uuid;
+@property(nonatomic, copy) NSString *version;
+@end
+
+@implementation ADCMediaControl
++ (instancetype)openUUID:(const char *)uuid version:(const char *)version streaming:(BOOL)streaming
+               cancelled:(int (^)(void))cancelled error:(char *)error capacity:(size_t)capacity {
+    NSString *identity = uuid ? [NSString stringWithUTF8String:uuid] : nil;
+    NSString *release = version && strnlen(version, 64) < 64 ? [NSString stringWithUTF8String:version] : nil;
+    if (!identity || ![[NSUUID alloc] initWithUUIDString:identity] || !release ||
+        [release rangeOfString:@"^[0-9]+(\\.[0-9]+){0,3}$" options:NSRegularExpressionSearch].location == NSNotFound ||
+        (cancelled && cancelled())) {
+        ADCFail(error, capacity, @"Invalid or cancelled media control identity; no connection started."); return nil;
     }
-    xpc_object_t message = ADCEnvelope(uuid, version, xpc_dictionary_create_empty());
+    if (ADCPrepareCoreDevice(error, capacity)) return nil;
+    ADCCreate create = dlsym(RTLD_DEFAULT, "xpc_remote_connection_create_with_connected_fd");
+    ADCHandler handler = dlsym(RTLD_DEFAULT, "xpc_remote_connection_set_event_handler");
+    ADCActivate activate = dlsym(RTLD_DEFAULT, "xpc_remote_connection_activate");
+    ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
+    if (!create || !handler || !activate || !cancel || !dlsym(RTLD_DEFAULT, "xpc_remote_connection_send_message_with_reply")) {
+        ADCFail(error, capacity, @"Apple native media control APIs are unavailable."); return nil;
+    }
+    ADCMediaControl *owner = [self new];
+    owner.uuid = identity; owner.version = release;
+    owner.queue = dispatch_queue_create("appledevices.media.control", DISPATCH_QUEUE_SERIAL);
+    owner.connection = xpc_connection_create("com.apple.CoreDevice.CoreDeviceService", owner.queue);
+    if (!owner.connection) { ADCFail(error, capacity, @"Cannot create Apple media control connection."); return nil; }
+    xpc_connection_set_event_handler(owner.connection, ^(xpc_object_t event) {});
+    xpc_connection_resume(owner.connection);
+    int descriptor = -1;
+    BOOL success = NO;
+    @try {
+        xpc_object_t input = xpc_dictionary_create_empty();
+        xpc_dictionary_set_string(input, "featureIdentifier", streaming ? "com.apple.coredevice.feature.startmediastream" : "com.apple.coredevice.feature.getmediasupportinfo");
+        ADCReplyState *replyState = [ADCReplyState new];
+        xpc_connection_send_message_with_reply(owner.connection, ADCEnvelope(uuid, version, input), owner.queue, ^(xpc_object_t reply) {
+            replyState.reply = reply; dispatch_semaphore_signal(replyState.semaphore);
+        });
+        if (!ADCWaitForReply(replyState, clock_gettime_nsec_np(CLOCK_MONOTONIC) + 15ULL * NSEC_PER_SEC, cancelled)) {
+            ADCFail(error, capacity, @"Media service socket request was cancelled or exceeded its deadline."); return nil;
+        }
+        xpc_object_t reply = replyState.reply;
+        xpc_object_t output = ADCValidHIDReply(reply) ? xpc_dictionary_get_dictionary(reply, "CoreDevice.output") : nil;
+        uint64_t flags = 0;
+        if (!output || !ADCMediaUInt(xpc_dictionary_get_value(output, "remoteXPCVersionFlags"), &flags)) {
+            char detail[512] = {0};
+            xpc_object_t failure = reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(reply, "CoreDevice.error") : nil;
+            ADCDescribeCoreDeviceError(failure ? (__bridge const void *)failure : NULL, detail, sizeof(detail));
+            ADCFail(error, capacity, [NSString stringWithFormat:@"Apple media socket output unsupported. %s", detail]); return nil;
+        }
+        descriptor = xpc_dictionary_dup_fd(output, "fileDescriptor");
+        int type = 0, descriptorFlags = descriptor < 0 ? -1 : fcntl(descriptor, F_GETFD);
+        socklen_t typeSize = sizeof(type);
+        if (descriptorFlags < 0 || getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &type, &typeSize) || type != SOCK_STREAM ||
+            fcntl(descriptor, F_SETFD, descriptorFlags | FD_CLOEXEC)) {
+            ADCFail(error, capacity, @"Apple media service did not return a configurable owned stream socket."); return nil;
+        }
+        if (cancelled && cancelled()) { ADCFail(error, capacity, @"Media control cancelled before RemoteXPC setup."); return nil; }
+        ADCRemote remote = create(descriptor, owner.queue, flags, 0);
+        if (!remote) { ADCFail(error, capacity, @"Cannot create native media RemoteXPC connection."); return nil; }
+        descriptor = -1;
+        owner.remote = CFBridgingRelease(remote);
+        handler(remote, ^(xpc_object_t event) {});
+        activate(remote);
+        success = YES;
+        return owner;
+    } @finally {
+        if (descriptor >= 0) close(descriptor);
+        if (!success) [owner close];
+    }
+}
+- (xpc_object_t)requestAction:(const char *)action input:(xpc_object_t)input deadline:(uint64_t)deadline
+                   cancelled:(int (^)(void))cancelled error:(char *)error capacity:(size_t)capacity {
+    if (!self.remote || !action || !input || (cancelled && cancelled()) || clock_gettime_nsec_np(CLOCK_MONOTONIC) >= deadline) {
+        ADCFail(error, capacity, @"Media control is closed, cancelled or expired before request."); return nil;
+    }
+    ADCReply request = dlsym(RTLD_DEFAULT, "xpc_remote_connection_send_message_with_reply");
+    if (!request) { ADCFail(error, capacity, @"Apple media request API unavailable."); return nil; }
+    xpc_object_t message = ADCEnvelope(self.uuid.UTF8String, self.version.UTF8String, input);
     xpc_dictionary_set_string(message, "CoreDevice.actionIdentifier", action);
     ADCReplyState *state = [ADCReplyState new];
-    request(remote, message, queue, ^(xpc_object_t reply) { state.reply = reply; dispatch_semaphore_signal(state.semaphore); });
-    if (!ADCWaitForReply(state, MIN(deadline, clock_gettime_nsec_np(CLOCK_MONOTONIC) + 8ULL * NSEC_PER_SEC), shouldCancel)) {
-        ADCFail(error, capacity, @"Read-only media request was cancelled or exceeded its deadline; no stream mutation was requested.");
-        return nil;
+    request((__bridge ADCRemote)self.remote, message, self.queue, ^(xpc_object_t reply) {
+        state.reply = reply; dispatch_semaphore_signal(state.semaphore);
+    });
+    if (!ADCWaitForReply(state, MIN(deadline, clock_gettime_nsec_np(CLOCK_MONOTONIC) + 8ULL * NSEC_PER_SEC), cancelled)) {
+        ADCFail(error, capacity, @"Media request was cancelled or exceeded its deadline; a mutation may have an unknown outcome."); return nil;
     }
     xpc_object_t reply = state.reply;
     if (!ADCValidHIDReply(reply)) {
         char detail[768] = {0};
         xpc_object_t failure = reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(reply, "CoreDevice.error") : nil;
         ADCDescribeCoreDeviceError(failure ? (__bridge const void *)failure : NULL, detail, sizeof(detail));
-        ADCFail(error, capacity, [NSString stringWithFormat:@"Read-only media action %s failed: %s", action, detail]);
-        return nil;
+        ADCFail(error, capacity, [NSString stringWithFormat:@"Media action %s failed: %s", action, detail]); return nil;
     }
     return reply;
 }
+- (void)close {
+    id remote = self.remote; self.remote = nil;
+    if (remote) {
+        ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
+        if (cancel) cancel((__bridge ADCRemote)remote);
+    }
+    xpc_connection_t connection = self.connection; self.connection = nil;
+    if (connection) xpc_connection_cancel(connection);
+}
+- (void)dealloc { [self close]; }
+@end
 
 int ADCInspectMedia(const char *uuid, const char *version, int (^shouldCancel)(void),
                     ADCMediaInspection *result, char *error, size_t capacity) {
     @autoreleasepool {
-        if (result) memset(result, 0, sizeof(*result));
-        NSString *identity = uuid ? [NSString stringWithUTF8String:uuid] : nil;
-        NSString *release = version && strnlen(version, 64) < 64 ? [NSString stringWithUTF8String:version] : nil;
-        if (!result || !identity || ![[NSUUID alloc] initWithUUIDString:identity] || !release ||
-            [release rangeOfString:@"^[0-9]+(\\.[0-9]+){0,3}$" options:NSRegularExpressionSearch].location == NSNotFound ||
-            (shouldCancel && shouldCancel())) return ADCFail(error, capacity, @"Invalid or cancelled media inspection identity; no connection started.");
-        if (ADCPrepareCoreDevice(error, capacity)) return 1;
-        ADCCreate create = dlsym(RTLD_DEFAULT, "xpc_remote_connection_create_with_connected_fd");
-        ADCHandler handler = dlsym(RTLD_DEFAULT, "xpc_remote_connection_set_event_handler");
-        ADCActivate activate = dlsym(RTLD_DEFAULT, "xpc_remote_connection_activate");
-        ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
-        ADCReply request = dlsym(RTLD_DEFAULT, "xpc_remote_connection_send_message_with_reply");
-        if (!create || !handler || !activate || !cancel || !request) return ADCFail(error, capacity, @"Apple native media control APIs are unavailable.");
-        dispatch_queue_t queue = dispatch_queue_create("appledevices.media.inspection", DISPATCH_QUEUE_SERIAL);
-        xpc_connection_t connection = xpc_connection_create("com.apple.CoreDevice.CoreDeviceService", queue);
-        if (!connection) return ADCFail(error, capacity, @"Cannot create Apple media control connection.");
-        xpc_connection_set_event_handler(connection, ^(xpc_object_t event) {});
-        xpc_connection_resume(connection);
-        ADCRemote remote = NULL;
-        __attribute__((objc_precise_lifetime)) id remoteOwner = nil;
-        int descriptor = -1;
+        if (!result) return ADCFail(error, capacity, @"Media inspection requires an output.");
+        memset(result, 0, sizeof(*result));
         uint64_t deadline = clock_gettime_nsec_np(CLOCK_MONOTONIC) + 20ULL * NSEC_PER_SEC;
+        ADCMediaControl *owner = [ADCMediaControl openUUID:uuid version:version streaming:NO cancelled:shouldCancel error:error capacity:capacity];
+        if (!owner) return 1;
         @try {
-            xpc_object_t input = xpc_dictionary_create_empty();
-            xpc_dictionary_set_string(input, "featureIdentifier", "com.apple.coredevice.feature.getmediasupportinfo");
-            ADCReplyState *socketReply = [ADCReplyState new];
-            xpc_connection_send_message_with_reply(connection, ADCEnvelope(uuid, version, input), queue, ^(xpc_object_t reply) {
-                socketReply.reply = reply; dispatch_semaphore_signal(socketReply.semaphore);
-            });
-            if (!ADCWaitForReply(socketReply, MIN(deadline, clock_gettime_nsec_np(CLOCK_MONOTONIC) + 15ULL * NSEC_PER_SEC), shouldCancel))
-                return ADCFail(error, capacity, @"Media service socket request was cancelled or exceeded its deadline.");
-            xpc_object_t reply = socketReply.reply;
-            xpc_object_t output = ADCValidHIDReply(reply) ? xpc_dictionary_get_dictionary(reply, "CoreDevice.output") : nil;
-            uint64_t flags = 0;
-            if (!output || !ADCMediaUInt(xpc_dictionary_get_value(output, "remoteXPCVersionFlags"), &flags))
-                return ADCFail(error, capacity, @"Apple media service socket reply has no supported transport output.");
-            descriptor = xpc_dictionary_dup_fd(output, "fileDescriptor");
-            if (descriptor < 0) return ADCFail(error, capacity, @"Apple media service returned no socket.");
-            int type = 0, descriptorFlags = fcntl(descriptor, F_GETFD);
-            socklen_t typeSize = sizeof(type);
-            if (descriptorFlags < 0 || getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &type, &typeSize) || type != SOCK_STREAM ||
-                fcntl(descriptor, F_SETFD, descriptorFlags | FD_CLOEXEC))
-                return ADCFail(error, capacity, @"Apple media service did not return a configurable owned stream socket.");
-            remote = create(descriptor, queue, flags, 0);
-            if (!remote) return ADCFail(error, capacity, @"Cannot create native media RemoteXPC connection.");
-            descriptor = -1; // native connection consumed the descriptor
-            remoteOwner = CFBridgingRelease(remote);
-            handler(remote, ^(xpc_object_t event) {});
-            activate(remote);
-            xpc_object_t support = ADCMediaRead(remote, request, queue, uuid, version, "com.apple.coredevice.action.mediastreamgetsupportinfo", deadline, shouldCancel, error, capacity);
+            xpc_object_t support = [owner requestAction:"com.apple.coredevice.action.mediastreamgetsupportinfo" input:xpc_dictionary_create_empty()
+                deadline:deadline cancelled:shouldCancel error:error capacity:capacity];
             if (!support) return 1;
-            xpc_object_t status = ADCMediaRead(remote, request, queue, uuid, version, "com.apple.coredevice.action.mediastreamstatus", deadline, shouldCancel, error, capacity);
+            xpc_object_t status = [owner requestAction:"com.apple.coredevice.action.mediastreamstatus" input:xpc_dictionary_create_empty()
+                deadline:deadline cancelled:shouldCancel error:error capacity:capacity];
             if (!status) return 1;
             if (shouldCancel && shouldCancel()) return ADCFail(error, capacity, @"Media inspection cancelled after its read-only replies.");
             return ADCValidateMediaInspection((__bridge const void *)support, (__bridge const void *)status, result, error, capacity);
-        } @finally {
-            if (descriptor >= 0) close(descriptor);
-            if (remote) cancel(remote);
-            xpc_connection_cancel(connection);
-            (void)remoteOwner;
-        }
+        } @finally { [owner close]; }
     }
 }
 
