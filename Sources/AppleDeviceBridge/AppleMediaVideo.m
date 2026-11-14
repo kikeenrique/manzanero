@@ -24,6 +24,13 @@
 - (id)generateMediaStreamConfigurationWithError:(NSError **)error;
 - (id)generateMediaStreamInitOptionsWithError:(NSError **)error;
 - (id)negotiatorSettings;
+- (id)mediaNegotiator;
+@end
+@interface VCMediaNegotiatorBase : NSObject
+- (id)negotiatedScreenSettings;
+@end
+@interface VCMediaNegotiatorResultsVideo : NSObject
+- (BOOL)isRTCPFBEnabled;
 @end
 @interface AVCMediaStreamNegotiatorSettings : NSObject
 + (id)negotiatorSettingsForMode:(long)mode deviceRole:(int)role options:(NSDictionary *)options errorString:(NSString **)error;
@@ -54,6 +61,38 @@ static BOOL VideoUInt(xpc_object_t object, uint64_t *value) {
     return NO;
 }
 static uint64_t VideoNow(void) { return clock_gettime_nsec_np(CLOCK_MONOTONIC); }
+
+// Read the installed native negotiated result rather than parsing a private
+// blob or assuming that ordinary RTCP enablement permits keyframe feedback.
+// Checked selectors are zero-argument getters with the expected return ABI.
+static BOOL VideoGetter(id object, SEL selector, const char *resultType) {
+    if (!object || ![object respondsToSelector:selector]) return NO;
+    Method method = class_getInstanceMethod(object_getClass(object), selector);
+    if (!method || method_getNumberOfArguments(method) != 2) return NO;
+    char *type = method_copyReturnType(method);
+    BOOL valid = type && (resultType[0] == '@' ? type[0] == '@' : !strcmp(type, resultType));
+    free(type);
+    return valid;
+}
+
+static void VideoReadNegotiatedFeedback(AVCMediaStreamNegotiator *negotiator, ADCVideoRTCPProfile *profile) {
+    profile->feedbackKnown = 0; profile->feedbackEnabled = 0;
+    @try {
+        if (!VideoGetter(negotiator, @selector(mediaNegotiator), @encode(id))) return;
+        id media = negotiator.mediaNegotiator;
+        Class base = NSClassFromString(@"VCMediaNegotiatorBase");
+        if (!base || ![media isKindOfClass:base] || !VideoGetter(media, @selector(negotiatedScreenSettings), @encode(id))) return;
+        id screen = [(VCMediaNegotiatorBase *)media negotiatedScreenSettings];
+        Class settings = NSClassFromString(@"VCMediaNegotiatorResultsVideo");
+        if (!settings || ![screen isKindOfClass:settings] || !VideoGetter(screen, @selector(isRTCPFBEnabled), @encode(BOOL))) return;
+        BOOL enabled = [(VCMediaNegotiatorResultsVideo *)screen isRTCPFBEnabled];
+        profile->feedbackEnabled = enabled ? 1 : 0;
+        profile->feedbackKnown = 1;
+    } @catch (__unused NSException *exception) {
+        // Unsupported contracts stay unknown; this observation never enables
+        // a sender or changes the established receiver-report behavior.
+    }
+}
 
 int ADCValidateVideoRTCPProfile(const void *borrowed, uint32_t offeredReceiver, uint16_t receiverPort,
                                 ADCVideoRTCPProfile *profile, char *error, size_t capacity) {
@@ -392,6 +431,11 @@ int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void),
     NSError *failure = nil;
     if (![state.negotiator setAnswer:[NSData dataWithBytes:answer length:answerLength] withError:&failure])
         return VideoFail(error, capacity, @"Apple media negotiator refused the answer.");
+    if (state.packetMode) {
+        ADCVideoRTCPProfile feedback = state.rtcpProfile;
+        VideoReadNegotiatedFeedback(state.negotiator, &feedback);
+        state.rtcpProfile = feedback;
+    }
     id configuration = [state.negotiator generateMediaStreamConfigurationWithError:&failure];
     id initial = [state.negotiator generateMediaStreamInitOptionsWithError:&failure];
     if (!configuration || ![initial isKindOfClass:NSDictionary.class]) return VideoFail(error, capacity, @"Apple media configuration is unavailable.");

@@ -123,6 +123,8 @@ typedef struct {
     uint32_t senderSSRC;
     uint32_t receiverSSRC;
     double reportIntervalSeconds;
+    uint8_t feedbackKnown;
+    uint8_t feedbackEnabled;
 } ADCVideoRTCPProfile;
 /// In-memory transport identity only. Never serialize this profile in receipts.
 int ADCValidateVideoRTCPProfile(const void *reply, uint32_t offeredReceiver, uint16_t receiverPort,

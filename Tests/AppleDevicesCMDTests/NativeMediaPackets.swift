@@ -33,9 +33,12 @@ struct NativeMediaPacketsTests {
         }
         var profile = ADCVideoRTCPProfile(), error = [CChar](repeating: 0, count: 512)
         profile.receiverSSRC = 99
+        profile.feedbackKnown = 99; profile.feedbackEnabled = 99
         let status = ADCValidateVideoRTCPProfile(Unmanaged.passUnretained(reply).toOpaque(), 42, 50000, &profile, &error, error.count)
         #expect((status == 0) == (mutation == "valid"))
         #expect(profile.receiverSSRC == (mutation == "valid" ? 42 : 0))
+        // Ordinary RTCP wire enablement does not establish negotiated feedback.
+        #expect(profile.feedbackKnown == 0 && profile.feedbackEnabled == 0)
     }
 
     @Test(arguments: ["owned", "other", "empty", "stopped", "error", "duplicate", "malformed", "oversized-id", "running-type"])
@@ -194,6 +197,7 @@ struct NativeMediaPacketsTests {
             }
             if let decoder { decoder.close(); metadata["videoToolboxInvalidationReturned"] = true }
             metadata["receiverReportsSent"] = frames?.receiverReportsSent
+            metadata["negotiatedFeedback"] = frames?.negotiatedFeedback
             let cleanup = try #require(frames?.close())
             metadata["cleanup"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(cleanup))
             metadata["assertionRelease"] = assertion.close().status

@@ -23,6 +23,7 @@ final class NativeMediaFrames {
     private var feedbackFailure: String?
     private(set) var receiverReportsSent: UInt64 = 0
     private(set) var senderReportsObserved: UInt64 = 0
+    private(set) var negotiatedFeedback = "unknown"
 
     init(endpoint: NativeMediaEndpoint, version: String, packets: Bool = false) throws {
         packetMode = packets
@@ -51,6 +52,7 @@ final class NativeMediaFrames {
             var profile = ADCVideoRTCPProfile()
             guard ADCReadVideoRTCPProfile(owner, &profile) == 0, let payload = packetProfile()?["payloadType"],
                   let payload = UInt8(exactly: payload) else { throw CommandFailure(description: "Native media has no owned RTCP profile.") }
+            negotiatedFeedback = profile.feedbackKnown == 0 ? "unknown" : (profile.feedbackEnabled != 0 ? "enabled" : "disabled")
             feedback = try MediaRTCPReceiver(sender: profile.senderSSRC, receiver: profile.receiverSSRC,
                 payloadType: payload, cname: UUID().uuidString.lowercased() + "@appledevicescmd",
                 intervalSeconds: profile.reportIntervalSeconds, now: DispatchTime.now().uptimeNanoseconds)

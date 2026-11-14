@@ -117,6 +117,7 @@ struct NativeRecordingReceipt: Sendable {
     let assertionRelease: String
     let receiverReportsSent: UInt64
     let senderReportsObserved: UInt64
+    let negotiatedFeedback: String
 }
 
 @available(macOS 26.0, *)
@@ -215,7 +216,8 @@ struct NativeRecordingReceipt: Sendable {
             await sessions.end(endpoint.uuid)
             return NativeRecordingReceipt(frames: frames, media: cleanup, assertionRelease: release.status,
                 receiverReportsSent: capture?.receiverReportsSent ?? 0,
-                senderReportsObserved: capture?.senderReportsObserved ?? 0)
+                senderReportsObserved: capture?.senderReportsObserved ?? 0,
+                negotiatedFeedback: capture?.negotiatedFeedback ?? "unknown")
         } catch {
             let cleanup = closeMedia()
             let release = assertion.close()

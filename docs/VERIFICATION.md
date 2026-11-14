@@ -813,3 +813,13 @@ Same macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2, CoreDevice 651.32 a
 - Private receipts, stderr, movie and sampled PNGs remain under `tmp/mcp-live-9BC3467B-CCE2-40E8-B4CA-507FC11D4CD0/`; previews remain ignored. No device data is committed.
 
 Default local regression validation passed 308 test functions with zero errors/warnings through xcsift; all 47 mise tasks validate. This verifies one integrated physical observe/control/record path through the same MCP service. Other gestures while recording, concurrent independent controllers, recovery, sustained frame rate and other Apple device families remain unverified or incomplete. The overall parity objective remains active.
+
+## 2026-11-14 — read-only negotiated feedback diagnostic (live value pending)
+
+Inspected installed AVConference's `AVCMediaStreamNegotiator.mediaNegotiator`, `VCMediaNegotiatorBase.negotiatedScreenSettings` and `VCMediaNegotiatorResultsVideo.isRTCPFBEnabled`. A local Objective-C runtime metadata query through Apple's Swift interpreter confirmed two-argument getters with return encodings `@`, `@` and `B` respectively on this host. Installed disassembly distinguishes the negotiated result's Boolean from the offered blob's `allowRTCPFB`; the implementation reads the negotiated result rather than parsing the private blob.
+
+The in-process media owner observes that result only after Apple's accepted answer. Class/selector/argument-count/return-ABI guards and an exception boundary preserve unknown for unavailable contracts. The cached tri-state is exposed as `rtcp.negotiatedFeedback` in recording receipts and in the private packet probe. No SSRC, raw negotiation payload or key is serialized. No offer setting, feedback sender, fallback or retry was added. XPC profile fixtures verify that even ordinary RTCP-enabled replies leave the feedback fields cleared/unknown until the native observation.
+
+The live packet probe stopped at awake-display preflight before opening a media stream. A fresh Apple display query confirmed primary portrait geometry but `backlightState: off`. One native Home dispatch was attempted; the next read-only display query still reported off. These results do not establish wake effect or the negotiated Boolean. The user was asked to wake/unlock the test phone; live value verification remains pending. Private state queries and reflection source stay under ignored `tmp/`.
+
+All 308 default test functions passed with zero errors/warnings through xcsift, and all 47 mise tasks validate. This verifies the local implementation and installed getter signatures, not a live feedback value or recovery behavior.

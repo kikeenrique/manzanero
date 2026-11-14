@@ -78,7 +78,8 @@ struct RecordingCommand {
                 result["timeline"] = "host-pixel-delivery"
                 result["audio"] = false
                 result["rtcp"] = ["receiverReportsSent": nativeReceipt.receiverReportsSent,
-                    "senderReportsObserved": nativeReceipt.senderReportsObserved]
+                    "senderReportsObserved": nativeReceipt.senderReportsObserved,
+                    "negotiatedFeedback": nativeReceipt.negotiatedFeedback] as [String: Any]
                 result["cleanup"] = ["ownedStopAcknowledged": nativeReceipt.media.stopAcknowledged,
                     "ownedStreamAbsent": nativeReceipt.media.ownedStreamAbsent,
                     "deviceStopConfirmed": nativeReceipt.media.stopAcknowledged && nativeReceipt.media.ownedStreamAbsent,
