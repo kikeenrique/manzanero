@@ -26,7 +26,7 @@ All coordinates are normalized `0...1`, origin at the top left. Inspect fresh st
 
 Movement accepts `0.03...10` seconds. A stationary multi-drag path is allowed. Pinch spans are full horizontal separations as fractions of screen width: positive, different and fully on screen around the centre. Pinch contacts must remain distinct after coordinate encoding. The two-path Indigo route also rejects crossing/coincident paths; Universal HID schedules require unique contact IDs rather than distinct coordinates. Coordinates are never clipped.
 
-For curves, repeated strokes or independently timed contacts, use [complete-state gesture sequences](GESTURE-SEQUENCES.md).
+For curves, repeated strokes or independently timed contacts, use [complete-state gesture sequences](gesture-sequences.md).
 
 ## Execution and output
 
@@ -34,7 +34,7 @@ Two-path movement uses the Indigo digitizer route and rejects paths that coincid
 
 Fresh identity, awake display checks and service discovery precede input. Movement includes an initial contact frame, 30 linear samples and release 1 ms after the requested movement duration. Generated schedules therefore allow 10001 ms total; user JSON has a separate 10000 ms bound.
 
-Receipts report dispatch, not application recognition: `verified: false` and `releaseVerified: false`. Cancellation/failure stops later movement and attempts release at the last attempted positions. [Input lifecycle limits](NATIVE-INPUT.md) still apply.
+Receipts report dispatch, not application recognition: `verified: false` and `releaseVerified: false`. Cancellation/failure stops later movement and attempts release at the last attempted positions. [Input lifecycle limits](native-input.md) still apply.
 
 ## MCP mapping
 

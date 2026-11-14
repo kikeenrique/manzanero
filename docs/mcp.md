@@ -28,22 +28,22 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | Tools | Current purpose |
 | --- | --- |
 | `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks; apps and physical details/processes/media status. Legacy `hid-info` is unavailable. |
-| `device_readiness` | CoreDevice prerequisites plus separate display/passcode observations; see [readiness](READINESS.md). |
+| `device_readiness` | CoreDevice prerequisites plus separate display/passcode observations; see [readiness](readiness.md). |
 | `get_ui_tree` | Native physical AX hierarchy with optional PID. Simulator hierarchy is currently unavailable. |
-| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](SCREEN-UNDERSTANDING.md), saved-image OCR |
-| `press_element`, `scroll_to_element` | [Fresh exact physical AX selectors](DIRECT-ACCESSIBILITY.md), guarded native press/scroll |
+| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR |
+| `press_element`, `scroll_to_element` | [Fresh exact physical AX selectors](direct-accessibility.md), guarded native press/scroll |
 | `decode_accessibility_archive` | Offline data-only archive inspection |
 | `get_accessibility_archive` | Legacy live raw callback capture; currently unavailable |
-| `record_screen` | [Finite MP4 recording](RECORDING.md) to a new host path |
+| `record_screen` | [Finite MP4 recording](recording.md) to a new host path |
 | `tap`, `drag`, `long_press` | Direct physical single-contact input |
-| `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](MULTITOUCH.md) and [timed sequences](GESTURE-SEQUENCES.md) |
+| `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md) |
 | `type_text`, `paste_text`, `press_key`, `press_button` | Physical typing, clipboard-replacing paste, named keys and hardware buttons |
 | `tap_element` | Legacy simulator selector tap; currently unavailable |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report` | Saved physical report listing/download |
 | `capture_logs` | Legacy finite OS trace; currently unavailable |
-| `build_run` | [Xcode build/install/launch](BUILD-RUN.md) |
-| `request_handoff` | [Explicit human completion request](HANDOFF.md) |
+| `build_run` | [Xcode build/install/launch](build-run.md) |
+| `request_handoff` | [Explicit human completion request](handoff.md) |
 
 Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked, including their old simulator input, raw callback, pairing and log paths.
 
@@ -91,7 +91,7 @@ This owns tasks, not exclusive access to a device. Independent CLI/server proces
 
 Do not send passcodes, keys or pairing-file contents through tool arguments. No MCP tool initiates pairing. The old interactive pairing route is also blocked by current execution policy.
 
-Read-only/destructive annotations are host hints, not permission enforcement. See [handoff](HANDOFF.md) for identity and completion rules.
+Read-only/destructive annotations are host hints, not permission enforcement. See [handoff](handoff.md) for identity and completion rules.
 
 ## Protocol and validation
 
@@ -99,4 +99,4 @@ The SDK is pinned to 0.12.1. Supported protocol versions are `2025-11-25`, `2025
 
 HTTP/authentication, resources/prompts, automatic prompt detection, general progress and durable sessions remain absent.
 
-Opt-in `test:mcp-*` tasks exercise real stdio. Read their help before running: some read state only; others press, type, scroll or record. [Development tasks](DEVELOPMENT-TASKS.md) lists useful entry points, and [verification](VERIFICATION.md) separates scoped live results from local protocol tests.
+Opt-in `test:mcp-*` tasks exercise real stdio. Read their help before running: some read state only; others press, type, scroll or record. [Development tasks](development-tasks.md) lists useful entry points, and [verification](verification.md) separates scoped live results from local protocol tests.

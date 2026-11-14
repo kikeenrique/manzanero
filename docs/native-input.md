@@ -1,6 +1,6 @@
 # Physical input
 
-Physical buttons, keyboard, touch and gestures use Apple interfaces in the `manzanero` process. No helper build is needed. Start with a paired, prepared, awake and unlocked device; use [readiness](READINESS.md) for preparation observations.
+Physical buttons, keyboard, touch and gestures use Apple interfaces in the `manzanero` process. No helper build is needed. Start with a paired, prepared, awake and unlocked device; use [readiness](readiness.md) for preparation observations.
 
 ## Basic commands
 
@@ -34,7 +34,7 @@ Before touch, the implementation:
 
 An off display produces wake/unlock guidance; unknown power or invalid geometry is reported separately. These checks do not prove current UI unlock. Current-interface coordinates are rotated into portrait digitizer space. Nonzero native display orientation also requires agreeing device-orientation metadata. Rotation during an action is not monitored.
 
-Single-contact touch and two-contact movement use Indigo digitizer events. Timed schedules, simultaneous multi-taps and three-to-five-path movement use Universal HID. See [multitouch](MULTITOUCH.md) and [complete-state schedules](GESTURE-SEQUENCES.md) for their contracts.
+Single-contact touch and two-contact movement use Indigo digitizer events. Timed schedules, simultaneous multi-taps and three-to-five-path movement use Universal HID. See [multitouch](multitouch.md) and [complete-state schedules](gesture-sequences.md) for their contracts.
 
 ### Long-press
 
@@ -44,7 +44,7 @@ Single-contact touch and two-contact movement use Indigo digitizer events. Timed
 
 Supported names are `return`, `escape`, `backspace`, `tab`, `space`, `up`, `down`, `left` and `right`. Keys act at the current focus and do not change the clipboard. Backspace has visual evidence in Settings search; broader key/layout/field coverage remains unverified.
 
-For a string, use [US-layout ASCII typing](PHYSICAL-TYPING.md). Unicode entry uses the separate clipboard operation below.
+For a string, use [US-layout ASCII typing](physical-typing.md). Unicode entry uses the separate clipboard operation below.
 
 ## Direct Unicode paste
 
@@ -78,14 +78,14 @@ Socket setup can wait up to 15 seconds, discovery/readiness barriers up to three
 
 During direct physical HID commands, SIGINT/SIGTERM cancel owned work, attempt cleanup and exit 130/143 without a success receipt. A second signal or the 30-second grace deadline forces exit. Force exit, SIGKILL, crashes and disconnects cannot guarantee device-side release.
 
-MCP also cancels/drains owned operations on EOF and signals; see [MCP shutdown](MCP.md#shutdown-and-operation-ownership).
+MCP also cancels/drains owned operations on EOF and signals; see [MCP shutdown](mcp.md#shutdown-and-operation-ownership).
 
 ## Verification and remaining limits
 
 Scoped iPhone 13 mini checks cover Home, Settings tap/drag, long press, two-contact Maps zoom, selected timed gestures, ASCII typing, Unicode paste and Backspace. Some taps and Home dispatches produced no visible effect despite successful receipts; the cause remains unresolved. Inspect after every action.
 
-Local tests cover encoding, scheduling, rotation, invalid input and attempted cleanup. They do not prove hardware delivery, exact timing or release after failure. Other Apple families, rotations, cross-process ownership and reliable unattended recovery remain incomplete. [Verification](VERIFICATION.md) records positive and negative results.
+Local tests cover encoding, scheduling, rotation, invalid input and attempted cleanup. They do not prove hardware delivery, exact timing or release after failure. Other Apple families, rotations, cross-process ownership and reliable unattended recovery remain incomplete. [Verification](verification.md) records positive and negative results.
 
 ## Historical helper implementation (disabled)
 
-Earlier implementations invoked ipb or a Rust idevice bridge. Their source/patches remain in `Backends/` for research, but runtime policy blocks them. Earlier helper receipts and cleanup behavior must not be treated as direct-backend evidence. See [dependencies and provenance](DEPENDENCIES.md#retired-helpers).
+Earlier implementations invoked ipb or a Rust idevice bridge. Their source/patches remain in `Backends/` for research, but runtime policy blocks them. Earlier helper receipts and cleanup behavior must not be treated as direct-backend evidence. See [dependencies and provenance](dependencies.md#retired-helpers).

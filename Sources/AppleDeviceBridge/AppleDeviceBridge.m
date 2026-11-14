@@ -28,7 +28,7 @@ int ADCReadArchiveUID(const void *object, uint64_t *value) {
 }
 
 // Private Apple interfaces stay in this in-process interoperability target.
-// Protocol references: docs/AXE-PHYSICAL-REVIEW.md and docs/NATIVE-INPUT.md.
+// Protocol references: docs/axe-physical-review.md and docs/native-input.md.
 typedef void *ADCRemote;
 typedef ADCRemote (*ADCCreate)(int, dispatch_queue_t, uint64_t, uint64_t);
 typedef void (*ADCHandler)(ADCRemote, xpc_handler_t);

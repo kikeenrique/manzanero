@@ -58,6 +58,6 @@ Native physical `screen auto`/`tree` returned Settings hierarchy and PNG through
 
 Several taps at visible General text initially had no effect, and one Home dispatch also left the current page visible. Repositioning by a separately inspected scroll led to later successful navigation; the cause of the misses was not established. An earlier OCR attempt failed with `Failed to create CVPixelBuffer`; initial black screenshots preceded confirmed wake/unlock.
 
-When an action has no observed effect, inspect a fresh image and reassess the target/overlays before choosing another action. Do not automatically replay a tap based on an old OCR box. See [verification](VERIFICATION.md) for the scope of the positive and negative checks.
+When an action has no observed effect, inspect a fresh image and reassess the target/overlays before choosing another action. Do not automatically replay a tap based on an old OCR box. See [verification](verification.md) for the scope of the positive and negative checks.
 
 Screen data can be private. Keep `tmp/` ignored and review captures before sharing.

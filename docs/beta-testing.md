@@ -6,7 +6,7 @@ The beta package contains a universal arm64/x86_64 executable, any required Swif
 
 ## Installation status
 
-The initial GitHub release and tap formula are **not published yet**. For source builds, follow [README](../README.md#build-and-start) and substitute `mise run cli` for the bare executable below. Once published, installation is intended to be:
+The initial GitHub release and tap formula are **not published yet**. For source builds, follow [README](../readme.md#build-and-start) and substitute `mise run cli` for the bare executable below. Once published, installation is intended to be:
 
 ```sh
 brew install kikeenrique/tap/manzanero
@@ -49,10 +49,10 @@ SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Crashes, forced exits and disc
 
 ## MCP setup
 
-Launch the installed executable with argument `mcp` from your host configuration. Use an absolute executable path and a suitable working directory. Stdout is the protocol channel; diagnostics go to stderr. The host controls approvals. See [MCP](MCP.md).
+Launch the installed executable with argument `mcp` from your host configuration. Use an absolute executable path and a suitable working directory. Stdout is the protocol channel; diagnostics go to stderr. The host controls approvals. See [MCP](mcp.md).
 
 ## Reporting a problem
 
 Include the release version, host macOS/Xcode versions, device model/OS, redacted command, expected result and stderr. Review captures, app inventories, paths and `tmp/` contents before sharing. Never upload pairing records, credentials or commercial application binaries.
 
-Known gaps include recording startup/recovery, cross-process ownership, direct simulator input migration and broader Apple-family validation. Android is outside scope. Check [feature status](PARITY-STATUS.md) and [verification](VERIFICATION.md) before interpreting a failure.
+Known gaps include recording startup/recovery, cross-process ownership, direct simulator input migration and broader Apple-family validation. Check [feature status](feature-status.md) and [verification](verification.md) before interpreting a failure.

@@ -11,10 +11,10 @@ This distinction matters because the project replaced several helper-backed path
 
 ## Reader paths
 
-- Start with [README](../README.md), [beta setup](BETA-TESTING.md) and [readiness](READINESS.md).
-- Use focused guides for [input](NATIVE-INPUT.md), [screens](SCREEN-UNDERSTANDING.md), [AX](DIRECT-ACCESSIBILITY.md), [recording](RECORDING.md), [Build & Run](BUILD-RUN.md) and [MCP](MCP.md).
-- Maintain the project using [dependencies](DEPENDENCIES.md), [tasks](DEVELOPMENT-TASKS.md), [releasing](RELEASING.md) and [roadmap](ROADMAP.md).
-- Consult [verification](VERIFICATION.md), [transport](TRANSPORT.md) and [AX wire contracts](ACCESSIBILITY-PROTOCOL.md) for evidence/design detail.
+- Start with [README](../readme.md), [beta setup](beta-testing.md) and [readiness](readiness.md).
+- Use focused guides for [input](native-input.md), [screens](screen-understanding.md), [AX](direct-accessibility.md), [recording](recording.md), [Build & Run](build-run.md) and [MCP](mcp.md).
+- Maintain the project using [dependencies](dependencies.md), [tasks](development-tasks.md), [releasing](releasing.md) and [roadmap](roadmap.md).
+- Consult [verification](verification.md), [transport](transport.md) and [AX wire contracts](accessibility-protocol.md) for evidence/design detail.
 
 ## Corrections made in the readability pass
 
@@ -43,6 +43,6 @@ Only run meaningful validation for the change. A docs-only edit needs source/com
 
 ## Earlier review context
 
-Earlier reviews clarified Build & Run, saved reports versus live trace, handoff and agent access. Later reviews separated helper-backed captures from direct replacements. Those corrections are reflected in the current guides; dated facts remain in [verification](VERIFICATION.md).
+Earlier reviews clarified Build & Run, saved reports versus live trace, handoff and agent access. Later reviews separated helper-backed captures from direct replacements. Those corrections are reflected in the current guides; dated facts remain in [verification](verification.md).
 
-The [public-readiness review](PUBLIC-READINESS.md) is a separate privacy/licensing/publication checkpoint. Documentation cleanup does not select a license, rewrite Git identity/history or provide legal clearance.
+The [public-readiness review](public-readiness.md) is a separate privacy/licensing/publication checkpoint. Documentation cleanup does not select a license, rewrite Git identity/history or provide legal clearance.

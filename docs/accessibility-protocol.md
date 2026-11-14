@@ -1,6 +1,6 @@
 # Accessibility protocol reference
 
-This page records the AXP/DTX contracts used by the native physical backend and their provenance. For normal commands and selector behavior, use [native accessibility](DIRECT-ACCESSIBILITY.md).
+This page records the AXP/DTX contracts used by the native physical backend and their provenance. For normal commands and selector behavior, use [native accessibility](direct-accessibility.md).
 
 The exact service is `com.apple.accessibility.axAuditDaemon.remoteAXService`. The older `remoteserver.shim.remote` audit service is not an interchangeable full-tree endpoint. Advertising a service does not establish working authorization or transport.
 
@@ -31,7 +31,7 @@ Matching replies still require valid archives, finite relevant values, expected 
 
 Type-5 replies can have nil associated translation, and type-7 replies have nil translation. There is no demonstrated sequence/target correlator for those nil results. A supplied translation must match; the single-request guard does not eliminate every delayed same-type reply risk.
 
-A native Boolean/integer 0/1 action result is different from UI effect. Selector guards and postconditions are described in [DIRECT-ACCESSIBILITY.md](DIRECT-ACCESSIBILITY.md).
+A native Boolean/integer 0/1 action result is different from UI effect. Selector guards and postconditions are described in [direct-accessibility.md](direct-accessibility.md).
 
 ## DTX framing
 
@@ -79,7 +79,7 @@ The old live `ax-snapshot` capture and MCP `get_accessibility_archive` route dep
 
 The native session attempts `clientNeedsAccessibility: false` after attempted subscription, including ambiguous enable. It uses bounded independent cleanup and reports acknowledged/unconfirmed outcomes separately from useful result data. Closing a socket or receiving an acknowledgement does not independently prove device-side subscription teardown.
 
-See [native session limits](DIRECT-ACCESSIBILITY.md#ownership-deadlines-and-failures) and [verification](VERIFICATION.md).
+See [native session limits](direct-accessibility.md#ownership-deadlines-and-failures) and [verification](verification.md).
 
 ## Provenance
 

@@ -68,4 +68,4 @@ No TLS bypass, daemon suspension, private entitlement, pairing change or automat
 
 The native tunnel/directory work was informed by pinned [pymobiledevice3 native-tunnel](https://github.com/doronz88/pymobiledevice3/blob/03d788d23105c1754c27cc4e6ddc1d7e23835b32/pymobiledevice3/remote/native_tunnel.py) and [RemoteXPC](https://github.com/doronz88/pymobiledevice3/blob/03d788d23105c1754c27cc4e6ddc1d7e23835b32/pymobiledevice3/remote/remotexpc.py) references, without adding that runtime or copying credentials/source.
 
-The retired idevice path used independent pairing records and TLS-PSK software tunnels. Live pairing/reconnection remained unverified and that executable route is blocked. See [dependencies](DEPENDENCIES.md), [AX contracts](ACCESSIBILITY-PROTOCOL.md) and [verification](VERIFICATION.md).
+The retired idevice path used independent pairing records and TLS-PSK software tunnels. Live pairing/reconnection remained unverified and that executable route is blocked. See [dependencies](dependencies.md), [AX contracts](accessibility-protocol.md) and [verification](verification.md).

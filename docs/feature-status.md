@@ -1,6 +1,6 @@
 # Feature status
 
-This page describes current product availability, not historical helper capability. “Verified” always means a scoped live result on the recorded device/environment; it is not a general reliability guarantee. See [verification](VERIFICATION.md) for evidence and failures.
+This page describes current product availability, not historical helper capability. “Verified” always means a scoped live result on the recorded device/environment; it is not a general reliability guarantee. See [verification](verification.md) for evidence and failures.
 
 ## Current runtime availability
 
@@ -47,10 +47,10 @@ User-facing live mirroring, reusable semantic element handles, automatic permiss
 | iPhone Duo | In scope; posture/display/control verification missing |
 | Simulators | Partial lifecycle/capture/development support; direct input/AX migration unfinished |
 
-Android is excluded. Accepting an identifier or passing a build does not establish support for a new family.
+Accepting an identifier or passing a build does not establish support for a new family.
 
 ## How to read progress
 
 Use three separate questions: is there an executable route, has that route been checked on this hardware, and does it recover from interruption/failure? A feature can answer yes to the first two and still be unsuitable for unattended use.
 
-Physical controls/actions remain the priority. The [roadmap](ROADMAP.md) orders the remaining work; no percentage is assigned because counting commands would hide differences in scope and evidence.
+Physical controls/actions remain the priority. The [roadmap](roadmap.md) orders the remaining work; no percentage is assigned because counting commands would hide differences in scope and evidence.

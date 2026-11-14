@@ -2,7 +2,7 @@
 
 Physical AX trees, exact-selector presses and scroll-to-visible run in `manzanero` against Apple interfaces. No device helper is required. These operations have scoped CLI/MCP evidence in Settings on iPhone 13 mini; broad app/device coverage is unfinished.
 
-For wire contracts and decoder limits, see [protocol reference](ACCESSIBILITY-PROTOCOL.md). For the paired tunnel and directory bootstrap, see [transport](TRANSPORT.md).
+For wire contracts and decoder limits, see [protocol reference](accessibility-protocol.md). For the paired tunnel and directory bootstrap, see [transport](transport.md).
 
 ## Current native tree route
 
@@ -86,7 +86,7 @@ The current Network route returned Settings trees through diagnostic, CLI and re
 
 Earlier CoreDevice named-socket, raw RSD inventory and Apple relay attempts failed before subscription. Error 4000/underlying POSIX 83 did not identify a missing UI Automation setting or establish a private entitlement requirement. The later Network route succeeded; those earlier failures were not converted into evidence for the new route.
 
-See [verification](VERIFICATION.md) for environment and scope. Other apps, overlays, rotations, families, interrupted actions and reliable recovery remain unverified or incomplete.
+See [verification](verification.md) for environment and scope. Other apps, overlays, rotations, families, interrupted actions and reliable recovery remain unverified or incomplete.
 
 ## Diagnostics
 

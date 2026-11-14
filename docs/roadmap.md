@@ -2,7 +2,7 @@
 
 The goal is a Swift CLI with broad Apple-device inspection and control, plus optional MCP sharing the same operations. Current work prioritizes physical controls and the observe → act → inspect loop.
 
-iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope. Android is excluded. [Feature status](PARITY-STATUS.md) is the current availability inventory; this page explains the remaining work.
+iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope. [Feature status](feature-status.md) is the current availability inventory; this page explains the remaining work.
 
 ## Priorities
 
@@ -38,7 +38,7 @@ Keep private interfaces behind backend boundaries. Avoid automatic replay of inp
 
 ## Implementation references
 
-Independent protocol references and their licenses are documented in [DEPENDENCIES.md](DEPENDENCIES.md). The capability inventory distinguishes those references from this project's implemented routes and live verification.
+Independent protocol references and their licenses are documented in [dependencies.md](dependencies.md). The capability inventory distinguishes those references from this project's implemented routes and live verification.
 
 ## Completion criteria
 

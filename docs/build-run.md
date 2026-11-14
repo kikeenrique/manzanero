@@ -41,4 +41,4 @@ Dry-run returns the planned argument arrays and deployment description without r
 
 Simulator project/Debug and workspace/Release flows were checked. A standalone Settings launch verified physical option ordering; complete physical signing/build/install/launch remains unverified.
 
-Streaming progress, general cancellation coordination, a build deadline, reuse of earlier build directories, automatic symbolication and crash monitoring are unfinished. MCP `build_run` shares these limits. See [verification](VERIFICATION.md) and the [roadmap](ROADMAP.md).
+Streaming progress, general cancellation coordination, a build deadline, reuse of earlier build directories, automatic symbolication and crash monitoring are unfinished. MCP `build_run` shares these limits. See [verification](verification.md) and the [roadmap](roadmap.md).

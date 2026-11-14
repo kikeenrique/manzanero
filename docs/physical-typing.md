@@ -1,6 +1,6 @@
 # Physical text entry
 
-Use `type` for clipboard-free US-layout ASCII keyboard events. Use [paste](NATIVE-INPUT.md#direct-unicode-paste) for Unicode text when replacing the device clipboard is acceptable.
+Use `type` for clipboard-free US-layout ASCII keyboard events. Use [paste](native-input.md#direct-unicode-paste) for Unicode text when replacing the device clipboard is acceptable.
 
 ## Current direct implementation
 
@@ -26,7 +26,7 @@ The complete string is validated before device access. Each character maps to a 
 
 Events use absolute monotonic offsets spaced by 10 ms. The worst supported case has 2048 events over 20.47 seconds. Those are requested host times, not guaranteed device delivery times. The C boundary independently checks usages, counts, balanced transitions and complete release.
 
-Cancellation or transport failure stops future typing and attempts release of the outstanding key set. The operation never replays a partial string. Forced exit, crashes or transport loss can prevent cleanup, and already-entered text is not rolled back. See [input cancellation](NATIVE-INPUT.md#task-cancellation-and-release-attempts).
+Cancellation or transport failure stops future typing and attempts release of the outstanding key set. The operation never replays a partial string. Forced exit, crashes or transport loss can prevent cleanup, and already-entered text is not rolled back. See [input cancellation](native-input.md#task-cancellation-and-release-attempts).
 
 ## Result and evidence
 

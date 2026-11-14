@@ -18,7 +18,7 @@ mise tasks validate
 | Task | Purpose |
 | --- | --- |
 | `build`, `test`, `cli` | Main executable and local regression checks |
-| `package`, `test:package`, `release:formula` | [Beta packaging](RELEASING.md), archive smoke and tap formula generation |
+| `package`, `test:package`, `release:formula` | [Beta packaging](releasing.md), archive smoke and tap formula generation |
 | `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device |
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*`, `test:ax-*` | Opt-in native transport/media diagnostics |
 | `coredevice:*`, `idevice:*` | Retired helper research/build tests; not runtime setup |

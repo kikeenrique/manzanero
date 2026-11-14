@@ -25,4 +25,4 @@ The project instead implements device operations against Apple APIs in its own c
 
 The RTCP receiver-report layout/statistics were informed by AXe's [PhysicalDisplayRTCP.swift](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDisplayRTCP.swift) and RFC 3550. The [MIT notice](../ThirdParty/AXe-LICENSE.txt) is retained.
 
-Native HEVC reception uses Apple's negotiator, not AXe's custom offer encoder. Receiver reports and scoped recordings have local/live evidence here; no AXe runtime operation was invoked. Keyframe/crash recovery and cross-process coordination remain separate gaps. See [recording](RECORDING.md) and [verification](VERIFICATION.md).
+Native HEVC reception uses Apple's negotiator, not AXe's custom offer encoder. Receiver reports and scoped recordings have local/live evidence here; no AXe runtime operation was invoked. Keyframe/crash recovery and cross-process coordination remain separate gaps. See [recording](recording.md) and [verification](verification.md).

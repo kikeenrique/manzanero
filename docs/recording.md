@@ -84,4 +84,4 @@ On iPhone 13 mini, short CLI H.264/MCP HEVC recordings and one 300-second CLI HE
 
 A twenty-second real MCP movie captured AX inspection and an effective Settings → Home transition. Request cancellation and EOF/SIGINT/SIGTERM cleanup/reuse each passed scoped live checks. Earlier first-frame timeouts, zero-packet attempts, denied AVC output access and historical persistent sharing indicators remain important negative evidence.
 
-See [verification](VERIFICATION.md) for dates, environment and limits. Other Apple families, rotations, crash/disconnect recovery and general unattended reliability remain unverified.
+See [verification](verification.md) for dates, environment and limits. Other Apple families, rotations, crash/disconnect recovery and general unattended reliability remain unverified.

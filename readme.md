@@ -1,12 +1,12 @@
 # Manzanero
 
-A Swift command-line tool for inspecting and automating Apple devices, with an optional MCP server for agents. It uses Apple developer tools and in-process Apple frameworks for device operations.
+Manzanero lets you inspect and control Apple devices from your Mac, either through terminal commands or an AI agent. Use it to capture screens, read on-screen controls, tap, swipe, type, manage apps and record test sessions. Its command-line interface and optional MCP server share the same operations, using Apple developer tools and frameworks.
 
 *Manzanero* is Spanish for an apple tree or a person who grows or gathers apples—a fitting name for a tool that tends to your Apple devices.
 
 <img src="docs/assets/manzanero.png" alt="A cheerful apple picker harvesting phones, a tablet, a watch and an Apple TV with its remote from an apple tree." width="560">
 
-The project is in beta. Physical iPhone control is the current priority; complete feature parity and reliable unattended testing are still unfinished. iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope. Android is not. Most live evidence comes from one iPhone 13 mini; see [feature status](docs/PARITY-STATUS.md) before relying on another device or operation.
+The project is in beta. Physical iPhone control is the current priority, and reliable unattended testing is still unfinished. iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope, with support varying by device and operation. Most live evidence comes from one iPhone 13 mini; see [feature status](docs/feature-status.md) before relying on another device or operation.
 
 ## Build and start
 
@@ -24,7 +24,7 @@ mise run cli doctor
 
 Replace angle-bracket placeholders with your values. For physical commands, choose the hardware UDID from the physical inventory, rather than a simulator UUID. Create output parent directories before capturing or copying files.
 
-There is no published beta release or Homebrew formula yet. See [beta installation](docs/BETA-TESTING.md), [release preparation](docs/RELEASING.md) and the [public-readiness review](docs/PUBLIC-READINESS.md).
+There is no published beta release or Homebrew formula yet. See [beta installation](docs/beta-testing.md), [release preparation](docs/releasing.md) and the [public-readiness review](docs/public-readiness.md).
 
 ## Prepare a physical device
 
@@ -34,7 +34,7 @@ Pair and trust the Mac using Apple's normal setup. Enable Developer Mode and **S
 mise run cli physical <hardware-UDID> readiness
 ```
 
-The top-level readiness status covers CoreDevice prerequisites. Inspect its separate `ui` report for display power and passcode observations. Neither report verifies UI Automation permission or proves that the current UI is unlocked. [Readiness guidance](docs/READINESS.md) explains the fields and preparation steps.
+The top-level readiness status covers CoreDevice prerequisites. Inspect its separate `ui` report for display power and passcode observations. Neither report verifies UI Automation permission or proves that the current UI is unlocked. [Readiness guidance](docs/readiness.md) explains the fields and preparation steps.
 
 ## Observe, act, inspect again
 
@@ -49,14 +49,14 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 
 | Need | Command or guide |
 | --- | --- |
-| Buttons, tap, swipe, drag, long press | [Physical input](docs/NATIVE-INPUT.md) |
-| Pinch or coordinated contacts | [Multitouch](docs/MULTITOUCH.md), [timed sequences](docs/GESTURE-SEQUENCES.md) |
-| Text entry | [ASCII typing](docs/PHYSICAL-TYPING.md), [Unicode paste](docs/NATIVE-INPUT.md#direct-unicode-paste) |
-| Screen, hierarchy, OCR | [Screen inspection](docs/SCREEN-UNDERSTANDING.md), [accessibility](docs/DIRECT-ACCESSIBILITY.md) |
-| Exact accessibility press or scroll | [Selector actions](docs/DIRECT-ACCESSIBILITY.md#current-guarded-native-press) |
-| Video | [Recording](docs/RECORDING.md) |
-| Build, install and launch an iOS app | [Build & Run](docs/BUILD-RUN.md) |
-| A step that needs a person | [Human handoff](docs/HANDOFF.md) |
+| Buttons, tap, swipe, drag, long press | [Physical input](docs/native-input.md) |
+| Pinch or coordinated contacts | [Multitouch](docs/multitouch.md), [timed sequences](docs/gesture-sequences.md) |
+| Text entry | [ASCII typing](docs/physical-typing.md), [Unicode paste](docs/native-input.md#direct-unicode-paste) |
+| Screen, hierarchy, OCR | [Screen inspection](docs/screen-understanding.md), [accessibility](docs/direct-accessibility.md) |
+| Exact accessibility press or scroll | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
+| Video | [Recording](docs/recording.md) |
+| Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
+| A step that needs a person | [Human handoff](docs/handoff.md) |
 
 Physical input, accessibility and native video need no separate device helper. AXe, idevice and ipb executables are blocked at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator input and hierarchy remain unavailable pending direct replacements.
 
@@ -95,7 +95,7 @@ Configure your host to launch the executable by absolute path with argument `mcp
 }
 ```
 
-Host configuration formats vary. Set a suitable working directory: relative files and temporary artifacts are created there. The host controls approvals; the server has no approval UI of its own. See [MCP tools and lifecycle](docs/MCP.md).
+Host configuration formats vary. Set a suitable working directory: relative files and temporary artifacts are created there. The host controls approvals; the server has no approval UI of its own. See [MCP tools and lifecycle](docs/mcp.md).
 
 ## Limits that matter
 
@@ -109,4 +109,4 @@ Host configuration formats vary. Set a suitable working directory: relative file
 
 Run `mise run test` for local checks and `mise tasks validate` for task definitions. Device tests are opt-in and may mutate the selected device; read their help first.
 
-Start with [architecture and dependencies](docs/DEPENDENCIES.md), [development tasks](docs/DEVELOPMENT-TASKS.md), [roadmap](docs/ROADMAP.md) and [verification](docs/VERIFICATION.md). Protocol and implementation references are collected in [accessibility notes](docs/ACCESSIBILITY-PROTOCOL.md), [transport notes](docs/TRANSPORT.md) and the [AXe review](docs/AXE-PHYSICAL-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
+Start with [architecture and dependencies](docs/dependencies.md), [development tasks](docs/development-tasks.md), [roadmap](docs/roadmap.md) and [verification](docs/verification.md). Protocol and implementation references are collected in [accessibility notes](docs/accessibility-protocol.md), [transport notes](docs/transport.md) and the [AXe review](docs/axe-physical-review.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).

@@ -35,7 +35,7 @@ The whole schedule is validated before querying the device. Fresh identity/Devel
 
 Native service discovery must find exactly one touchscreen with a nonzero surface ID. The C boundary independently validates the 58-byte complete-state reports, slots, contact flags, reserved fields, times and final all-up state before opening the dispatch path.
 
-Absolute monotonic offsets avoid accumulating each sleep/send delay. Overdue frames may be sent late; the schedule is not restarted or automatically retried. Failure or cancellation stops future movement and attempts an all-up report at the last attempted positions, then a completion barrier. See [cancellation and signals](NATIVE-INPUT.md#task-cancellation-and-release-attempts).
+Absolute monotonic offsets avoid accumulating each sleep/send delay. Overdue frames may be sent late; the schedule is not restarted or automatically retried. Failure or cancellation stops future movement and attempts an all-up report at the last attempted positions, then a completion barrier. See [cancellation and signals](native-input.md#task-cancellation-and-release-attempts).
 
 Receipts include counts, requested duration, display rotation and `coordinateSpace: normalized-current-interface`. `verified` and `releaseVerified` remain false. A dispatch error is not proof that nothing reached the device.
 
@@ -53,6 +53,6 @@ This opt-in test sends the supplied sequence, saves a receipt/screenshot and che
 
 ## Related commands and history
 
-[Multitouch](MULTITOUCH.md) generates linear two-to-five-path schedules. Generated drags may release at 10001 ms to preserve a full ten-second movement interval; user-supplied JSON remains capped at 10000 ms.
+[Multitouch](multitouch.md) generates linear two-to-five-path schedules. Generated drags may release at 10001 ms to preserve a full ten-second movement interval; user-supplied JSON remains capped at 10000 ms.
 
 The earlier patched-helper implementation is disabled. Its source is a migration reference, not required setup or proof of the current engine's hardware behavior.

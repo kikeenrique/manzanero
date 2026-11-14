@@ -47,4 +47,4 @@ After publishing, copy the attached formula to `Formula/manzanero.rb` in [kikeen
 
 The release repository's default token is not assumed to write to the separate tap. Formula generation produces a reviewable artifact; cross-repository automation needs a separately configured narrow token or GitHub App. No token is stored here.
 
-Before first publication, complete the [public-readiness review](PUBLIC-READINESS.md). See [tester setup](BETA-TESTING.md) for the intended installation experience.
+Before first publication, complete the [public-readiness review](public-readiness.md). See [tester setup](beta-testing.md) for the intended installation experience.

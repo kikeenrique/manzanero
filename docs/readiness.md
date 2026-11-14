@@ -59,4 +59,4 @@ Dry runs query nothing. No readiness result proves authorization for every servi
 mise run test:mcp-readiness <hardware-UDID>
 ```
 
-This reads state through real MCP without input. The latest iPhone 13 mini check reported CoreDevice prerequisites present and display off, with no passcode requirement reported. It did not establish current UI unlock or a successful wake. See [verification](VERIFICATION.md).
+This reads state through real MCP without input. The latest iPhone 13 mini check reported CoreDevice prerequisites present and display off, with no passcode requirement reported. It did not establish current UI unlock or a successful wake. See [verification](verification.md).

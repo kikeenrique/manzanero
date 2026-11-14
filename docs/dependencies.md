@@ -28,7 +28,7 @@ mise run build
 mise run test
 ```
 
-Build products live under `.build/`; task caches and investigation artifacts use ignored `tmp/`. See [development tasks](DEVELOPMENT-TASKS.md).
+Build products live under `.build/`; task caches and investigation artifacts use ignored `tmp/`. See [development tasks](development-tasks.md).
 
 ## Linked packages
 
@@ -64,7 +64,7 @@ Third-party device projects inform protocol understanding; their executables are
 | [AXe](https://github.com/cameroncooke/AXe) | `4b622d4436fc441534e6ee8c7196728cd762dbff` | Physical media/AX review and RTCP layout/statistics; [MIT notice](../ThirdParty/AXe-LICENSE.txt) |
 | [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) | `03d788d23105c1754c27cc4e6ddc1d7e23835b32` | Native tunnel/RSD interoperability research; no source copied or runtime added |
 
-The receiver-report code was informed by AXe's `PhysicalDisplayRTCP.swift` and RFC 3550. [The reference review](AXE-PHYSICAL-REVIEW.md) distinguishes those findings from live behavior.
+The receiver-report code was informed by AXe's `PhysicalDisplayRTCP.swift` and RFC 3550. [The reference review](axe-physical-review.md) distinguishes those findings from live behavior.
 
 No proprietary device-control binary is linked or packaged. Required open-source attribution is retained in `ThirdParty/`.
 

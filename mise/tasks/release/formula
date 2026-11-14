@@ -32,7 +32,7 @@ class Manzanero < Formula
   def install
     libexec.install "manzanero", "lib"
     bin.install_symlink libexec/"manzanero"
-    pkgshare.install "ThirdParty", "BETA-TESTING.md"
+    pkgshare.install "ThirdParty", "beta-testing.md"
   end
 
   def caveats
@@ -40,7 +40,7 @@ class Manzanero < Formula
       Beta: device controls use installed Apple developer frameworks.
       Select a full Xcode installation and run manzanero doctor.
       Physical UI testing needs pairing, Developer Mode and Enable UI Automation.
-      Native video requires macOS 26 or later. See the installed BETA-TESTING.md.
+      Native video requires macOS 26 or later. See the installed beta-testing.md.
     EOS
   end
 

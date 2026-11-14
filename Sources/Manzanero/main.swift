@@ -76,7 +76,7 @@ Usage:
   manzanero --help
   manzanero --version
 
-Physical input is experimental; remaining parity work is tracked in docs/ROADMAP.md.
+Physical input is experimental; remaining work is tracked in docs/roadmap.md.
 Physical single Xcode commands preserve devicectl JSON; readiness/build/record return CLI metadata.
 Simulator app/lifecycle commands preserve simctl output; simulator input and hierarchy are currently unavailable.
 Temporary process output is created beneath ./tmp and normally cleaned up on exit.
