@@ -249,6 +249,9 @@ static int VideoCreate(BOOL packets, const char *uuid, const char *version, cons
     int flags = state.socket >= 0 ? fcntl(state.socket, F_GETFL) : -1;
     if (flags < 0 || fcntl(state.socket, F_SETFL, flags | O_NONBLOCK) || fcntl(state.socket, F_SETFD, FD_CLOEXEC))
         return VideoFail(error, capacity, @"Cannot create owned nonblocking video socket.");
+    int receiveBuffer = 1024 * 1024;
+    if (packets && setsockopt(state.socket, SOL_SOCKET, SO_RCVBUF, &receiveBuffer, sizeof(receiveBuffer)))
+        return VideoFail(error, capacity, @"Cannot configure the bounded video receive buffer.");
     struct sockaddr_in6 address = {0}; address.sin6_len = sizeof(address); address.sin6_family = AF_INET6;
     address.sin6_addr = host; address.sin6_scope_id = index;
     socklen_t length = sizeof(address);

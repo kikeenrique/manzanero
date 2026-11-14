@@ -30,7 +30,22 @@ Earlier probes reached a successful start reply but captured zero frames. Sessio
 
 Before consuming packets, the probe requires the selected tunnel endpoints, RTP transport, zero SRTP/SRTCP cipher selectors, typed dimensions up to 8192 per axis/20 megapixels, frame rate 1...240 and payload type 0...127. Each nonblocking read borrows at most 65535 bytes. The probe observes two seconds after its first packet, capped at 10000 datagrams/32 MiB, and retains only counts and whitelisted negotiated metadata. It sends no receiver reports yet and does not export raw packets, SSRCs, negotiation blobs or keys.
 
-On the designated phone, one probe received 235 datagrams (233 with RTP header prefixes and two with RTCP header prefixes), negotiated 1136×2448 at 60 fps/payload 100, and acknowledged its owned stop, empty-session status and tunnel assertion release. Earlier probes received no packets within six seconds, so reliable startup is unresolved. Header classification is not complete RTP validation, codec identification or decoded-frame evidence. VideoToolbox decoding, receiver-report handling, recording integration and longer-lived stream behavior remain unfinished.
+On the designated phone, one probe received 235 datagrams (233 with RTP header prefixes and two with RTCP header prefixes), negotiated 1136×2448 at 60 fps/payload 100, and acknowledged its owned stop, empty-session status and tunnel assertion release. Earlier probes received no packets within six seconds, so reliable startup is unresolved. Header classification alone is not complete RTP validation, codec identification or decoded-frame evidence. HEVC decoding has since been verified below; receiver-report handling, recording integration and longer-lived stream behavior remain unfinished.
+
+## Experimental HEVC frame decoding
+
+```sh
+mise run test:media-packets <hardware-UDID> --decode
+mise run test:media-packets <hardware-UDID> --home --decode
+```
+
+`--decode` reconstructs HEVC access units and decodes them with Apple's public VideoToolbox APIs. It saves the first JPEG privately alongside the probe receipt. Optional `--home` sends one native Home button press after stream start and changes the foreground. The product CLI/MCP recording backend remains disabled while movie integration is unfinished.
+
+The parser checks RTP CSRC/extension/padding bounds and the negotiated payload number. HEVC assembly supports single-layer non-interleaved single NAL, aggregation and fragmentation packets without DONL fields. It bounds each picture to 8 MiB/256 NAL units and parameter sets to 65535 bytes each. Gaps/incomplete pictures discard dependent output until a new random-access picture; duplicates/reordered packets are ignored and source changes fail. It does not implement a reordering/jitter buffer, interleaving, multiple layers or H.264 decoding. The parser does not infer a codec from the dynamic payload number: VideoToolbox must accept the reconstructed parameter sets and samples.
+
+VideoToolbox creates the format from VPS/SPS/PPS and decodes with async and temporal-processing flags clear. Apple's documented contract calls the output handler before decode returns; synchronous calls still lack an independent hard deadline. JPEG output is capped at 8 MiB and geometry at 8192 per axis/20 megapixels. The tested stream negotiates 1136×2448 but codes 1136×2464; the decoder permits bounded upward padding to the next 32-pixel boundary and preserves those actual pixels. Changed parameter sets or non-increasing presentation timestamps fail capture. Close invalidates the owned VideoToolbox session; a returned invalidation call is not independent resource-destruction proof.
+
+On the iPhone 13 mini, the input-plus-stream check decoded 71 pictures in the two-second collection interval. A subsequent check with no UI input decoded 65. Both first JPEGs decoded with ImageIO at 1136×2464; independent inspection of the first input-check JPEG showed the Home screen, matching a later Apple screenshot. The no-input probe returned from VideoToolbox invalidation and acknowledged owned stream stop, zero sessions and tunnel assertion release. Its top-level `decodedFrames` counts VideoToolbox output; the nested bridge cleanup counters describe the unused AVConference decoder. These checks establish scoped live frame delivery, not an MP4, sustained 60-fps output, loss-free behavior or reliable unattended testing.
 
 ## Historical recording contract
 

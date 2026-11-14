@@ -1,0 +1,136 @@
+import CoreImage
+import CoreMedia
+import CoreVideo
+import Foundation
+import Synchronization
+import VideoToolbox
+
+/// Uses public VideoToolbox decoding. Both async/temporal flags are clear, so
+/// Apple's contract completes the output handler before decode returns.
+@MainActor
+final class NativeHEVCDecoder {
+    private let width: Int
+    private let height: Int
+    private var session: VTDecompressionSession?
+    private var format: CMFormatDescription?
+    private var parameters: [Data]?
+    private var codedDimensions: (Int, Int)?
+    private var closed = false
+    private var previousTimestamp: UInt32?
+    private var ticks: Int64 = 0
+    private let context = CIContext()
+
+    init(width: Int, height: Int) throws {
+        guard (1...8192).contains(width), (1...8192).contains(height), width * height <= 20_000_000 else {
+            throw CommandFailure(description: "Invalid native HEVC video dimensions.")
+        }
+        self.width = width; self.height = height
+    }
+
+    isolated deinit { close() }
+
+    func close() {
+        closed = true
+        if let session { VTDecompressionSessionInvalidate(session) }
+        session = nil; format = nil; parameters = nil; codedDimensions = nil
+    }
+
+    func decode(_ unit: MediaHEVCAccessUnit) throws -> Data? {
+        try Task.checkCancellation()
+        guard !closed else { throw failure("decoder is closed") }
+        guard unit.parameterSets.count == 3, unit.parameterSets.allSatisfy({ (2...65_535).contains($0.count) }),
+              !unit.nals.isEmpty, unit.nals.count <= 256 else { throw failure("invalid access unit") }
+        var available = 8 * 1024 * 1024
+        for nal in unit.nals {
+            guard nal.count >= 2, nal.count + 4 <= available else { throw failure("oversized access unit") }
+            available -= nal.count + 4
+        }
+        if parameters == nil {
+            guard unit.randomAccess else { throw failure("initial picture is not random access") }
+            try configure(unit.parameterSets)
+        } else if parameters != unit.parameterSets { throw failure("parameter sets changed during capture") }
+        guard let session, let format else { throw failure("decoder is closed") }
+        if let previousTimestamp {
+            let delta = unit.timestamp &- previousTimestamp
+            guard delta > 0, delta < 0x80000000 else { throw failure("reordered or repeated presentation timestamp") }
+            ticks += Int64(delta)
+        }
+        previousTimestamp = unit.timestamp
+        let bytes = unit.lengthPrefixed
+        var block: CMBlockBuffer?
+        try check(CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil,
+            blockLength: bytes.count, blockAllocator: kCFAllocatorDefault, customBlockSource: nil,
+            offsetToData: 0, dataLength: bytes.count, flags: 0, blockBufferOut: &block), "allocate sample")
+        guard let block else { throw failure("missing sample allocation") }
+        try bytes.withUnsafeBytes { pointer in
+            try check(CMBlockBufferReplaceDataBytes(with: pointer.baseAddress!, blockBuffer: block,
+                offsetIntoDestination: 0, dataLength: bytes.count), "copy sample")
+        }
+        var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: CMTime(value: ticks, timescale: 90_000), decodeTimeStamp: .invalid)
+        var size = bytes.count, sample: CMSampleBuffer?
+        try check(CMSampleBufferCreateReady(allocator: kCFAllocatorDefault, dataBuffer: block, formatDescription: format,
+            sampleCount: 1, sampleTimingEntryCount: 1, sampleTimingArray: &timing,
+            sampleSizeEntryCount: 1, sampleSizeArray: &size, sampleBufferOut: &sample), "create sample")
+        guard let sample else { throw failure("missing sample") }
+        struct Output: Sendable { var status: OSStatus = 0; var jpeg: Data?; var invalid = false }
+        let result = Mutex(Output())
+        guard let codedDimensions else { throw failure("coded dimensions are unavailable") }
+        let width = codedDimensions.0, height = codedDimensions.1, context = context
+        let status = VTDecompressionSessionDecodeFrame(session, sampleBuffer: sample, flags: [], infoFlagsOut: nil) { status, _, image, _, _ in
+            guard status == 0, let image else { result.withLock { $0.status = status }; return }
+            guard CVPixelBufferGetWidth(image) == width, CVPixelBufferGetHeight(image) == height else {
+                result.withLock { $0.invalid = true }; return
+            }
+            let jpeg = context.jpegRepresentation(of: CIImage(cvPixelBuffer: image), colorSpace: CGColorSpaceCreateDeviceRGB(), options: [:])
+            result.withLock { $0.jpeg = jpeg; $0.invalid = jpeg == nil || (jpeg?.count ?? 0) > 8 * 1024 * 1024 }
+        }
+        try check(status, "decode sample")
+        let output = result.withLock { $0 }
+        try check(output.status, "output sample")
+        guard !output.invalid else { throw failure("invalid decoded dimensions or JPEG output") }
+        try Task.checkCancellation()
+        return output.jpeg
+    }
+
+    private func configure(_ sets: [Data]) throws {
+        var description: CMFormatDescription?
+        let sizes = sets.map(\.count)
+        let status = sets[0].withUnsafeBytes { first in
+            sets[1].withUnsafeBytes { second in
+                sets[2].withUnsafeBytes { third in
+                    let pointers = [first.bindMemory(to: UInt8.self).baseAddress!, second.bindMemory(to: UInt8.self).baseAddress!, third.bindMemory(to: UInt8.self).baseAddress!]
+                    return CMVideoFormatDescriptionCreateFromHEVCParameterSets(allocator: kCFAllocatorDefault,
+                        parameterSetCount: 3, parameterSetPointers: pointers, parameterSetSizes: sizes,
+                        nalUnitHeaderLength: 4, extensions: nil, formatDescriptionOut: &description)
+                }
+            }
+        }
+        try check(status, "read parameter sets")
+        guard let description else { throw failure("missing format description") }
+        let dimensions = CMVideoFormatDescriptionGetDimensions(description)
+        guard Self.acceptsCodedDimensions(Int(dimensions.width), Int(dimensions.height), negotiatedWidth: width, negotiatedHeight: height) else {
+            throw failure("coded dimensions \(dimensions.width)x\(dimensions.height) differ from negotiated \(width)x\(height)")
+        }
+        var decoder: VTDecompressionSession?
+        try check(VTDecompressionSessionCreate(allocator: kCFAllocatorDefault, formatDescription: description,
+            decoderSpecification: nil, imageBufferAttributes: [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA] as CFDictionary,
+            outputCallback: nil, decompressionSessionOut: &decoder), "create decoder")
+        guard let decoder else { throw failure("missing decoder") }
+        parameters = sets; format = description; session = decoder
+        codedDimensions = (Int(dimensions.width), Int(dimensions.height))
+    }
+
+    /// The tested device codes 2448 negotiated rows as 2464 rows. Permit only
+    /// bounded upward padding to a 32-pixel boundary, preserving actual pixels.
+    nonisolated static func acceptsCodedDimensions(_ width: Int, _ height: Int, negotiatedWidth: Int, negotiatedHeight: Int) -> Bool {
+        (1...8192).contains(width) && (1...8192).contains(height) && width * height <= 20_000_000 &&
+            (1...8192).contains(negotiatedWidth) && (1...8192).contains(negotiatedHeight) &&
+            width >= negotiatedWidth && width <= (negotiatedWidth + 31) / 32 * 32 &&
+            height >= negotiatedHeight && height <= (negotiatedHeight + 31) / 32 * 32
+    }
+
+    private func failure(_ detail: String) -> CommandFailure { CommandFailure(description: "Native HEVC decoder: \(detail).") }
+    private func check(_ status: OSStatus, _ action: String) throws {
+        if status != 0 { throw failure("\(action) failed (OSStatus \(status))") }
+    }
+}

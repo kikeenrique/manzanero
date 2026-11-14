@@ -2,7 +2,13 @@
 #MISE extends = "swift"
 #MISE description = "Probe standard-RTP delivery from one owned native media session; saves counts only"
 #USAGE arg "<device>" help="Explicit physical hardware UDID; starts a screen-sharing session"
+#USAGE flag "--home" help="Press Home once after stream start to produce motion; changes foreground"
+#USAGE flag "--decode" help="Reconstruct HEVC and decode with VideoToolbox; saves the first JPEG privately"
 
 set -e -o pipefail
 
-APPLEDEVICES_MEDIA_PACKETS_DEVICE="$usage_device" swift test --cache-path tmp/swift-cache --filter NativeMediaPacketsTests 2>&1 | xcsift -f toon --warnings
+home_probe=0
+if [[ "${usage_home:-false}" == "true" ]]; then home_probe=1; fi
+decode_probe=0
+if [[ "${usage_decode:-false}" == "true" ]]; then decode_probe=1; fi
+APPLEDEVICES_MEDIA_PACKETS_DEVICE="$usage_device" APPLEDEVICES_MEDIA_PACKETS_HOME="$home_probe" APPLEDEVICES_MEDIA_PACKETS_DECODE="$decode_probe" swift test --cache-path tmp/swift-cache --filter NativeMediaPacketsTests 2>&1 | xcsift -f toon --warnings
