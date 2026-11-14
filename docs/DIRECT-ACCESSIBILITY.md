@@ -1,207 +1,100 @@
-# Direct physical accessibility migration
+# Native physical accessibility
 
-Native explicit-PID/foreground physical trees, guarded exact-selector presses and scroll-to-visible now work through CLI and MCP on the selected iPhone 13 mini. The replacement operates in `appledevicescmd` against Apple interfaces, without launching an intermediary. Broad device/app coverage remains unfinished. This page separates current scoped verification from the migration history below.
+Physical AX trees, exact-selector presses and scroll-to-visible run in `appledevicescmd` against Apple interfaces. No device helper is required. These operations have scoped CLI/MCP evidence in Settings on iPhone 13 mini; broad app/device coverage is unfinished.
+
+For wire contracts and decoder limits, see [protocol reference](ACCESSIBILITY-PROTOCOL.md). For the paired tunnel and directory bootstrap, see [transport](TRANSPORT.md).
 
 ## Current native tree route
 
 ```sh
-mise run cli physical <hardware-UDID> tree <positive-PID>
-mise run cli physical <hardware-UDID> tree
-mise run test:mcp-physical <hardware-UDID> <positive-PID>
-mise run test:mcp-foreground <hardware-UDID>
-# Explicit diagnostic with the same Network bootstrap:
-mise run test:rsd-tree <hardware-UDID> <positive-PID> --native-tunnel --network
+appledevicescmd physical <hardware-UDID> tree
+appledevicescmd physical <hardware-UDID> tree <positive-PID>
 ```
 
-Explicit-PID trees default to the direct backend. MCP `get_ui_tree` accepts `platform: physical`, `device` and `pid`; `backend: coredevice` is optional. Fresh CoreDevice details establish the selected physical hardware and tunnel address. A native Apple assertion is retained while Apple's Network/RemoteXPC directory handshake verifies the exact hardware and service properties, then raw DTX connects to that directory's AX port. The application/snapshot/application sequence checks root identity before returning bounded normalized nodes. The [transport record](TRANSPORT.md#current-network-directory-and-native-ax-route) describes bootstrap and ownership details.
+Without PID, the operation selects the process hit at the primary display's logical centre, then rechecks that process and the display geometry after capture. This requires one awake primary display with native/current portrait orientation (`rot0`). An overlay or embedded process can be selected; the result is not a combined system/application tree.
 
-On 2026-11-13, the explicit diagnostic, actual CLI and real MCP stdio each captured 106 Settings nodes for the explicitly selected PID on iPhone 13 mini. A fresh 1125×2436 screenshot of General matched labels and row frames on the tree's 375×812 logical-point grid. Subscription stop and tunnel assertion release were acknowledged separately; MCP also completed EOF shutdown. These are protocol acknowledgements, not independent proof of phone-side teardown. Full local validation passed 272 test functions with zero errors/warnings.
+An explicit PID permits background inspection and does not verify foreground selection. PIDs must be positive Int32 values. MCP `get_ui_tree` requires `platform: physical`; optional `backend: coredevice` selects the existing default.
 
-When PID is omitted, Apple's `devicectl device info displays` supplies exactly one active primary display with native/current `rot0`. Effective bounds divided by point scale locate its logical centre. A type-6 AX point read selects the PID; process and display geometry are rechecked after the application/snapshot/application sequence. The primary display must report `backlightState: activeOn`; otherwise the error asks the user to wake/unlock the device before any point query. The native tree is also integrated into physical `screen auto|tree` and MCP `get_screen`. On 2026-11-14, the diagnostic, CLI and real MCP each returned 106 Settings nodes without supplying PID to the operation; real MCP screen inspection also returned a matching 1125×2436 PNG and completed EOF shutdown.
+The route resolves fresh CoreDevice hardware identity, retains an Apple tunnel assertion, discovers the current exact-address RSD directory, validates its device/service identity, then opens raw AX DTX. It reads application → snapshot → application and discards the result if the root identity changed.
 
-An explicit PID can identify a background app for tree reads. Centre selection can identify an overlay/embedded process and is not a combined display tree. Snapshot IDs/paths are local to one non-atomic observation, and are not action handles. A visible flag or frame does not establish hittability, complete coverage or stable descendants. Rotated/multiple-display support, crash recovery and other-device coverage remain incomplete. No action is replayed automatically.
+## Tree output and consistency
 
-Before expanding semantic result data, the session now reads the callback's typed `AXPTranslatorResponse.associatedRequestType` with bounded data-only projection. Unrelated type-11 notifications observed during point selection contained `NaN`; they are ignored without expanding their results, while the full numeric/identity checks remain mandatory for matching replies. Carrier acknowledgements cannot satisfy a point request. Point translations use a primitive Int32 PID zero confined to that synthetic request, an opaque query identity, and the captured NSValue point encoding; native returned tokens still require a positive PID.
+Output includes `format: accessibility-tree`, `parsedHierarchy: true`, `snapshotId`, application selection, nodes, coordinate space and separate cleanup results.
 
-DTX auxiliary dictionaries identify their tag by the low byte `0xf0`; upper header metadata varies. Live callbacks contained header words `0x3f0` and `0xb9f0`. The parser preserves that metadata as opaque and still requires exact auxiliary/archive lengths and supported entry types. It never allocates from the upper header word. Independent byte fixtures cover alternate upper metadata, wrong tags and malformed lengths. Installed Apple DTX reader inspection and the retained AXe source reference support this framing distinction; neither executable is invoked for device operations.
+Nodes carry available labels, identifiers, values, frames and native metadata. Frames use device logical points, not pixels or normalized HID coordinates. IDs are paths within one snapshot; they are not reusable action handles. Repeated native identities can occur on different paths.
+
+`atomic: false` and `rootStabilityScope: application-identity` describe the limited recheck. Descendants can change during capture. Visibility/frame metadata does not establish generic hittability or complete offscreen coverage.
+
+The normalizer caps output at 512 nodes/depth 32, validates declared children and refuses malformed/oversized snapshots rather than returning a partial tree. Raw translation tokens stay internal.
 
 ## Current guarded native press
 
 ```sh
-mise run cli physical <UDID> press-id [pid] com.example.control
-mise run cli physical <UDID> press-label [pid] 'Exact label'
-# Explicitly sends one native action through real MCP and captures before/after:
-mise run test:mcp-press <UDID> identifier com.example.control
+appledevicescmd physical <UDID> press-id com.example.control
+appledevicescmd physical <UDID> press-label 'Exact label'
+# Optional PID must agree with the selected display-centre process:
+appledevicescmd physical <UDID> press-id <pid> com.example.control
 ```
 
-The default backend shares native directory/AX ownership with trees. MCP `press_element` uses the same operation with `device`, `by: identifier|label`, `text`, and optional positive `pid`. It requires an awake portrait primary display and selects its centre process; an explicit PID must agree. Two fresh snapshots must each resolve exactly one distinct native identity. Repeated paths of the same identity are accepted only when full native attributes agree. A foreign-process, missing or ambiguous match is refused.
+MCP `press_element` takes `device`, `by: identifier|label`, `text` and optional positive `pid`. Selector text is exact/case-sensitive, `1...4096` UTF-8 bytes without NUL. Pairing files are unsupported.
 
-Type-5 attributes 21/25/27/32 must agree with the fresh frame/available identifier and report known enabled/visible state. The whole positive-size frame must fit inside the display; its centre must hit the exact target. Application root identity, centre process and display geometry are rechecked before one type-7/action-5 request with the fresh token and nil parameters. These sequential checks do not establish atomicity or XCTest's complete hittability calculation.
+Before one native press, the operation requires:
 
-Captured unit type-5 replies can have nil associated translation, and type-7 replies have nil translation. They rely on one outstanding request in a session; there is no demonstrated target/sequence correlator for those nil replies. A supplied type-5 translation must match; snapshots still require matching translation. Matching actions require error/notification zero, attribute zero and Boolean or integer 0/1 results. A carrier acknowledgement alone cannot establish acceptance.
+1. An awake portrait primary display and its centre-selected process.
+2. The same unique native target in two fresh snapshots.
+3. Matching live identifier/frame and known enabled/visible state.
+4. A positive-size frame wholly inside the display whose centre hits that exact target.
+5. Rechecked application root, centre process and display geometry.
 
-Native true returns `status: accepted`, `nativeAccepted: true`, `effectVerified: false` and separate cleanup outcomes. Pre-submission failures retain `state=not-sent`; later failures retain `submitted|refused|accepted`, stage and cleanup diagnostics. Cancellation after submission preserves uncertainty and never replays. Raw tokens are not returned. On 2026-11-14, a CLI identifier press navigated General → Información and a real MCP label press navigated back to General, independently screenshot-verified. Both cleanup acknowledgements and MCP EOF shutdown passed. Other apps, overlays, rotations and interruption effects remain unverified.
+Repeated paths for one identity are accepted only when the full native attributes agree. Different matching identities, foreign processes, hidden/disabled/ambiguous targets and mismatches are refused.
+
+Only then is one type-7/action-5 request submitted with a fresh token. No coordinate fallback, stale snapshot handle, automatic retry or replay is used. Sequential guards reduce stale targeting but do not make the action atomic or implement XCTest's full hittability calculation.
+
+Native true returns `status: accepted`, `nativeAccepted: true` and `effectVerified: false`. Inspect a fresh image/tree afterward. Errors preserve whether the action was not sent, submitted, refused or accepted, together with stage/cleanup uncertainty.
 
 ## Current native scroll-to-visible
 
 ```sh
-mise run cli physical <UDID> scroll-id [pid] com.example.row
-mise run cli physical <UDID> scroll-label [pid] 'Exact label'
-# Explicitly sends one native action and observes the result through real MCP:
+appledevicescmd physical <UDID> scroll-id com.example.row
+appledevicescmd physical <UDID> scroll-label 'Exact row label'
+```
+
+Optional PID and selection rules match press. MCP `scroll_to_element` uses `device`, `by`, `text` and optional `pid`.
+
+The target must already be materialized in the bounded snapshot and resolve to the same unique identity twice. Live state/frame/identifier and application/display guards precede one type-7/action-11 request. Offscreen geometry is allowed at this stage. The operation does not search an unmaterialized list, press the row or synthesize swipes.
+
+After native true or false, one read-only observation re-resolves the target and checks enabled/visible state, matching frame/identifier, full display containment, exact centre hit and application/display stability.
+
+- Passing observation: `status: postcondition-verified`, `postconditionVerified: true`.
+- Completed native reply but failed observation: `status: postcondition-failed`, `postconditionVerified: false`, with `postconditionFailure`.
+
+The latter is a structured result with exit zero: callers must inspect the status. `nativeResult`, `before`/`after` and postcondition remain separate. Native false can describe an already-visible target. These AX checks are not independent pixel verification; `verified` remains false.
+
+## Ownership, deadlines and failures
+
+One session has one outstanding semantic request. Carrier acknowledgements do not satisfy AX reads/actions. Matching result type, target, attributes and semantic status are checked; some nil-translation attribute/action replies lack a demonstrated sequence/target correlator, so one-outstanding-request ownership remains important.
+
+The AX session uses a 30-second overall read budget, four-second phases, 256 frames, 40 MiB callback bytes and at most eight queued results. Cleanup has an independent three-second/32-frame allowance and attempts subscription disable even after ambiguous enable.
+
+Successful observations can retain uncertain subscription cleanup. Inspect `cleanup.subscriptionStop`, `confirmed` and diagnostics, plus separate `connectionCleanup.tunnelAssertionRelease`. An acknowledgement is not independent proof of device-side teardown.
+
+Cancellation propagates after cleanup attempts. No operation is replayed. Blocking private calls, force exit, crashes/disconnection and delayed same-type replies retain uncertainty.
+
+## Evidence and earlier failures
+
+The current Network route returned Settings trees through diagnostic, CLI and real MCP, including omitted-PID foreground selection and PNG/tree inspection. Exact identifier/label presses navigated General ↔ Información. Scroll moved a Settings row; a later MCP already-visible check returned native false with a passing postcondition and unconfirmed unsubscribe.
+
+Earlier CoreDevice named-socket, raw RSD inventory and Apple relay attempts failed before subscription. Error 4000/underlying POSIX 83 did not identify a missing UI Automation setting or establish a private entitlement requirement. The later Network route succeeded; those earlier failures were not converted into evidence for the new route.
+
+See [verification](VERIFICATION.md) for environment and scope. Other apps, overlays, rotations, families, interrupted actions and reliable recovery remain unverified or incomplete.
+
+## Diagnostics
+
+```sh
+mise run test:mcp-physical <UDID> <pid>
+mise run test:mcp-foreground <UDID>
+mise run test:mcp-press <UDID> identifier com.example.control
 mise run test:mcp-scroll <UDID> com.example.row
 ```
 
-`DirectAccessibilityAction` shares ownership and guards between presses and scrolling. MCP `scroll_to_element` uses `device`, `by`, `text`, and optional positive `pid`. A scroll target must already be materialized in the bounded snapshot and resolve to the same unique identity in two fresh snapshots. Live enabled state must be true; known visibility and positive-size geometry must match the snapshot, but an offscreen target is allowed. Application/display rechecks precede one type-7/action-11 request with nil parameters. It does not press, synthesize a swipe, search an unmaterialized list, or automatically repeat an action.
-
-After native true **or false**, a fresh snapshot must resolve the same target. Fresh live state must be enabled/visible, match the snapshot's identifier/frame, fit wholly inside the display and hit the exact native identity at its centre. Application, display-centre process and geometry are rechecked. The result reports `nativeResult` independently of `postconditionVerified` and includes `before`/`after` state. These are sequential AX checks, not independent pixel verification or an atomic transaction; `verified` remains false.
-
-A completed native reply with a failed observation returns `status: postcondition-failed`, `postconditionVerified: false` and `postconditionFailure` while retaining `nativeResult` and `before`. This structured result exits zero; CLI/MCP callers must inspect its status. A missing/invalid native reply remains an error with conservative submission state. Cancellation propagates after cleanup, including after a completed native action, without replay.
-
-On 2026-11-14, the CLI moved Settings' Captura de pantalla row from y793 to about y416.33 logical points, returning native true and a passing postcondition; independent screenshots confirmed movement. Real MCP then returned native false for that already-visible row, unchanged geometry and a passing postcondition. That MCP AX socket closed before disable acknowledgement: subscription cleanup was unconfirmed with its diagnostic, while tunnel release was acknowledged. EOF shutdown and subsequent screenshot capture passed. Broader apps, label-scroll hardware behavior, rotations, interrupted actions and other families remain unverified.
-
-## Migration history and local implementation
-
-The chronological records below describe earlier implementation checkpoints and failed probes. Their statements about unavailable trees or next steps apply to those checkpoints; the current route above supersedes them. The CoreDevice named-socket and old connected-FD failures remain failures.
-
-## DTX framing
-
-`AccessibilityDTX` implements bounded framing for `com.apple.accessibility.axAuditDaemon.remoteAXService`. The service carries DTX rather than the RemoteXPC HID dictionary protocol. It preserves keyed archive bytes without instantiating device-specified classes; the typed decoder, response matcher and snapshot normalizer below remain separate layers.
-
-The codec limits a combined body to 16 MiB and a message to 64 fragments. A fragmented message's initial header declares combined size without carrying a body. Following fragments must match identifiers, conversations, channel, reply expectation and count, and their sizes must sum exactly. Header bounds precede body reads. Payload and auxiliary lengths are validated; unknown/compressed payload kinds fail explicitly. A callback invocation cannot be mistaken for an acknowledgement solely because its identifiers match.
-
-Outgoing invocations archive project-owned selectors and arguments with Foundation secure coding. Replies preserve the identifier, advance the conversation and apply channel direction rules; overflow and unrepresentable channel negation fail. The parser leaves received archive contents opaque. Handling a DTX acknowledgement does not establish an accessibility semantic response or subscription cleanup.
-
-The payload type mapping is acknowledgement 0, invocation 2, archived object 3 and error 4. Raw DATA type 1 and other unsupported/compressed types are rejected. An earlier mapping incorrectly treated 1 as object and 3 as error; this was corrected against the [pymobiledevice3 wire definitions](https://github.com/doronz88/pymobiledevice3/blob/master/pymobiledevice3/dtx/structs.py) and the retained working Rust AX session's object-reply check. `isReply` establishes correlation only, including an error reply; consumers must inspect the kind before treating a response as successful. Literal object/error wire fixtures check decoding, encoding and rejection of unsupported types independently of the enum. Local validation passed 201 Swift test functions with zero errors/warnings. No new phone connection or tree was established by this correction.
-
-Protocol facts were cross-checked against the existing [accessibility notes](ACCESSIBILITY-PROTOCOL.md), the pinned MIT [ipb protocol reference](https://github.com/ipbtools/ipb/blob/8c227a10710dad479852aa0203de729fed57471b/docs/protocol.md), and pinned AXe source reviewed in [AXE-PHYSICAL-REVIEW.md](AXE-PHYSICAL-REVIEW.md). This is project-owned interoperability code; neither reference executable is a runtime dependency. Installed Apple CoreDevice exports separately confirm service-name and feature-identifier socket methods and optional input fields. They do not establish that a particular service connection will succeed.
-
-## Remaining integration
-
-Offline `decode-ax-archive` and MCP `decode_accessibility_archive` now use `KeyedArchiveInspector` in Swift/Foundation rather than the disabled Rust executable. The decoder follows references as data, expands known collection/string/data wrappers, preserves unknown classes as `className`/`fields`, and reports opaque data by byte count. It does not use NSKeyedUnarchiver or instantiate archived classes. The small bridge UID reader checks the CoreFoundation UID type before reading its scalar; the installed SDK exports were checked. Binary UID values/widths are validated before parsing to prevent narrowing aliases. Bounds and limits are documented in [archive inspection](ACCESSIBILITY-PROTOCOL.md#saving-and-inspecting-a-callback).
-
-The saved historical phone callback decoded as two archives, 1,100 expanded values and an `AXPTranslatorResponse`. This is local inspection of previously captured evidence, not a new phone query or normalized tree. Fresh phone capture and product routing remain unfinished.
-
-`AccessibilityRequest` now creates read-only `AXPTranslatorRequest` archives in process using Foundation secure coding and explicit wire class names. It supports application lookup (type 1, positive PID, nil translation), deep snapshot (type 2, attribute 52), and selected attribute queries (type 5). Snapshot options retain the previously verified limits of depth 48, 512 children/array entries and the historical attribute list. Attribute queries reject empty, duplicate and unsupported IDs. Translation tokens preserve unsigned 64-bit object IDs, optional raw/bridge data and Apple's `didPopuldateAppInfo` wire spelling; their combined opaque data is capped at 1 MiB. This bound is a project resource limit, not a claim about Apple's maximum token size. No actions or fabricated live node handles are generated.
-
-The schema was checked against the project-owned earlier Rust AX reader and the captured request contract in the pinned [ipb protocol research](https://github.com/ipbtools/ipb/blob/8c227a10710dad479852aa0203de729fed57471b/docs/protocol.md#captured-wire-contract). Outgoing classes are project-owned encoders only; incoming bytes still use the data-only inspector. Local tests inspect the serialized fields, exact opaque bytes, maximum unsigned identity, nils/flags, resource/query rejection, and nested NSData wrapping for `processDataFromHost:`. The full suite passed 206 Swift test functions with zero errors/warnings on the existing host toolchain. This is local encoding evidence, not successful phone request acceptance. Requests are not yet wired into product tree/selector commands.
-
-`AccessibilityArchiveValue` now provides an internal Sendable, data-only representation that distinguishes native object metadata, dictionaries, booleans, integers, real numbers and opaque bytes. `KeyedArchiveInspector.decodeProtocol` preserves token bytes and unwraps at most one root NSData callback envelope. Plist-looking bytes inside tokens remain opaque. It retains the existing 16 MiB input, 100,000-value/table and 32 MiB expanded-content limits; retained opaque bytes count against the expansion budget. Protocol wrapper depth is now bounded at 512, matching the historical Rust decoder, while public offline inspection keeps depth 64, redacted structural JSON and automatic nested-archive inspection. Value traversal now uses an explicit bounded work stack instead of recursive Swift calls, avoiding a stack overflow reproduced by a deep synthetic fixture. Pending work is capped at 100,000 entries as well as the expanded-value count. This is not a complete-coverage guarantee or an audit of upstream plist-parser allocations.
-
-`AccessibilityResponse` validates `AXPTranslatorResponse` fields without class instantiation. Its read-result matcher ignores unrelated request types, rejects matching semantic errors/notifications and nil results, checks application PID/application flag, and checks snapshot/attribute response PID/object identity and attribute ID. Attribute query results must be dictionaries. Translation parsing rejects booleans/reals masquerading as integer identity/PID, preserves signed/unsigned 64-bit object-ID bit patterns, requires native flags, and retains bounded opaque token data. A DTX acknowledgement is not passed off as a semantic result.
-
-Synthetic tests cover binary callback envelopes, exact opaque bytes, numeric types, target/status mismatches, malformed tokens and shared-data expansion limits. An explicitly selected saved iPhone callback also decoded, including its contained response records. With that opt-in check, the full suite passed 213 Swift test functions with zero errors/warnings. The fixture stays under ignored `tmp/`; this is historical-data decoding, not a fresh phone observation. To repeat that local check with the retained fixture:
-
-```sh
-APPLEDEVICES_AX_CALLBACK_FILE=tmp/physical-accessibility-live.plist mise run test
-```
-
-`AccessibilitySession` now owns the read exchange lifecycle against an injected transport contract. It serves `hostAPIVersion` with an archived object reply containing 7, requires device API version 26, and attempts `clientNeedsAccessibility: false` even when enabling failed ambiguously. Application, snapshot and attribute reads share a single outstanding request guard. Semantic callbacks can arrive before or after the carrier acknowledgement; an acknowledgement alone cannot complete a read. Startup/cleanup callbacks are discarded, unrelated response types cannot satisfy a read, and multiple queued matching results abort rather than selecting one arbitrarily. Unknown callback selectors are refused without a fabricated successful acknowledgement.
-
-The session supplies a 30-second overall read deadline, four-second phase deadlines, a 256-frame read budget, a 40 MiB callback-byte budget and an eight-result queue cap. Cleanup gets an independent three-second/32-frame allowance and ignores task cancellation while attempting disable. Failure closes the transport without retry/replay and prevents session reuse. Cleanup reports `notSubscribed`, `stopAcknowledged` or `unconfirmed`; acknowledgement is not independent proof of phone-side subscription teardown. The session is synchronous, scoped to one owner and deliberately not Sendable. Callers must explicitly close after successful work; deinitialization only closes the transport. AXP has no request sequence identifier, so these guards do not establish atomicity or eliminate all possible delayed same-type responses already in the wire.
-
-Ten scripted session tests cover negotiation, host-version replies, callbacks on both sides of acknowledgements, EOF, API-version refusal, ambiguous enable cleanup, target/DTX errors, cancellation, expiry, frame exhaustion, duplicates, startup callback discard, overlapping requests and unknown selectors. `mise run test` passed 222 local test functions with zero errors/warnings at this checkpoint. These tests exercise the session over synthetic messages, not a connected device. The socket implementation below now enforces the transport contract locally; opening the missing AX endpoint and product integration remain unfinished.
-
-## Owned socket I/O
-
-`AccessibilitySocketTransport` consumes the bridge's stream descriptor and retained owner, including on initializer failure, and releases them through the bridge's single close API. Close is idempotent. The transport requires a stream socket, sets nonblocking/close-on-exec flags and `SO_NOSIGPIPE`, and uses bounded `poll` waits with cancellation checks. Read delegates framing bounds to `AccessibilityDTX` before allocating a body; short reads/writes, interrupted calls, backpressure, final buffered bytes and EOF are handled explicitly. Poll intervals are at most 10 ms, subject to OS scheduling; this is not a real-time cancellation guarantee.
-
-A malformed frame, EOF, system error or interrupted partial frame closes the transport. Cleanup cannot safely append a disable frame to a partially written frame or resume reading after discarding a partial inbound frame. Cancellation/deadline at a clean frame boundary keeps the socket available for the session's separate bounded disable attempt; a fully written outbound frame is also such a boundary. Connection closure alone leaves phone-side teardown unconfirmed. The optional live socket-opening probe now transfers ownership into this transport, but that probe still sends no subscription or input.
-
-Ten local socket tests cover ownership/flags, short reads, exact message boundaries, EOF, invalid headers, unsupported descriptor types, stalled partial writes, cancellation/expiry before and after partial I/O, complete-write cancellation cleanup and a closed peer without SIGPIPE termination. A real local socket pair runs session version negotiation, the host-version reply, enable and acknowledged disable. This tests host socket/session integration without opening a device endpoint or invoking any helper executable. The installed Apple SDK headers confirmed the POSIX flags/signatures used; Cupertino had no match for `SO_NOSIGPIPE`.
-
-On macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Apple Swift 6.4.2, `mise run test` passed 232 local test functions with zero errors/warnings at this checkpoint. No new phone query was performed. Physical AX connectivity, actual phone negotiation/cleanup and product routing remain unverified or unfinished.
-
-## Snapshot normalization
-
-`AccessibilitySnapshot` normalizes a native descendant snapshot into typed, encodable nodes using the earlier project-owned Rust schema as its interoperability reference. It verifies the application root identity and application flag, declared child counts and supported attribute shapes. Traversal is breadth-first with snapshot-local path IDs, capped at 512 nodes and depth 32; pending storage is bounded before expanding children. Any violation aborts without returning a partial hierarchy. Repeated native identities on distinct parent paths remain distinct occurrences. A foreign-process node is accepted only as an explicit `AXRemoteElement` leaf reference and retains its process marker; foreign subtrees are refused.
-
-Nodes preserve scalar label/hint/identifier/value fields, signed/unsigned trait bit patterns as decimal strings, optional visibility and native class/bundle metadata. Missing/null attributes remain absent. Native NSValue rectangles are parsed as data with strict syntax and finite, nonnegative-size guards. CGRectNull has an explicit unavailable marker. Frames remain device logical points; no screenshot scaling, XCUIElementType inference or generic hittability calculation is added. Translation tokens remain available internally for later fresh selector work but are excluded from encoded observations. Root `parentId` is JSON null; path IDs are not reusable action handles.
-
-Local tests cover tree links, missing fields, token redaction, scalar/trait/visibility conversion, malformed rectangles/counts/roots/attributes, repeated identities, foreign references, and the exact node/depth limits. A synthetic binary native snapshot with UI depth 20 decodes through the typed protocol path and normalizes to 21 nodes while exceeding the public inspector's intentionally lower wrapper limit. Another fixture exercises deep protocol wrappers and rejection beyond depth 512. The complete local suite passed 240 test functions with zero errors/warnings; enabling the saved historical callback regression passed 241. These are host-side fixture results, not a fresh phone hierarchy or live normalization verification.
-
-## Opt-in explicit-PID capture
-
-The shared command service now exposes `--physical-backend coredevice physical <device> tree <positive-pid>`. MCP `get_ui_tree` accepts `platform: physical`, `backend: coredevice`, and `pid`. The backend is opt-in; historical/default helper routes remain disabled. Simulator selection, omitted PID and pairing-file prefixes are rejected for this direct route. Dry runs validate and describe the operation without querying a device. CLI signals use the existing bounded cancellation scope; physical AX signal cleanup has not been verified live.
-
-`DirectPhysicalAccessibility` validates PID before device access, resolves fresh hardware/CoreDevice identity and Developer Mode, opens the owned Apple socket, negotiates the session, looks up the application root, requests/normalizes the snapshot and looks up the application root again. PID/object identity changes discard the observation. The result reports explicit-PID selection, logical-point coordinates, snapshot-local IDs, `atomic: false` and `rootStabilityScope: application-identity`. It does not check foreground/display selection or descendant stability. Root tokens remain private. All successful and failed capture paths close the session/transport. Successful hierarchy data may carry unconfirmed subscription cleanup; inspect `cleanup.subscriptionStop`, `confirmed` and diagnostic rather than treating a returned tree as teardown proof. Cancellation stays cancellation rather than an ordinary tool error; no request is replayed.
-
-Six local capture/routing tests cover root rechecks, malformed snapshots, cleanup loss, PID/readiness guards, fresh identity before one owned open, and matching CLI/MCP dry runs. The full local suite passed 246 test functions with zero errors/warnings. Build passed through xcsift. No successful live tree is claimed.
-
-On 2026-11-13 a fresh Apple process inventory on the selected iPhone 13 mini identified the current Settings PID. The built CLI attempted the direct tree against that PID and exited 1 with `com.apple.dt.CoreDeviceError 4000` opening the raw AX socket, before any accessibility subscription. JSON stdout was empty. Private process inventory and failure diagnostics remain under ignored `tmp/`. This verifies an attempted product route and its failure reporting, not negotiation, hierarchy capture, cleanup or MCP live behavior. Host remains macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2; the previous selected-phone inventory recorded iOS 27.2.1 (24B156). No phone setting was changed and no non-Apple device executable ran.
-
-The project-owned socket-opening paths exist behind the bridge, with an opt-in read-only integration probe. None has opened the AX endpoint successfully on the selected phone. Live endpoint access and capture verification, foreground/display selection and selector guards remain unfinished. Historical results below other documentation headings are acceptance targets, not verification of this codec or transport.
-
-## Socket-opening investigation
-
-`ADCOpenAccessibilitySocket` asks Apple's CoreDevice service for the exact AX service name, without a feature identifier or RemoteXPC upgrade. Its owned descriptor and XPC control connection have one explicit close API; socket setup has a 15-second reply deadline. Framework initialization is shared with the existing HID path.
-
-`ADCOpenRSDAccessibilitySocket` is a separate, explicitly selected experiment using installed RemoteServiceDiscovery APIs. Signatures and selection keys were checked against the installed Apple `remotectl` caller using `nm`/`otool`. It selects a remote UUID of type `coredevice-device`, requires connected state, verifies its `UniqueDeviceID` against the requested hardware UDID, then looks up the exact AX service and refuses endpoints requiring encrypted raw data. It does not guess service ports, connect another device, retry or fall back automatically. These synchronous private API calls do not yet have a product-level cancellation/deadline guarantee.
-
-The close API closes the owned descriptor and releases retained service/device objects or cancels the owned CoreDevice control connection. Descriptors are marked close-on-exec. Identity errors clear the output owner and fail before framework access. A socket-open receipt would only prove opening, not DTX negotiation or a tree.
-
-```sh
-# CoreDevice service-name path:
-mise run test:ax-socket <hardware-UDID>
-# Separate RSD path; use a fresh Apple remote inventory UUID for the same device:
-mise run test:ax-socket <hardware-UDID> --remote-uuid <remote-UUID>
-```
-
-Neither probe enables accessibility, sends input, reads a tree or changes device settings. Both are tests of code linked into this project, not shipped helper executables.
-
-On 2026-11-13 the CoreDevice path failed with `com.apple.dt.CoreDeviceError 4000` before subscription. The RSD path initially found no device when filtering by `AvailableService`; separating identity lookup from service lookup found the connected phone and passed the hardware check, but `remote_device_copy_service` returned no AX endpoint. Apple `remotectl show` separately advertised that exact service, and `get-property` reported `UsesRemoteXPC: true`, `EncryptSocketData: false`. The discrepancy is unresolved; advertising and property reads do not establish a working raw connection.
-
-The fresh Apple inventory reports the selected iPhone 13 mini on iOS 27.2.1 (24B156), differing from the earlier 27.2 (24B119) input records. Its hardware UDID was checked; no other listed Apple device was used. Host macOS remains 27.2.1 (26B131), Xcode 27.2 (27B52), CoreDevice 651.32, Swift 6.4.2. Raw device inventory and disassembly remain under ignored `tmp/`.
-
-The next transport investigation is the ordinary paired RSD/TCP route described by the source references, with fresh directory identity checks and bounded I/O. These socket errors are not proof that the phone refuses AX or that Developer Mode/UI Automation is disabled. No additional phone setting change is justified by this evidence.
-
-A later [read-only nettop discovery primitive](TRANSPORT.md#read-only-rsd-port-discovery) now locates a current candidate directory port by exact tunnel address and verified Apple remoted process ownership. Earlier empty netstat/log observations remain valid for those tools and runs. Candidate discovery does not establish an RSD handshake, AX endpoint access or a tree; bounded directory connection/identity verification and service-session ownership remain the next integration steps.
-
-The subsequent [native directory handshake](TRANSPORT.md#native-directory-handshake) passed on the selected iPhone through Apple's own RemoteXPC framework, matching its hardware UDID and validating the advertised AX service port. This supersedes the missing-directory-connection obstacle for that scoped check. It does not supersede the failed CoreDevice named-socket route or prove AX access: the directory probe sends no accessibility subscription and opens no AX socket. Direct RSD/AX session integration is the next step.
-
-Later tree-probe and directory-control attempts failed before AX with native `Connection invalid`; the successful peer directory response has not proved repeatable. An explicit host RSD handshake, using the local UUID from Apple's tool, did not fix the next attempt. The owned AX transport/lifetime integration now exists behind `test:rsd-tree`, but has no live service/tree result. Product routing remains unchanged. See the [transport follow-up](TRANSPORT.md#native-directory-handshake) for failures and remaining tunnel-assertion/identity work; no phone setting change is justified by these results.
-
-An explicit [native Apple tunnel assertion](TRANSPORT.md#native-apple-tunnel-assertion) now has scoped acquisition/release verification. Holding it through a subsequent RSD tree attempt did not resolve `Connection invalid`; that attempt stopped before AX, and assertion release was acknowledged. Missing assertion ownership alone is therefore not a demonstrated repair. Native directory wire/API compatibility and session behavior still need investigation. No pairing, setting change, daemon suspension or automatic action replay was introduced.
-
-The [local wire/service-profile comparison](TRANSPORT.md#local-native-wire-and-service-profile-comparison) now verifies HTTP/2 initialization against an owned local peer and exposes Apple's identity-checked service flags. The mode-4 service-profile experiment did not restore AX. Installed remoted inspection distinguishes its failsafe directory-control bootstrap from those service settings; this distinction is the next implementation target. Local prefix/profile checks do not establish a complete directory exchange or a physical tree.
-
-## Local validation
-
-On 2026-11-13, `mise run test` passed 160 Swift test functions with zero errors/warnings on macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2. Seven new tests cover an independent byte fixture, outgoing subscription archives, fragment assembly/correlation, malformed header/payload/argument bounds, reply direction/overflow and opaque unknown archive class names. No phone request was sent by these tests. A successful build or codec test is not a live tree result.
-
-After adding socket ownership/identity checks, `mise run test` passed 161 test functions with zero errors/warnings; all 24 mise tasks validate. The opt-in live socket test failed on each path as recorded above. Its failure is retained as evidence, not converted to a passing capability result. Physical accessibility remains unavailable.
-
-The shared CoreDevice initialization was regression-checked through real MCP Home input: the before image showed Settings, the immediate after image showed its dismissal animation, and a subsequent Apple screenshot showed settled Home. The MCP handshake, receipt checks and EOF shutdown passed. This verifies the existing Home path after the initialization refactor, not accessibility connectivity.
-
-## Reconnection retry and Apple relay comparison
-
-After the interrupted lookup, the original log process was no longer running. A fresh CoreDevice read confirmed the same physical hardware, wired connection, enabled Developer Mode and a changed active tunnel address. The one-day Apple tunnel log query completed with no matching entries, and `netstat -anv -p tcp` returned no rows. These sources did not provide a current RSD port; no old address/port was reused or guessed. Apple's remote inventory and state dump continued to list the AX service on the selected phone.
-
-The direct RSD probe now follows Apple's device-type parser/canonical description and checks the returned type, in addition to hardware identity. It reads the service-name inventory before looking up the endpoint, matching the installed remotectl show caller. On this retry the selected `coredevice-device` object was connected and passed the hardware check, but its direct service inventory contained zero entries. The diagnostic distinguishes absent inventory from an advertised endpoint that fails lookup. The reason this differs from the Apple tool's inventory remains unknown.
-
-`mise run test:ax-relay <hardware-UDID> <remote-UUID>` provides a separate bounded comparison through Apple's installed `/usr/libexec/remotectl netcat`. It validates fresh CoreDevice readiness and the remote UUID's `UniqueDeviceID`, then attempts only a DTX capabilities exchange. It sends no `clientNeedsAccessibility:` subscription or UI input. Swift Subprocess owns input/output, termination and reaping within the scoped closure, with an eight-second probe deadline, 64 KiB output limit and bounded diagnostics. Partial DTX prefixes wait for the complete frame; malformed headers still fail immediately. A captured frame would be transport evidence, not a normalized tree.
-
-The Apple relay retry exited 69 with `Unable to connect` to the exact AX service, without returning a DTX frame. Thus the observed connection failure is not limited to our CoreDevice/RSD wrapper. Its cause is not established, and this is not evidence that UI Automation needs toggling. The relay is an opt-in diagnostic, not a CLI/MCP fallback. The execution policy adds only the exact Apple remotectl path outside ordinary system bin directories; other libexec and third-party controllers stay blocked.
-
-Local validation after the retry passed 163 test functions with zero errors/warnings; all 25 mise tasks validate. The two added checks exercise every partial DTX prefix, concatenated-frame consumption, malformed-header rejection and the exact Apple-tool policy exception. The live socket and relay failures remain failures. Physical accessibility remains unavailable, and ordinary paired transport/semantic decoding still need implementation and verification.
-
-## Further read-only discovery evidence
-
-The RSD socket probe now has an explicit `--browse` comparison:
-
-```sh
-mise run test:ax-socket <hardware-UDID> --remote-uuid <fresh-remote-UUID> --browse
-```
-
-Installed remotectl disassembly shows `show`/`dumpstate` using `remote_device_browse_present`, while lookup commands use `remote_device_copy_device_matching`. The additional bridge path follows the one-shot browse callback shape, filters the required device type and exact remote UUID, waits at most five seconds for inventory completion, and refuses zero or multiple matches. Candidate storage is synchronized; late callbacks cannot populate a closed selection. Hardware UDID, connected state, exact service inventory, encryption and descriptor ownership guards remain shared with the direct-lookup path. This diagnostic does not replace product routing or retry another backend automatically.
-
-The selected iPhone's remote UUID was freshly checked against its hardware UDID through Apple's tool. The opt-in browse probe completed but again saw zero services and failed before opening an endpoint or subscribing. Thus the direct lookup versus one-shot browse distinction did not restore inventory access. The private-entitlement hypothesis below remains unproven; no phone setting change is justified by this result. CoreDevice/raw-RSD transport and live tree semantics remain unresolved.
-
-A later fresh `remotectl show -t coredevice-device` still matched the selected iPhone hardware and advertised the AX endpoint on iOS 27.2.1 (24B156). `netstat -anv -p tcp` again returned no rows; `dumpstate` exposed service properties but no usable RSD port in the inspected output. No port was inferred or guessed. Installed `remotectl` entitlements include `com.apple.private.RemoteServiceDiscovery.device-admin`, `com.apple.private.RemoteServiceDiscovery.compute-platform` and network-client access. Those privileges differ from this project's executable and may explain an inventory discrepancy, but neither their necessity nor the failure's cause was established. No private entitlements were added, no device setting changed, and no non-Apple executable was invoked. The next live transport still needs a supported/discovered endpoint; local archive decoding can now proceed independently of it.
-
-## Connection failure detail
-
-Installed CoreDevice symbols confirm the named-service raw socket input still accepts optional `serviceName` and `featureIdentifier`. CoreDeviceUtilities' `CoreDeviceError.connectionFailed` getter starts at `0x1babf8`; its code assignment at `0x1bada8` uses 4000 (`0xfa0`). Those addresses belong to **CoreDeviceUtilities**, not the separately loaded CoreDevice binary. This establishes the generic connection-failure category, not the underlying cause. Current selected disassembly is retained under ignored `tmp/coredevice-connection-failed-current.asm`.
-
-`ADCDescribeCoreDeviceError` now preserves bounded domain/code chains and standard localized description/failure/recovery fields in socket diagnostics. It follows at most three error dictionaries, limits each text field to 256 bytes, strips control characters and respects the caller's output capacity. It does not enumerate arbitrary `userInfo`, dump error payloads or instantiate archived errors. Error codes precede explanations, and the socket failure states that no subscription was sent before potentially truncated details. Two synthetic tests cover nested codes, whitelisted explanations, omitted private fields, wrong shapes, text/depth limits and tiny/null output buffers. The local suite passed 248 Swift test functions with zero errors/warnings; build also passed through xcsift.
-
-On 2026-11-13 a refreshed process inventory again identified Settings on the designated iPhone 13 mini. The direct tree retry exited 1 before subscription and now exposed `NSPOSIXErrorDomain 83` beneath CoreDevice error 4000, alongside Apple's generic connection-failure description. The installed macOS SDK `sys/errno.h` defines 83 as `EDEVERR` (device error); authentication codes are separately 80/81. This does not prove why the service connection fails, nor establish a missing phone setting or entitlement. A narrowly filtered five-minute CoreDeviceService/remoted log query for the AX service returned no entries. No further subscription, input, retry loop, helper fallback or setting change was performed. Raw process/error/log artifacts remain private under ignored `tmp/`. Host/tool versions remain those recorded above.
+Read/press/scroll tests have different effects. Use their help and inspect private captures where visual effect matters. The historical idevice AX implementation is disabled; old helper-backed results are migration evidence, not current execution instructions.

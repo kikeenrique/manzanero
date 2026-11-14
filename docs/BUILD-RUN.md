@@ -1,34 +1,44 @@
-# Build and run an iOS app
+# Build, install and launch an iOS app
 
-`build-run` builds a selected Xcode project or workspace, installs the resulting application, and launches it on an explicit iPhone/iPad or iOS simulator target. The CLI orchestration is Swift; compilation and deployment use the selected Xcode's `xcodebuild`, `devicectl`, and `simctl`.
+`build-run` uses the selected Xcode to build an explicit project/workspace, choose one application product, install it and launch it on an iPhone/iPad or iOS simulator.
 
 ```sh
-appledevicescmd simulator <UDID> build-run 'My App.xcodeproj' 'My App'
-appledevicescmd physical <UDID> build-run 'My App.xcworkspace' 'My App' --configuration Release
-appledevicescmd simulator <UDID> build-run 'My App.xcworkspace' 'My Scheme' --app-target 'Main App'
-appledevicescmd --dry-run simulator <UDID> build-run 'My App.xcodeproj' 'My App'
+appledevicescmd simulator <UUID> build-run 'My App.xcodeproj' 'My App'
+appledevicescmd physical <UDID> build-run 'My App.xcworkspace' 'My Scheme' --configuration Release
+appledevicescmd simulator <UUID> build-run 'My App.xcworkspace' 'My Scheme' --app-target 'Main App'
+appledevicescmd --dry-run simulator <UUID> build-run 'My App.xcodeproj' 'My App'
 ```
 
-Configuration defaults to `Debug`; custom configuration names are passed literally. A scheme is required. If it builds multiple application targets, select one with `--app-target`. The project/workspace must already exist; folders, automatic scheme selection, project generation, and non-iOS destinations are not supported. Simulators must already be booted. Device names and `booted` are rejected to keep Xcode's build destination and deployment target the same explicit identifier.
+## Required inputs
 
-## Execution and output
+The project/workspace must already exist, and a scheme is required. Configuration defaults to `Debug`; custom names are passed literally. If the scheme builds multiple apps, select one with `--app-target`.
 
-1. Query build settings as JSON for the project, scheme, configuration, and destination.
-2. Select exactly one application target for `iphoneos` or `iphonesimulator` and resolve its product path and bundle identifier.
-3. Build into a unique `tmp/build-run-<UUID>/` directory. Derived data, cloned source packages, package cache, and the raw `build.log` are kept there. Project-defined scripts/settings may write to their own configured locations.
-4. Check the built app's Info.plist for the expected bundle identifier, application package type, and destination platform.
-5. Install the selected app, then launch it with the backend's terminate-existing option so an old process does not continue running.
+Use an explicit physical hardware UDID or CoreDevice UUID, or a simulator UUID. Names and `booted` are rejected so Xcode's build destination and deployment target agree. Simulators must already be booted. Project generation, automatic scheme selection, folders and non-iOS destinations are unsupported.
 
-Every external invocation uses an argument array. The merged Xcode build log is passed to xcsift as file-backed stdin after the build finishes. Formatted diagnostics go to stderr. The Xcode process's exit status remains authoritative even when formatting succeeds. Failed builds and mismatched products stop before installation; failed installs stop before launch. A launch failure returns nonzero, but an already completed installation remains on the device.
+xcsift must be on PATH. Physical builds use the project's existing signing configuration and locally available signing assets; the CLI does not enable provisioning updates or developer-portal registration.
 
-Physical launch places all devicectl options, including device/output selection and `--terminate-existing`, before the app operand. Devicectl consumes later tokens as app arguments. This ordering is regression-tested; a standalone Settings launch was verified on the iPhone 13 mini. Physical signing, installation, and the complete Build & Run flow remain unverified.
+## Execution
 
-On success, stdout contains one JSON document with `status: launched`, bundle identifier, app path, build directory, and the backend's launch result. `verified: false` means the CLI has not checked app UI or continued health. Follow with `tree`, a screenshot, or app-specific checks. Dry-run prints build/settings argument arrays and describes subsequent deployment; it does not resolve an app, create the build directory, or run Xcode.
+1. Query JSON build settings for the requested project, scheme, configuration and destination.
+2. Resolve exactly one application target, its product path and bundle identifier.
+3. Build into a new `tmp/build-run-<UUID>/` directory.
+4. Validate the app's Info.plist against its expected bundle ID, application package type and destination platform.
+5. Install it, then launch with terminate-existing behavior.
 
-## Signing and limitations
+Build directories retain derived data, source-package state and raw `build.log`. Project scripts may write elsewhere according to their own configuration.
 
-Physical builds use the project's existing signing configuration and locally available signing assets. The CLI does not enable provisioning updates or developer-portal device registration. Xcode signing failures are returned to the caller. Physical Build & Run remains unverified on hardware.
+Every invocation uses an argument array. The merged Xcode log is passed to xcsift after build completion; diagnostics go to stderr. Xcode's exit status remains authoritative. Devicectl options precede the app operand so they are not forwarded as app arguments.
 
-The command does not yet provide streaming build progress, cancellation coordination, a build deadline, incremental reuse of a previous build directory, automatic symbolication, or crash monitoring. Its shared operation is also exposed as the MCP `build_run` tool; that does not add those missing behaviors. An interrupted command may leave build artifacts or a deployed app; no rollback is promised. Do not infer full vendor Build & Run parity from the verified simulator path.
+## Results and failures
 
-See [verification records](VERIFICATION.md) for the exact live checks and [roadmap](ROADMAP.md) for remaining features.
+Success returns JSON with `status: launched`, bundle identifier, app path, build directory and backend launch result. `verified: false` means app UI/continued health has not been checked. Follow with a screenshot, tree or app-specific assertion.
+
+A failed build or product validation stops before install. Failed install stops before launch. Failed launch can leave an already-installed app. No rollback is promised.
+
+Dry-run returns the planned argument arrays and deployment description without resolving an app, creating the build directory or querying a device.
+
+## Verification and limits
+
+Simulator project/Debug and workspace/Release flows were checked. A standalone Settings launch verified physical option ordering; complete physical signing/build/install/launch remains unverified.
+
+Streaming progress, general cancellation coordination, a build deadline, reuse of earlier build directories, automatic symbolication and crash monitoring are unfinished. MCP `build_run` shares these limits. See [verification](VERIFICATION.md) and the [roadmap](ROADMAP.md).

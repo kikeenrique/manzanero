@@ -1,47 +1,63 @@
-# Screen inspection
+# Screen inspection and OCR
 
-Current runtime: screenshot capture, native physical hierarchy and Vision OCR run through Apple tools/frameworks without a device helper. Physical `auto`/`tree` now uses the [native primary display-centre tree](DIRECT-ACCESSIBILITY.md#current-native-tree-route) on awake portrait hardware; real MCP Settings inspection returned 106 nodes with a 1125×2436 PNG on iPhone 13 mini. Simulator helper hierarchies remain disabled; `auto` falls back to OCR when hierarchy is unavailable. Earlier helper-backed observations below remain migration evidence.
+`screen` captures a PNG, then analyzes it with accessibility or Vision OCR. It gives an agent a saved image and explicit information about how the screen was interpreted.
 
 ```sh
+appledevicescmd physical <UDID> screen auto
+appledevicescmd physical <UDID> screen tree
+appledevicescmd physical <UDID> screen ocr
 appledevicescmd simulator <UUID> screen auto
-appledevicescmd simulator <UUID> screen tree
-appledevicescmd physical <device> screen ocr
-appledevicescmd physical <device> screen auto
-appledevicescmd physical <device> screen tree
+appledevicescmd ocr tmp/existing.png
 ```
 
-The command saves a fresh screenshot beneath a unique `tmp/screen-*/` directory, checks that it decodes as PNG, and returns JSON with the image path, pixel dimensions, capture time, analysis method, coordinate space, and diagnostics. Simulator targets require an explicit UUID. Physical capture uses Xcode and its readiness preflight. Historical physical hierarchy analysis required the now-disabled idevice executable; capture and forced OCR do not.
+Simulator screen inspection requires an explicit UUID. Physical capture uses Xcode and its preparation checks. The current physical hierarchy provider is native Apple AX; simulator hierarchy is unavailable because the old AXe executable is blocked.
 
-In `auto` mode, a simulator hierarchy is useful when at least one non-application node has a role/type and a nonempty label, identifier, value, or title. The original AXe hierarchy is returned without rewriting it. Physical auto uses a [foreground physical tree](ACCESSIBILITY-PROTOCOL.md#active-per-application-tree), selecting the primary display-centre process without a caller-supplied PID. It requires consistent tree metadata and a non-root node that is not marked hidden and has a nonempty label, identifier, or string value. The hierarchy is preserved, and any cleanup warning also appears in diagnostics. An unavailable, malformed, empty, or application-only hierarchy falls back to Vision OCR. These heuristics do not prove every visible control is represented. The raw `ax-snapshot` archive is not a parsed hierarchy.
+## Choosing a method
 
-The current physical provider calls the shared native CLI/MCP operation instead of executing the legacy tree plan. It preserves subscription and tunnel-release uncertainty separately in diagnostics. The screen capture precedes the tree and can show a different moment. Centre-process and geometry rechecks do not establish atomicity or overlay coverage.
+| Method | Behavior |
+| --- | --- |
+| `auto` | Prefer a useful hierarchy; otherwise use OCR. If both fail, retain the PNG as an explicit image-only partial result. |
+| `tree` | Require a hierarchy; on failure, return an error with the retained image path. |
+| `ocr` | Require Vision recognition; on failure, return an error with the retained image path. |
 
-If OCR also fails in automatic mode, the result contains `method: image-only`, `status: partial`, and diagnostics. It never invents text or a hierarchy. Successful analysis reports `status: captured`; an empty OCR result is accompanied by a diagnostic. Forced `tree` or `ocr` failures return an error that identifies the saved screenshot. Both platforms accept forced `tree`. Cancellation propagates as cancellation rather than partial success.
+A useful physical tree must contain meaningful non-root, non-hidden content with consistent metadata. That heuristic does not prove complete coverage. Empty/application-only, malformed or unavailable trees cause automatic OCR fallback; the raw callback archive is not a hierarchy.
 
-MCP `get_screen` accepts `platform`, `device`, and optional `method` (`auto`, `tree`, or `ocr`). JSON appears under `structuredContent.result`, with the saved PNG included as image content up to 8 MiB. Larger PNGs remain on disk with an omission notice. Captures can contain private device content; keep `tmp/` out of version control.
+The screenshot precedes the hierarchy query. These are different observations of a changing UI, not an atomic transaction. Native AX subscription/tunnel cleanup uncertainty is preserved in diagnostics.
 
-## Coordinates and consistency
+## Output
 
-- Accessibility coordinates are simulator interface points or physical device logical points. Screenshot dimensions are image pixels; they can differ by the display scale factor.
-- OCR bounds are normalized 0...1, with the origin at the top left. They describe text regions, not interactive hit targets.
-- Image-only output identifies image-pixel coordinates.
+Images are saved under a new `tmp/screen-<UUID>/` directory. JSON includes image path, decoded pixel dimensions, capture time, selected method, coordinate space and diagnostics. Successful analysis reports `status: captured`; automatic image-only fallback reports `status: partial`. An empty OCR result has an explicit diagnostic.
 
-No automatic conversion from OCR bounds to simulator tap points, stable element references, or OCR selector taps is provided. Capture and hierarchy queries occur sequentially, so a changing screen can produce different states. The timestamp describes capture completion, not an atomic capture-and-tree transaction.
+MCP `get_screen` accepts `platform`, `device` and optional `method`. JSON appears under `structuredContent.result`; the saved PNG is included as image content up to 8 MiB. Larger images stay on disk with an omission notice.
 
-OCR has a 120-second cooperative recognition deadline, starting after the local image readability check. Expiry requests cancellation, rejects late observations and drains the recognition task before returning. Apple Vision may delay cancellation, so this is not a hard wall-clock limit. Caller cancellation also drains the task and remains cancellation. Automatic mode retains the screenshot as an image-only partial result on deadline failure; forced OCR reports an error with the retained image path. Screenshot capture and hierarchy queries have their own behavior outside this recognition deadline.
+## Coordinate spaces
 
-To check native Vision against an existing local image without querying a device, run `mise run test:ocr <image>`. The task defaults to the same 120-second allowance; `--timeout-ms 10 --expect-timeout` checks a short cooperative deadline. It writes timing/outcome metadata beneath `tmp/ocr-deadline-*/`, without copying recognized text into that record. A short deadline does not prove that native recognition had started before cancellation.
+- Physical AX frames: device logical points.
+- Simulator hierarchy frames, when a provider is available: interface points.
+- OCR bounds: normalized `0...1`, origin at the top left.
+- Image-only dimensions: pixels.
 
-## Verification
+A screenshot's pixel dimensions can differ from AX geometry by its display scale. OCR regions describe text, not hittable controls. There is no automatic OCR selector tap or stable action handle.
 
-Simulator auto mode returned the tool-owned fixture's accessibility hierarchy and a decoded 1206×2622 PNG. Forced OCR recognized the fixture text with confidence 1.0. The real MCP stdio test exercised `get_screen` and received hierarchy data plus inline PNG content. Synthetic tests cover fallback, invalid capture, forced-method failure, cancellation, and generated image-path handling.
+## OCR deadlines
 
-Before the non-Apple executable restriction, physical auto selected Settings without a caller-supplied PID and returned accessibility data with a 1125×2436 PNG and logical-point geometry on the awake/unlocked USB iPhone 13 mini. The real `test:mcp-foreground` exchange verified both `get_ui_tree` and `get_screen`, including inline PNG content. These historical checks do not establish current hierarchy availability, physical OCR accuracy or complete screen coverage.
+Recognition has a 120-second cooperative deadline after the local readability check. Expiry requests cancellation, rejects late output and drains the recognition task. Apple Vision may delay cancellation; this is not a hard wall-clock bound. Screenshot/hierarchy work is outside that recognition deadline.
 
-On 2026-11-13, direct CLI `screen ocr` captured the selected iPhone 13 mini at 1125×2436 and recognized visible Spanish Settings labels, including General, Batería and Buscar. Independent image inspection matched those labels and their top-left normalized bounds. A native list scroll moved Settings; a fresh OCR result for Pantalla y brillo supplied a visually checked centre, and one direct tap opened Display & Brightness. A fresh screenshot and OCR confirmed the new page. This is scoped physical recognition/navigation evidence, not general accuracy, semantic assertions or a product OCR selector action.
+Caller cancellation remains cancellation. Automatic OCR failure retains the image-only result; forced OCR failure reports the retained image path.
 
-Two earlier taps at the visible General text centre (one Indigo tap and one explicit Universal HID schedule) left the root page visible; their cause remains unresolved. One later Home dispatch also left Display & Brightness visible despite a successful receipt. Other Home, touch and scroll checks in the same run did take effect. The negative results are retained alongside successes: OCR bounds do not establish hittability, and dispatch receipts do not prove UI effects or reliable delivery. See [verification records](VERIFICATION.md).
+```sh
+mise run test:ocr <local-image>
+mise run test:ocr <local-image> --timeout-ms 10 --expect-timeout
+```
 
-A subsequent direct-input check again left the root visible after tapping the General row near the bottom at `(0.5, 0.851)`. After separately scrolling and inspecting a fresh image, a tap at its new row centre `(0.5, 0.611)` opened General. Back and Home also had independently observed effects. This is evidence for one successful navigation after repositioning, not proof that an overlay caused the earlier misses or that transport delivery is reliable. For exploration, inspect the image after every action; if a visible target has no observed effect, reassess overlays and screen position, optionally scroll it into a clearer region, and choose a new target from a fresh capture. Do not interpret OCR bounds as hittability or replay an action automatically.
+These tests query no device. The short deadline does not prove recognition had begun before cancellation.
 
-An earlier standalone OCR attempt failed with `Failed to create CVPixelBuffer`; its cause remains unknown. Initial black captures preceded the user's confirmed wake/unlock; their exact cause was not isolated. The successful current Settings checks do not erase these earlier failures or establish all-app/orientation/device coverage.
+## Evidence and troubleshooting
+
+Native physical `screen auto`/`tree` returned Settings hierarchy and PNG through real MCP on iPhone 13 mini. Direct OCR recognized Spanish Settings labels with visually checked bounds. An OCR-guided tap opened Display & Brightness after fresh observation.
+
+Several taps at visible General text initially had no effect, and one Home dispatch also left the current page visible. Repositioning by a separately inspected scroll led to later successful navigation; the cause of the misses was not established. An earlier OCR attempt failed with `Failed to create CVPixelBuffer`; initial black screenshots preceded confirmed wake/unlock.
+
+When an action has no observed effect, inspect a fresh image and reassess the target/overlays before choosing another action. Do not automatically replay a tap based on an old OCR box. See [verification](VERIFICATION.md) for the scope of the positive and negative checks.
+
+Screen data can be private. Keep `tmp/` ignored and review captures before sharing.

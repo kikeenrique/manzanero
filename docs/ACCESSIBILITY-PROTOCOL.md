@@ -1,117 +1,98 @@
-# Physical accessibility observations
+# Accessibility protocol reference
 
-**Current runtime:** the idevice executable path described below is disabled. Native Apple explicit-PID/foreground trees and guarded identifier/label presses now have scoped CLI/MCP verification on iPhone 13 mini, including screenshot/tree inspection; see [current direct accessibility](DIRECT-ACCESSIBILITY.md#current-native-tree-route) and [native press guards](DIRECT-ACCESSIBILITY.md#current-guarded-native-press). Native scroll-to-visible now also has scoped CLI/MCP verification; see [current scroll guards](DIRECT-ACCESSIBILITY.md#current-native-scroll-to-visible). The helper-backed protocol observations below are implementation references and migration targets, not current execution instructions.
+This page records the AXP/DTX contracts used by the native physical backend and their provenance. For normal commands and selector behavior, use [native accessibility](DIRECT-ACCESSIBILITY.md).
 
-## Active per-application tree
+The exact service is `com.apple.accessibility.axAuditDaemon.remoteAXService`. The older `remoteserver.shim.remote` audit service is not an interchangeable full-tree endpoint. Advertising a service does not establish working authorization or transport.
 
-```sh
-mise run idevice:build --debug --offline
-mise run build
-mise run cli physical <UDID> tree
-mise run test:mcp-foreground <UDID>
-mise run cli physical <UDID> processes
-# Use a current application PID from processes or the result of launch:
-mise run cli physical <UDID> tree <pid>
-# Optional real MCP stdio verification of that same read:
-mise run test:mcp-physical <UDID> <pid>
-```
+## Session and request flow
 
-`tree [pid]` performs active read-only requests through the optional idevice bridge and the existing physical Developer Mode preflight. Without a PID, a primary-display centre hit selects the application process. The displayed PID and display geometry are checked again after observation. Exactly one primary display and native/current `rot0` are required, using the display discovery described below for presses. Selection is reported as `centre-hit-test`; an overlay or embedded process may be selected, and the result is not a combined display tree. An explicit PID must be positive and no greater than 2147483647; it preserves background application inspection without display selection. The optional `--pairing-file` prefix uses the existing bridge transport; that Wi-Fi path is not verified by the USB checks below. MCP `get_ui_tree` accepts `platform: physical`, `device`, and optional integer `pid`. Its default remains the simulator/AXe tree for existing clients. Supplying a PID for a simulator is rejected.
+The host answers `hostAPIVersion` with 7 and requires device API version 26. Those are protocol versions, not the iOS release number.
 
-The protocol path follows the MIT-licensed [pinned ipb research and implementation](https://github.com/ipbtools/ipb/blob/8c227a10710dad479852aa0203de729fed57471b/docs/protocol.md), with the retained [license notice](../ThirdParty/ipb-LICENSE.txt). The host answers `hostAPIVersion` with 7 and requires device API version 26, which is a protocol version rather than the iOS version. After `clientNeedsAccessibility: true`, it sends `AXPTranslatorRequest` type 1 for the PID's application root, then type 2 / attribute 52 for a native descendant snapshot. All requests have action type zero. Data travels as a keyed archive argument to `processDataFromHost:`; `processDataFromRemoteDevice:` supplies semantic responses separately from DTX call acknowledgements.
+After attempting `clientNeedsAccessibility: true`, requests are keyed archives passed to `processDataFromHost:`. Semantic responses arrive separately through `processDataFromRemoteDevice:`; DTX call acknowledgements are not semantic results.
 
-The native snapshot options request attributes `[2001,2002,2003,2004,5019,2006,2025,5003,5004,3003]`, traversal from parents to children, depth 48, and child/array caps 512. These IDs supply label, hint, frame, traits, identifier, value, visibility, and native class/bundle metadata. They are distinct from the older AXP attribute IDs. Missing properties stay absent; unsupported value/geometry shapes cause an error instead of an inferred field. Geometry is **device logical points**, not screenshot pixels or normalized HID coordinates. The observed portrait root was 375×812, while screenshots were 1125×2436.
-
-Success returns `format: accessibility-tree`, `parsedHierarchy: true`, nodes with `parentId`/`children`, and a random `snapshotId`. IDs such as `n0` identify paths within this observation only. Repeated native elements on different parent paths remain separate occurrences; equal labels do not establish identity. Opaque translation tokens never appear in the returned tree. Native class/bundle fields retain their numeric keys under `nativeAttributes`; no XCUIElementType mapping or generic hittability claim is made.
-
-The snapshot response must report request type 2, attribute 52, error zero, and the matching root identity. Each declared child count must match its array. Host traversal rejects more than 512 nodes or depth over 32 without emitting a partial tree. The application root is queried again afterward and must retain its PID/object identity and application flag. `rootStabilityScope: application-identity` and `atomic: false` describe that limited check: descendants can change during the operation. Explicit PID selection may inspect a background app; no foreground/display hit test is performed. A tree is not every UIView, a combined system/app dump, or proof that device-side caps include every offscreen node.
-
-There is one outstanding semantic request at a time; older queued notifications are discarded before sending it. A bounded data-only metadata read routes callbacks by response request type before full semantic decoding. Unrelated payloads are not expanded; matching payloads still reject non-finite numbers and invalid archives. DTX replies must match identifier/conversation/channel, and unsupported reply kinds fail. Semantic errors, missing status/data, target/attribute mismatches, changed root, malformed children, or decode limits abort the read. No shallow fallback or automatic request retry occurs. The observation deadline is 30 seconds, individual reply phases have four-second deadlines, and cleanup has three seconds.
-
-After an attempted subscription, the host attempts `clientNeedsAccessibility: false`. A correlated reply reports `cleanup.subscriptionStop: confirmed`. If a typed transport closure occurs while waiting for that reply, a completed tree or accepted press is retained with `connection-closed-before-ack`, `confirmed: false`, and an explicit warning. This reports the observed close-before-ack condition recognized by the pinned ipb implementation; it does not prove device-side cleanup. Timeout, malformed replies, and other cleanup errors still fail the operation. Earlier operation errors remain errors even if cleanup sees a closure. The bridge's outer 60-second deadline or process termination can interrupt cleanup. The separate raw `ax-snapshot` probe retains its stricter correlated-ack requirement.
-
-Active protocol decoding remains data-only. Its internal mode preserves opaque data for fresh request tokens and permits archive wrapper depth 512, while the public offline structural inspector retains its original depth 64 and byte-count-only opaque data. Both retain the 16 MiB input-per-archive, four-archive, 100,000-value, and 32 MiB expanded-content limits. The session also caps received callback archives at 40 MiB, queued callbacks at eight, and frame/response loops. These host limits are not an audit of upstream plist parsing allocations.
-
-On the selected awake/unlocked USB iPhone 13 mini, a CLI read and a separate real MCP stdio exchange each returned a 263-node Settings snapshot, maximum depth 20, with confirmed subscription stop. A fresh screenshot matched visible labels including Pantalla y brillo, Desarrollador, General, and the search close control. This is scoped physical evidence for this Settings/search/keyboard state. Other apps, overlays, rotations, secure content, Wi-Fi, stable actionable references, and broad completeness remain unverified or unimplemented. Fresh selector presses are a separate operation below.
-
-## Fresh selector presses
-
-```sh
-mise run cli physical <UDID> press-id <pid> com.example.button
-mise run cli physical <UDID> press-label <pid> 'Exact visible label'
-# Omit PID to select the primary display-centre process:
-mise run cli physical <UDID> press-id com.example.button
-mise run cli physical <UDID> press-label 'Exact visible label'
-```
-
-These commands submit one native AX press, not a coordinate tap. MCP exposes `press_element` with `device`, optional integer `pid`, `by: identifier|label`, `text`, and optional existing `pairing_file`. Selector text is an exact, case-sensitive string of 1...4096 UTF-8 bytes without NUL. The native AX path uses the idevice bridge, independently of the separate idevice HID path whose Home/tap effects remain unresolved. No proprietary binary, upstream Python runtime, XCTest, app installation, coordinate fallback, or automatic retry is used.
-
-The bridge discovers exactly one advertised RemoteXPC service supporting `com.apple.coredevice.feature.getdisplayinfo` and queries it on the same owned RSD connection. Exactly one primary display is required. Effective bounds divided by `pointScale` supply logical coordinates; only native/current `rot0` is supported. A type-6 point request at the primary display centre selects the application PID before any selector lookup; an explicit PID must match it. Its `NSValue` point uses primary `displayId: 0` in the captured AXP request format; this is distinct from the display metadata's identifier.
-
-Two fresh native snapshots must resolve the selector to the same single distinct PID/object identity. Multiple paths of one native element are accepted only when their native attributes agree; different matching elements are ambiguous, including hidden duplicates. A type-5 read of AXP attributes 21/25/27/32 rechecks frame, available native identifier, and known enabled/visible state. The whole positive-size frame must fit inside the primary display, and its centre must hit the exact selected native identity. The application root, displayed PID at display centre, and current display geometry/orientation are checked again before submission. These sequential checks reduce stale/occluded targeting; they do not make the operation atomic or implement XCTest's complete hittability calculation.
-
-Only after those checks does the bridge send type 7 / action 5 with the fresh token and nil parameters. Native result true/1 produces `status: accepted`, `nativeAccepted: true`, `verified: false`, and `effectVerified: false`; the caller must observe the effect. No raw token is returned. Errors before submission say no AX press was sent. A refusal, timeout, transport error after submission, or cleanup failure preserves `state=submitted|refused|accepted` in the diagnostic and warns against automatic retry. Cleanup uses the confirmed versus connection-closed-before-ack distinction described above. The 30-second action deadline, three-second cleanup deadline, and outer 60-second bridge deadline can interrupt work; no rollback is promised.
-
-Both identifier and exact-label navigation were screenshot-verified on the USB iPhone 13 mini: General → Información by `com.apple.settings.general.about`, then Información → General by the `General` back-button label. An earlier attempt on Software Update stopped with no press because its centre-hit PID differed from the requested Settings PID. The cause of that mismatch was not isolated. Embedded/overlay processes and other states can therefore be conservatively refused; the tool does not switch PID or fall back to a tap. Other apps, rotations, Wi-Fi, secure fields, modal permissions, and generic press effects remain unverified. The live action checks used the shared CLI; MCP routing is tested synthetically, with no separate real MCP press exchange yet.
-
-## Scroll an element into view
-
-```sh
-mise run cli physical <UDID> scroll-id [pid] com.example.row
-mise run cli physical <UDID> scroll-label [pid] 'Exact row label'
-```
-
-MCP exposes `scroll_to_element` with `device`, `by: identifier|label`, `text`, optional `pid`, and optional `pairing_file`. Selection, selector bounds, Developer Mode preflight, handoff pause, and portrait display requirements match the physical press path. This operation follows the pinned ipb protocol research mapping type 7 / action 11 to native `scrollToVisible`; it does not submit a press or a coordinate swipe.
-
-The target must already exist in the bounded native snapshot. Two fresh snapshots must resolve the same unique native identity. Live enabled state, identifier, frame, and known visibility must agree with the latest snapshot; an offscreen frame is allowed and visibility may be false. Application identity, display-centre process, and display geometry are rechecked before one action. It cannot discover an unmaterialized row by repeatedly scrolling or retry an unknown result.
-
-`nativeResult` preserves the device's Boolean response. Native false can mean an already-visible target, and native true alone does not prove the target became visible. One subsequent read-only observation resolves the same identity, checks live and snapshot visibility/enabled state and matching geometry, requires the full positive-size frame inside the display, checks its exact centre hit, and rechecks application/display selection. Passing these checks returns `status: postcondition-verified`, `postconditionVerified: true`, and public `before`/`after` state. These are sequential AX checks, not an atomic transaction or independent screenshot proof; `verified` remains false.
-
-A completed native response with a failed post-action observation returns `status: postcondition-failed`, `postconditionVerified: false`, and `postconditionFailure` while retaining `nativeResult` and `before`. The command returns this structured observation with exit zero; callers must inspect the status and verification field. No follow-up action is sent. Pre-submission failures say no AX scroll was sent; errors after submission preserve `state=submitted|native-true|native-false` and advise inspection before retrying. Cleanup and deadlines match the active tree/press behavior above. No device-side rollback or full-list coverage is promised.
-
-On the selected USB iPhone 13 mini, a CLI identifier scroll moved the Settings Captura de pantalla row from y=793 to y≈416.33 logical points with native true and a passing postcondition; independent screenshots confirmed movement into view. A distinct real MCP call on that now-visible row returned native false, unchanged geometry, and a passing visibility/hit postcondition. The MCP result honestly reported connection closure before cleanup acknowledgement. A later label selection for Información found zero matches in its fresh snapshot and sent no scroll; a previously returned tree does not guarantee continued materialization. See [verification records](VERIFICATION.md).
-
-## Evidence and scope
-
-The physical phone's advertised services included `com.apple.accessibility.axAuditDaemon.remoteAXService`; see [transport notes](TRANSPORT.md). Advertisement does not prove that a request will succeed. The older DTX audit service, `com.apple.accessibility.axAuditDaemon.remoteserver.shim.remote`, offers focus/audit operations and must not be treated as an interchangeable full-tree API.
-
-Static inspection of [private framework reference removed] 0.9.0/build 90 in Hopper identified:
-
-| Observation | Location/evidence | What it establishes |
+| Request | Type/action | Purpose |
 | --- | --- | --- |
-| RSD connection for the newer service | `start_accessibility` closure at `0x342f4c` | A compiled service connection path; no live authorization result. |
-| DTX calls and replies in the accessibility worker | `sub_37e700` call graph | DTX framing rather than an assumed RemoteXPC request dictionary on this service. |
-| `clientNeedsAccessibility:` | String at `0x73ca0f`, length 25; DTX call at `0x37e8ec` | A selector name. The nearby NSKeyedArchive encoder and Boolean-shaped value suggest enable/disable arguments; semantics remain unverified live. |
-| `processDataFromRemoteDevice:` | Worker selector comparison around `0x37f0a0`–`0x37f104` | A callback selector handled by the worker. It does not prove every callback is a complete tree. |
-| Keyed archive parsing | `parse_dump` at `0x3e6ed8` calls the framework's archive parser | Archive-based processing exists; the full tree schema is not yet independently established. |
+| Application root | Type 1, positive PID | Get the application's translation token |
+| Descendant snapshot | Type 2, attribute 52 | Read native snapshot data |
+| Live attributes | Type 5, IDs 21/25/27/32 | Frame, identifier, enabled and visible state |
+| Point selection | Type 6 | Select a native identity/process at a logical point |
+| Press | Type 7, action 5 | One native press |
+| Scroll-to-visible | Type 7, action 11 | One native scroll request |
 
-These are interoperability observations, not copied implementation code. No proprietary binary is linked or used at runtime. The bridge uses the pinned open-source [idevice DTX message implementation](https://github.com/jkcoxson/idevice/blob/89702099f4d7552f704f93b4526756abda319ceb/idevice/src/services/dvt/message.rs) and `ns-keyed-archive` for encoding.
+Snapshot options request attributes `[2001,2002,2003,2004,5019,2006,2025,5003,5004,3003]`, parent-to-child traversal, depth 48 and child/array caps 512. Host normalization separately caps the returned tree at 512 nodes/depth 32.
 
-## Implemented probe
+Outgoing token encoding preserves unsigned 64-bit object identity, bounded opaque data and Apple's wire spelling `didPopuldateAppInfo`. Tokens are not exposed as public reusable handles.
 
-`appledevicescmd physical <UDID> ax-snapshot` opens the advertised service through the bridge's usbmuxd or explicit Wi-Fi tunnel, sends the inferred enable request, acknowledges incoming calls that request a reply, and captures the first matching callback's archive argument. It then attempts a disable request and requires its correlated reply before returning success. Acquisition is bounded to 30 seconds/256 frames; cleanup has a separate 3-second deadline, inside the bridge's overall operation deadline.
+## Response matching
 
-Frames are checked for the DTX magic, 32-byte header, bounded fragment count/size, fragment order, and consistent payload lengths before the library decoder runs. The current maximum assembled payload is 16 MiB and the fragment limit is 64. These checks are not an audit of the upstream archive decoder or proof of all valid device wire variants.
+Only one semantic request is outstanding per session. The reader first checks bounded response metadata; unrelated request types are ignored without expanding their results. This matters because unrelated type-11 notifications observed during point selection contained non-finite values.
 
-The JSON result identifies `format: nskeyedarchive-base64`, contains `archive`, and explicitly sets `parsedHierarchy: false` and `experimental: true`. It is a raw observation artifact, not stable element references, labels, or a selector-targetable physical hierarchy. Keep saved results under ignored `tmp/`; they may contain device UI data.
+Matching replies still require valid archives, finite relevant values, expected request/attribute/status and appropriate target identity. Application roots must retain positive PID/object identity and application flag. Snapshots are followed by another application lookup.
+
+Type-5 replies can have nil associated translation, and type-7 replies have nil translation. There is no demonstrated sequence/target correlator for those nil results. A supplied translation must match; the single-request guard does not eliminate every delayed same-type reply risk.
+
+A native Boolean/integer 0/1 action result is different from UI effect. Selector guards and postconditions are described in [DIRECT-ACCESSIBILITY.md](DIRECT-ACCESSIBILITY.md).
+
+## DTX framing
+
+`AccessibilityDTX` checks message headers before body reads, exact payload/auxiliary lengths, fragment correlation and supported kinds.
+
+- Maximum body: 16 MiB; maximum fragments: 64.
+- A fragmented initial header declares combined size without carrying the body.
+- Subsequent fragments must agree on identifiers, conversation, channel, reply expectation and count; sizes must sum exactly.
+- Payload kinds: acknowledgement 0, invocation 2, archived object 3, error 4. Raw DATA 1 and unsupported/compressed kinds fail.
+- Auxiliary dictionaries use low-byte tag `0xf0`. Upper header metadata is opaque; observed values included `0x3f0` and `0xb9f0`. It is never an allocation size.
+
+An earlier type mapping confused object/error values; literal wire fixtures now check them independently. Reply correlation alone does not make an error reply successful.
+
+## Data-only archive decoding
+
+Incoming archives are interpreted as data, never instantiated as device-supplied Objective-C classes. The typed internal representation preserves opaque tokens for fresh requests. The public inspector redacts opaque data to byte counts and remains structural.
+
+| Bound | Limit |
+| --- | --- |
+| Input per archive | 16 MiB |
+| Nested archives | Four total |
+| Expanded values / archive table | 100000 each |
+| Expanded content | 32 MiB |
+| Public wrapper depth | 64 |
+| Internal protocol wrapper depth | 512 |
+| Raw binary-plist object count | One million |
+
+Validation rejects cycles, dangling references, invalid classes, mismatched dictionary arrays, duplicate decoded keys, non-finite numbers and invalid UID widths/values. Traversal uses a bounded explicit work stack rather than unbounded Swift recursion. These custom limits do not audit Foundation's parser allocations.
+
+Snapshot normalization validates declared children, native rectangles and scalar metadata. Repeated identities on distinct paths remain occurrences; foreign-process references are allowed only as explicit leaf references, not foreign subtrees. Geometry stays in logical points; there is no inferred XCUIElementType or generic hittability mapping.
 
 ## Saving and inspecting a callback
 
+Current offline inspection is available without a device or helper:
+
 ```sh
-mise run build
-# The optional bridge must also have been built with mise run idevice:build.
-mise run cli physical <UDID> ax-snapshot tmp/accessibility.plist
-mise run cli decode-ax-archive tmp/accessibility.plist
+appledevicescmd decode-ax-archive tmp/accessibility.plist
 ```
 
-The optional `.plist` destination saves the original archive bytes with mode 0600 and returns `archivePath`/`archiveBytes` instead of base64. The parent directory must exist. Existing files and symlinks are refused using exclusive creation; write failure removes the newly created partial file. Destination validation occurs before the device query. Exclusive creation also prevents replacement if another process creates the destination during capture. Without a destination, the existing base64 result remains available. MCP `get_accessibility_archive` accepts the same optional `path`.
+MCP `decode_accessibility_archive` takes the same local `path`. Known Foundation wrappers are expanded; unknown objects retain `className`/`fields`. The result retains `parsedHierarchy: false`; it does not turn an arbitrary callback into an actionable UI tree.
 
-`decode-ax-archive` and MCP `decode_accessibility_archive` inspect a local file in process through Foundation, without connecting to a device or launching a helper. This is data-only property-list decoding: it does not instantiate archived Objective-C classes. Known Foundation collection/string/data wrappers are resolved; unknown classes retain `className` and `fields`. Numeric dictionary keys become JSON keys. Nested archive data is decoded, while opaque non-archive data is represented by byte count. Attributed strings and NSValue fields remain structural objects rather than inferred UI properties. This inspector is available even while live direct accessibility capture is unfinished.
+The old live `ax-snapshot` capture and MCP `get_accessibility_archive` route depend on the disabled idevice executable. Historical capture saved a new mode-0600 file or returned base64, with `parsedHierarchy: false`; it required correlated disable acknowledgement. That is not a currently supported capture command.
 
-Limits are 16 MiB of input per archive, four archives total, recursion depth 64, 100,000 expanded values, 100,000 archive-table entries, and 32 MiB of expanded strings/keys/class names/opaque data. Binary plist offset tables are bounded to one million raw plist objects; raw UID widths/values are checked before Foundation parsing to prevent wider values aliasing a narrowed reference. Cycles, dangling references, invalid classes, mismatched dictionary arrays, duplicate decoded keys, and non-finite numbers are rejected. These limits bound custom validation/expansion; they are not an audit of Foundation's plist parser allocations. Output retains `parsedHierarchy: false`. It does not identify stable elements, assign meanings to numeric accessibility attributes, or supply selector taps. The internal typed decoder and read-response matcher are tracked separately in the [direct migration](DIRECT-ACCESSIBILITY.md#remaining-integration); their implementation does not restore live capture.
+## Cleanup and uncertainty
 
-## Verification and remaining work
+The native session attempts `clientNeedsAccessibility: false` after attempted subscription, including ambiguous enable. It uses bounded independent cleanup and reports acknowledged/unconfirmed outcomes separately from useful result data. Closing a socket or receiving an acknowledgement does not independently prove device-side subscription teardown.
 
-Synthetic in-memory DTX tests cover framing failures, fragments, callback filtering, acknowledgements, and correlated cleanup. A live iPhone 13 mini USB query now completed callback capture and the correlated disable exchange. A subsequent Swift CLI query saved a 7,555-byte archive under ignored `tmp/`; offline decoding found two nested archives, an `AXPTranslatorResponse`, and 27 `treeDump` responses. These are response records, not a count of UI elements. The payload includes numeric attributes, translation-object identities, and Foundation wrappers. No private device data is committed as a fixture.
+See [native session limits](DIRECT-ACCESSIBILITY.md#ownership-deadlines-and-failures) and [verification](VERIFICATION.md).
 
-The raw callback probe still does not interpret initial-versus-update dump semantics. The separate active requests above now supply a normalized native hierarchy, display-centre application selection, and fresh selector presses with scoped physical verification. Generation handling, stable actionable references, broader app/overlay coverage, and other AX actions remain unfinished. A different device state may produce unsupported data. These paths do not complete physical accessibility parity.
+## Provenance
+
+The request/response research follows pinned MIT [ipb protocol notes](https://github.com/ipbtools/ipb/blob/8c227a10710dad479852aa0203de729fed57471b/docs/protocol.md), earlier project-owned Rust AX code, retained phone callbacks and installed Apple interfaces. The [ipb notice](../ThirdParty/ipb-LICENSE.txt) is retained. The earlier Rust path used pinned [idevice DTX](https://github.com/jkcoxson/idevice/blob/89702099f4d7552f704f93b4526756abda319ceb/idevice/src/services/dvt/message.rs); its current executable route is blocked.
+
+Static inspection of [private framework reference removed] 0.9.0/build 90 also identified the newer AX service and DTX worker selectors:
+
+| Observation | Historical location | Scope |
+| --- | --- | --- |
+| AX service connection | `start_accessibility` closure `0x342f4c` | Compiled connection path, no live authorization result |
+| DTX worker | `sub_37e700` | Framing/call graph evidence |
+| `clientNeedsAccessibility:` | String `0x73ca0f`, call `0x37e8ec` | Selector plus Boolean-shaped argument evidence |
+| `processDataFromRemoteDevice:` | Around `0x37f0a0–0x37f104` | Callback handled by the worker |
+| Archive processing | `parse_dump` at `0x3e6ed8` | Archive parser presence, not an independently established complete tree schema |
+
+These are interoperability observations, not a live trace or copied implementation claim. No proprietary binary is linked or packaged. [Original investigation](ANALYSIS.md) retains the inspected artifact and limits; the [public-readiness review](PUBLIC-READINESS.md) calls out the publication/provenance decision.

@@ -1,10 +1,12 @@
-# Beta binary distribution
+# Preparing a beta release
 
-The distribution model follows [cmagic's release task/workflow](https://github.com/kikeenrique/cmagic/tree/d84805469c29a836f9328609a8cc6aef16c52cc2/mise/tasks) and its [tap formula](https://github.com/kikeenrique/homebrew-tap/blob/main/Formula/cmagic.rb): prebuilt GitHub release archives, per-archive SHA-256 and a formula that installs the binary without compiling on the tester's Mac. This project targets macOS only. No device helper or Apple framework is redistributed.
+Distribution follows the prebuilt-archive model used by [cmagic](https://github.com/kikeenrique/cmagic/tree/d84805469c29a836f9328609a8cc6aef16c52cc2/mise/tasks) and its [Homebrew formula](https://github.com/kikeenrique/homebrew-tap/blob/main/Formula/cmagic.rb): GitHub release archives, SHA-256 checksums and a tap formula that installs without compiling on the tester's Mac.
 
-## Local preparation
+The initial release is not published. The checkout has no Git remote, the hosting repository is undecided, and a root project license still needs an owner decision. Third-party notices do not license the project's own code.
 
-`Sources/AppleDevicesCMD/Version.swift` is the single version source for CLI/MCP metadata. Start with `0.1.0-beta.1`; bump it for each new beta. Never replace assets belonging to an existing published version.
+## Build and review locally
+
+`Sources/AppleDevicesCMD/Version.swift` is the single CLI/MCP version source. Increment it for each beta; never replace assets for an already published version.
 
 ```sh
 mise run test
@@ -13,20 +15,36 @@ mise run test:package
 mise run release:formula <github-owner/repository>
 ```
 
-Artifacts are written to ignored `tmp/dist/<version>/`: two byte-identical universal macOS archives, `SHA256SUMS`, a dynamic-linkage report and the generated `appledevicescmd.rb`. The build uses the committed Package.resolved and Swift 6.4+ (the pinned swift-collections manifest requires it). Each architecture is built separately, combined with Apple's lipo and ad-hoc signed. The native architecture runs version/help smoke checks. Intel device functionality still needs independent verification. Packaging refuses non-system dynamic dependencies and retains upstream/transitive license and notice files from the resolved source graph.
+Output is under ignored `tmp/dist/<version>/`:
 
-Apple's `swift-stdlib-tool` copies required Swift compatibility libraries under `lib/` when needed; the archive preserves the Swift runtime license. The locally verified optimized beta binary needed no supplemental library, unlike the debug build. Build-machine rpaths are removed and replaced by `@loader_path/lib`. Homebrew installs the payload in libexec and symlinks the executable into bin, keeping runtime lookup intact. No non-Apple runtime dependency is bundled.
+- two byte-identical universal macOS archives under architecture-specific names;
+- `SHA256SUMS`;
+- a dynamic-linkage report;
+- generated `appledevicescmd.rb`.
 
-The executable/runtime libraries are ad-hoc signed, not Developer ID signed/notarized. No signing identity or App Store provisioning is needed for this beta packaging. Before public licensing claims, choose a project license; this checkout currently carries third-party notices but no root project license. The formula deliberately does not invent one.
+The package task builds each architecture, combines with lipo, removes machine-specific runtime paths, signs ad hoc and smoke-tests native version/help. The archive test checks extraction, signatures, architectures, notices and CLI execution through a Homebrew-style symlink.
+
+Swift 6.4+ is needed by the resolved graph. Apple’s `swift-stdlib-tool` bundles compatibility libraries when needed; the verified optimized beta needed none. Homebrew preserves payload layout in libexec and symlinks the executable into bin.
+
+Applicable package/transitive notices and Package.resolved are included. No Apple device framework or non-Apple device helper is bundled. The release is not Developer ID signed/notarized; no signing identity is required for this local beta path.
 
 ## GitHub workflow
 
-The checkout must first be hosted in the chosen GitHub repository. The release workflow uses that repository's name at runtime; it does not assume a remote URL. A manual workflow dispatch builds/tests and uploads `beta-dist` artifacts without publishing. A pushed `v<version>` tag verifies the source version, runs tests, packages and publishes a GitHub prerelease with immutable archives, checksums and the generated formula. Existing releases are refused rather than overwritten. `contents: write` is limited to the publishing job.
+The workflow uses its repository name at runtime rather than assuming a remote URL.
 
-The macOS runner selects Xcode 26.6, matching the [official macos-26 runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md). Local verification on newer Xcode does not substitute for running this workflow. A successful CI build is not live physical-device verification.
+| Trigger | Result |
+| --- | --- |
+| Manual workflow dispatch | Build/test and upload `beta-dist`; no publication |
+| Pushed matching `v<version>` tag | Build/test/package, create a draft prerelease with assets, then publish it |
 
-## Tap update
+Source version and tag must agree. Existing releases are refused to preserve immutable tap checksums. `contents: write` is limited to the publishing job.
 
-After release publication, use the attached `appledevicescmd.rb` as `Formula/appledevicescmd.rb` in [kikeenrique/homebrew-tap](https://github.com/kikeenrique/homebrew-tap). Check the release URLs/checksums, run Homebrew installation and `brew test`, then commit/push the formula update. Testers can then install `kikeenrique/tap/appledevicescmd`.
+The workflow selects Xcode 26.6 on `macos-26`, following the [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md). Local checks have passed, but the workflow itself has not yet run. A CI build is not live-device verification.
 
-The release workflow intentionally does not assume its repository-scoped GitHub token can write to a separate tap. The formula is a reviewable release artifact; updating the tap is a separate step. Cross-repository automation can use a narrowly scoped GitHub App or token if configured later. No token is stored in this repository.
+## Update the tap
+
+After publishing, copy the attached formula to `Formula/appledevicescmd.rb` in [kikeenrique/homebrew-tap](https://github.com/kikeenrique/homebrew-tap). Check URLs/checksums, test actual Homebrew installation and `brew test`, then commit/push the tap change.
+
+The release repository's default token is not assumed to write to the separate tap. Formula generation produces a reviewable artifact; cross-repository automation needs a separately configured narrow token or GitHub App. No token is stored here.
+
+Before first publication, complete the [public-readiness review](PUBLIC-READINESS.md). See [tester setup](BETA-TESTING.md) for the intended installation experience.

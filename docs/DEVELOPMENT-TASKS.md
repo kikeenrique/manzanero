@@ -1,41 +1,64 @@
 # Development tasks
 
-`mise run test:mcp-shutdown <UDID> <x> <y> <seconds> <EOF|SIGINT|SIGTERM>` stops an owned MCP process after two seconds of an explicit 8...10-second physical long-press. It checks normal exit 0/130/143 before eight seconds, absence of a late ordinary tool response and non-use of the force-exit path, then captures a separate screenshot. It preserves the runtime's cleanup grace before force-killing a stalled test child. Results and private images remain under ignored `tmp/`; process exit does not verify device-side contact release.
-
-`mise run test:cli-interrupt <UDID> <x> <y> <seconds> <SIGINT|SIGTERM>` starts one owned CLI process with an 8...10-second physical long-press, sends the selected signal after two seconds and checks normal exit 130/143, early completion and empty stdout. It waits through the CLI's own cleanup grace before force-killing a stalled test child. Artifacts remain under `tmp/`; no release guarantee follows from process exit.
-
-`mise run test:mcp-long-press <UDID> <x> <y> <seconds> --cancel` requests cancellation after two seconds of an 8...10-second Indigo long-press, then queues a readiness request through the same command actor. It checks that this reply arrives before eight seconds and that no ordinary cancelled-call response precedes it. A subsequent screenshot is timed separately. This is an explicit live action; it does not prove device-side contact release. Without `--cancel`, the task retains its normal full-hold verification behavior.
-
-`mise run test:ax-socket <UDID> --remote-uuid <remote-UUID> --browse` explicitly compares Apple's one-shot discovery path with the existing direct RSD lookup. It verifies hardware identity and opens only the exact AX endpoint if advertised; it sends no subscription or input. `--browse` without a remote UUID is rejected. A failed probe remains a failure, not a capability result.
-
-`mise run test:mcp-cancel-gesture <UDID> <local-sequence.json>` sends one 8...10-second direct gesture through real MCP, requests cancellation after two seconds, then queues a readiness request through the same command actor. It checks that the follow-up response arrives before eight seconds and that no ordinary response for the cancelled request precedes it. A subsequent screenshot is timed separately; artifacts remain under `tmp/`. This mutates the device; it does not establish device-side release or prove when the first contact arrived.
-
-`mise run test:mcp-multitouch <UDID> <multi-tap|multi-drag> <comma-separated-operands>` sends one standalone direct multitouch command through the real MCP stdio server and saves a receipt and screenshot under `tmp/`. For `multi-drag`, the operands start with seconds, followed by three to five groups of start-x, start-y, end-x, end-y. For `multi-tap`, supply two to five x,y pairs. This is a live device mutation, not a dry run.
-
-Executable Bash task files live under `mise/tasks/`. `mise.toml` selects that directory and keeps shared Swift/Rust environment templates and the pinned Rust version. No task commands remain inline in that file.
-
-| Files | Task names |
-| --- | --- |
-| `mise/tasks/build`, `mise/tasks/cli` | `build`, `cli` |
-| `mise/tasks/test/_default` | `test` |
-| `mise/tasks/test/mcp-*` | `test:mcp-*` |
-| `mise/tasks/test/ax-*` | `test:ax-*` (opt-in accessibility transport diagnostics) |
-| `mise/tasks/coredevice/*` | `coredevice:*` |
-| `mise/tasks/idevice/*` | `idevice:*` |
-
-Run the same commands as before:
+Executable Bash tasks live under `mise/tasks/`. `mise.toml` selects that directory and defines shared environment templates; task names use directory namespaces.
 
 ```sh
 mise run build
 mise run test
 mise run cli -- --help
-mise run cli -- --dry-run physical fixture key backspace
-mise run test:mcp-key --help
+mise run cli --dry-run physical fixture key backspace
+mise tasks
 mise tasks validate
 ```
 
-`#MISE` headers declare description, template, dependencies and environment. `#USAGE` headers declare positional arguments and flags. Bash scripts use `set -e -o pipefail`, including build/test output piped through xcsift. The CLI task forwards literal arguments with `"$@"`. Rust scripts receive the configured pin as `APPLEDEVICES_RUST_VERSION`; they do not duplicate the version in their command bodies. All tasks run from the project root, including when invoked from a child directory.
+`cli` forwards literal arguments to the built executable and does not build it. Swift build/test tasks use xcsift and pipefail, so a formatter's success cannot hide a failed compiler command.
 
-Physical MCP verification tasks retain their explicit targets and device effects. Read their argument help before running them. Historical helper build tasks remain research material; moving them does not enable third-party device executables in the product.
+## Task groups
 
-The layout follows mise's [file task documentation](https://mise.jdx.dev/tasks/file-tasks.html), including namespace directories and `_default` for a task with subtasks. The refactor was validated with installed mise 2026.10.20: all 23 names, descriptions, dependencies, argument declarations, existing environment entries and command bodies were compared against the previous definitions. Shell syntax, task discovery, argument help, literal CLI forwarding, Swift build/tests and native sender tests were checked. This organizational change adds no device capability or new hardware-verification claim.
+| Task | Purpose |
+| --- | --- |
+| `build`, `test`, `cli` | Main executable and local regression checks |
+| `package`, `test:package`, `release:formula` | [Beta packaging](RELEASING.md), archive smoke and tap formula generation |
+| `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device |
+| `test:media-*`, `test:native-tunnel`, `test:rsd-*`, `test:ax-*` | Opt-in native transport/media diagnostics |
+| `coredevice:*`, `idevice:*` | Retired helper research/build tests; not runtime setup |
+
+Use the installed task's argument help rather than guessing flags:
+
+```sh
+mise run test:mcp-readiness --help
+mise run test:mcp-recording-interaction --help
+mise run test:mcp-shutdown --help
+```
+
+## Choose a live check deliberately
+
+| Example | Device effect |
+| --- | --- |
+| `test:mcp-readiness <UDID>` | Display/passcode and prerequisite reads; no input |
+| `test:mcp-physical <UDID> <pid>` | Native AX read for an explicit PID |
+| `test:mcp-foreground <UDID>` | Foreground AX plus screen inspection |
+| `test:mcp-press <UDID> <identifier|label> <text>` | One native press, screenshots |
+| `test:mcp-scroll <UDID> <identifier>` | One scroll-to-visible action and observed postcondition |
+| `test:mcp-type <UDID> <text>` | Types into the current focus |
+| `test:mcp-gesture <UDID> <file>` | Sends the complete supplied touch sequence |
+| `test:mcp-recording <UDID>` | Two-second recording and subsequent screenshot |
+| `test:mcp-recording-interaction <UDID>` | Launches Settings, records, reads AX and presses Home |
+| `test:mcp-cancel-recording <UDID>` | Starts/cancels capture, then records again |
+| `test:mcp-shutdown-recording <UDID> <mode>` | EOF/SIGINT/SIGTERM during recording, separate-process reuse |
+
+Run these as `mise run <task> ...`. They use explicit targets and save private evidence under ignored `tmp/`. Passing receipt assertions is not a substitute for viewing the resulting UI where effect matters.
+
+## Cancellation tests
+
+`test:cli-interrupt` and `test:mcp-shutdown` send a signal or close an owned child during an explicit 8...10-second hold. The tests allow the runtime's cleanup grace before terminating a genuine stall. Expected normal exits are 0 for MCP EOF, 130 for SIGINT and 143 for SIGTERM.
+
+`test:mcp-long-press ... --cancel` and `test:mcp-cancel-gesture` cancel a request after two seconds, then measure a follow-up readiness reply separately from screenshot latency. These test scoped interruption and service availability, not precise delivered hold duration or phone-side release.
+
+## Task maintenance
+
+`#MISE` headers declare descriptions, templates, dependencies and environment. `#USAGE` headers declare arguments. Scripts run from the repository root, including when invoked from a child directory.
+
+Keep compiler/package caches, temporary tools and downloaded references under visible `tmp/`; build products use `.build/`. Never commit device artifacts or pairing records.
+
+After editing task definitions, check Bash syntax, task discovery/help and `mise tasks validate`. Run the affected task when its behavior changed. The layout follows [mise file tasks](https://mise.jdx.dev/tasks/file-tasks.html).

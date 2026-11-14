@@ -1,10 +1,12 @@
-# Beta testing appledevicescmd
+# Beta testing
 
-This is a macOS command-line tool, with optional MCP over stdio. There is no app to install on the phone for the verified control paths. The package contains one universal arm64/x86_64 executable, required Swift compatibility runtime libraries under `lib/`, this guide and third-party notices. It does not bundle Apple device frameworks, helper executables, signing credentials or device data.
+`appledevicescmd` is a macOS CLI with optional MCP over stdio. The verified physical-control paths do not install an app, profile or helper on the phone.
 
-## Installation
+The beta package contains a universal arm64/x86_64 executable, any required Swift compatibility libraries under `lib/`, this guide and third-party notices. It does not contain Apple device frameworks, device helpers, signing credentials or device data.
 
-Once the first GitHub prerelease and tap formula are published:
+## Installation status
+
+The initial GitHub release and tap formula are **not published yet**. For source builds, follow [README](../README.md#build-and-start) and substitute `mise run cli` for the bare executable below. Once published, installation is intended to be:
 
 ```sh
 brew install kikeenrique/tap/appledevicescmd
@@ -12,30 +14,45 @@ appledevicescmd --version
 appledevicescmd doctor
 ```
 
-Update with `brew update && brew upgrade appledevicescmd`. The tap formula explicitly records prerelease versions so Homebrew can distinguish beta updates. Until publication, the installation command is not available.
+Updates use `brew update && brew upgrade appledevicescmd`. The formula records the beta version explicitly so Homebrew can distinguish prereleases.
 
-Manual installation: download the archive matching your Mac and `SHA256SUMS` from the same release. Run `shasum -a 256 -c SHA256SUMS` in the download directory (download both named archives for the complete checksum check), extract the archive and add its directory to PATH. Keep `lib/` beside `appledevicescmd` and preserve the accompanying notices. Both archives contain the same universal payload. Beta archives are ad-hoc signed, without Developer ID notarization; they do not provide Apple-verified publisher identity.
+For a manual release archive, download matching assets and `SHA256SUMS` from the same release. The full checksum file lists both archive names, so download both for `shasum -a 256 -c SHA256SUMS`. Extract one archive, keep `lib/` beside the executable and add that directory to PATH.
 
-## Prerequisites and first checks
+Archives are ad-hoc signed, without Developer ID notarization. They do not provide Apple-verified publisher identity.
 
-- macOS 15 or later for the executable; native video needs macOS 26 or later. The live physical evidence currently comes from macOS 27.2.1, Xcode 27.2 and one iPhone 13 mini running iOS 27.2.1. Building another architecture does not verify its device behavior.
-- A full Xcode installation selected with `xcode-select`, its license accepted and developer components installed. The CLI dynamically uses installed Apple developer frameworks; Command Line Tools alone are insufficient for physical control.
-- A paired, trusted, connected device. Enable Developer Mode and, for UI input, Settings → Developer → Enable UI Automation. Keep the device awake and unlocked for the tested flows. Readiness reports prerequisites; it does not prove every operation works.
+## Prepare the Mac and device
+
+- macOS 15+ for the executable; macOS 26+ for native video.
+- Full Xcode selected as the active developer directory, license accepted and developer components installed.
+- A paired, trusted device with Developer Mode enabled.
+- For the verified UI flows: awake/unlocked device and **Settings → Developer → Enable UI Automation** enabled.
 
 ```sh
 appledevicescmd devices physical
 appledevicescmd physical <hardware-UDID> readiness
-appledevicescmd physical <hardware-UDID> screenshot screen.png
+appledevicescmd physical <hardware-UDID> screenshot tmp/screen.png
 appledevicescmd physical <hardware-UDID> tree
 appledevicescmd physical <hardware-UDID> button home
 ```
 
-Use a fresh screenshot/tree after actions to check effects. Input receipts acknowledge dispatch, not application behavior. Physical coordinates are normalized 0...1. A command can partially change the device before failing. There is no automatic input replay or fallback to a non-Apple helper.
+Ensure the output parent directory exists. Readiness reports CoreDevice prerequisites and separate display/passcode observations; it does not verify UI Automation or prove current UI unlock.
 
-For an MCP host, configure the installed `appledevicescmd` executable with argument `mcp`. The host controls tool approvals. Stdout is the protocol channel; diagnostics use stderr. Avoid running independent controllers against the same device. SIGINT/SIGTERM and MCP EOF attempt owned cleanup, but forced exit, crashes and disconnection do not guarantee it.
+The live evidence is mostly iPhone 13 mini on iOS 27.2.1, with macOS 27.2.1/Xcode 27.2. Building Intel output or accepting another device ID does not verify that hardware.
 
-## Feedback
+## Testing safely and usefully
 
-Report the release version, host macOS/Xcode versions, device model/OS, exact command with private values removed, expected behavior and stderr. Screenshots, app lists, paths, logs and files under the working directory's `tmp/` may contain personal data; review them before sharing. Never upload pairing records, credentials or commercial application binaries.
+Inspect fresh state after actions. Physical touch coordinates are normalized `0...1`; AX frames use logical points. A receipt acknowledges dispatch, not application behavior. A failed command may have partially changed the device.
 
-Known beta gaps include intermittent recording startup, keyframe/crash/disconnect recovery, independent controller ownership, incomplete simulator input migration and limited validation across other Apple families. Android is outside the project scope. See the repository's feature-status and verification docs for scoped evidence.
+Paste replaces the clipboard. The tool does not automatically retry input, approve prompts or switch to a non-Apple helper. Independent controllers can compete; avoid simultaneous CLI/server processes on one device.
+
+SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Crashes, forced exits and disconnects do not guarantee release or rollback.
+
+## MCP setup
+
+Launch the installed executable with argument `mcp` from your host configuration. Use an absolute executable path and a suitable working directory. Stdout is the protocol channel; diagnostics go to stderr. The host controls approvals. See [MCP](MCP.md).
+
+## Reporting a problem
+
+Include the release version, host macOS/Xcode versions, device model/OS, redacted command, expected result and stderr. Review captures, app inventories, paths and `tmp/` contents before sharing. Never upload pairing records, credentials or commercial application binaries.
+
+Known gaps include recording startup/recovery, cross-process ownership, direct simulator input migration and broader Apple-family validation. Android is outside scope. Check [feature status](PARITY-STATUS.md) and [verification](VERIFICATION.md) before interpreting a failure.

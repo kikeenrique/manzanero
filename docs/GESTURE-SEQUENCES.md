@@ -1,66 +1,58 @@
-# Timed physical touch sequences
+# Timed touch sequences
+
+Use `gesture` when a linear drag or simultaneous multi-tap is insufficient: sampled curves, repeated strokes, stationary holds, and independently arriving/lifting contacts can be expressed in one complete-state schedule.
 
 ## Current direct implementation
 
-CLI `physical <device> gesture <JSON>` and MCP `perform_gesture` send bounded complete-state schedules through Apple's Universal HID service **in process**. No helper executable or helper build is needed. The JSON contract below remains unchanged: 2...512 frames over at most ten seconds, with one to five stable contact IDs, independent arrivals/lifts and repeated strokes. Coordinates are normalized in the current interface; fresh display metadata rotates active positions into the portrait digitizer frame before 16-bit encoding. Inactive slots retain their last encoded position.
-
-Swift validates the entire schedule before identity queries, then checks fresh identity/Developer Mode and exactly one awake integrated primary display. A second display query must match before dispatch. The bridge opens Apple's Universal HID service through CoreDevice, queries `connectedServices`, requires exactly one `CoreDevice touchscreen(...)` with a nonzero service ID, and waits for a readiness barrier. No report is sent when discovery fails or is ambiguous. It sends the existing 58-byte complete-state reports in `Request/payload/send` messages with the discovered surface ID; there is no global gesture reset or fallback.
-
-The C boundary independently validates frame/time bounds, a fixed slot count, contact IDs/flags, unchanged inactive positions, reserved fields and a final all-up state before any framework connection. Reports retain each described contact on release. Monotonic requested offsets do not guarantee exact device delivery timing. On an observed transport failure or Swift task cancellation, future scheduled frames stop and an all-up report is attempted at the last attempted positions if any contacts remained active. The synchronous scheduler checks its stop callback before each report and at most 10 ms apart during scheduled waits; this is not a real-time latency guarantee. Normal completion already includes the caller's all-up frame. Cancellation cannot suppress the release attempt or completion barrier, and Swift propagates cancellation only after this cleanup returns. Transport acknowledgement does not establish UI effect or release.
-
-This cancellation path covers `gesture`, standalone `multi-tap`, and three-to-five-path `multi-drag`. Indigo touch, typing, named-key and button paths use the same bounded wait/cancellation checks and their corresponding release attempts; see [direct input cancellation](NATIVE-INPUT.md#task-cancellation-and-release-attempts). Direct physical CLI SIGINT/SIGTERM and MCP process signals/stdin EOF cancel owned work and wait for cleanup with a bounded runtime grace; see [signal behavior](NATIVE-INPUT.md#cli-signals) and [MCP shutdown](MCP.md#shutdown-and-operation-ownership). Socket setup can still take up to 15 seconds, discovery/readiness waits up to three seconds each, and the final barrier up to three seconds; these waits are not interrupted by the scheduler callback. Forced process exit, disconnection recovery, ownership across simultaneous controllers and device-side failure cleanup remain incomplete. MCP preserves `CancellationError` so the SDK can suppress responses to cancelled requests.
-
-Direct receipts identify `backend: coredevice-direct`, `operation: gesture`, `surfaceID`, frame/contact counts, requested duration, `coordinateSpace: normalized-current-interface` and display rotation, with `verified: false` and `releaseVerified: false`. Dry run queries nothing and plans no helper. Existing per-device human-handoff mutation pause applies.
-
-The direct six-frame MCP swipe visibly moved Home to App Library on the USB iPhone 13 mini. A four-frame CLI double-tap at a clear map point visibly zoomed Maps, reusing the same slot across release. Five-slot encoding/rotation and independent arrival/lift have unit coverage; broad effects, other Apple families/orientations and failure release remain hardware-unverified. Standalone `multi-tap` and three-to-five-path `multi-drag` now derive complete-state schedules for this same direct engine. Generated drags allow a final release at 10,001 ms to preserve the full 10-second movement contract; user JSON remains bounded to 10,000 ms.
-
-A separate seven-frame MCP two-contact spread, with the second contact arriving at 20 ms and the slots lifting at 610/620 ms, visibly zoomed Maps from a 250 m scale to 75 m. This verifies the overall effect of that scheduled gesture, not the delivered timestamps or each individual lift. Three-to-five-contact effects remain hardware-unverified.
+CLI `physical <device> gesture <JSON>` and MCP `perform_gesture` use Apple's Universal HID service in process. No helper is required.
 
 ```sh
-mise run cli physical <UDID> gesture '{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]},{"ms":180,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":240,"touches":[]}]}'
-mise run test:mcp-gesture <UDID> <local-sequence.json>
+# Two taps at one point; inspect the target before sending this sequence.
+appledevicescmd physical <UDID> gesture '{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]},{"ms":180,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":240,"touches":[]}]}'
 ```
 
-## Historical helper implementation (disabled)
-
-The following records the former helper as a migration reference. Its implementation and hardware observations are distinct from the direct backend above; instructions to build or use an intermediary do not enable that disabled runtime path.
-
-The native backend accepts a finite schedule of complete contact states. This supports sampled curved paths, stationary holds, independently arriving/lifting fingers, and repeated taps within one helper connection.
-
-```sh
-# Two taps at the same normalized point; all four frames belong to one command:
-mise run cli --physical-backend coredevice physical <device> gesture '{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]},{"ms":180,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":240,"touches":[]}]}'
-```
-
-MCP `perform_gesture` accepts `device` and `sequence`, a JSON string with the same shape. It always uses the [native CoreDevice backend](NATIVE-INPUT.md); the default idevice and simulator paths do not expose this operation. Existing linear [multi-drag and pinch](MULTITOUCH.md) remain available.
+MCP takes `device` and `sequence`, where `sequence` is the same JSON string.
 
 ## Input contract
 
-- JSON is limited to 65536 UTF-8 bytes and decoded with Foundation into `frames`.
-- Supply 2...512 frames. Each frame has an integer `ms` and an array `touches` of `{id,x,y}` objects.
-- The first frame must have `ms: 0` and at least one touch. Times must strictly increase; the last frame must be at or before 10000 ms and have `touches: []`.
-- Each frame lists **all active contacts**. Omitting a previously active ID releases it at its last position. A released ID can become active again at a new position for another stroke or tap.
-- IDs are integers 0...4, unique within a frame. Across the whole sequence, used IDs must form a contiguous set starting at zero. At most five contact slots are used.
-- Coordinates are finite normalized 0...1 numbers with the origin at the top left. They are rounded to the existing 16-bit HID coordinate range; nothing is clipped.
+| Field or limit | Requirement |
+| --- | --- |
+| JSON | At most 65536 UTF-8 bytes |
+| Frames | `2...512` |
+| `ms` | Integer milliseconds; first is 0, then strictly increasing, last at or before 10000 |
+| First/last state | First has at least one touch; last has `touches: []` |
+| Contacts | Each frame lists every active contact as `{id,x,y}` |
+| IDs | Unique within a frame, integers `0...4`; all used IDs form a contiguous set starting at zero |
+| Coordinates | Finite normalized `0...1`, origin at the top left |
 
-Every supplied frame is sent at its requested offset. The host adds no intermediate path samples. Supply enough waypoints to express the desired path; the OS/app decides how to interpret movement and gesture thresholds. Integer milliseconds and host scheduling do not guarantee exact device delivery times.
+Omitting an active ID releases it at its last position. A released ID may be used again at a new position. Stable ID slots remain in the encoded report even when inactive.
 
-## Dispatch and cleanup
+Every supplied frame is sent at its requested offset. The host does not interpolate missing waypoints. App recognizers and OS scheduling determine the effect; millisecond offsets do not guarantee device delivery times.
 
-The Swift adapter validates the whole sequence before identity lookup or input. It resolves a fresh matching CoreDevice identity, checks Developer Mode, discovers exactly one touchscreen, and builds reports using the same encoder as linear native multitouch. Each report retains a fixed set of identity slots; inactive contacts retain their last position with contact flags cleared.
+## Validation and execution
 
-The staged native extension independently validates every timestamp, frame, contact flag, inactive position, reserved field, and final all-up state before sending any contact. It reuses ipb's Apple HIDReport bridge. The pinned upstream checkout stays unchanged; [the repository patch](../Backends/CoreDevice/multitouch.patch) adds the sequence dispatch entry point.
+The whole schedule is validated before querying the device. Fresh identity/Developer Mode and two matching awake-display observations precede dispatch. Coordinates are rotated into portrait digitizer space and encoded as 16-bit HID coordinates.
 
-Scheduling uses absolute offsets against a monotonic clock, avoiding accumulated sleep and send latency. Late frames are sent without restarting or replaying the sequence. A scheduling or send failure stops further planned frames and attempts an all-contact release at the last attempted positions, followed by a barrier. A final all-up cleanup report is also sent after ordinary completion. Cleanup errors prevent helper success. This is a bounded release attempt, not a guarantee that contacts were released after transport loss, blocked framework calls, or process termination. The existing 40-second per-helper host deadline applies.
+Native service discovery must find exactly one touchscreen with a nonzero surface ID. The C boundary independently validates the 58-byte complete-state reports, slots, contact flags, reserved fields, times and final all-up state before opening the dispatch path.
 
-Receipts identify `operation: gesture`, `frameCount`, `contactSlots`, requested `durationMilliseconds`, `coordinateSpace: normalized-top-left`, `verified: false`, and `releaseVerified: false`. A dispatch error reports unknown effect/release and is never automatically retried. Dry runs only show the plan. Existing human-handoff mutation pause applies.
+Absolute monotonic offsets avoid accumulating each sleep/send delay. Overdue frames may be sent late; the schedule is not restarted or automatically retried. Failure or cancellation stops future movement and attempts an all-up report at the last attempted positions, then a completion barrier. See [cancellation and signals](NATIVE-INPUT.md#task-cancellation-and-release-attempts).
+
+Receipts include counts, requested duration, display rotation and `coordinateSpace: normalized-current-interface`. `verified` and `releaseVerified` remain false. A dispatch error is not proof that nothing reached the device.
 
 ## Verification
 
-Swift tests cover schedule/size/frame/identity/coordinate bounds, contact arrivals/lifts, repeated IDs, shared report encoding, literal MCP routing, dry-run, no replay, and handoff pause. Standalone native tests inject a clock and transport to check absolute offsets, interrupted/failed waits, partial send failure, cleanup failure, complete prevalidation, and release at the last attempted position.
+On iPhone 13 mini, a sampled swipe moved Home to App Library, repeated taps zoomed Maps, and a seven-frame two-contact spread with staggered arrivals/lifts visibly zoomed Maps. These establish scoped effects, not delivered timestamps or every individual contact transition.
 
-On the selected awake/unlocked USB iPhone 13 mini, a six-frame CLI path with changing x/y and nonuniform offsets moved Home to App Library. Screenshots confirmed the resulting navigation. This is evidence of that sampled gesture's effect, not exact physical trajectory or timing. Independently timed multi-contact effects, three-to-five-contact behavior, other apps/orientations, Wi-Fi, and device-side cleanup after failures remain unverified. See [verification records](VERIFICATION.md).
+Five-slot encoding and independent contact timing have local test coverage. Three-to-five-contact recognition, failure release, other orientations/devices and general unattended behavior remain hardware-unverified.
 
-A real MCP four-frame sequence reused one contact for two taps at the same map point (down/up at 0/60 ms and 180/240 ms). From a clear full-map baseline, it visibly zoomed Maps while the search sheet stayed collapsed. Separate screenshots confirmed the zoom. An earlier run against a renewed location prompt supplied dispatch evidence only; the tool does not infer that its intended target is uncovered.
+```sh
+mise run test:mcp-gesture <UDID> <local-sequence.json>
+```
 
-`mise run test:mcp-gesture <UDID> <file>` opts into one real MCP sequence read from a local JSON file. It captures the resulting screen and saves private artifacts beneath ignored `tmp/mcp-live-*/`. Its assertions check protocol/receipt/capture; inspect the PNG to verify the UI effect. It does not choose a target, approve prompts, or retry failed input.
+This opt-in test sends the supplied sequence, saves a receipt/screenshot and checks MCP shutdown. Inspect the image for the effect; the harness does not choose a target or approve prompts.
+
+## Related commands and history
+
+[Multitouch](MULTITOUCH.md) generates linear two-to-five-path schedules. Generated drags may release at 10001 ms to preserve a full ten-second movement interval; user-supplied JSON remains capped at 10000 ms.
+
+The earlier patched-helper implementation is disabled. Its source is a migration reference, not required setup or proof of the current engine's hardware behavior.

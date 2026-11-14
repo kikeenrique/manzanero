@@ -1,46 +1,53 @@
-# Coordinated physical gestures
+# Coordinated contacts and pinch
 
-The Swift CLI supports simultaneous taps and linear movement of two to five contacts through in-process Apple APIs. No extra helper installation is required:
+`multi-tap`, `multi-drag` and `pinch` generate simple physical multi-contact schedules. They use in-process Apple APIs by default, with no helper installation.
+
+## Commands
 
 ```sh
-# Two contacts spread horizontally, over half a second:
+# Two simultaneous taps:
+appledevicescmd physical <UDID> multi-tap 0.25 0.5 0.75 0.5
+
+# Two paths moving apart over half a second:
 appledevicescmd physical <UDID> multi-drag 0.5 0.25 0.5 0.1 0.5 0.75 0.5 0.9 0.5
-# A spread expressed as center and full horizontal spans:
+
+# Horizontal spread, then inward pinch:
 appledevicescmd physical <UDID> pinch 0.5 0.5 0.5 0.8 0.5
-# Pinch inward by decreasing the end span:
 appledevicescmd physical <UDID> pinch 0.5 0.5 0.8 0.5 0.5
-# Explicit native CoreDevice backend:
-mise run cli --physical-backend coredevice physical <device> pinch 0.5 0.4 0.2 0.6 0.5
 ```
 
-`multi-drag` takes duration first, followed by two to five groups of `start-x start-y end-x end-y`. Every coordinate is normalized 0...1 with the origin at the top left. All paths start together, move linearly for the same duration, and release together. Each identity is included in every frame. Duration must be 0.03...10 seconds. A stationary path is allowed. For sampled curves or independently timed arrivals/lifts, use the native [gesture sequence](GESTURE-SEQUENCES.md) operation instead.
+All coordinates are normalized `0...1`, origin at the top left. Inspect fresh state before selecting them.
 
-`pinch` takes `center-x center-y start-span end-span seconds`. Spans are full horizontal separations expressed as fractions of screen width. They must be positive, different, and fit on screen around the center. Smaller end spans pinch inward; larger ones spread outward. Both contacts must remain distinct and move after conversion to the backend's 16-bit coordinates. No coordinate clipping occurs. This generates a gesture; an app decides whether it zooms or handles it differently.
+| Operation | Arguments and behavior |
+| --- | --- |
+| `multi-tap` | Two to five `x y` pairs; contacts press together and release after 80 ms |
+| `multi-drag` | Seconds, then two to five groups of `start-x start-y end-x end-y`; all paths start/move/release together |
+| `pinch` | `center-x center-y start-span end-span seconds`; generates two horizontal paths |
 
-`multi-tap` takes two to five normalized `x y` pairs, presses all contacts together, and releases them after 80 ms. MCP exposes the same operation as `multi_tap` with a flat `coordinates` array. MCP `multi_drag` takes `device`, flat `paths` (four numbers per contact), and `seconds`; `pinch` takes `device`, `center_x`, `center_y`, `start_span`, `end_span`, and `seconds`. The default backend is direct CoreDevice; pairing files are unsupported and the idevice backend is disabled. A pending human handoff pauses these mutations within that server process.
+Movement accepts `0.03...10` seconds. A stationary multi-drag path is allowed. Pinch spans are full horizontal separations as fractions of screen width: positive, different and fully on screen around the centre. Pinch contacts must remain distinct after coordinate encoding. The two-path Indigo route also rejects crossing/coincident paths; Universal HID schedules require unique contact IDs rather than distinct coordinates. Coordinates are never clipped.
 
-## Backend and cleanup
+For curves, repeated strokes or independently timed contacts, use [complete-state gesture sequences](GESTURE-SEQUENCES.md).
 
-The [direct CoreDevice backend](NATIVE-INPUT.md#moving-multitouch) keeps two-path movement on the previously verified Indigo implementation. It refuses overlapping/crossing two-path input. Three-to-five-path movement and all standalone multi-taps use the same in-process Universal HID engine as [complete-state gesture schedules](GESTURE-SEQUENCES.md). Swift validates the full schedule, checks the primary awake display twice, transforms current-interface coordinates, and discovers one touchscreen surface before dispatch. Movement has an initial frame, 30 linear samples including the exact endpoint at the requested duration, and release 1 ms later (at most 10,001 ms total). JSON gesture schedules retain their separate 10,000 ms bound.
+## Execution and output
 
-Universal HID schedules use absolute monotonic offsets and finish with a barrier. Failure stops future movement and attempts release at the last attempted positions; connection loss, cancellation or process termination can interrupt cleanup. A receipt reports dispatch only and retains `verified: false` and `releaseVerified: false`.
+Two-path movement uses the Indigo digitizer route and rejects paths that coincide or cross, including between samples. Three-to-five-path movement and standalone multi-taps use Universal HID.
 
-## Historical helper implementations (disabled)
+Fresh identity, awake display checks and service discovery precede input. Movement includes an initial contact frame, 30 linear samples and release 1 ms after the requested movement duration. Generated schedules therefore allow 10001 ms total; user JSON has a separate 10000 ms bound.
 
-The former native backend used a patched ipb helper. The Rust implementation below is also retained for research only; neither helper is a runtime backend.
+Receipts report dispatch, not application recognition: `verified: false` and `releaseVerified: false`. Cancellation/failure stops later movement and attempts release at the last attempted positions. [Input lifecycle limits](NATIVE-INPUT.md) still apply.
 
-The Rust bridge uses `UniversalHidServiceClient.send_multitouch` from the [pinned idevice source](https://github.com/jkcoxson/idevice/blob/89702099f4d7552f704f93b4526756abda319ceb/idevice/src/services/core_device/hid.rs). The library encodes 58-byte mainTouchscreen reports, with identities 0...4 and a release flag for each contact. Its contract requires all active contacts in every frame and explicit release with the same identities. No proprietary binary is used.
+## MCP mapping
 
-The bridge sends an initial contact frame, 30 coordinated movement frames, and a release frame. Movement uses absolute monotonic offsets over the requested duration. Scheduling and transport latency affect actual delivery; this is not a real-time timing guarantee. Dispatch has an internal deadline of duration plus five seconds. After normal completion, a send failure, or that deadline, the bridge attempts to release every contact at its last attempted position, with a three-second cleanup deadline. A failed send may already have reached the phone. Release failure prevents a success receipt and preserves any dispatch error.
+- `multi_tap`: flat `coordinates` array, two numbers per contact.
+- `multi_drag`: flat `paths` array, four numbers per contact, plus `seconds`.
+- `pinch`: `center_x`, `center_y`, `start_span`, `end_span`, `seconds`.
 
-The existing display-stream authentication setup and teardown still apply. The overall 60-second backend deadline, abrupt process termination, or connection loss can interrupt cleanup. No promise is made that a timed-out or killed process leaves the screen unchanged or contacts released. See [backend setup and stream limits](DEPENDENCIES.md).
+Use a physical `device`; optional `backend: coredevice` selects the existing default. Pairing files and simulator moving multitouch are unsupported. A pending handoff pauses mutations for that device within the same server process.
 
-## Verification limits
+## What has been verified
 
-On 2026-11-13, a standalone two-contact `multi_tap` through real MCP visibly zoomed Maps out on the USB iPhone 13 mini. Three-path `multi_drag` through MCP and five-path `multi-drag` through CLI completed direct dispatch/barriers. The three-path result showed a place card rather than proving the intended spread; the five-path screenshot also does not establish independent tracking of all contacts. Treat these as transport checks, not proof of three/five-contact gesture recognition. Four-contact hardware behavior, timing and interruption cleanup remain unverified. No helper was built or invoked.
+Two-contact spread and inward movement visibly zoomed Maps on iPhone 13 mini; a direct MCP simultaneous multi-tap also changed Maps zoom. Three- and five-path calls completed dispatch/barriers, but their screenshots did not establish independent tracking or the intended gesture. Four-contact effects remain unverified.
 
-Current direct tests verify two-to-five-slot multi-tap encoding, rotation and balanced release, three-to-five-path interpolation at minimum/maximum durations, exact endpoints, strict timing, input rejection before device queries, and default direct routing. Historical helper tests do not establish direct runtime cleanup or hardware behavior.
+Local tests cover two-to-five-slot encoding, rotation, interpolation, endpoint/timing bounds and input rejection before device queries. Exact delivered timing, broad gesture semantics, hardware failure release, other apps/orientations and other Apple families remain unverified.
 
-On 2026-11-12, the native CoreDevice CLI's two-contact `pinch` spread visibly zoomed in Apple Maps on the awake/unlocked USB iPhone 13 mini. A subsequent inward two-contact `multi-drag` visibly zoomed out. Separate screenshots confirmed both effects, and Home returned to the Home Screen afterward. This establishes scoped two-contact native behavior; three-to-five-contact effects, exact delivery timing, device-side cleanup after failure, other apps/orientations, Wi-Fi, and the idevice backend's gesture effects remain unverified. Individual receipts retain `verified: false`. See [verification records](VERIFICATION.md).
-
-Simulator pinch/moving multitouch is not implemented by these commands.
+Earlier ipb/idevice implementations are disabled research references. Their tests and receipts do not establish behavior of the current direct backend.

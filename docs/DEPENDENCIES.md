@@ -1,132 +1,80 @@
-# Backend dependencies
+# Architecture and dependencies
 
-## Integration direction
+`appledevicescmd` has one Swift executable. The CLI and optional stdio MCP server both call `CommandService`, which validates requests, selects the backend and returns the operation's result.
 
-**Current enforcement:** non-Apple device-control executables are disabled in both process runners. Physical hardware buttons, named keys, single-contact touch and two-contact movement use the project's in-process Apple bridge; the former ipb input/video, Rust idevice and AXe simulator adapters are unavailable pending remaining direct replacements. The xcsift development/build-log formatter is infrastructure, not a device backend. General-purpose linked Swift packages remain permitted. Later sections describing helper installation are historical reference material.
+## Execution boundaries
 
-The user clarified on 2026-11-12 that device backends should communicate directly with Apple frameworks/APIs from this project's code. Third-party device-control tools are references for understanding those interfaces, rather than the intended permanent runtime architecture. General-purpose Swift packages such as Subprocess remain appropriate dependencies; they do not implement the device operations.
+| Layer | Responsibility |
+| --- | --- |
+| CLI and MCP adapters | Parse arguments/schema, select an explicit target, format output |
+| Shared command service | Route operations, apply preparation checks and in-process handoff pause |
+| Native Swift code | Input schedules, AX/DTX parsing, screen analysis, media packet assembly and encoding |
+| Linked `AppleDeviceBridge` target | Objective-C interoperability with installed Apple interfaces; socket and native-owner lifetimes |
+| Apple executables | Xcode discovery, app/data operations, screenshots, simulator lifecycle and build/deploy |
+| General-purpose Swift packages | MCP protocol support and scoped subprocess handling |
 
-Unicode paste uses Apple devicectl for clipboard copy and our in-process bridge for Command+V. US-layout ASCII typing also runs in process without a clipboard operation. Physical trees use Network.framework, Apple's RemoteXPC and raw AX DTX; omitted PID uses Apple devicectl display geometry and native AX point reads. Guarded presses, scroll-to-visible and foreground Settings trees have scoped CLI/MCP verification. The bridge is linked into `appledevicescmd`, never launched separately. Native physical video now uses Apple negotiation, project-owned RTP/RTCP logic, VideoToolbox and AVFoundation, with short CLI/MCP and 35-second CLI iPhone checks. Simulator interaction still needs direct replacements. Former helper implementations remain disabled migration references. Use C/Objective-C interoperability where Swift cannot express private APIs and verify replacements on the selected iPhone. See [the AXe review](AXE-PHYSICAL-REVIEW.md), [direct accessibility](DIRECT-ACCESSIBILITY.md#current-native-tree-route) and [recording limits](RECORDING.md).
+The Objective-C bridge is linked into the main process. It is not a helper executable. Private interfaces stay behind backend boundaries because their contracts and availability can change with Xcode or the OS.
 
-The receiver-report implementation was informed by AXe's MIT-licensed `PhysicalDisplayRTCP.swift` at revision `4b622d4436fc441534e6ee8c7196728cd762dbff` and RFC 3550. Its [MIT attribution](../ThirdParty/AXe-LICENSE.txt) is retained. This adds no AXe package, executable or runtime dependency.
+Both process runners refuse non-Apple device-control executables, including AXe, idevice and ipb helpers. xcsift is allowed as a build-log formatter, not a device backend. Installing a legacy helper or selecting an old backend does not bypass this policy.
 
-Timed physical gestures send complete-state digitizer reports through in-process Apple Universal HID. They support up to five slots and independent arrivals/lifts; standalone multi-tap and three-to-five-path linear multi-drag now derive schedules for this engine. Broad hardware verification remains unfinished. This direct report path discovers the Apple touchscreen service and does not build or invoke the historical helper.
+## Build requirements
 
-The main CLI is Swift 6.2+ with strict concurrency. Xcode supplies `devicectl` and `simctl`; macOS supplies Vision. Private protocol implementations stay behind optional backend boundaries.
+The executable targets macOS 15+. Native video needs macOS 26+. Swift language mode is 6 with strict concurrency; the manifest's tools floor is 6.2, while the resolved `swift-collections` dependency requires Swift 6.4+ to build the current graph.
 
-## Swift MCP SDK
-
-The executable links the official [Swift MCP SDK](https://github.com/modelcontextprotocol/swift-sdk) at exact version 0.12.1, revision `a0ae212ebf6eab5f754c3129608bc5557637e605`. It is declared as a Git-backed Swift package dependency; [Package.resolved](../Package.resolved) records resolved revisions. The optional research clone was removed during temporary-file cleanup; the build uses SwiftPM-managed sources. The SDK's upstream license is transitioning between MIT and Apache-2.0 by contribution, with separate documentation licensing; its complete [license/transition text](../ThirdParty/swift-mcp-sdk-LICENSE.txt) is retained. Binary distribution must also preserve applicable transitive notices.
-
-MCP mode is optional at runtime via `appledevicescmd mcp`; the dependency is linked in the standard executable. The compiled product uses the SDK's MCP library, not its conformance executables. The SDK manifest also declares packages for other products, so resolution can include dependencies beyond those compiled into this executable. Swift build/test tasks use `tmp/swift-cache` for the package cache; SwiftPM-managed build checkouts remain under ignored `.build/`. See [MCP configuration and protocol limits](MCP.md).
-
-## Swift Subprocess
-
-The executable also links [Swift Subprocess](https://github.com/swiftlang/swift-subprocess) as a Git-backed SwiftPM dependency at exact version 1.0.2, revision `dbe21bd7dfd4ffef8c32588918542a8abfa1b54c`. The target declares the `Subprocess` product, and `Package.resolved` records its resolved source. The optional clone under ignored `tmp/` is API-reference material; it is not the build dependency. The [Apache 2.0 license with runtime library exception](../ThirdParty/swift-subprocess-LICENSE.txt) is retained.
-
-`StreamingToolRunner` uses the package's structured asynchronous output sequence and scoped process lifetime, bounded stderr/output, cancellation teardown, and reaping. It passes literal argument arrays and never lets execution/pipe handles escape the package's body closure. Tests exercise binary output, literal text, failed children, deadlines, consumer failure, and byte-limit cleanup. Existing synchronous command paths retain their current runner while live media integration is developed.
-
-## Native CoreDevice input helper
-
-`mise run coredevice:build` fetches/checks [ipb](https://github.com/ipbtools/ipb) at revision `8c227a10710dad479852aa0203de729fed57471b`, stages an unchanged-source copy plus the repository's [multitouch extension](../Backends/CoreDevice/multitouch.patch), builds its native helper through the upstream Makefile and xcsift, and copies it to `tmp/bin/appledevices-coredevice`. The checkout remains unchanged; staging/build outputs live under `tmp/coredevice-source` and `tmp/coredevice-build`. The [MIT notice](../ThirdParty/ipb-LICENSE.txt) is retained. This optional process dependency dynamically uses installed Apple CoreDevice/Mercury/UniversalHID frameworks; no device-control tooling binary or Apple framework is redistributed. The main CLI remains Swift with strict concurrency; this third-party helper contains Objective-C, Swift, and assembly.
-
-Select it explicitly with `--physical-backend coredevice` for physical Home/buttons, taps, drags/swipes, moving multitouch/pinch, keys, and Unicode paste. It resolves the requested target to a CoreDevice UUID and discovers the appropriate touchscreen/keyboard before input. Paste explicitly replaces the device clipboard through Xcode before sending one native paste sequence. Host subprocess deadlines, handoff pause, and JSON dispatch receipts apply. It does not use the idevice pairing file/software tunnel or the upstream Python AX backend. Native Home/tap/drag, two-contact Maps zoom gestures, Unicode paste, and Backspace were screenshot-verified on the awake/unlocked USB iPhone 13 mini; other operations/transports remain unverified. See [native input setup and limits](NATIVE-INPUT.md).
-
-The native input helper also exposes its existing `cd_uhid_long` held-touch operation through CLI `long-press` and MCP `long_press`. The Swift adapter validates coordinates/duration and uses the same fresh identity/touchscreen discovery. No new native patch, report encoder, or dependency revision was added for this operation. CLI and real MCP context-menu effects were screenshot-verified on the selected USB iPhone 13 mini; exact delivered timing and failure release remain unverified. See [long-press limits](NATIVE-INPUT.md#long-press).
-
-The staged native extension also accepts bounded [timed gesture sequences](GESTURE-SEQUENCES.md), reusing the same 58-byte report encoder and Apple HIDReport bridge. The repository-owned scheduler validates every frame and attempts release after errors; it does not replace the pinned framework transport or add a new package dependency. The unchanged upstream checkout and retained MIT attribution still apply.
-
-## Native video helper
-
-`mise run coredevice:video-build` builds `video_stream.m` from the same pinned MIT ipb checkout, applying [the timestamped output patch](../Backends/CoreDevice/video.patch) in a separate staging tree. It installs `tmp/bin/appledevices-video`; select it with `--recording-backend coredevice`. The helper dynamically loads installed Apple CoreDevice and AVConference frameworks and returns live JPEGs. The Swift CLI uses the declared Subprocess package and built-in AVFoundation/CoreVideo for MP4 encoding; no encoder package or proprietary runtime is added. H.264/HEVC captures have scoped USB iPhone 13 mini verification, with device-side teardown explicitly unconfirmed. See [recording setup and limits](RECORDING.md).
-
-## idevice
-
-Physical HID uses the open-source [idevice library](https://github.com/jkcoxson/idevice), by Jackson Coxson, under the MIT license. Its source is declared as a Git dependency in [the bridge manifest](../Backends/IDevice/Cargo.toml), pinned to revision `89702099f4d7552f704f93b4526756abda319ceb`. [Cargo.lock](../Backends/IDevice/Cargo.lock) records the transitive dependency versions and registry checksums. A development clone in `tmp/idevice` is investigation material and is not needed to build the shipped backend.
-
-This revision's `swift/Package.swift` describes local binary XCFramework targets. The upstream idevice repository root has no Swift package manifest, and its C FFI does not expose HID or display-stream clients. Adding this repository directly to SwiftPM would not provide these APIs. The small Rust executable in `Backends/IDevice` therefore depends on the library directly; the Swift CLI validates and plans commands, then invokes the bridge with an argument array. JSON is the process boundary. It does not run the upstream example CLI, whose error paths sometimes return success.
-
-The bridge's display-stream startup is adapted from the MIT-licensed `tools/src/coredevice_stream.rs` at the same revision. The complete [MIT notice](../ThirdParty/idevice-LICENSE.txt) is retained. No proprietary device-control tooling binary is used or redistributed. Distributing a compiled bridge also requires preserving the licenses of the transitive libraries included in that build.
-
-### Build
-
-Install mise (tested with 2026.10.20) and xcsift, then run from the repository root:
+Use a full Xcode installation selected as the active developer directory. Command Line Tools alone do not supply the physical-device services. Development tasks use mise and xcsift:
 
 ```sh
-mise run idevice:build
-export PATH="$PWD/.build/debug:$PWD/tmp/bin:$PATH"
 mise run build
-.build/debug/appledevicescmd physical <UDID> hid-info
+mise run test
 ```
 
-`mise run idevice:build` installs Rust 1.99.1 under `tmp/`, builds the bridge with the committed Cargo lockfile, and copies it to `tmp/bin`. Use `mise run idevice:build --debug --offline` for a debug build with cached Cargo dependencies, and `mise run idevice:test --offline` for bridge tests. The toolchain must already be installed for a fully offline first step. Cargo downloads, Rust toolchain files, mise's tool data/cache, and bridge outputs stay under `tmp/`. The Swift CLI itself builds without Rust; physical input, HID discovery, accessibility snapshots, and Wi-Fi pairing require the bridge on PATH.
+Build products live under `.build/`; task caches and investigation artifacts use ignored `tmp/`. See [development tasks](DEVELOPMENT-TASKS.md).
 
-### Protocol and verification limits
+## Linked packages
 
-The bridge connects to an exact UDID exposed by usbmuxd, opens a software CoreDeviceProxy tunnel, discovers services through RSD, and uses RemoteXPC. A device visible in `devicectl` is not necessarily available through usbmuxd. For devices absent from usbmuxd, the optional `--pairing-file` path verifies a tool-specific Wi-Fi record and creates a separate TLS-PSK/software tunnel. That path is implemented but not live-verified; it does not reuse Apple’s existing trust keys or RSD connection. The vendor’s setup guide calls for Mac trust, Developer Mode, and UI Automation. The exact authorization checks for each operation in this backend have not been verified.
+[Package.swift](../Package.swift) declares two direct packages; [Package.resolved](../Package.resolved) records the complete resolved graph.
 
-Physical `tap`, `multi-tap`, `swipe`, and `drag` take normalized 0...1 coordinates, origin at the top left. The Swift planner converts them to the library's 16-bit touch range. Simulator input uses interface points instead. `multi-tap` sends two to five simultaneous contacts and release, not an arbitrary moving multitouch gesture. `swipe` uses a touch drag rather than the upstream digitizer-swipe example that is marked nonworking. Physical drags use 30 movement samples; the per-sample delay is integer milliseconds, so actual duration is approximate.
+| Package | Pin | Purpose |
+| --- | --- | --- |
+| [Swift MCP SDK](https://github.com/modelcontextprotocol/swift-sdk) | 0.12.1, `a0ae212ebf6eab5f754c3129608bc5557637e605` | Optional MCP mode in the standard executable |
+| [Swift Subprocess](https://github.com/swiftlang/swift-subprocess) | 1.0.2, `dbe21bd7dfd4ffef8c32588918542a8abfa1b54c` | Scoped asynchronous process output, cancellation and reaping |
 
-Experimental `multi-drag` moves two to five contacts along synchronized linear paths; `pinch` plans two horizontal paths around a center. These use the library's multi-contact report API, absolute movement offsets, and a bounded release attempt after completion, dispatch error, or internal timeout. Hardware effects remain unverified. See [gesture syntax and cleanup limits](MULTITOUCH.md).
+The MCP SDK also resolves packages used by its other products; resolution alone does not prove every package is compiled into this executable. Swift Subprocess does not implement device protocols. Existing synchronous paths still use `ToolRunner`; streaming paths use `StreamingToolRunner`.
 
-The library's input examples require a display stream for HID authentication. The bridge holds audio/video sockets while dispatching, then attempts to stop the stream after normal dispatch success or failure. The available stop operation is `stopAll`; the bridge refuses a reported pre-existing `streamConfig`, but concurrent controllers and all possible server-status formats have not been verified. Do not use simultaneous screen controllers for input checks. If setup times out or the process is killed, connection teardown is the remaining cleanup mechanism; stream cleanup after cancellation is unverified.
+Preserve the [MCP license/transition notice](../ThirdParty/swift-mcp-sdk-LICENSE.txt), [Subprocess license](../ThirdParty/swift-subprocess-LICENSE.txt) and applicable transitive notices when distributing binaries. Packaging gathers notices from the resolved source graph.
 
-Successful bridge input returns `status: dispatched` and `verified: false`; confirm effects with a screenshot or other observation. The bridge emits JSON errors on stderr and exits nonzero. The Swift CLI currently wraps subprocess failures in text, so end-to-end CLI errors are not uniformly JSON. Live physical input is **not verified**. The earlier phone was absent from usbmuxd; the selected iPhone 13 mini subsequently reported Developer Mode enabled and completed read-only bridge HID discovery over USB. See [verification records](VERIFICATION.md).
+## Apple interfaces
 
-Physical `type` uses the pinned library's owned virtual mainKeyboard API and a US-layout ASCII mapping. It releases the complete pressed-key set between characters and attempts reset/removal after normal dispatch or errors. Cleanup failure prevents success; outer timeout/process termination cleanup remains unverified. See [physical typing](PHYSICAL-TYPING.md) for bounds and layout limits.
+- `devicectl` and `simctl` handle discovery, app/lifecycle/data operations and capture wrappers.
+- CoreDevice/RemoteXPC provide physical button, keyboard, Indigo digitizer and Universal HID dispatch.
+- Network/RemoteXPC and raw AX DTX provide native physical accessibility.
+- Vision provides OCR.
+- AVConference negotiation, standard RTP/HEVC parsing, VideoToolbox decoding, CoreImage buffer copying and AVFoundation encoding provide explicit native physical recording.
 
-### Wi-Fi pairing
+No Apple device framework is redistributed. Runtime use depends on what the host's installed Apple software exposes. A successful build is not proof that a private interface works on a particular device.
 
-Use a device-advertised `_remotepairing._tcp` endpoint (hostname and port). Apple's installed Bonjour utility can browse and resolve those endpoints:
+## Implementation references and attribution
 
-```sh
-dns-sd -B _remotepairing._tcp local
-# Stop browsing with Ctrl-C; resolve the selected service instance:
-dns-sd -L '<instance-name>' _remotepairing._tcp local
-```
+Third-party device projects inform protocol understanding; their executables are not runtime dependencies.
 
-Both commands stay running; stop them after reading the service information. Pairing requires approval on the device and its displayed PIN. No automatic trust pairing occurs during a normal HID command.
+| Reference | Pinned revision | Use |
+| --- | --- | --- |
+| [ipb](https://github.com/ipbtools/ipb) | `8c227a10710dad479852aa0203de729fed57471b` | AX requests, HID and native media research; [MIT notice](../ThirdParty/ipb-LICENSE.txt) |
+| [idevice](https://github.com/jkcoxson/idevice) | `89702099f4d7552f704f93b4526756abda319ceb` | Earlier Rust implementation and HID/DTX references; [MIT notice](../ThirdParty/idevice-LICENSE.txt) |
+| [AXe](https://github.com/cameroncooke/AXe) | `4b622d4436fc441534e6ee8c7196728cd762dbff` | Physical media/AX review and RTCP layout/statistics; [MIT notice](../ThirdParty/AXe-LICENSE.txt) |
+| [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) | `03d788d23105c1754c27cc4e6ddc1d7e23835b32` | Native tunnel/RSD interoperability research; no source copied or runtime added |
 
-```sh
-mkdir -p tmp/pairings
-appledevicescmd pair wifi <host> <port> tmp/pairings/phone.pairing.plist
-# Enter the device's six-digit PIN when prompted.
-appledevicescmd --pairing-file tmp/pairings/phone.pairing.plist physical <UDID> hid-info
-appledevicescmd --pairing-file tmp/pairings/phone.pairing.plist physical <UDID> tap 0.5 0.5
-```
+The receiver-report code was informed by AXe's `PhysicalDisplayRTCP.swift` and RFC 3550. [The reference review](AXE-PHYSICAL-REVIEW.md) distinguishes those findings from live behavior.
 
-The pairing result returns the discovered UDID. Keep it for later commands: the record must match the requested UDID, and the bridge also checks the RSD `UniqueDeviceID` when supplied by the device. Records contain private signing keys, are created with mode 0600 on macOS, and are never overwritten. A drop guard attempts to remove an unfinished record on ordinary errors and when the pairing future is dropped, including its timeout. Abrupt process termination can bypass that guard and leave an empty or partial file; cleanup after Ctrl-C or a kill has not been verified. The Swift CLI requires the `.pairing.plist` suffix, which is excluded from Git; keep records under ignored `tmp/` as well. A device reset, revoked trust, or changed advertised endpoint may require explicitly pairing to a new record. Endpoint rediscovery is currently manual.
+The original research also included static inspection of a commercial device-control tooling framework. That provenance is retained in [ANALYSIS.md](ANALYSIS.md); no proprietary binary is linked or packaged.
 
-The Wi-Fi protocol path follows the pinned idevice `RemotePairingClient`, `RpPairingSocket`, and native TLS-PSK tunnel APIs. Pairing has a 180-second deadline; bridge device operations have a 60-second deadline. Device PIN entry is on stdin and prompts are on stderr; JSON command results remain on stdout. A wrong PIN has no all-zero/default fallback.
+## Retired helpers
 
-Live initial pairing, reconnection, HID effects, and cancellation on a physical device remain unverified. Consult [transport investigation](TRANSPORT.md) before attempting to reuse Apple's active tunnel instead.
+`Backends/IDevice` and `Backends/CoreDevice` retain earlier Rust/native adapters and patches as migration references. Their build tasks can reproduce research artifacts, but the product refuses those executables. In particular, these routes are currently unavailable:
 
-### Additional diagnostic service
+- independent `pair wifi` / `--pairing-file` device operations;
+- `hid-info`, raw live `ax-snapshot` and finite physical `logs`;
+- AXe-backed simulator input and hierarchy;
+- the old ipb input/video helper and its ADV1 JPEG pipe.
 
-The bridge enables idevice's `syslog_relay` feature to use `OsTraceRelayClient` over RSD service `com.apple.os_trace_relay.shim.remote`. It does not start a display stream for log capture. Optional `--pairing-file` selection applies to logs as well as HID/accessibility. The pinned library supplies the binary parser and serialized log schema; the CLI adds finite capture bounds. The 4 MiB limit covers serialized entries, not upstream decoder allocations. No live OS trace or device-side subscription cleanup has been verified.
-
-## AXe
-
-Simulator input uses [AXe](https://github.com/cameroncooke/AXe), by Cameron Cooke, licensed under MIT and using Meta IDB. Install AXe separately with its accompanying license notices. This repository neither vendors its source nor redistributes its binaries. Its argument surface was checked against installed AXe 1.9.0-prerelease.1.
-
-
-## Experimental accessibility snapshots
-
-`physical <UDID> tree [pid]` uses the protocol bridge for active AXP application-root and native snapshot reads, following the pinned MIT-licensed ipb protocol research. Without PID it selects the primary display-centre process and rechecks the displayed PID and geometry; explicit PID permits background inspection. It returns bounded parent/child paths, labels, identifiers, logical-point frames, traits, and available native metadata without exposing opaque handles. Settings trees were verified through CLI and real MCP stdio on the USB iPhone 13 mini. `press-id`/`press-label` also accept optional PID and use two fresh snapshots, live state, exact hit tests, and display checks before one type-7/action-5 press. Identifier and label navigation were screenshot-verified in Settings through CLI. This is distinct from idevice's unresolved HID Home/tap effects. Stable actionable references, broader actions, and broader app/transport coverage remain unfinished. No upstream Python runtime or XCTest is used. See [active snapshot protocol and limits](ACCESSIBILITY-PROTOCOL.md#active-per-application-tree) and [press guards](ACCESSIBILITY-PROTOCOL.md#fresh-selector-presses).
-
-`scroll-id`/`scroll-label` use the same bridge and pinned research for type-7/action-11 native scroll-to-visible. They require a fresh unique materialized target and state/display checks, then observe visibility, frame containment, exact hit, and application/display identity without another action. Native Boolean result and observed postcondition are reported separately. CLI movement and a real MCP already-visible native-false result were verified in Settings on the selected phone. See [scroll limits](ACCESSIBILITY-PROTOCOL.md#scroll-an-element-into-view).
-
-`physical <UDID> ax-snapshot [new-local-archive.plist]` separately captures the first matching remote-accessibility callback archive as base64 JSON, or saves it privately and returns file metadata. Callback acquisition and correlated disable were verified over USB on the iPhone 13 mini. Live AX commands accept the existing optional `--pairing-file` prefix. `decode-ax-archive <local-plist>` performs bounded, data-only structural decoding through the bridge without connecting to a device; that offline command does not turn raw callbacks into a normalized hierarchy.
-
-
-## Xcode app/data operations
-
-Finite recording also uses the selected Xcode: simctl's first-frame readiness message and SIGINT finalization for simulators; devicectl's `screen-record --duration` for physical devices. AVFoundation validates a staged movie before it is published. Tool help and device capability are distinct; native physical recording has not been demonstrated. See [recording notes](RECORDING.md).
-
-Physical `details`, `processes`, `terminate`, `open-url`, `files`, `pull`, and `push` delegate to the selected Xcode's devicectl. Installed Xcode 27.2 help was checked for these contracts. Termination uses SIGTERM by PID; the CLI does not request `--kill`. URL opening uses `device process openURL`.
-
-File operations specify `appDataContainer` and the caller's bundle identifier. Listing uses `--no-recurse`; copy directions and source/destination operands are explicit. The upload command sets `--remove-existing-content false`, preserving unrelated files, but does not promise no overwrites of conflicts. Device paths are container-relative; host paths are interpreted by devicectl from the CLI's working directory. `.xcappdata` packaging and whole-container replacement are separate missing features.
-
-Run `mise run build` or `mise run test` for the Swift executable and tests. These tasks enable pipefail, pipe build output through xcsift, and keep compiler/package caches in `tmp/`; the executable remains in `.build/debug`.
-
-`reports [relative-directory]` and `report <relative-path> <local-destination>` use the same Xcode file service with domain `systemCrashLogs` and no app identifier. Listing is nonrecursive. Report download uses `copy from`, with no on-device deletion or upload operation. Relative-path validation is shared with app-data commands. Listing is hardware-verified; report contents, download behavior, parsing, and symbolication are not.
+Earlier successes or failures from those routes are historical evidence, not current setup instructions. The old idevice HID path could use stop-all media cleanup and returned receipts without visible input effects; it must not be substituted for the current owned native operations.

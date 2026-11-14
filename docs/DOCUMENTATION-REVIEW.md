@@ -1,54 +1,48 @@
-# Documentation review — 2026-11-11
+# Documentation maintenance
 
-Reviewed the root README and all existing files in `docs/` against the current Swift/Rust sources, Cargo and Swift manifests, test output, local investigation artifacts, installed tool help, and current vendor pages. This review corrects documentation; it does not establish missing runtime behavior.
+The documentation separates four kinds of information:
 
-## Findings corrected
+1. **Current use:** commands a reader can run through supported routes.
+2. **Implemented but unverified:** code whose live behavior is not established.
+3. **Historical evidence:** earlier implementations, successes and failed probes.
+4. **Provenance:** public documentation, open-source references and static commercial-framework observations.
 
-| Priority | Finding | Correction and evidence |
-| --- | --- | --- |
-| High | Quick-start examples used `appledevicescmd` without putting the Swift executable on PATH. The helper-only PATH was insufficient. | README and dependency setup now include both `.build/debug` and `tmp/bin`. Mise debug/release builds and generated task help were checked. |
-| High | “Physical discovery” implied a physical-only list, although the implementation forwards unfiltered CoreDevice JSON. | README and roadmap state that simulators can appear. Filtering remains an implementation gap; documentation no longer claims it exists. |
-| High | Pairing cleanup promised removal after cancellation without distinguishing future cancellation from process termination. | Dependency and verification records describe the drop guard accurately. It handles ordinary errors/dropped futures; SIGINT/SIGKILL/host-crash cleanup is unverified and may leave a partial file. The tests exercise guard destruction, not killed processes. |
-| High | A generic “JSON errors” statement applied a Rust bridge behavior to the whole CLI. | README and dependency notes distinguish bridge JSON errors from the Swift runner's text wrapper. Uniform machine-readable CLI errors remain unimplemented. |
-| Medium | The roadmap called a mixed list “required” without showing which items came from the user, vendor sources, or engineering proposals. It omitted explicit Watch coverage. | Roadmap now separates those origins and includes per-feature sources and implementation evidence. Android remains an open scope question. |
-| Medium | The earlier explanation classified Build & Run as an engineering proposal, but the vendor documents it. | It is now a sourced parity feature, linked to [Build & Run]([private reference removed]). The CLI implementation is still missing. |
-| Medium | The investigation still said opening/disassembling the framework was the next step, although later paragraphs recorded that work. | Investigation now states the current Hopper state and preserves relevant addresses without obsolete next-step instructions. |
-| Medium | Current instructions depended on the Python build helper, and historical verification entries read like current setup. | The helper is removed in favor of mise tasks. Current setup uses mise; historical results are explicitly scoped to their revision. |
-| Medium | Wi-Fi setup was nested under AXe, and the upstream-repository reference was ambiguous. | Dependency sections now have the correct hierarchy and distinguish the upstream idevice manifest from this project's Swift manifest. |
-| Medium | Raw accessibility protocol work could be mistaken for a physical UI hierarchy. | README, roadmap, and a dedicated [protocol note](ACCESSIBILITY-PROTOCOL.md) say that `ax-snapshot` returns an experimental callback archive with `parsedHierarchy: false`. No live tree or selector behavior is claimed. |
-| Low | README mentioned a local OCR fixture as though a fresh checkout supplied it, and the investigation implied an old licensing discrepancy was current. | Local-only fixture assumptions were removed from setup; OCR's failure is recorded without assigning an unproven cause. Current vendor statements are distinguished from historical observations. |
+This distinction matters because the project replaced several helper-backed paths while retaining their source and test records.
 
-## Material limits retained
+## Reader paths
 
-- No live physical input, Wi-Fi pairing/reconnection, or physical accessibility snapshot has been verified.
-- The only recorded successful input flow is the simulator home-screen tree → Settings label tap → Settings tree.
-- OCR's initial fixture execution failed. Automatic screenshot/OCR fallback is not implemented.
-- Internal media negotiation for HID authentication is not a user-facing streaming or recording feature.
-- The vendor's current public feature list and the inspected 0.9.0/build 90 binary are different evidence sources. Static strings and symbols do not prove live invocation order or feature availability on every OS.
-- Several parity features remain absent, including parsed physical accessibility, streaming/recording, physical text entry, Xcode-format app-container export/replacement, saved reports, Build & Run, agent handoff, and MCP. Raw app-container listing/pull/push plans were added in `dd01a90`; their app-container behavior remains unverified live. See [ROADMAP.md](ROADMAP.md).
+- Start with [README](../README.md), [beta setup](BETA-TESTING.md) and [readiness](READINESS.md).
+- Use focused guides for [input](NATIVE-INPUT.md), [screens](SCREEN-UNDERSTANDING.md), [AX](DIRECT-ACCESSIBILITY.md), [recording](RECORDING.md), [Build & Run](BUILD-RUN.md) and [MCP](MCP.md).
+- Maintain the project using [dependencies](DEPENDENCIES.md), [tasks](DEVELOPMENT-TASKS.md), [releasing](RELEASING.md) and [roadmap](ROADMAP.md).
+- Consult [verification](VERIFICATION.md), [transport](TRANSPORT.md), [AX wire contracts](ACCESSIBILITY-PROTOCOL.md) and [research](ANALYSIS.md) for evidence/design detail.
 
-## Validation
+## Corrections made in the readability pass
 
-The initial review used the `cd0a1ca` baseline: mise task definitions validated; cached debug and release bridge builds succeeded; the bridge's ten tests and Swift's thirteen test functions passed. Command examples were compared with the parsers/help, dry-run arguments were checked, and local Markdown file links were checked. These checks validate the instructions and synthetic behavior, not live physical-device functionality. The later `dd01a90` verification record reports 17 Swift test functions; neither count establishes the current unfinished working tree's build status.
+The 2026-11-14 rewrite removed retired helper installation from current usage guides, corrected the effective Swift 6.4 build requirement, exposed the separate UI-readiness meaning, and updated recording descriptions to the owned pixel-buffer route and five-minute/interaction evidence.
 
-## Second review against committed baseline and working tree
+Repeated “now implemented” chronology and intermediate test-count/artifact-UUID lists were condensed. Material failures remain in verification/research: ineffective dispatches, denied AVC output access, first-frame/packet startup failures, ambiguous cleanup and transient wake.
 
-Reviewed the README and all seven documents again against `dd01a90`, current source/manifests, mise tasks, and recorded verification. Rechecked the vendor's [iPhone setup]([private reference removed]), [saved reports]([private reference removed]), and [Build & Run]([private reference removed]) pages on 2026-11-11.
+The accompanying help-text correction removes stale AX restrictions and retired pairing setup from current guidance. Source routing and scoped verification remain necessary: a command planner or MCP catalog entry alone is not availability proof.
 
-| Priority | Finding | Disposition |
-| --- | --- | --- |
-| High | The working tree advertises report/log commands, but the Rust entry point declares `mod logs` and calls `logs::capture` without a corresponding `src/logs.rs` or `src/logs/mod.rs`. Earlier successful builds cannot substantiate this draft. | Unfinished implementation, left untouched by this documentation task. The roadmap now identifies its committed baseline and excludes draft changes. The optional bridge needs completion and a fresh build/test before these commands can be documented as available. |
-| Medium | This review's outstanding-feature list still described all app-data transfer as absent after `dd01a90` added raw container command plans. | Corrected to distinguish raw file plans from missing `.xcappdata` packaging/replacement and unverified app-container permissions. |
-| Medium | The investigation inferred working OCR fallback from static MCP tool descriptions. | Reworded as intended behavior with no observed runtime fallback. |
-| Medium | “Crash reports and logs” could turn a saved-report parity item into an assumed live log-streaming requirement. | Roadmap now names saved reports, spins, logs, and diagnostics. The vendor page documents list/read/save/delete operations; continuous live OS logs need separate scope/evidence. |
-| Low | The validation paragraph's 13-test count could be read as current. | Bound it to `cd0a1ca` and linked the later verification context. No build/test success is claimed for unfinished source. |
+Validation for this pass checked 135 local links/anchors, 41 current command forms through query-free `--dry-run`, and 36 local verification checkpoint references. The CLI built without errors/warnings and its help smoke check passed. Gitleaks found no detected secrets in the rewritten README/docs. No physical-device operation was run for this documentation task.
 
-Validation for this second pass: source/document comparison, vendor-page checks, local Markdown target checks, and `git diff --check`. No device operation or new runtime verification was performed. Existing implementation changes remain outside this documentation commit.
+## Reviewing a future change
 
-### Subsequent implementation follow-up
+Check these before describing a capability as available:
 
-The missing log module was implemented after this review. The report/log verification entry in [VERIFICATION.md](VERIFICATION.md) records fresh Swift/Rust tests and bridge builds, plus live CLI report listing. The high-priority draft-build finding above is resolved by that work. Report downloads and live OS-log capture remain unverified; saved-report parity remains incomplete.
+- Does the shared service reach an executable route permitted by runtime policy?
+- Do argument names, defaults, ranges and output fields match source/task help?
+- Does the evidence exercise the current backend, rather than a retired helper?
+- Are native acceptance, visible effect and cleanup separate?
+- Are failures, limitations and device/OS/tool versions retained?
+- Are examples actionable from a source checkout, with existing parent paths where required?
+- Do local links/anchors resolve, and does README lead to the right page?
+- Are private identifiers, screenshots, credentials and local paths excluded?
 
-Build & Run was subsequently added with explicit scheme selection and verified project/Debug and workspace/Release simulator flows. The historical missing-feature references above do not describe that later implementation; see its [contract and remaining limits](BUILD-RUN.md) and verification entry. Physical deployment remains unverified.
+Only run meaningful validation for the change. A docs-only edit needs source/command/link review, not a new physical-device action. Never turn a passing build or fixture into a broad hardware claim.
 
-An optional [stdio MCP interface](MCP.md) was added later through the shared CLI command service and official Swift SDK. Earlier mentions of MCP as missing are historical. The interface does not establish missing physical-device behavior or full parity; its supported protocol versions and integration checks are recorded separately.
+## Earlier review context
+
+The first review corrected vendor-source assumptions about Build & Run, saved reports versus live trace, handoff and agent access. Later reviews separated helper-backed captures from direct replacements. Those corrections are reflected in the current guides; dated facts remain in [verification](VERIFICATION.md) and the original [investigation](ANALYSIS.md).
+
+The [public-readiness review](PUBLIC-READINESS.md) is a separate privacy/licensing/publication checkpoint. Documentation cleanup does not select a license, rewrite Git identity/history or provide legal clearance.

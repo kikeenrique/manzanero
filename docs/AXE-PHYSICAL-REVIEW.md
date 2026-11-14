@@ -1,21 +1,28 @@
-# AXe physical implementation review
+# AXe physical-backend review
 
-Inspected 2026-11-12 at [revision 4b622d4436fc441534e6ee8c7196728cd762dbff](https://github.com/cameroncooke/AXe/tree/4b622d4436fc441534e6ee8c7196728cd762dbff). The source clone is under ignored `tmp/AXe`. This was a source review; no AXe physical operation was tested on the user's phone, and no new runtime dependency or copied implementation was added.
+Source reviewed on 2026-11-12 at [revision `4b622d4436fc441534e6ee8c7196728cd762dbff`](https://github.com/cameroncooke/AXe/tree/4b622d4436fc441534e6ee8c7196728cd762dbff). This was source research, not an AXe device test. No AXe executable is used by the product.
 
-## Findings applicable to our direct Apple backends
+## Design ideas relevant here
 
-- [PhysicalDeviceInputOwner](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDeviceInputOwner.swift) and the broker files keep one input owner per device across CLI clients, track held contacts/keys/buttons, attempt release on failure, and retain uncertain cleanup as a condition that blocks subsequent input. Our process-local serialization and recording reservation do not provide equivalent coordination across independent CLI invocations.
-- [PhysicalDeviceDisplayStream](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDeviceDisplayStream.swift) owns a session UUID, control connection and UDP endpoint. Cleanup closes its own sockets and polls display-service status until its session disappears, matching the UUID or receiver endpoint. It does not rely on local process exit or a global stop-all request. This is directly relevant to our observed persistent sharing indicator. This source pattern is evidence of AXe's design, not proof of equivalent behavior on our phone.
-- The same stream code validates negotiated endpoint/session/codec/RTCP metadata, refreshes CoreDevice tunnel identity during capture, and distinguishes a stalled stream from replacement by another controller. Our short recording probes do not establish long-session reliability or those distinctions.
-- [PhysicalDeviceMediaCapture](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDeviceMediaCapture.swift) provides a separate screenshot-based frame path, reading display geometry before and after each frame. Its [H.264 stream](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDeviceH264Stream.swift) passes native access units through without re-encoding. These are distinct capture strategies; neither should silently substitute for the other's timing or quality contract.
-- [DeviceReadiness](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/DeviceReadiness.swift) checks lock state and advertised screenshot service in addition to inventory preparation. [PhysicalDeviceGestures](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Commands/PhysicalDeviceGestures.swift) and accessibility commands provide reference designs for physical coordinate transforms, selector guards and gestures.
+| AXe area | Useful idea | appledevicescmd gap or application |
+| --- | --- | --- |
+| Input owner/broker | Track held input across clients, attempt release, block later input after uncertain cleanup | Cross-process ownership/quarantine remains missing here |
+| Display stream | Own session UUID/control/UDP lifetime; poll disappearance of the owned session rather than stop-all | Informed session-specific media cleanup; independent teardown proof still limited |
+| Negotiated transport | Validate endpoints, codec/RTCP metadata and distinguish stall/replacement | Scoped validations exist; broad long-session/recovery behavior remains incomplete |
+| Screenshot capture | Check geometry before/after each capture | Distinct from stream timing/quality; not a silent substitute |
+| H.264 stream | Native access-unit pass-through | Different from this project's HEVC decode/AVFoundation encode route |
+| Readiness/gestures | Check lock/service metadata and coordinate/selector guards | Reference designs, not proof of our device behavior |
 
-## Dependency and implementation decision
+Representative sources are [input owner](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDeviceInputOwner.swift), [display stream](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDeviceDisplayStream.swift) and [media capture](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDeviceMediaCapture.swift).
 
-The [package manifest](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Package.swift) exports `AXeCore`, but the physical backend lives under the `AXe` executable target, not that library. The executable also expects locally built IDB XCFrameworks. Adding the Git URL alone would not expose a supported physical backend library to our Swift target.
+## Dependency decision
 
-The user's clarified architecture preference is to implement device operations in this project's code against Apple frameworks/APIs. Use AXe to inform that work, not as another permanent physical CLI adapter. Keep general-purpose dependencies for parsing, logging, processes and concurrency where justified. Any actual source reuse must retain its applicable MIT attribution and notices.
+AXe exports `AXeCore`, but the reviewed physical backend lives in its executable target and expects locally built IDB frameworks. Adding the repository URL alone would not expose a supported physical-backend library.
 
-2026-11-14 follow-up: native HEVC reception now uses Apple's negotiator rather than AXe's custom offer encoder. Receiver-report layout and sequence statistics were informed by [PhysicalDisplayRTCP.swift](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDisplayRTCP.swift) and RFC 3550, with [MIT attribution retained](../ThirdParty/AXe-LICENSE.txt). Local fixtures and a 35-second iPhone HEVC recording validate the scoped replacement; no AXe runtime operation is invoked. Keyframe/crash recovery and cross-process coordination remain separate gaps.
+The project instead implements device operations against Apple APIs in its own code. General-purpose packages remain appropriate where useful; another device CLI is not the intended runtime boundary.
 
-Physical priorities remain: replace the native input helper with an in-process Apple backend, establish ownership/release behavior across CLI and MCP clients, and verify session-specific media teardown. Accessibility and simulator intermediaries also need migration; their existing verification does not establish that migration as complete. The full parity objective remains unchanged.
+## Actual reuse and attribution
+
+The RTCP receiver-report layout/statistics were informed by AXe's [PhysicalDisplayRTCP.swift](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDisplayRTCP.swift) and RFC 3550. The [MIT notice](../ThirdParty/AXe-LICENSE.txt) is retained.
+
+Native HEVC reception uses Apple's negotiator, not AXe's custom offer encoder. Receiver reports and scoped recordings have local/live evidence here; no AXe runtime operation was invoked. Keyframe/crash recovery and cross-process coordination remain separate gaps. See [recording](RECORDING.md) and [verification](VERIFICATION.md).

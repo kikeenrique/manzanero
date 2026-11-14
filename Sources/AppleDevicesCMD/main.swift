@@ -8,14 +8,12 @@ Usage:
   MCP stdin EOF and SIGINT/SIGTERM cancel owned tools and wait for cleanup; forced exit cannot guarantee release.
   appledevicescmd devices physical     List CoreDevice devices as JSON
   appledevicescmd devices simulators   List available simulators as JSON
-  appledevicescmd pair wifi <host> <port> <new-record.pairing.plist>
-  appledevicescmd --pairing-file <record> physical <UDID> <bridge-operation> ...
   appledevicescmd --physical-backend coredevice physical <device> <button|tap|multi-tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch> ...
   appledevicescmd --physical-backend coredevice physical <device> gesture '<JSON with frames:[{ms,touches:[{id,x,y}]}]>'
   appledevicescmd --recording-backend coredevice physical <device> record <new.mp4> <seconds> [h264|hevc]
   appledevicescmd --physical-backend coredevice physical <device> long-press <x> <y> <seconds: 0.1...10>
   appledevicescmd --physical-backend coredevice physical <device> tree [positive-pid]
-  Direct AX tree is opt-in and live-unverified; the tested phone currently refuses its socket before subscription.
+  Physical AX trees and exact selector actions use native Apple interfaces; inspect fresh state after actions.
   Native paste replaces the device clipboard with Unicode text, then pastes at the focused caret/selection.
   Buttons, tap, long-press, drag, swipe, pinch and two-path multi-drag call Apple CoreDevice in process.
   Named keys and paste keys call Apple CoreDevice in process; paste uses Apple's devicectl clipboard copy.
@@ -24,18 +22,18 @@ Usage:
   During direct physical input, SIGINT/SIGTERM cancels and attempts release, exiting 130/143.
   A second signal or a 30-second cleanup deadline forces exit; device-side release is unverified.
   Non-Apple device helper executables are disabled, including AXe, idevice, and ipb helpers.
-  Pairing prompts for the device's PIN; use its advertised _remotepairing._tcp endpoint.
+  Legacy independent Wi-Fi pairing and pairing-file device operations are unavailable.
   appledevicescmd doctor               Check Xcode and device-service access
   appledevicescmd ocr <image-path>     Recognize image text and normalized bounds as JSON
   appledevicescmd physical <device> apps
   appledevicescmd physical <device> <processes|details>
-  appledevicescmd physical <device> readiness   Report Developer Mode and developer-image status
+  appledevicescmd physical <device> readiness   CoreDevice prerequisites plus separate display/passcode observations
+  Readiness does not verify UI Automation or prove current UI unlock.
   appledevicescmd physical <device> media-status   Read native media support/status; no stream start/stop
   appledevicescmd <physical|simulator> <UDID> handoff <message> [terminal-timeout-seconds]
   Handoff asks for a human action on the device, then waits for explicit completion.
   appledevicescmd physical <device> reports [relative-directory]
   appledevicescmd physical <device> report <relative-report-path> <local-destination>
-  appledevicescmd physical <UDID> logs <seconds: 1...30> [pid]
   appledevicescmd physical <device> terminate <pid>
   appledevicescmd physical <device> open-url <url>
   appledevicescmd physical <device> files <bundle-id> <relative-path>
@@ -53,8 +51,6 @@ Usage:
   appledevicescmd <physical|simulator> <UDID> build-run <project.xcodeproj|workspace.xcworkspace> <scheme>
       [--configuration <name>] [--app-target <name>]
   Build & Run targets iOS, defaults to Debug, and requires xcsift on PATH.
-  appledevicescmd physical <UDID> hid-info
-  appledevicescmd physical <UDID> ax-snapshot [new-local-archive.plist]  Experimental raw archive
   appledevicescmd physical <UDID> tree [positive-pid]  Native AX; omitted PID selects primary portrait display-centre app
   appledevicescmd physical <UDID> <press-id|press-label> [positive-pid] <exact-selector>
   appledevicescmd physical <UDID> <scroll-id|scroll-label> [positive-pid] <exact-selector>
@@ -68,20 +64,13 @@ Usage:
   appledevicescmd physical <UDID> button <home|lock|volume-up|volume-down>
   appledevicescmd physical <UDID> key <return|escape|backspace|tab|space|up|down|left|right>
   appledevicescmd physical <UDID> type <text>   Experimental US-layout ASCII, 1...512 characters
-  Physical ax-snapshot/tree/selector actions and logs are unavailable pending direct Apple replacements.
-  Logs capture a finite experimental OS trace, capped at 2000 entries/4 MiB of entry JSON.
+  Legacy hid-info, live raw ax-snapshot and physical logs are unavailable pending direct Apple replacements.
   Physical coordinates are normalized 0...1, with the origin at the top left.
   appledevicescmd simulator <device> <apps|boot|shutdown>
   appledevicescmd simulator <device> <launch|terminate|uninstall> <bundle-id>
   appledevicescmd simulator <device> install <app-path>
   appledevicescmd simulator <device> open-url <url>
   appledevicescmd simulator <device> screenshot <output.png>
-  appledevicescmd simulator <UDID> tree
-  appledevicescmd simulator <UDID> tap <x> <y>
-  appledevicescmd simulator <UDID> <tap-id|tap-label> <selector>
-  appledevicescmd simulator <UDID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
-  appledevicescmd simulator <UDID> type <text>
-  appledevicescmd simulator <UDID> button <name>
   Simulator input and tree commands are unavailable pending direct Apple replacements.
   Prefix a planned command with --dry-run to print its invocation without executing.
   appledevicescmd --help
@@ -89,7 +78,7 @@ Usage:
 
 Physical input is experimental; remaining parity work is tracked in docs/ROADMAP.md.
 Physical single Xcode commands preserve devicectl JSON; readiness/build/record return CLI metadata.
-Simulator app/lifecycle commands preserve simctl output; AXe tree/input commands return JSON.
+Simulator app/lifecycle commands preserve simctl output; simulator input and hierarchy are currently unavailable.
 Temporary process output is created beneath ./tmp and normally cleaned up on exit.
 """
 

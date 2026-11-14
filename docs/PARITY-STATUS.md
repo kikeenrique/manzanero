@@ -1,73 +1,56 @@
-# Feature parity status
+# Feature status
 
-Checkpoint: direct Apple input, native explicit-PID/foreground accessibility and screen inspection, 2026-11-14. Full device-control tooling parity is not complete. Verification is scoped to the device, screen, transport, and environment recorded in [VERIFICATION.md](VERIFICATION.md).
+This page describes current product availability, not historical helper capability. “Verified” always means a scoped live result on the recorded device/environment; it is not a general reliability guarantee. See [verification](VERIFICATION.md) for evidence and failures.
 
 ## Current runtime availability
 
-| Area | Current state |
+| Area | Available now | Evidence and remaining limits |
+| --- | --- | --- |
+| Discovery/preparation | CoreDevice/simulator inventory, doctor, physical readiness | Physical inventory may include simulators. Readiness includes display/passcode observations but does not verify UI Automation or current UI unlock. |
+| Physical single-contact input | Home/buttons, tap, long press, swipe/drag | Home, Settings navigation/scroll and Maps context menu visually verified on iPhone 13 mini. Some taps/Home dispatches had no visible effect. |
+| Keyboard | Named keys, US-layout ASCII typing, Unicode paste | Mixed ASCII, Backspace and synthetic Unicode checked in Settings search. Paste replaces clipboard; other layouts/apps/keys need coverage. |
+| Coordinated contacts | Two-to-five-contact multi-tap/multi-drag, pinch, timed complete-state schedules | Two-contact Maps zoom and selected timed sequences verified. Three/five-contact dispatch passed without proof of independent gesture recognition; four-contact effects unverified. |
+| Physical AX reads | Explicit-PID and portrait display-centre selected trees | Settings CLI/MCP trees and screenshot/tree workflow verified. Non-atomic, snapshot-local IDs; overlay, rotation and other-family coverage limited. |
+| Physical AX actions | Exact identifier/label press; scroll-to-visible | Settings navigation and row movement verified. Target must resolve freshly; scroll requires materialized nodes and separate postcondition inspection. |
+| Screen analysis | PNG capture, Vision OCR, native physical hierarchy with fallback | Spanish Settings OCR and selected OCR-guided navigation verified. OCR regions are not guaranteed hittable; recognition has a cooperative deadline. |
+| Offline archive inspection | Swift/Foundation data-only structural decoding | Saved phone callback decoded locally. This is not fresh capture or a normalized tree. |
+| Physical recording | Explicit native CoreDevice HEVC input, H.264/HEVC MP4 output | Short CLI/MCP, one five-minute capture and one 20-second AX/Home interaction verified with owned cleanup. Startup and recovery remain incomplete. Default devicectl capture failed on this phone. |
+| Input/media cancellation | Cooperative release/stop attempts; MCP cancellation/EOF/signals | Scoped iPhone checks and recording reuse passed. Device-side release after failure, crash/disconnect recovery and cross-process ownership remain incomplete. |
+| App operations | List/install/launch/uninstall, physical PID terminate, URLs | Physical app list and Settings launch verified. Other physical mutations/permissions need live coverage. |
+| Container files | Nonrecursive list, raw pull/push | Command plans and a tool-owned temporary-domain round trip verified. Actual app-container access/round trips and `.xcappdata` export remain incomplete. |
+| Saved reports | List/download | Physical listing verified; download is implemented but hardware-unverified. Parsing, symbolication, filtering and deletion are missing. |
+| Build & Run | Explicit iOS project/workspace + scheme + target | Simulator project/workspace flows verified; physical signing/deployment and general progress/cancellation incomplete. |
+| Human handoff | Terminal responses, MCP form completion, process-local mutation pause | Synthetic terminal/MCP checks only; no automatic prompt detection or native notifications. |
+| Simulator lifecycle/capture | simctl apps, boot/shutdown, screenshot, recording | Scoped capture/lifecycle/development checks exist. Current simulator input and hierarchy are unavailable. |
+| CLI/MCP interface | Shared command service; 33 stdio tools | No HTTP, durable sessions, coordinated activity view or uniform structured CLI errors. Host controls approvals. |
+
+## Unavailable or missing
+
+These named interfaces may have planners/catalog entries but cannot currently execute:
+
+- AXe-backed simulator input, hierarchy and selector taps;
+- idevice-backed `hid-info`, live raw `ax-snapshot`, finite `logs`, independent Wi-Fi pairing and pairing-file operations;
+- historical ipb input/video helpers.
+
+Execution policy blocks those non-Apple device binaries. Retained code and earlier successes do not make them supported runtime paths.
+
+User-facing live mirroring, reusable semantic element handles, automatic permission/Face ID handling, crash recovery, cross-process controller leases and a complete assertion system are missing or incomplete.
+
+## Apple-family coverage
+
+| Family | Current scope |
 | --- | --- |
-| Physical hardware buttons | In-process Apple CoreDevice/RemoteXPC; plain buttons now require a readiness barrier before down, matching touch/keyboard. Three scoped post-guard Settings→Home checks observed the effect (two MCP, one CLI). Earlier mixed outcomes are retained; general reliability, other buttons and interruption cleanup need coverage. |
-| Apple Xcode operations | Inventory, readiness, app/file/report operations, screenshots, simulator recording and Build & Run retain their existing implementation and verification limits. |
-| Vision OCR / AVFoundation encoding | In-process Apple frameworks available. Spanish Settings OCR labels/bounds and one central OCR-guided navigation have scoped iPhone 13 mini verification. OCR now has a 120-second cooperative deadline with task draining and retained-image fallback; native cancellation latency is not bounded. General accuracy and OCR selector actions remain unverified/missing. |
-| Physical single-contact touch | In-process Apple digitizer implementation for tap, long-press, drag and swipe. Settings tap/drag and Maps long-press screenshot-verified on USB iPhone 13 mini. Other orientations/families and failure release unverified. |
-| Physical two-contact movement | Direct spread/inward pinch visibly zoomed Maps through CLI and real MCP on USB iPhone 13 mini. Two-path multi-drag implemented/unit-tested; general independent paths, other orientations/families and failure release still unverified. |
-| Physical named keys | Direct in-process implementation for return, escape, backspace, tab, space and arrows. Backspace has scoped Settings search verification; other keys remain hardware-unverified. |
-| Physical Unicode paste | Apple devicectl clipboard copy plus in-process Command+V. Synthetic Unicode insertion visually verified in Settings search after user-authorized Allow Paste. Replaces clipboard; other apps/families and failure release remain unverified. |
-| Physical keyboard typing | In-process US-layout ASCII, tab and LF, 1...512 characters; no clipboard operation. Mixed-case/digit/shifted punctuation has scoped Settings search verification. Other layouts/fields and failure release remain unverified. |
-| Physical timed gestures | Direct in-process Universal HID schedules with one to five slots, independent arrivals/lifts and repeated taps. MCP swipe moved Home to App Library; CLI double-tap and a staggered two-contact MCP spread zoomed Maps. Three-to-five-contact effects, exact timing and failure release remain hardware-unverified. |
-| Standalone multi-tap and three-to-five-path multi-drag | Implemented through in-process Apple Universal HID, with shared CLI/MCP routing and local encoding/timing tests. Two-contact MCP tap visibly zoomed Maps out on USB iPhone 13 mini. Three-path MCP and five-path CLI dispatch completed; screenshots do not prove independent contact effects. Four-contact behavior and failure release remain unverified. No helper fallback. |
-| Physical accessibility | Native Apple Network/RemoteXPC plus raw AX DTX defaults for physical trees. Explicit PID supports background inspection; omitted PID selects/rechecks the awake primary portrait display-centre process and Apple geometry. CLI and real MCP captured 106 Settings nodes on iPhone 13 mini. MCP screen auto returned native hierarchy plus PNG. Separate subscription/tunnel cleanup outcomes; non-atomic, snapshot-local IDs. Rotations, overlay coverage and other families remain unfinished/unverified. |
-| Physical exact-selector press | Native `press-id`/`press-label` and MCP `press_element` use fresh unique snapshots, live state/frame/identifier, exact hit and application/display rechecks before one action. CLI General→Información identifier press and real MCP General back-label press were screenshot-verified. Native acceptance still reports effect unverified. No coordinate fallback/replay; broader coverage and hardware cancellation behavior remain unverified. |
-| Offline accessibility archives | Swift/Foundation data-only structural inspection works through CLI and MCP with no helper/device connection. Saved iPhone callback decoded locally; not a fresh tree or semantic accessibility implementation. |
-| Physical exact-selector scroll | Native `scroll-id`/`scroll-label` and MCP `scroll_to_element` reuse fresh unique target/state/display guards, then observe visibility, containment, exact hit and selection after one action. CLI Settings row movement and real MCP already-visible native-false case passed. Native result, postcondition and cleanup are separate; MCP unsubscribe was unconfirmed. Materialized targets only; broad coverage/recovery incomplete. |
-| Native physical recording | Explicit Apple negotiation, HEVC RTP/VideoToolbox and owned pixel buffers into AVFoundation. Short CLI H.264/MCP HEVC and one five-minute CLI HEVC movie verified on iPhone 13 mini, with owned cleanup. A twenty-second MCP movie captured AX inspection and a visibly effective Home press. Live request cancellation and active EOF/SIGINT/SIGTERM shutdown each verified once with zero-session cleanup and recording reuse. Native RTCP receiver reports implemented. Startup, keyframe/crash/disconnect recovery and broader hardware validation remain incomplete/unverified. Read-only media-status remains available; default devicectl is unsupported on the tested phone. |
-| Simulator input/accessibility | AXe executable blocked; direct replacement pending. |
-| CLI/MCP | Both enforce the same restriction. Full Apple-family scope remains unchanged. |
-| Agent exploration loop | Native foreground AX and screenshot inspection now have real MCP Settings verification; OCR remains fallback. Coordinate action → fresh observation has scoped iPhone checks. Guarded semantic actions/assertions and reliable targeting remain incomplete; earlier coordinate misses remain recorded. Inactive primary displays are now reported before point selection. Automatic prompt handling, durable sessions and recovery remain incomplete. |
-| Physical HID cancellation | Swift task cancellation stops Universal HID and Indigo input with release/barrier attempts. Direct physical CLI signals and MCP request cancellation have scoped iPhone 13 mini checks. MCP now owns tool tasks, closes admissions and cancels/drains on stdin EOF or process signals; live holds exited 0/130/143 after about two seconds. Device-side release, forced exits/crashes, cross-process ownership and quarantine remain incomplete. |
+| iPhone | Primary physical testing target; evidence mostly iPhone 13 mini |
+| iPad | In scope; generic paths exist, but dedicated physical/multitasking/display validation is missing |
+| Apple Watch | In scope; dedicated control and hardware verification missing |
+| Apple TV | In scope; dedicated tvOS control and verification missing |
+| iPhone Duo | In scope; posture/display/control verification missing |
+| Simulators | Partial lifecycle/capture/development support; direct input/AX migration unfinished |
 
-## Historical feature inventory
+Android is excluded. Accepting an identifier or passing a build does not establish support for a new family.
 
-The inventory below records the implementations and scoped verification **before the non-Apple executable restriction**. Entries involving ipb, idevice or AXe do not mean those paths remain available. Use the current availability table above for execution status; preserve these observations as migration acceptance targets.
+## How to read progress
 
-Scope clarification: all Apple device families are in scope, explicitly including iPhone, iPad, Apple Watch, Apple TV, and Duo targets. Android is excluded and is not an unfinished requirement. The same physical iPhone result cannot verify another device family.
+Use three separate questions: is there an executable route, has that route been checked on this hardware, and does it recover from interruption/failure? A feature can answer yes to the first two and still be unsuitable for unattended use.
 
-**Verified** means a scoped live result was observed. **Implemented, unverified** means code exists without sufficient live proof. **Partial** means important functionality or coverage remains missing. **Missing** means there is no product implementation. **In progress** means current work has not reached a verified, committed checkpoint. Passing tests alone does not establish hardware behavior.
-
-| Category | Feature | Status | Evidence or remaining gap |
-| --- | --- | --- | --- |
-| Devices | iPhone USB discovery/readiness | Partial, scoped verification | CoreDevice details and Developer Mode/image checks work; physical inventory can include simulators. |
-| Devices | Wi-Fi pairing/reconnection | Implemented, unverified | Independent pairing/tunnel path exists; hardware pairing/reconnection/input proof remains missing. |
-| Physical control | Home, tap, drag | Verified | Native CoreDevice backend on iPhone 13 mini over USB. Other buttons/orientations remain unverified. |
-| Physical control | Long-press | Partial, scoped verification | Native 0.8-second hold opened the Maps Home Screen context menu on iPhone 13 mini. Other targets/durations/orientations and failure release on hardware remain unverified. |
-| Physical control | Pinch and moving multitouch | Partial, scoped verification | Native two-contact Maps zoom in/out verified. Three-to-five-contact effects and failure cleanup on hardware remain unverified. |
-| Physical control | Timed paths and repeated taps | Partial, scoped verification | Native complete-state sequences implemented with one to five slots, nonuniform times, arrivals/lifts, and release attempts. One-contact sampled swipe changed Home to App Library; real MCP double-tap zoomed Maps. Independent multi-contact timing and failure release need hardware coverage. |
-| Physical control | Unicode paste / Backspace | Verified | Settings search insertion/removal observed. Paste explicitly replaces the phone clipboard; other field types, keys, and layouts need coverage. |
-| Physical control | Exact identifier/label press | Partial, scoped verification | Settings navigation observed through fresh AX targets, live state, hit, and portrait display checks. Other apps/overlays/rotations remain incomplete. |
-| Physical control | Scroll element into view | Partial, scoped verification | One native action with fresh selector/state/display guards and read-only postcondition checks. Settings movement verified through CLI; real MCP already-visible native-false case passed. Only targets already present in the bounded snapshot can be selected. |
-| Physical control | Foreground app selection | Partial, scoped verification | Primary-display centre selection verified for Settings trees and exact identifier/label presses without PID. Overlays, embedded processes, rotations, and other families remain incomplete. |
-| Observation | Physical screenshot | Verified | Awake/unlocked iPhone 13 mini USB capture. Earlier black captures preceded confirmed wake/unlock. |
-| Observation | Physical accessibility tree | Partial, scoped verification | Explicit-PID and automatically selected Settings trees verified through CLI and real MCP. Snapshot-local IDs; non-atomic; broad coverage unproven. |
-| Observation | Physical screenshot + tree workflow | Partial, scoped verification | Physical screen auto/tree integration implemented; real MCP returned Settings hierarchy and inline PNG. Sequential capture/query; physical OCR accuracy remains unverified. |
-| Observation | OCR | Partial | Simulator fixture verified; physical accuracy and OCR selector actions remain unverified/missing. |
-| Observation | Physical finite recording | Partial, scoped verification | Explicit CoreDevice backend produced two-second H.264/HEVC captures on USB iPhone 13 mini through CLI/MCP. Device-side teardown unconfirmed; sharing indicator persists. Default devicectl recording rejected with capability error 1001. |
-| Observation | Live mirroring/streaming | Missing | Internal HID media setup does not constitute a user-facing capture/session feature. |
-| Apps | Launch installed apps | Partial, scoped verification | Settings launch verified; other launch restrictions need coverage. |
-| Apps | List installed apps | Verified | Selected iPhone 13 mini returned 74 entries, including system components; private inventory stays under ignored tmp/. Other device families remain unverified. |
-| Apps | Install/uninstall/terminate/URLs | Implemented, unverified physically | Physical command plans exist; Safari URL preflight failed in one check. No broad physical lifecycle claim. |
-| Apps | App-container files | Partial | Raw listing/pull/push exist. Tool-owned temporary-domain copy round trip verified; actual app-container permission/round-trip proof missing. Xcode-format export/replacement missing. |
-| Diagnostics | Saved reports | Partial | Physical listing verified; download unverified. Parsing, symbolication, filters, and deletion missing. |
-| Diagnostics | Finite OS logs | Implemented, unverified | Duration/entry/byte limits tested synthetically; live capture incomplete. Separate from saved-report parity. |
-| Development | Build & Run | Partial, scoped verification | Simulator project/workspace flows verified; physical signing/deployment, scheme discovery, general progress/cancellation incomplete. |
-| Agents | Human handoff | Partial | Explicit terminal/MCP form flow and per-device mutation pause tested. Automatic prompt detection, notifications, and mirror banners missing. |
-| Agents | Multiple-device coordination/activity/approvals | Partial | Explicit command targets exist. Coordinated sessions, activity tracking, and application approval policy missing. |
-| Platforms | iOS simulators | Partial, scoped verification | Core input, AX tree/selectors, screenshots, finite H.264/HEVC recording, and Build & Run flows verified. Simulator pinch/arbitrary moving multitouch missing. |
-| Platforms | Apple Watch / watch simulators | Missing | No dedicated product support or live verification. |
-| Platforms | iPad-specific coverage | Partial, unverified | Generic command paths exist; dedicated physical iPad, multitasking, and display behavior remain unverified. |
-| Platforms | Apple TV / tvOS | Missing | No dedicated control implementation or verification. |
-| Platforms | Duo targets | Missing dedicated coverage | No verified posture/display/control support; generic device-ID acceptance is insufficient. |
-| Interface | Swift CLI and shared MCP | Partial | Swift CLI and 33 stdio MCP tools share operations. Physical private protocols use an optional Rust bridge; native HID helper uses Objective-C/Swift/assembly. HTTP, general cancellation/progress, and consistent structured CLI errors remain incomplete. |
-
-The old idevice **HID** path returned successful receipts without visible Home/tap effects. Verified physical touch/keyboard operations use the native CoreDevice backend. The separate idevice **AX** path has verified tree reads and selector presses. These results must not be conflated.
-
-Physical controls/actions remain the user's priority. No percentage is assigned: features differ substantially in scope, and implementation counts would hide verification gaps.
+Physical controls/actions remain the priority. The [roadmap](ROADMAP.md) orders the remaining work; no percentage is assigned because counting commands would hide differences in scope and evidence.

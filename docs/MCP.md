@@ -1,102 +1,102 @@
-# Optional MCP server
+# MCP server
 
-MCP cancellation notifications reach all direct physical HID dispatch paths: touch/holds/drags, paired movement, buttons, named keys, typing, paste keys and Universal HID schedules. Schedulers stop future movement/typing, attempt release of attempted contacts/keys, and complete bounded barrier cleanup before cancellation propagates to the SDK. Stdin EOF and SIGINT/SIGTERM now also cancel owned operations and wait for cleanup. This does not prove device-side release or undo text/paste. Clipboard replacement can precede cancellation. Forced exit/crashes, interrupted transport setup, cross-process ownership and broader recovery remain incomplete. See [input cancellation limits](NATIVE-INPUT.md#task-cancellation-and-release-attempts) and scoped live checks in [verification records](VERIFICATION.md).
+`appledevicescmd mcp` exposes the CLI's operations over local stdio using the official Swift MCP SDK. It shares validation, backends and verification limits with the CLI. There is no HTTP listener.
 
-## Shutdown and operation ownership
+## Configure a host
 
-Every tool call runs in a project-owned task registered before device work begins. Cancelling the SDK handler cancels this owned task; the handler waits for its result so direct HID cleanup can complete. Shutdown first closes admissions and cancels all registered operations, then stops the SDK reader/transport and resolves pending host elicitation continuations, and finally drains owned operation tasks. A cancelled command waiting to enter the shared command actor checks cancellation before it can start work. Late SDK handlers cannot start new device operations after admissions close.
-
-The stdio runtime performs this sequence when stdin reaches EOF or on SIGINT/SIGTERM. Normal EOF exits 0; signals exit 130/143. No normal success receipt is published for an interrupted input call. EOF cleanup has a 30-second runtime watchdog (expiry exits 1); signals use the existing 30-second grace and repeated-signal force-exit behavior. Embedded `AppleMCPServerSession.stop()` and `waitUntilCompleted()` cancel/drain operations without forcibly exiting their host process. Sessions are single-use after shutdown.
-
-The registry owns tool tasks, not exclusive device access. Multiple CLI/server processes remain uncoordinated. A blocking Apple API/tool can delay cancellation until its own boundary; forced exit, SIGKILL, crashes, disconnected devices, text/clipboard effects and failure cleanup do not gain rollback or a device-side release guarantee. The pinned SDK's stop method alone does not cancel/await all its tool handlers; the project-owned lifetime layer supplies this behavior without changing the SDK dependency.
-
-`mise run test:mcp-shutdown <UDID> <x> <y> <seconds> <EOF|SIGINT|SIGTERM>` starts one explicit 8...10-second physical hold, stops the owned server after two seconds, checks its exit and absence of a late ordinary response, and captures a separate post-shutdown screenshot. These are scoped process/transport checks, not proof of delivered hold timing or release.
-
-**Current runtime policy:** MCP uses only project-owned in-process Apple backends or Apple executables for device operations. Physical buttons, named keys, single-contact touch and two-contact movement default to the direct CoreDevice backend. Tools requiring AXe/idevice/ipb executables return unavailable errors until migrated; the catalog and legacy examples below do not imply those backends remain executable. See [current availability](PARITY-STATUS.md#current-runtime-availability).
-
-`appledevicescmd mcp` serves the existing operations over local stdio, using the official Swift MCP SDK. It waits for newline-delimited JSON-RPC on stdin. Stdout contains only protocol messages; diagnostics go to stderr. No HTTP listener is created.
-
-`paste_text` uses Apple's clipboard command and in-process Command+V, with no helper executable. It replaces the phone clipboard; an iOS paste prompt may remain after a successful dispatch receipt. See [current paste semantics](NATIVE-INPUT.md#direct-unicode-paste). The server does not approve prompts or retry insertion.
-
-`type_text` with `platform: physical` uses in-process US-layout keyboard events without changing the clipboard. It accepts 1...512 printable ASCII characters, tab and LF; focus, keyboard layout and app behavior affect output. See [direct typing and verification limits](PHYSICAL-TYPING.md#current-direct-implementation). The default simulator path remains disabled pending direct replacement.
-
-`perform_gesture` uses the in-process Universal HID backend for one-to-five-slot complete-state schedules, including independent arrivals/lifts and repeated taps. It shares fresh identity/display checks and human-handoff pause with CLI dispatch. See [current direct gesture limits](GESTURE-SEQUENCES.md#current-direct-implementation); the historical helper notes elsewhere do not imply a helper runs.
-
-Configure an MCP host to launch the built executable by absolute path with `args: ["mcp"]`. Set the working directory to this checkout and provide a PATH containing Apple's developer tools and xcsift where required. Non-Apple device helper executables are disabled. A common host configuration shape is:
+Use the executable's absolute path and `args: ["mcp"]`. A common configuration shape is:
 
 ```json
 {
   "mcpServers": {
     "appledevicescmd": {
-      "command": "/absolute/path/to/appledevicesmcp/.build/debug/appledevicescmd",
+      "command": "/absolute/path/to/appledevicescmd",
       "args": ["mcp"]
     }
   }
 }
 ```
 
-This is a configuration example, not an installation into a particular host. Hosts differ in how they configure working directory and environment. Paths are relative to the server's working directory; temporary artifacts go beneath its `tmp/`. Keep that directory ignored if using another working directory.
+Host formats vary; this is not an installation into a particular application. Set a suitable working directory and PATH for Apple developer tools and xcsift when needed. Relative files and private `tmp/` artifacts use the server's working directory.
 
-## Tools
+Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The host controls tool approvals; the server has no approval UI or policy of its own.
 
-The 33 tools have object schemas with required fields, enumerated operations where applicable, and no additional parameters. Their exact argument reference is returned by `tools/list`.
+## Tool catalog
 
-| Tools | Operations |
+`tools/list` is the exact schema reference: 33 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform/backend combination is available.
+
+| Tools | Current purpose |
 | --- | --- |
-| `list_devices`, `doctor`, `inspect_device` | Discovery, tool checks, apps, physical details/processes/HID information |
-| `device_readiness` | [Physical preparation status](READINESS.md), including Developer Mode/image services plus separate display-power and passcode observations; no UI Automation or current UI-unlocked guarantee |
-| `request_handoff` | [Explicit human completion request](HANDOFF.md) using a host form, with per-device mutation pause |
-| `get_ui_tree`, `get_accessibility_archive`, `ocr_image` | AXe simulator hierarchy or native physical AX snapshot with optional PID, separate raw physical callback archive, standalone Vision OCR |
-| `press_element` | [Native physical AX press](DIRECT-ACCESSIBILITY.md#current-guarded-native-press) by exact identifier/label, with unique target, live state, hit, and display checks; CLI/MCP Settings navigation verified, native acceptance does not verify generic UI effect |
-| `inspect_device` with `query: media-status` | [Read-only native media support/status](RECORDING.md#native-media-control-inspection) for physical devices; returns capability flags and server session count without stream mutation, session identities or keys. Does not prove video capture support. |
-| `scroll_to_element` | [Native physical scroll-to-visible](DIRECT-ACCESSIBILITY.md#current-native-scroll-to-visible) by exact identifier/label for a target already in the snapshot; one native action followed by read-only visibility/frame/hit checks. Inspect `nativeResult` and `postconditionVerified` separately. |
-| `decode_accessibility_archive` | [Offline structural archive inspection](ACCESSIBILITY-PROTOCOL.md#saving-and-inspecting-a-callback), with bounds and unknown fields preserved; no normalized physical tree |
-| `screenshot` | Capture a PNG to a host path; inline MCP image content up to 8 MiB |
-| `get_screen` | [Capture and inspect](SCREEN-UNDERSTANDING.md), preferring simulator or physical accessibility with OCR fallback and an explicit image-only result if automatic analysis fails |
-| `record_screen` | [Finite screen recording](RECORDING.md) to a new host MP4, with decoded-artifact metadata |
-| `tap`, `tap_element`, `drag`, `multi_tap`, `type_text`, `press_button`, `press_key` | Existing simulator/physical input operations, with their backend limits |
-| `multi_drag`, `pinch` | [Experimental physical moving multitouch](MULTITOUCH.md), with two to five coordinated linear paths or a horizontal pinch/spread |
-| `paste_text` | [Physical Unicode paste](NATIVE-INPUT.md#keyboard-and-unicode-paste) into the focused field, explicitly replacing the device clipboard |
-| `long_press` | [Native physical held touch](NATIVE-INPUT.md#long-press), normalized coordinates and 0.1...10-second requested duration; dispatch receipt does not verify UI effect or release |
-| `perform_gesture` | [Timed native touch sequence](GESTURE-SEQUENCES.md), supplied as a bounded JSON string with complete-state frames; sampled paths, holds, repeated taps, and contact arrivals/lifts |
+| `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks; apps and physical details/processes/media status. Legacy `hid-info` is unavailable. |
+| `device_readiness` | CoreDevice prerequisites plus separate display/passcode observations; see [readiness](READINESS.md). |
+| `get_ui_tree` | Native physical AX hierarchy with optional PID. Simulator hierarchy is currently unavailable. |
+| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](SCREEN-UNDERSTANDING.md), saved-image OCR |
+| `press_element`, `scroll_to_element` | [Fresh exact physical AX selectors](DIRECT-ACCESSIBILITY.md), guarded native press/scroll |
+| `decode_accessibility_archive` | Offline data-only archive inspection |
+| `get_accessibility_archive` | Legacy live raw callback capture; currently unavailable |
+| `record_screen` | [Finite MP4 recording](RECORDING.md) to a new host path |
+| `tap`, `drag`, `long_press` | Direct physical single-contact input |
+| `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](MULTITOUCH.md) and [timed sequences](GESTURE-SEQUENCES.md) |
+| `type_text`, `paste_text`, `press_key`, `press_button` | Physical typing, clipboard-replacing paste, named keys and hardware buttons |
+| `tap_element` | Legacy simulator selector tap; currently unavailable |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
-| `list_reports`, `download_report`, `capture_logs` | Saved physical reports and experimental finite OS trace |
-| `build_run` | The existing [Xcode build/install/restart workflow](BUILD-RUN.md) |
+| `list_reports`, `download_report` | Saved physical report listing/download |
+| `capture_logs` | Legacy finite OS trace; currently unavailable |
+| `build_run` | [Xcode build/install/launch](BUILD-RUN.md) |
+| `request_handoff` | [Explicit human completion request](HANDOFF.md) |
 
-Physical touch coordinates are normalized; simulator coordinates are interface points. `type_text` defaults to simulator but accepts `platform: "physical"` for [experimental US-layout ASCII typing](PHYSICAL-TYPING.md). Physical Unicode insertion is available through the separate clipboard-replacing `paste_text` operation. `get_ui_tree` keeps its simulator default, whose legacy helper is disabled. Native physical reads require `platform: physical` and `device`; positive integer `pid` is optional. Omitted PID selects/rechecks the primary awake portrait display-centre process and Apple display geometry. Explicit PID permits background inspection. `backend: coredevice` is optional and pairing files are unsupported. It shares CLI capture, bounded normalization and the application-identity recheck. Real MCP returned 106 Settings nodes on iPhone 13 mini without PID, and `get_screen` returned native hierarchy with a PNG. Subscription-stop and tunnel-release outcomes remain separate. Centre selection can identify an overlay/embedded process; other orientations/families remain unverified/unsupported. Geometry uses logical device points and path IDs are snapshot-local, not reusable action references. No selector action is submitted. Historical helper-backed press/scroll observations remain [migration targets](DIRECT-ACCESSIBILITY.md). Unsupported combinations return tool errors; publishing a tool does not establish hardware support.
+Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked, including their old simulator input, raw callback, pairing and log paths.
 
-Physical `tap`, `drag`, `multi_drag`, `pinch`, `press_button`, and `press_key` default to [in-process Apple input](NATIVE-INPUT.md) and accept explicit `backend: coredevice`. Native Home/tap/drag, two-contact map zoom gestures, Unicode paste, and Backspace effects were verified on the USB iPhone 13 mini; individual receipts still require observation. Pairing files and simulator targets are rejected for this backend. `paste_text` uses native CoreDevice and reports clipboard replacement separately from unverified insertion. No automatic retry or backend fallback occurs.
+## Choose platform and coordinates explicitly
 
-## Shared execution and output
+Some tools retain a simulator default. For physical `get_ui_tree` and `type_text`, supply `platform: "physical"` rather than relying on defaults.
 
-Tool calls use the same `CommandService`, planners, and backends as the CLI. Device actions are serialized within one server process. OCR and handoff confirmation can suspend, allowing another request during that suspension; handoff explicitly blocks mutations for its pending target. Multiple server/CLI processes are not coordinated.
+Physical touch coordinates are normalized `0...1`. Physical AX frames use logical points; screenshots use pixels. OCR text regions are not guaranteed tap targets.
 
-Results contain text with the CLI output. JSON output is also wrapped under `structuredContent.result`; plain simctl output remains text. A screenshot or `get_screen` appends an `image/png` block when the saved PNG is at most 8 MiB. Larger images stay on disk with an omission notice. Other downloaded files are not automatically embedded, parsed, or symbolicated.
+A physical tree without `pid` selects/rechecks the awake portrait primary display-centre process. An explicit positive PID can inspect a background app. IDs belong only to one non-atomic snapshot, not reusable action handles. Press/scroll selectors resolve fresh identities and apply additional guards.
 
-Backend/domain validation failures return `isError: true` and diagnostic text. Unknown tools, missing/unknown parameters, and schema type/enum violations return JSON-RPC invalid-parameter errors. An unsuccessful doctor check keeps its structured output and sets `isError: true`. Input and Build & Run receipts retain `verified: false`; follow with a fresh tree, screenshot, or app-specific health check.
+Physical Unicode paste is `paste_text`; it replaces the clipboard and uses current focus. ASCII `type_text` has a US-layout mapping and does not change the clipboard. Neither approves prompts or verifies insertion.
 
-## Pairing and approvals
+## Results and errors
 
-Pair initially through the interactive CLI. No MCP tool initiates pairing, and the shared service rejects interactive pairing in server mode so a PIN prompt cannot consume protocol input. Physical bridge tools can accept an existing `pairing_file` path; the bridge checks device identity. Do not send a PIN, key, or pairing-file contents as tool arguments.
+Tool content includes the CLI output as text. JSON is also returned under `structuredContent.result`; plain simulator output remains text.
 
-The MCP host controls approvals. This server has no approval prompt or policy of its own. Tool annotations identify read operations and conservatively mark mutation tools with `destructiveHint: true`, including host-file replacement and app-state changes. These are hints, not permission enforcement.
+`screenshot` and `get_screen` append a PNG image block when the saved file is at most 8 MiB. Larger images stay on disk with an omission notice. Other downloads are not embedded, parsed or symbolicated automatically.
 
-## Protocol and limitations
+- Unknown tools and invalid schema parameters produce JSON-RPC invalid-parameter errors.
+- Backend/domain failures produce `isError: true` and diagnostics.
+- Unsuccessful readiness/doctor results preserve structured data and set `isError: true`.
+- Readiness's top-level status describes CoreDevice prerequisites; inspect `ui` separately.
+- Dispatch receipts retain unverified effect/release fields. Scroll callers must inspect `postconditionVerified`, even when the call exits successfully.
 
-SwiftPM declares the official [Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) at exact version **0.12.1**, revision `a0ae212ebf6eab5f754c3129608bc5557637e605`; `Package.resolved` pins dependencies. Its newest protocol version is `2025-11-25`, with negotiation also supporting `2025-06-18`, `2025-03-26`, and `2024-11-05`. Later protocol revisions are not supported. The [upstream license and transition notice](../ThirdParty/swift-mcp-sdk-LICENSE.txt) are preserved.
+Follow actions with fresh observations or app-specific assertions. A completed call can have partial side effects or uncertain cleanup.
 
-Wire handling follows the SDK's strict initialization, the [stdio specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), and the [tool specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools). HTTP/authentication, resources/prompts, automatic human-prompt detection, progress, and process cancellation coordination are absent. Cancellation or client closure does not promise immediate termination or rollback of an external tool. Backend deadlines and all device-verification limits still apply.
+## Shutdown and operation ownership
 
-The opt-in check `mise run test:mcp-live <booted-simulator-UUID>` launches the real server for initialization, discovery, invalid input, simulator inventory/tree reads, PNG/video capture, a synthetic handoff form response, and EOF shutdown. Artifacts stay under `tmp/`. The harness answers its own handoff form; it does not prompt the user or perform a device action. It does not send physical input or establish physical backend support. See [verification records](VERIFICATION.md).
+Each tool call is registered as an owned task before device work starts. Request cancellation cancels that task and waits for its result/cleanup. Shutdown closes admissions, cancels owned operations, stops the SDK transport and pending elicitation waits, then drains tasks.
 
-`mise run test:mcp-physical <UDID> <pid>` uses the same real stdio harness for initialization, discovery, invalid input, a native physical AX tree read, separate cleanup outcomes, and EOF shutdown. It builds the Swift executable and uses its linked Apple bridge; no device helper is required. It does not install/launch an app or send UI input. A current application PID is required; the query may inspect a background app. The native tree is saved privately under ignored `tmp/mcp-live-*/physical-tree.json`. The USB iPhone 13 mini Settings exchange passed; this does not verify other apps or transports.
+| Event | Normal result |
+| --- | --- |
+| stdin EOF | Cancel/drain; exit 0 |
+| SIGINT / SIGTERM | Cancel/drain; exit 130 / 143 |
+| Cleanup grace expiry or repeated signal | Forced exit; cleanup is uncertain |
 
-`mise run test:mcp-foreground <UDID>` instead omits PID and verifies native primary display-centre selection, tree structure, `get_screen` accessibility analysis, inline PNG content, and EOF shutdown. It saves private tree and screen JSON under ignored `tmp/mcp-live-*/`. It requires an awake portrait device; no helper is needed. Subscription and tunnel cleanup states are checked independently, and unconfirmed states require diagnostics. This harness sends no UI input. The iPhone 13 mini Settings exchange passed on 2026-11-14; broader coverage remains incomplete.
+The runtime grace is 30 seconds. Interrupted input does not publish an ordinary success receipt. Embedded sessions stop/drain without exiting their host process and cannot restart after shutdown.
 
-`mise run test:mcp-press <UDID> <identifier|label> <exact-text>` explicitly submits one guarded native `press_element` call, captures before/after screenshots, checks acceptance/separate cleanup outcomes and verifies EOF shutdown. Artifacts remain private under ignored `tmp/mcp-live-*/`. Inspect the images to verify effect; the receipt retains `effectVerified: false`. A General back-label press from Información returned to General on iPhone 13 mini. No helper, coordinate fallback or automatic replay runs. Native scroll uses the same in-process Apple session and has separate post-action checks.
+This owns tasks, not exclusive access to a device. Independent CLI/server processes remain uncoordinated. Blocking Apple calls can delay cancellation; force exit, crashes and disconnects do not guarantee release or roll back text/clipboard/app changes.
 
-`mise run test:mcp-scroll <UDID> <identifier>` opts into one `scroll_to_element` call after those foreground reads. It sends a native scroll action for the explicitly supplied identifier and requires its observed visibility postcondition to pass. It saves private `physical-scroll.json` alongside the read artifacts. The target must already exist in the current snapshot. This task can move the app's scroll position; it does not press the row, send another scroll on failure, or change a setting.
+## Handoff and approvals
 
-`mise run test:mcp-long-press <UDID> <x> <y> <seconds>` opts into one native `long_press` call at the supplied physical coordinates, followed by a screenshot and EOF shutdown. It requires the native helper, saves the receipt and PNG under ignored `tmp/mcp-live-*/`, and does not query an AX tree or automatically choose a control. Its assertions verify the protocol/receipt/capture; inspect the screenshot to establish the UI effect. No retry is sent on failure.
+`request_handoff` uses a host form when form elicitation is advertised. A required completion checkbox acknowledges only the person's response, not device success. Pending handoff pauses that device's mutations within the same server process while leaving observations available.
 
-`mise run test:mcp-gesture <UDID> <file>` similarly opts into one `perform_gesture` sequence from a local JSON file, followed by a screenshot. It can send multiple scheduled contacts/taps as specified in that one sequence. Receipts and captures remain private under ignored `tmp/mcp-live-*/`; no replay or target selection is performed.
+Do not send passcodes, keys or pairing-file contents through tool arguments. No MCP tool initiates pairing. The old interactive pairing route is also blocked by current execution policy.
+
+Read-only/destructive annotations are host hints, not permission enforcement. See [handoff](HANDOFF.md) for identity and completion rules.
+
+## Protocol and validation
+
+The SDK is pinned to 0.12.1. Supported protocol versions are `2025-11-25`, `2025-06-18`, `2025-03-26` and `2024-11-05`; later versions are not supported. The implementation follows the pinned [stdio](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports) and [tool](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) specifications.
+
+HTTP/authentication, resources/prompts, automatic prompt detection, general progress and durable sessions remain absent.
+
+Opt-in `test:mcp-*` tasks exercise real stdio. Read their help before running: some read state only; others press, type, scroll or record. [Development tasks](DEVELOPMENT-TASKS.md) lists useful entry points, and [verification](VERIFICATION.md) separates scoped live results from local protocol tests.
