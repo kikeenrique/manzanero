@@ -1,4 +1,5 @@
 import AppleDeviceBridge
+import CoreFoundation
 import Foundation
 
 struct DirectTouchDisplay: Equatable {
@@ -10,33 +11,48 @@ struct DirectTouchDisplay: Equatable {
     let rotation: Int
 
     init(_ data: Data) throws {
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+        func invalid() -> CommandFailure {
+            CommandFailure(description: "Expected one integrated primary display with valid typed geometry/orientation; no touch or capture started.")
+        }
+        guard data.count <= 1_048_576,
+              let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               (root["info"] as? [String: Any])?["outcome"] as? String == "success",
               let result = root["result"] as? [String: Any],
-              let displays = result["displays"] as? [[String: Any]] else {
-            throw CommandFailure(description: "Cannot read Apple display metadata; no touch sent.")
+              let displays = result["displays"] as? [[String: Any]], (1...16).contains(displays.count) else {
+            throw CommandFailure(description: "Cannot read bounded Apple display metadata; no touch or capture started.")
         }
-        let primary = displays.filter { $0["primary"] as? Bool == true }
+        let primary = try displays.filter {
+            guard let value = $0["primary"] as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else { throw invalid() }
+            return value.boolValue
+        }
         let rotations = ["rot0": 0, "rot90": 90, "rot180": 180, "rot270": 270]
         guard primary.count == 1, let display = primary.first,
-              (display["type"] as? [String: Any])?["integrated"] != nil,
-              display["backlightState"] as? String == "activeOn",
-              let id = display["displayId"] as? Int, id > 0,
-              let bounds = display["bounds"] as? [[Double]], bounds.count == 2,
-              bounds[0] == [0, 0], bounds[1].count == 2,
-              bounds[1].allSatisfy({ $0.isFinite && $0 > 0 && $0 <= 32768 }),
-              let scale = display["pointScale"] as? Double, scale.isFinite, (0.1...10).contains(scale),
-              let native = rotations[display["nativeOrientation"] as? String ?? ""],
-              let current = rotations[display["currentOrientation"] as? String ?? ""] else {
-            throw CommandFailure(description: "Expected one awake integrated primary display with valid geometry/orientation; no touch sent.")
+              (display["type"] as? [String: Any])?["integrated"] is [String: Any] else { throw invalid() }
+        guard display["backlightState"] as? String == "activeOn" else {
+            let state = display["backlightState"] as? String == "off" ? "Primary display is off." : "Primary display awake state is unknown or unsupported."
+            throw CommandFailure(description: "\(state) Wake and unlock the selected device, then try again; no touch or capture started.")
         }
-        self.id = id; width = bounds[1][0]; height = bounds[1][1]; self.scale = scale; self.native = native
+        func number(_ value: Any?) throws -> Double {
+            guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(), number.doubleValue.isFinite else { throw invalid() }
+            return number.doubleValue
+        }
+        guard let id = display["displayId"] as? NSNumber, CFGetTypeID(id) != CFBooleanGetTypeID(),
+              ["c", "C", "s", "S", "i", "I", "l", "L", "q", "Q"].contains(String(cString: id.objCType)),
+              id.doubleValue > 0, id.doubleValue < Double(Int.max),
+              let bounds = display["bounds"] as? [[Any]], bounds.count == 2, bounds.allSatisfy({ $0.count == 2 }),
+              let native = rotations[display["nativeOrientation"] as? String ?? ""],
+              let current = rotations[display["currentOrientation"] as? String ?? ""] else { throw invalid() }
+        let originX = try number(bounds[0][0]), originY = try number(bounds[0][1])
+        let width = try number(bounds[1][0]), height = try number(bounds[1][1]), scale = try number(display["pointScale"])
+        guard originX == 0, originY == 0, width > 0, height > 0, width <= 32768, height <= 32768,
+              (0.1...10).contains(scale) else { throw invalid() }
+        self.id = id.intValue; self.width = width; self.height = height; self.scale = scale; self.native = native
         rotation = (native + current) % 360
         if native != 0 {
             let sensor = (result["orientation"] as? [String: Any])?["currentDeviceNonFlatOrientation"] as? String
             let reported = ["portrait": 0, "landscapeRight": 90, "portraitUpsideDown": 180, "landscapeLeft": 270]
             guard let sensor, reported[sensor] == rotation else {
-                throw CommandFailure(description: "Device and display orientation disagree; no touch sent.")
+                throw CommandFailure(description: "Device and display orientation disagree; no touch or capture started.")
             }
         }
     }

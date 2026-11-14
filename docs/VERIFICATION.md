@@ -823,3 +823,11 @@ The in-process media owner observes that result only after Apple's accepted answ
 The live packet probe stopped at awake-display preflight before opening a media stream. A fresh Apple display query confirmed primary portrait geometry but `backlightState: off`. One native Home dispatch was attempted; the next read-only display query still reported off. These results do not establish wake effect or the negotiated Boolean. The user was asked to wake/unlock the test phone; live value verification remains pending. Private state queries and reflection source stay under ignored `tmp/`.
 
 All 308 default test functions passed with zero errors/warnings through xcsift, and all 47 mise tasks validate. This verifies the local implementation and installed getter signatures, not a live feedback value or recovery behavior.
+
+## 2026-11-14 — actionable shared touch/video display preflight
+
+The earlier live video probe encountered a real `backlightState: off` but returned the generic touch-oriented geometry error. The shared display parser now separates off, unknown/unsupported awake state and invalid display geometry. Off/unknown responses give a wake/unlock instruction and state that no touch or capture was started. Backlight is a wake prerequisite, not proof of lock state or UI Automation permission; no automatic wake or unlock action was added.
+
+The parser also caps metadata at 1 MiB/16 displays, validates primary flags as actual Booleans, requires a dictionary-shaped integrated descriptor, rejects Boolean/nonintegral display IDs, and requires finite non-Boolean numeric bounds/scale. Rotation transforms and sensor rechecks retain their previous behavior. These guards apply to both direct touch and native recording before dispatch/start.
+
+All 310 default Swift test functions passed with zero errors/warnings through xcsift. New parameterized checks exercise off/unknown/inactive states through the injected real touch execution path and assert zero sends. Malformed primary, identifier, scale, bounds, integrated-descriptor and oversized-list cases are refused. This is local regression coverage; no new successful hardware wake, unlock or negotiated-feedback check is claimed. The existing live off-display observation motivated the diagnostic; the phone's readiness remains an external prerequisite.

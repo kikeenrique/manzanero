@@ -22,6 +22,41 @@ struct DirectPhysicalTouchTests {
         }
     }
 
+    @Test(arguments: ["off", "unknown", "inactive"])
+    func reportsDisplayReadinessWithoutDispatch(_ light: String) throws {
+        let input = try CoreDeviceInputTests().input(["tap", "0.5", "0.5"])
+        var sends = 0
+        do {
+            _ = try DirectPhysicalTouch.execute(input, query: { plan in
+                try plan.arguments.contains("details") ? DirectPhysicalInputTests().details() : display(light: light)
+            }, send: { _, _, _ in sends += 1 })
+            Issue.record("An unready display was accepted")
+        } catch let error as CommandFailure {
+            #expect(error.description.contains(light == "off" ? "Primary display is off" : "awake state is unknown"))
+            #expect(error.description.contains("Wake and unlock"))
+        }
+        #expect(sends == 0)
+    }
+
+    @Test(arguments: ["primary-number", "id-boolean", "id-fraction", "scale-boolean", "bounds-boolean", "integrated-null", "too-many"])
+    func refusesMalformedDisplayTypes(_ mutation: String) throws {
+        var root = try #require(try JSONSerialization.jsonObject(with: display()) as? [String: Any])
+        var result = try #require(root["result"] as? [String: Any])
+        var values = try #require(result["displays"] as? [[String: Any]])
+        switch mutation {
+        case "primary-number": values[0]["primary"] = 1
+        case "id-boolean": values[0]["displayId"] = true
+        case "id-fraction": values[0]["displayId"] = 1.5
+        case "scale-boolean": values[0]["pointScale"] = true
+        case "bounds-boolean": values[0]["bounds"] = [[0, 0], [true, 2436]]
+        case "integrated-null": values[0]["type"] = ["integrated": NSNull()]
+        default: values = Array(repeating: values[0], count: 17)
+        }
+        result["displays"] = values; root["result"] = result
+        #expect(throws: CommandFailure.self) { try DirectTouchDisplay(JSONSerialization.data(withJSONObject: root)) }
+        #expect(throws: CommandFailure.self) { try DirectTouchDisplay(Data(count: 1_048_577)) }
+    }
+
     @Test func schedulesCompleteTapHoldAndDragBeforeSending() throws {
         let geometry = try DirectTouchDisplay(display())
         let input = CoreDeviceInputTests()
