@@ -9,6 +9,7 @@ struct AccessibilityResponse: Sendable {
         case snapshot(AccessibilityRequest.Token)
         case attributes(AccessibilityRequest.Token)
         case hit
+        case press
 
         var requestType: UInt64 {
             switch self {
@@ -16,6 +17,7 @@ struct AccessibilityResponse: Sendable {
             case .snapshot: 2
             case .attributes: 5
             case .hit: 6
+            case .press: 7
             }
         }
     }
@@ -55,6 +57,12 @@ struct AccessibilityResponse: Sendable {
         guard requestType == kind else { return nil }
         guard notification == 0, error == 0 else { throw Self.invalid("semantic refusal or notification in request response (error \(error))") }
         switch expected {
+        case .press:
+            // Captured action replies have no translation/sequence identity.
+            // Correlation relies on this session's one-outstanding-request rule.
+            guard translation == .null, attribute == 0, Self.booleanResult(result) != nil else {
+                throw Self.invalid("action reply target, attribute or Boolean result shape")
+            }
         case .hit:
             _ = try Self.token(result)
             guard attribute == 0 else { throw Self.invalid("hit attribute mismatch") }
@@ -65,9 +73,14 @@ struct AccessibilityResponse: Sendable {
             }
             guard attribute == 0 else { throw Self.invalid("application attribute mismatch") }
         case .snapshot(let token), .attributes(let token):
-            let actual = try Self.token(translation)
-            guard actual.pid == token.pid, actual.objectID == token.objectID else {
-                throw Self.invalid("response translation identity mismatch")
+            // Captured unit type-5 replies may carry nil translation. They
+            // correlate only through the one-outstanding-request discipline.
+            // A provided translation must still match; snapshots require one.
+            if kind == 2 || translation != .null {
+                let actual = try Self.token(translation)
+                guard actual.pid == token.pid, actual.objectID == token.objectID else {
+                    throw Self.invalid("response translation identity mismatch")
+                }
             }
             guard attribute == (kind == 2 ? 52 : 0) else { throw Self.invalid("response attribute mismatch") }
             if kind == 5 {
@@ -76,6 +89,12 @@ struct AccessibilityResponse: Sendable {
         }
         guard result != .null else { throw Self.invalid("request returned no data") }
         return result
+    }
+
+    static func booleanResult(_ value: AccessibilityArchiveValue) -> Bool? {
+        if case .boolean(let value) = value { return value }
+        if let integer = value.unsignedInteger, integer <= 1 { return integer == 1 }
+        return nil
     }
 
     static func token(_ value: AccessibilityArchiveValue) throws -> AccessibilityRequest.Token {

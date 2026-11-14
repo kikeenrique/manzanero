@@ -28,6 +28,9 @@ struct PhysicalPressTests {
             Issue.record("Disabled device reached AX press")
         } catch { #expect(String(describing:error).contains("Developer Mode is disabled")) }
         let output = try await service.execute(["physical", "fixture", "press-label", "123", "Button"], dryRun:true)
-        #expect(String(decoding:output.data,as:UTF8.self).contains("press-label"))
+        let plan = try #require(JSONSerialization.jsonObject(with: output.data) as? [String: Any])
+        #expect(plan["backend"] as? String == "coredevice-direct")
+        #expect(plan["operation"] as? String == "press")
+        #expect((plan["selector"] as? [String: String]) == ["by": "label", "text": "Button"])
     }
 }

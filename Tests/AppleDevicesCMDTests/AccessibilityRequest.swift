@@ -3,6 +3,16 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct AccessibilityRequestTests {
+    @Test func pressUsesFreshTokenNilParametersAndCapturedActionFive() throws {
+        let bytes = try AccessibilityRequest.press(.init(pid: 42, objectID: 9, rawElementData: Data([1, 2])))
+        guard case .object("AXPTranslatorRequest", let fields) = try KeyedArchiveInspector.decodeProtocol(bytes),
+              case .object("AXPTranslationObject", let token) = fields["translation"] else { Issue.record("Invalid action archive"); return }
+        #expect(fields["requestType"]?.unsignedInteger == 7 && fields["actionType"]?.unsignedInteger == 5)
+        #expect(fields["clientType"]?.unsignedInteger == 0 && fields["attributeType"]?.unsignedInteger == 0)
+        #expect(fields["parameters"] == .null)
+        #expect(token["objectID"]?.unsignedInteger == 9 && token["pid"]?.unsignedInteger == 42)
+        #expect(token["rawElementData"] == .data(Data([1, 2])))
+    }
     @Test func pointQueryUsesCapturedNSValueShapeWithoutRelaxingNativeTokens() throws {
         let bytes = try AccessibilityRequest.hit(x: 187.5, y: 406)
         let plist = try #require(PropertyListSerialization.propertyList(from: bytes, format: nil) as? [String: Any])

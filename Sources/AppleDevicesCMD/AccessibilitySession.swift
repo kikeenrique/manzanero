@@ -80,6 +80,12 @@ final class AccessibilitySession {
         try exchange(AccessibilityRequest.attributes(attributes, of: token), expected: .attributes(token))
     }
 
+    func press(_ token: AccessibilityRequest.Token, onSubmission: () -> Void) throws -> Bool {
+        let result = try exchange(AccessibilityRequest.press(token), expected: .press, onSubmission: onSubmission)
+        guard let accepted = AccessibilityResponse.booleanResult(result) else { throw invalid("unknown press result") }
+        return accepted
+    }
+
     @discardableResult
     func close() -> Cleanup {
         if let cleanup { return cleanup }
@@ -104,14 +110,14 @@ final class AccessibilitySession {
         return cleanup ?? .unconfirmed("missing cleanup outcome")
     }
 
-    private func exchange(_ archive: Data, expected: AccessibilityResponse.Expected) throws -> AccessibilityArchiveValue {
+    private func exchange(_ archive: Data, expected: AccessibilityResponse.Expected, onSubmission: () -> Void = {}) throws -> AccessibilityArchiveValue {
         guard state == .active, !busy else { throw invalid("session unavailable or request already active") }
         busy = true
         self.expected = expected
         results.removeAll()
         defer { busy = false; self.expected = nil; results.removeAll() }
         do {
-            _ = try invoke("processDataFromHost:", argument: archive as NSData, until: phase())
+            _ = try invoke("processDataFromHost:", argument: archive as NSData, until: phase(), beforeWrite: onSubmission)
             let responseDeadline = phase()
             while results.isEmpty { _ = try receive(until: responseDeadline) }
             try check(responseDeadline)
@@ -130,12 +136,13 @@ final class AccessibilitySession {
         guard now() < limit else { throw invalid("deadline exceeded; session must close") }
     }
 
-    private func invoke(_ selector: String, argument: NSObject?, until limit: ContinuousClock.Instant) throws -> AccessibilityArchiveValue? {
+    private func invoke(_ selector: String, argument: NSObject?, until limit: ContinuousClock.Instant, beforeWrite: () -> Void = {}) throws -> AccessibilityArchiveValue? {
         try check(limit)
         let (following, overflow) = next.addingReportingOverflow(1)
         guard !overflow else { throw invalid("identifier overflow") }
         let message = try AccessibilityDTX.invocation(selector, argument: argument, identifier: next)
         next = following
+        beforeWrite()
         try transport.write(message, until: limit, cancelled: { !self.stopping && self.cancelled() })
         while true {
             let frame = try receive(until: limit)

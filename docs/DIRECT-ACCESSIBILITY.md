@@ -1,6 +1,6 @@
 # Direct physical accessibility migration
 
-Native explicit-PID and primary display-centre physical trees now work through CLI and MCP on the selected iPhone 13 mini. The replacement operates in `appledevicescmd` against Apple interfaces, without launching an intermediary. Selector actions remain unfinished. This page separates current scoped verification from the migration history below.
+Native explicit-PID/foreground physical trees and guarded exact-selector presses now work through CLI and MCP on the selected iPhone 13 mini. The replacement operates in `appledevicescmd` against Apple interfaces, without launching an intermediary. Scroll actions and broad device/app coverage remain unfinished. This page separates current scoped verification from the migration history below.
 
 ## Current native tree route
 
@@ -19,11 +19,28 @@ On 2026-11-13, the explicit diagnostic, actual CLI and real MCP stdio each captu
 
 When PID is omitted, Apple's `devicectl device info displays` supplies exactly one active primary display with native/current `rot0`. Effective bounds divided by point scale locate its logical centre. A type-6 AX point read selects the PID; process and display geometry are rechecked after the application/snapshot/application sequence. The primary display must report `backlightState: activeOn`; otherwise the error asks the user to wake/unlock the device before any point query. The native tree is also integrated into physical `screen auto|tree` and MCP `get_screen`. On 2026-11-14, the diagnostic, CLI and real MCP each returned 106 Settings nodes without supplying PID to the operation; real MCP screen inspection also returned a matching 1125×2436 PNG and completed EOF shutdown.
 
-An explicit PID can identify a background app. Centre selection can identify an overlay/embedded process and is not a combined display tree. Snapshot IDs/paths are local to one non-atomic observation, and are not action handles. A visible flag or frame does not establish hittability, complete coverage or stable descendants. Guarded element actions, rotated/multiple-display support, crash recovery and other-device coverage remain incomplete. No action is replayed automatically.
+An explicit PID can identify a background app for tree reads. Centre selection can identify an overlay/embedded process and is not a combined display tree. Snapshot IDs/paths are local to one non-atomic observation, and are not action handles. A visible flag or frame does not establish hittability, complete coverage or stable descendants. Scroll actions, rotated/multiple-display support, crash recovery and other-device coverage remain incomplete. No action is replayed automatically.
 
 Before expanding semantic result data, the session now reads the callback's typed `AXPTranslatorResponse.associatedRequestType` with bounded data-only projection. Unrelated type-11 notifications observed during point selection contained `NaN`; they are ignored without expanding their results, while the full numeric/identity checks remain mandatory for matching replies. Carrier acknowledgements cannot satisfy a point request. Point translations use a primitive Int32 PID zero confined to that synthetic request, an opaque query identity, and the captured NSValue point encoding; native returned tokens still require a positive PID.
 
 DTX auxiliary dictionaries identify their tag by the low byte `0xf0`; upper header metadata varies. Live callbacks contained header words `0x3f0` and `0xb9f0`. The parser preserves that metadata as opaque and still requires exact auxiliary/archive lengths and supported entry types. It never allocates from the upper header word. Independent byte fixtures cover alternate upper metadata, wrong tags and malformed lengths. Installed Apple DTX reader inspection and the retained AXe source reference support this framing distinction; neither executable is invoked for device operations.
+
+## Current guarded native press
+
+```sh
+mise run cli physical <UDID> press-id [pid] com.example.control
+mise run cli physical <UDID> press-label [pid] 'Exact label'
+# Explicitly sends one native action through real MCP and captures before/after:
+mise run test:mcp-press <UDID> identifier com.example.control
+```
+
+The default backend shares native directory/AX ownership with trees. MCP `press_element` uses the same operation with `device`, `by: identifier|label`, `text`, and optional positive `pid`. It requires an awake portrait primary display and selects its centre process; an explicit PID must agree. Two fresh snapshots must each resolve exactly one distinct native identity. Repeated paths of the same identity are accepted only when full native attributes agree. A foreign-process, missing or ambiguous match is refused.
+
+Type-5 attributes 21/25/27/32 must agree with the fresh frame/available identifier and report known enabled/visible state. The whole positive-size frame must fit inside the display; its centre must hit the exact target. Application root identity, centre process and display geometry are rechecked before one type-7/action-5 request with the fresh token and nil parameters. These sequential checks do not establish atomicity or XCTest's complete hittability calculation.
+
+Captured unit type-5 replies can have nil associated translation, and type-7 replies have nil translation. They rely on one outstanding request in a session; there is no demonstrated target/sequence correlator for those nil replies. A supplied type-5 translation must match; snapshots still require matching translation. Matching actions require error/notification zero, attribute zero and Boolean or integer 0/1 results. A carrier acknowledgement alone cannot establish acceptance.
+
+Native true returns `status: accepted`, `nativeAccepted: true`, `effectVerified: false` and separate cleanup outcomes. Pre-submission failures retain `state=not-sent`; later failures retain `submitted|refused|accepted`, stage and cleanup diagnostics. Cancellation after submission preserves uncertainty and never replays. Raw tokens are not returned. On 2026-11-14, a CLI identifier press navigated General → Información and a real MCP label press navigated back to General, independently screenshot-verified. Both cleanup acknowledgements and MCP EOF shutdown passed. Other apps, overlays, rotations and interruption effects remain unverified.
 
 ## Migration history and local implementation
 

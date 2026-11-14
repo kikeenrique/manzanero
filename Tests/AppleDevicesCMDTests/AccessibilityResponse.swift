@@ -3,6 +3,20 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct AccessibilityResponseTests {
+    @Test func actionRepliesRequireCapturedNilTranslationAndKnownBooleanShape() throws {
+        for result: Value in [.boolean(true), .boolean(false), .signed(0), .unsigned(1)] {
+            #expect(try AccessibilityResponse(value: response(kind: .signed(7), attribute: .signed(0), translation: .null, result: result))
+                .matchingResult(for: .press) == result)
+        }
+        for value in [response(kind: .signed(7), attribute: .signed(0), result: .boolean(true)),
+                      response(kind: .signed(7), attribute: .signed(52), translation: .null, result: .boolean(true)),
+                      response(kind: .signed(7), attribute: .signed(0), translation: .null, result: .real(1)),
+                      response(kind: .signed(7), attribute: .signed(0), translation: .null, result: .unsigned(2)),
+                      response(kind: .signed(7), attribute: .signed(0), translation: .null, result: .null),
+                      response(kind: .signed(7), attribute: .signed(0), translation: .null, result: .boolean(true), error: .signed(1))] {
+            #expect(throws: CommandFailure.self) { try AccessibilityResponse(value: value).matchingResult(for: .press) }
+        }
+    }
     @Test func pointResultsRequireNativeTokenAndZeroAttributeWithoutAnApplicationFlag() throws {
         let result = token(application: false)
         #expect(try AccessibilityResponse(value: response(kind: .signed(6), attribute: .signed(0), result: result))
@@ -61,10 +75,13 @@ struct AccessibilityResponseTests {
         }
         let attrs = AccessibilityResponse.Expected.attributes(try AccessibilityResponse.token(token()))
         let data = Value.dictionary(["21": .string("frame")])
+        #expect(try AccessibilityResponse(value: response(kind: .signed(5), attribute: .signed(0), translation: .null, result: data))
+            .matchingResult(for: attrs) == data)
         #expect(try AccessibilityResponse(value: response(kind: .signed(5), attribute: .signed(0), result: data))
             .matchingResult(for: attrs) == data)
         for value in [response(kind: .signed(5), attribute: .signed(52)),
-                      response(kind: .signed(5), attribute: .signed(0), result: .boolean(false))] {
+                      response(kind: .signed(5), attribute: .signed(0), result: .boolean(false)),
+                      response(kind: .signed(5), attribute: .signed(0), translation: token(pid: .signed(43)), result: data)] {
             #expect(throws: CommandFailure.self) { try AccessibilityResponse(value: value).matchingResult(for: attrs) }
         }
     }

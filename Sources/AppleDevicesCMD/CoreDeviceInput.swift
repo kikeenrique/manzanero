@@ -11,21 +11,23 @@ struct CoreDeviceInput {
 
     static func selectDefaultBackend(_ args: [String]) -> [String] {
         args.count >= 3 && args[0] == "physical" &&
-            (["button", "key", "type", "paste", "gesture", "multi-tap", "tree"] + DirectPhysicalTouch.operations).contains(args[2])
+            (["button", "key", "type", "paste", "gesture", "multi-tap", "tree", "press-id", "press-label"] + DirectPhysicalTouch.operations).contains(args[2])
             ? ["--physical-backend", "coredevice"] + args : args
     }
 
     static func parse(_ args: [String]) throws -> Self? {
         guard args.first == "--physical-backend" else { return nil }
         guard args.count >= 5, args[1] == "coredevice", args[2] == "physical",
-              ["button", "tap", "multi-tap", "long-press", "gesture", "drag", "swipe", "key", "type", "paste", "multi-drag", "pinch", "tree"].contains(args[4]) else {
+              ["button", "tap", "multi-tap", "long-press", "gesture", "drag", "swipe", "key", "type", "paste", "multi-drag", "pinch", "tree", "press-id", "press-label"].contains(args[4]) else {
             throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|multi-tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch|tree> ... . Tree accepts an optional PID. Pairing files are not supported by this backend.")
         }
         var operands = Array(args.dropFirst(5))
         guard !args[3].isEmpty, !args[3].hasPrefix("-") else {
             throw CommandFailure(description: "Invalid native physical input target or operands.")
         }
-        if args[4] == "tree" {
+        if ["press-id", "press-label"].contains(args[4]) {
+            _ = try DirectAccessibilityPress(Self(device: args[3], operation: args[4], operands: operands))
+        } else if args[4] == "tree" {
             if !operands.isEmpty {
                 guard operands.count == 1, let pid = Int32(operands[0]), pid > 0 else {
                     throw CommandFailure(description: "Direct physical tree accepts one PID in 1...2147483647, or no PID for primary display-centre selection.")

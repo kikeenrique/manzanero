@@ -14,14 +14,21 @@ enum DirectPhysicalAccessibility {
     static func executeNativeRSD(_ input: CoreDeviceInput, isolation: isolated (any Actor)? = #isolation,
                                  query: (DeviceCommand) throws -> Data) async throws -> Data {
         try Task.checkCancellation()
-        guard input.operation == "tree" else { throw CommandFailure(description: "Native AX capture requires a tree operation.") }
-        let pid: Int32? = input.operands.isEmpty ? nil : try applicationPID(input)
+        let press: DirectAccessibilityPress?
+        let pid: Int32?
+        if input.operation == "tree" {
+            press = nil
+            pid = input.operands.isEmpty ? nil : try applicationPID(input)
+        } else {
+            press = try DirectAccessibilityPress(input)
+            pid = nil
+        }
         let details = try query(input.identityPlan())
         let identity = try DirectPhysicalInput.identity(input, query: { _ in details })
         guard let root = try JSONSerialization.jsonObject(with: details) as? [String: Any],
               let result = root["result"] as? [String: Any], let properties = result["properties"] as? [String: Any],
               let hardware = properties["hardware"] as? [String: Any], let udid = hardware["udid"] as? String else {
-            throw CommandFailure(description: "Native physical tree requires fresh hardware identity; no connection started.")
+            throw CommandFailure(description: "Native physical AX requires fresh hardware identity; no connection started.")
         }
         let address = try RSDPortDiscovery.tunnelAddress(details: details, expectedUDID: udid)
         let assertion = try NativeTunnelAssertion(device: udid, details: details)
@@ -32,13 +39,19 @@ enum DirectPhysicalAccessibility {
             let directory = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: udid, transport: .network)
             defer { directory.close() }
             let transport = try directory.openAccessibility()
-            let bytes = try capture(device: input.device, resolved: identity.uuid, pid: pid,
-                session: AccessibilitySession(transport: transport), display: {
+            let session = AccessibilitySession(transport: transport)
+            let display = {
                     try Task.checkCancellation()
                     return try AccessibilityDisplay(query(AccessibilityDisplay.plan(device: identity.uuid)))
-                })
+                }
+            let bytes: Data
+            if let press { bytes = try press.execute(session: session, display: display) }
+            else { bytes = try capture(device: input.device, resolved: identity.uuid, pid: pid, session: session, display: display) }
             directory.close()
             let release = assertion.close()
+            if press != nil, Task.isCancelled {
+                FileHandle.standardError.write(Data("Native AX press was accepted, but cancellation withheld its receipt. UI effect unverified; inspect before retrying. No automatic replay.\n".utf8))
+            }
             try Task.checkCancellation()
             return try annotateNativeCleanup(bytes, release: release)
         } catch {
@@ -53,7 +66,7 @@ enum DirectPhysicalAccessibility {
 
     static func annotateNativeCleanup(_ bytes: Data, release: NativeTunnelAssertion.Release) throws -> Data {
         guard var root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
-            throw CommandFailure(description: "Invalid internal native tree result.")
+            throw CommandFailure(description: "Invalid internal native AX result.")
         }
         root["transport"] = "apple-network-rsd"
         var cleanup: [String: Any] = ["tunnelAssertionRelease": release.status, "confirmed": release.confirmed]
@@ -121,7 +134,7 @@ enum DirectPhysicalAccessibility {
         let selection: String
     }
 
-    private struct Cleanup: Encodable {
+    struct Cleanup: Encodable {
         let subscriptionStop: String
         let confirmed: Bool
         var diagnostic: String?

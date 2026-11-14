@@ -206,6 +206,35 @@ struct MCPStdioTests {
                 try finish()
                 return
             }
+            if let text = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PRESS_TEXT"] {
+                let by = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PRESS_BY"] ?? "identifier"
+                try #require(["identifier", "label"].contains(by))
+                _ = try DirectAccessibilityPress(.init(device: physical, operation: by == "identifier" ? "press-id" : "press-label", operands: [text]))
+                let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical,
+                    "path": directory.appendingPathComponent("native-press-before.png").path]])
+                try #require((before["result"] as? [String: Any])?["isError"] as? Bool == false)
+                let response = try request(5, "tools/call", ["name": "press_element", "arguments": ["device": physical, "by": by, "text": text]])
+                let result = try #require(response["result"] as? [String: Any])
+                try #require(result["isError"] as? Bool == false)
+                let structured = try #require(result["structuredContent"] as? [String: Any])
+                let receipt = try #require(structured["result"] as? [String: Any])
+                #expect(receipt["backend"] as? String == "coredevice-direct" && receipt["transport"] as? String == "apple-network-rsd")
+                #expect(receipt["nativeAccepted"] as? Bool == true && receipt["effectVerified"] as? Bool == false)
+                #expect(receipt["status"] as? String == "accepted" && receipt["verified"] as? Bool == false)
+                for key in ["cleanup", "connectionCleanup"] {
+                    let cleanup = try #require(receipt[key] as? [String: Any])
+                    let confirmed = try #require(cleanup["confirmed"] as? Bool)
+                    if !confirmed { #expect((cleanup["diagnostic"] as? String ?? "").isEmpty == false) }
+                }
+                let bytes = try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
+                #expect(FileManager.default.createFile(atPath: directory.appendingPathComponent("native-press.json").path,
+                    contents: bytes, attributes: [.posixPermissions: 0o600]))
+                let after = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical,
+                    "path": directory.appendingPathComponent("native-press-after.png").path]])
+                try #require((after["result"] as? [String: Any])?["isError"] as? Bool == false)
+                try finish()
+                return
+            }
             if let key = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_KEY"] {
                 _ = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical, "key", key]))
                 let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-key-before.png").path]])

@@ -1,6 +1,6 @@
 # Physical accessibility observations
 
-**Current runtime:** the idevice executable path described below is disabled. Native Apple explicit-PID and primary display-centre trees now have scoped CLI/MCP verification on iPhone 13 mini, including screenshot/tree inspection; see [current direct accessibility](DIRECT-ACCESSIBILITY.md#current-native-tree-route). Selector actions remain unfinished. The helper-backed protocol observations below are implementation references and migration targets, not current execution instructions.
+**Current runtime:** the idevice executable path described below is disabled. Native Apple explicit-PID/foreground trees and guarded identifier/label presses now have scoped CLI/MCP verification on iPhone 13 mini, including screenshot/tree inspection; see [current direct accessibility](DIRECT-ACCESSIBILITY.md#current-native-tree-route) and [native press guards](DIRECT-ACCESSIBILITY.md#current-guarded-native-press). Scroll actions remain unfinished. The helper-backed protocol observations below are implementation references and migration targets, not current execution instructions.
 
 ## Active per-application tree
 
