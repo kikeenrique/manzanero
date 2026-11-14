@@ -4,6 +4,8 @@ A Swift CLI in development for Apple-device device control, with an optional std
 
 Beta distribution: [tester setup](docs/BETA-TESTING.md) and [release packaging/Homebrew workflow](docs/RELEASING.md). The initial release and tap formula must be published before the Homebrew install command becomes available.
 
+Before initial public publication, resolve the items in the [public-readiness review](docs/PUBLIC-READINESS.md).
+
 See the [roadmap and feature sources](docs/ROADMAP.md), [backend setup](docs/DEPENDENCIES.md), [verification records](docs/VERIFICATION.md), [investigation](docs/ANALYSIS.md), and [documentation review findings](docs/DOCUMENTATION-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
 ## Build and run
