@@ -1,6 +1,24 @@
 # Screen recording
 
-**Current availability:** the `coredevice` recording option below is disabled because it launches a non-Apple ipb executable. Its direct Apple API replacement is pending. Simulator simctl recording remains available; physical devicectl recording retains its documented capability failure. Native recording implementation details and evidence below are historical migration references.
+**Current availability:** explicit `coredevice` physical recording now uses in-process Apple negotiation, HEVC RTP/VideoToolbox decoding and AVFoundation encoding. Two-second CLI H.264 and real MCP HEVC movies have iPhone 13 mini verification, including owned stop/absence and tunnel-release acknowledgements. Startup remains intermittent; RTCP reports, long captures and recovery are unfinished or unverified. Simulator recording remains available; default physical devicectl recording retains its documented capability failure.
+
+## Native physical movies
+
+```sh
+mise run cli --recording-backend coredevice physical <hardware-UDID> record tmp/phone.mp4 2 h264
+mise run cli --recording-backend coredevice physical <hardware-UDID> record tmp/phone-hevc.mp4 2 hevc
+mise run test:mcp-recording <hardware-UDID>
+```
+
+MCP `record_screen` uses the same operation with `platform: physical`, `recording_backend: coredevice`, hardware UDID, new `.mp4` path, `seconds` and optional `codec`. macOS 26+ is required. No device helper is launched and no fallback occurs. The selected device must be paired, connected, in Developer Mode and awake. Current tunnel assertions require an explicit hardware UDID.
+
+The controller reserves the resolved device UUID in this process, retains a tunnel assertion and refuses a pre-existing media session. A twelve-second first-JPEG budget precedes the requested 1...300-second interval. VideoToolbox decodes reference pictures even when JPEG emission is capped at 30 fps. Frames pass directly to the encoder; the historical helper byte protocol is gone. Limits include 8 MiB/JPEG, 10000 encoded frames and separate 1 GiB transport/JPEG budgets. The timeline measures host JPEG emission and holds the final image through the requested end. There is no audio.
+
+Read-only status checks approximately once per second and at capture end require exactly one running session matching the owned start identifier. Missing, malformed or ambiguous ownership fails capture. Publication requires returned VideoToolbox invalidation, acknowledged owned stream stop, fresh absence status, acknowledged tunnel release and an independently decodable staged movie. Existing destinations are refused, including files created during capture. Private staging directories remain under `tmp/recording-<UUID>/`. Failure/cancellation does not publish a success receipt; live recording cancellation still needs verification.
+
+Receipts use `backend: coredevice-videotoolbox`, actual artifact duration/dimensions/codec, `sourceFrames`, `timeline: host-jpeg-emission`, `audio: false` and explicit cleanup results. `deviceStopConfirmed` refers to the owned stop acknowledgement plus fresh server absence, not every native resource's destruction. Independent controllers are not coordinated and synchronous framework calls lack hard deadlines.
+
+An initial CLI attempt timed out waiting for its first frame with an active stream and acknowledged cleanup. A later two-second CLI H.264 recording during one native Home press produced 39 source frames; real MCP HEVC recording without UI input produced 28. Both finalized as decodable 1136×2464 movies with two-second duration. These scoped checks do not establish reliable startup, sustained frame rate, long captures, RTCP recovery or other device families. Sections explicitly labeled historical below describe retired helper behavior, not current setup.
 
 ## Native media control inspection
 
@@ -39,7 +57,7 @@ mise run test:media-packets <hardware-UDID> --decode
 mise run test:media-packets <hardware-UDID> --home --decode
 ```
 
-`--decode` reconstructs HEVC access units and decodes them with Apple's public VideoToolbox APIs. It saves the first JPEG privately alongside the probe receipt. Optional `--home` sends one native Home button press after stream start and changes the foreground. The product CLI/MCP recording backend remains disabled while movie integration is unfinished.
+`--decode` reconstructs HEVC access units and decodes them with Apple's public VideoToolbox APIs. It saves the first JPEG privately alongside the probe receipt. Optional `--home` sends one native Home button press after stream start and changes the foreground. This remains a frame-level probe; use the native movie route above for CLI/MCP recording.
 
 The parser checks RTP CSRC/extension/padding bounds and the negotiated payload number. HEVC assembly supports single-layer non-interleaved single NAL, aggregation and fragmentation packets without DONL fields. It bounds each picture to 8 MiB/256 NAL units and parameter sets to 65535 bytes each. Gaps/incomplete pictures discard dependent output until a new random-access picture; duplicates/reordered packets are ignored and source changes fail. It does not implement a reordering/jitter buffer, interleaving, multiple layers or H.264 decoding. The parser does not infer a codec from the dynamic payload number: VideoToolbox must accept the reconstructed parameter sets and samples.
 

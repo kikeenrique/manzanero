@@ -411,6 +411,45 @@ int ADCReadVideoPacketProfile(void *owner, ADCVideoPacketProfile *profile) {
     return 0;
 }
 
+int ADCValidateOwnedVideoStatus(const void *borrowed, uint32_t ownedIdentifier, char *error, size_t capacity) {
+    xpc_object_t reply = borrowed ? (__bridge xpc_object_t)borrowed : nil;
+    if (!reply || xpc_get_type(reply) != XPC_TYPE_DICTIONARY || xpc_dictionary_get_value(reply, "CoreDevice.error")) {
+        VideoFail(error, capacity, @"Native video status reply failed or is unsupported."); return -1;
+    }
+    xpc_object_t output = xpc_dictionary_get_dictionary(reply, "CoreDevice.output");
+    xpc_object_t sessions = output ? xpc_dictionary_get_array(output, "sessions") : nil;
+    xpc_object_t running = output ? xpc_dictionary_get_value(output, "running") : nil;
+    if (!sessions || xpc_array_get_count(sessions) > 128 || !running || xpc_get_type(running) != XPC_TYPE_BOOL) {
+        VideoFail(error, capacity, @"Native video status inventory is invalid or unavailable."); return -1;
+    }
+    size_t matches = 0;
+    for (size_t i = 0; i < xpc_array_get_count(sessions); i++) {
+        xpc_object_t session = xpc_array_get_value(sessions, i);
+        if (!session || xpc_get_type(session) != XPC_TYPE_DICTIONARY) {
+            VideoFail(error, capacity, @"Native video status contains an unsupported session."); return -1;
+        }
+        xpc_object_t connection = xpc_dictionary_get_dictionary(session, "connection");
+        xpc_object_t config = connection ? xpc_dictionary_get_dictionary(connection, "streamConfig") : nil;
+        uint64_t identifier = 0;
+        if (!config || !VideoUInt(xpc_dictionary_get_value(config, "RemoteSSRC"), &identifier) || identifier > UINT32_MAX) {
+            VideoFail(error, capacity, @"Native video status cannot establish stream ownership."); return -1;
+        }
+        if (identifier == ownedIdentifier) matches++;
+    }
+    if (matches > 1) { VideoFail(error, capacity, @"Native video ownership is ambiguous."); return -1; }
+    return matches == 1 && xpc_bool_get_value(running) ? 1 : 0;
+}
+
+int ADCVideoSessionActive(void *owner, int (^cancelled)(void), char *error, size_t capacity) {
+    ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
+    if (!state || state.closing || !state.hasIdentifier || ![NSThread isMainThread]) {
+        VideoFail(error, capacity, @"Native video status has no active owner."); return -1;
+    }
+    xpc_object_t reply = [state.control requestAction:"com.apple.coredevice.action.mediastreamstatus" input:xpc_dictionary_create_empty()
+        deadline:VideoNow() + 4ULL * NSEC_PER_SEC cancelled:cancelled error:error capacity:capacity];
+    return ADCValidateOwnedVideoStatus(reply ? (__bridge const void *)reply : NULL, state.ownedIdentifier, error, capacity);
+}
+
 int ADCCopyNextVideoFrame(void *owner, int (^cancelled)(void), void (^sink)(const uint8_t *, size_t, uint64_t), char *error, size_t capacity) {
     ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
     if (!state || state.packetMode || !sink || !state.configured || ![NSThread isMainThread] || (cancelled && cancelled())) {

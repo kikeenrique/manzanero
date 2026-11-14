@@ -35,7 +35,7 @@ final class NativeHEVCDecoder {
         session = nil; format = nil; parameters = nil; codedDimensions = nil
     }
 
-    func decode(_ unit: MediaHEVCAccessUnit) throws -> Data? {
+    func decode(_ unit: MediaHEVCAccessUnit, emitJPEG: Bool = true) throws -> Data? {
         try Task.checkCancellation()
         guard !closed else { throw failure("decoder is closed") }
         guard unit.parameterSets.count == 3, unit.parameterSets.allSatisfy({ (2...65_535).contains($0.count) }),
@@ -81,6 +81,7 @@ final class NativeHEVCDecoder {
             guard CVPixelBufferGetWidth(image) == width, CVPixelBufferGetHeight(image) == height else {
                 result.withLock { $0.invalid = true }; return
             }
+            guard emitJPEG else { return }
             let jpeg = context.jpegRepresentation(of: CIImage(cvPixelBuffer: image), colorSpace: CGColorSpaceCreateDeviceRGB(), options: [:])
             result.withLock { $0.jpeg = jpeg; $0.invalid = jpeg == nil || (jpeg?.count ?? 0) > 8 * 1024 * 1024 }
         }

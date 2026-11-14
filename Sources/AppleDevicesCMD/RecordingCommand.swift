@@ -32,8 +32,8 @@ struct RecordingCommand {
         return Self(physical: args[0] == "physical", device: args[1], destination: URL(fileURLWithPath: args[3]), seconds: seconds, codec: args.count == 6 ? args[5] : "h264", native: native)
     }
 
-    func command(staging: URL) -> DeviceCommand {
-        if native { return nativeCommand() }
+    func command(staging: URL) throws -> DeviceCommand {
+        guard !native else { throw CommandFailure(description: "Native recording runs in process through Apple media frameworks.") }
         if physical {
             return DeviceCommand(arguments: ["devicectl", "device", "capture", "screen-record", "--device", device,
                 "--destination", staging.path, "--duration", String(seconds), "--codec", codec,
@@ -42,17 +42,7 @@ struct RecordingCommand {
         return DeviceCommand(arguments: ["simctl", "io", device, "recordVideo", "--codec=\(codec)", staging.path], jsonOutput: false)
     }
 
-    func nativeCommand(endpoint: NativeMediaEndpoint? = nil) -> DeviceCommand {
-        DeviceCommand(executable: "/usr/bin/env", arguments: ["appledevices-video", endpoint?.uuid ?? "<resolved CoreDevice UUID>",
-            endpoint?.interface ?? "<matching utun>", endpoint?.host ?? "<host IPv6>", endpoint?.device ?? "<device IPv6>",
-            "--timed-stdout", "--seconds", String(seconds), "--fps", "30"], jsonOutput: false)
-    }
-
     func execute(directory: URL, runner: ToolRunner, isolation: isolated (any Actor)? = #isolation) async throws -> Data {
-        if native {
-            let plan = nativeCommand()
-            try DeviceExecutablePolicy.validate(plan.executable, arguments: plan.arguments)
-        }
         let parent = destination.deletingLastPathComponent()
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: parent.path, isDirectory: &isDirectory), isDirectory.boolValue else {
@@ -61,35 +51,44 @@ struct RecordingCommand {
         guard !FileManager.default.fileExists(atPath: destination.path) else {
             throw CommandFailure(description: "Recording destination already exists; choose a new .mp4 path.")
         }
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let staging = directory.appendingPathComponent("capture.mp4")
-        let plan = command(staging: staging)
         do {
-            var nativeFrames: Int?
+            var nativeReceipt: NativeRecordingReceipt?
             if native {
-                guard #available(macOS 26.0, *) else { throw CommandFailure(description: "Native recording requires macOS 26 or later and the optional video helper.") }
-                nativeFrames = try await NativeRecording.execute(self, staging: staging, runner: runner)
+                guard #available(macOS 26.0, *) else { throw CommandFailure(description: "Native recording requires macOS 26 or later.") }
+                nativeReceipt = try await NativeRecording.execute(self, staging: staging, runner: runner)
             } else if physical {
+                let plan = try command(staging: staging)
                 let response = try runner.run(plan.arguments)
                 _ = try JSONSerialization.jsonObject(with: response)
             } else {
+                let plan = try command(staging: staging)
                 try runner.recordSimulator(plan.arguments, timing: .init(seconds: seconds))
             }
             let video = try await VideoArtifact.inspect(staging)
+            try Task.checkCancellation()
             // moveItem refuses an existing destination, including one created while recording.
             try FileManager.default.moveItem(at: staging, to: destination)
-            var result: [String: Any] = ["status": "recorded", "backend": native ? "coredevice-avconference" : (physical ? "devicectl" : "simctl"),
+            var result: [String: Any] = ["status": "recorded", "backend": native ? "coredevice-videotoolbox" : (physical ? "devicectl" : "simctl"),
                 "path": destination.path, "requestedSeconds": seconds, "requestedCodec": codec,
                 "artifact": ["durationSeconds": video.duration, "width": video.width, "height": video.height, "codec": video.codec, "frameDecoded": true]]
-            if let nativeFrames {
-                result["sourceFrames"] = nativeFrames
+            if let nativeReceipt {
+                result["sourceFrames"] = nativeReceipt.frames
                 result["timeline"] = "host-jpeg-emission"
                 result["audio"] = false
-                result["cleanup"] = ["helperExited": true, "deviceStopConfirmed": false]
-                result["warnings"] = ["The local decoder stopped, but device-side media-session teardown is unconfirmed; the screen-sharing indicator may remain visible."]
+                result["cleanup"] = ["ownedStopAcknowledged": nativeReceipt.media.stopAcknowledged,
+                    "ownedStreamAbsent": nativeReceipt.media.ownedStreamAbsent,
+                    "deviceStopConfirmed": nativeReceipt.media.stopAcknowledged && nativeReceipt.media.ownedStreamAbsent,
+                    "videoToolboxInvalidationReturned": true, "tunnelAssertionRelease": nativeReceipt.assertionRelease] as [String: Any]
+                result["warnings"] = ["Experimental HEVC input. RTCP receiver reports, long captures and crash recovery remain unfinished or unverified; synchronous Apple media calls have no independent hard deadline."]
             }
             return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         } catch {
+            if error is CancellationError || Task.isCancelled {
+                FileHandle.standardError.write(Data("Recording cancelled. Investigation artifacts: \(directory.path)\n".utf8))
+                throw CancellationError()
+            }
             throw CommandFailure(description: "Recording failed: \(error). Investigation artifacts: \(directory.path)")
         }
     }

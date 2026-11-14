@@ -33,7 +33,7 @@ Timed `gesture` / MCP `perform_gesture` runs [complete-state schedules](docs/GES
 
 For a physical target, run `appledevicescmd physical <device> readiness` to report Developer Mode, developer-image services, connection/pairing, and preparation steps. Known disabled Developer Mode is also reported before developer-operation dispatch. See [readiness checks and limits](docs/READINESS.md).
 
-`physical <device> media-status` and MCP `inspect_device` with `query: media-status` read native Apple media support/status without starting or stopping a stream. The iPhone 13 mini control channel has CLI/MCP verification; in-process physical recording remains unfinished. See [media inspection and recording status](docs/RECORDING.md#native-media-control-inspection).
+`physical <device> media-status` and MCP `inspect_device` with `query: media-status` read native Apple media support/status without starting or stopping a stream. Explicit native physical recording now also has short CLI/MCP iPhone 13 mini verification through in-process Apple frameworks. Startup, long captures and recovery remain incomplete. See [recording behavior and limits](docs/RECORDING.md).
 
 Physical buttons need no helper build:
 
@@ -100,7 +100,7 @@ mise run coredevice:video-build
 mise run cli --recording-backend coredevice physical <UDID> record tmp/native-phone.mp4 5
 ```
 
-Finite recording accepts 1...300 seconds and optional `h264`/`hevc`. It refuses existing destinations and validates the staged video before publishing it. Simulator capture and the explicit CoreDevice physical backend have scoped verification in both codecs. Physical `devicectl` recording is unsupported on the tested iPhone 13 mini. The CoreDevice backend requires macOS 26+ and the video helper on PATH; device-side stream teardown is unconfirmed and the sharing indicator can persist. MCP exposes the same operation as `record_screen`. See [recording behavior and limits](docs/RECORDING.md).
+Finite recording accepts 1...300 seconds and optional `h264`/`hevc`. It refuses existing destinations and validates staged video before publishing it. Physical `devicectl` recording is unsupported on the tested iPhone 13 mini. Explicit CoreDevice recording requires macOS 26+ and a hardware UDID; it negotiates and decodes HEVC in process, then encodes H.264 or HEVC through AVFoundation. Two-second CLI/MCP movies have scoped verification, including owned stop/absence and tunnel-release acknowledgements. Startup remains intermittent; RTCP reports, long recordings and crash recovery remain unfinished or unverified. MCP exposes the same operation as `record_screen`. See [recording behavior and limits](docs/RECORDING.md).
 
 ## Build and run from source
 

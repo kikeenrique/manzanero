@@ -17,45 +17,8 @@ struct NativeVideoTests {
         await sessions.end("other-device")
     }
 
-    func packet(_ time: UInt64 = 0, jpeg: Data = Data([0xff, 0xd8, 0xff, 0xd9])) -> Data {
-        var length = UInt32(jpeg.count).bigEndian
-        var timestamp = time.bigEndian
-        var data = Data("ADV1".utf8)
-        withUnsafeBytes(of: &length) { data.append(contentsOf: $0) }
-        withUnsafeBytes(of: &timestamp) { data.append(contentsOf: $0) }
-        data.append(jpeg)
-        return data
-    }
-
-    @Test func framingSurvivesEverySplitAndNonzeroDataIndices() throws {
-        let bytes = packet() + packet(500_000_000)
-        for split in 0...bytes.count {
-            var parser = TimedVideoFrames(maximumNanoseconds: 1_000_000_000)
-            let padded = Data([0]) + bytes
-            let frames = try parser.feed(padded[1..<(split + 1)]) + parser.feed(padded[(split + 1)...])
-            try parser.finish()
-            #expect(frames.map(\.nanoseconds) == [0, 500_000_000])
-            #expect(frames.map(\.jpeg) == [Data([0xff, 0xd8, 0xff, 0xd9]), Data([0xff, 0xd8, 0xff, 0xd9])])
-        }
-        var parser = TimedVideoFrames(maximumNanoseconds: 1_000_000_000)
-        var times: [UInt64] = []
-        for byte in bytes { times += try parser.feed(Data([byte])).map(\.nanoseconds) }
-        try parser.finish()
-        #expect(times == [0, 500_000_000])
-    }
-
-    @Test func rejectsCorruptOrUnboundedFrameStreams() throws {
-        var badMagic = packet(); badMagic[0] = 0
-        var excessive = packet(); excessive.replaceSubrange(4..<8, with: [0xff, 0xff, 0xff, 0xff])
-        for bytes in [badMagic, excessive, packet(1), packet() + packet(), packet() + packet(1_000_000_000), packet(jpeg: Data([0, 0, 0, 0]))] {
-            var parser = TimedVideoFrames(maximumNanoseconds: 1_000_000_000)
-            #expect(throws: CommandFailure.self) { try parser.feed(bytes) }
-        }
-        for end in 0..<packet().count {
-            var parser = TimedVideoFrames(maximumNanoseconds: 1_000_000_000)
-            _ = try parser.feed(packet().prefix(end))
-            #expect(throws: CommandFailure.self) { try parser.finish() }
-        }
+    func packet(_ time: UInt64 = 0, jpeg: Data = Data([0xff, 0xd8, 0xff, 0xd9])) -> TimedVideoFrame {
+        TimedVideoFrame(nanoseconds: time, jpeg: jpeg)
     }
 
     @Test func tunnelSelectionRequiresMatchingIdentityAndUniqueActivePrefix() throws {
@@ -84,7 +47,7 @@ struct NativeVideoTests {
         let args = try tool.command(["platform": "physical", "device": "phone", "path": "tmp/native.mp4", "seconds": 2, "recording_backend": "coredevice"])
         let command = try #require(try RecordingCommand.parse(args))
         #expect(command.native)
-        #expect(command.command(staging: URL(fileURLWithPath: "tmp/unused")).arguments.contains("--timed-stdout"))
+        #expect(throws: CommandFailure.self) { try command.command(staging: URL(fileURLWithPath: "tmp/unused")) }
         let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).execute(args, dryRun: true)
         #expect(String(decoding: dry.data, as: UTF8.self).contains("AVFoundation"))
         #expect(throws: CommandFailure.self) { try RecordingCommand.parse(["--recording-backend", "coredevice", "simulator", RecordingCommandTests().simulator, "record", "tmp/no.mp4", "2"]) }
@@ -133,10 +96,13 @@ struct NativeVideoTests {
         let malformed = try NativeVideoEncoder(destination: root.appendingPathComponent("malformed.mp4"), seconds: 1, codec: codec)
         await #expect(throws: CommandFailure.self) { try await malformed.consume(packet()) }
         await malformed.cancel()
-        let truncated = try NativeVideoEncoder(destination: root.appendingPathComponent("truncated.mp4"), seconds: 1, codec: codec)
-        try await truncated.consume(packet(jpeg: red))
-        try await truncated.consume(Data("ADV".utf8))
-        await #expect(throws: CommandFailure.self) { try await truncated.finish() }
-        await truncated.cancel()
+        for times: [UInt64] in [[1], [0, 0], [0, 1_000_000_000]] {
+            let invalidTime = try NativeVideoEncoder(destination: root.appendingPathComponent("time-\(UUID().uuidString).mp4"), seconds: 1, codec: codec)
+            do {
+                for time in times { try await invalidTime.consume(packet(time, jpeg: red)) }
+                Issue.record("Invalid frame timeline was accepted")
+            } catch { #expect(error is CommandFailure) }
+            await invalidTime.cancel()
+        }
     }
 }

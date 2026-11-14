@@ -6,6 +6,31 @@ import XPC
 @testable import AppleDevicesCMD
 
 struct NativeMediaPacketsTests {
+    @Test(arguments: ["owned", "other", "empty", "stopped", "error", "duplicate", "malformed", "oversized-id", "running-type"])
+    func activeStatusRequiresOneOwnedRunningStream(mutation: String) {
+        let reply = xpc_dictionary_create(nil, nil, 0), output = xpc_dictionary_create(nil, nil, 0)
+        let sessions = xpc_array_create(nil, 0), session = xpc_dictionary_create(nil, nil, 0)
+        let connection = xpc_dictionary_create(nil, nil, 0), config = xpc_dictionary_create(nil, nil, 0)
+        xpc_dictionary_set_uint64(config, "RemoteSSRC", mutation == "other" ? 43 : 42)
+        xpc_dictionary_set_value(connection, "streamConfig", config)
+        xpc_dictionary_set_value(session, "connection", connection)
+        if mutation != "empty" { xpc_array_append_value(sessions, session) }
+        xpc_dictionary_set_bool(output, "running", mutation != "stopped")
+        xpc_dictionary_set_value(output, "sessions", sessions)
+        xpc_dictionary_set_value(reply, "CoreDevice.output", output)
+        switch mutation {
+        case "error": xpc_dictionary_set_value(reply, "CoreDevice.error", xpc_dictionary_create(nil, nil, 0))
+        case "duplicate": xpc_array_append_value(sessions, session)
+        case "malformed": xpc_dictionary_set_value(connection, "streamConfig", nil)
+        case "oversized-id": xpc_dictionary_set_uint64(config, "RemoteSSRC", UInt64(UInt32.max) + 1)
+        case "running-type": xpc_dictionary_set_uint64(output, "running", 1)
+        default: break
+        }
+        var error = [CChar](repeating: 0, count: 512)
+        let result = ADCValidateOwnedVideoStatus(Unmanaged.passUnretained(reply).toOpaque(), 42, &error, error.count)
+        #expect(result == (mutation == "owned" ? 1 : (["other", "empty", "stopped"].contains(mutation) ? 0 : -1)))
+    }
+
     @Test(arguments: ["valid", "error", "missing", "transport", "cipher", "rtcpCipher", "boolean", "zero", "axis", "pixels", "rate", "payload"])
     func packetProfileRequiresBoundedPlainRTP(mutation: String) {
         let root = xpc_dictionary_create(nil, nil, 0), output = xpc_dictionary_create(nil, nil, 0)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE extends = "swift"
 #MISE description = "Verify native HEVC physical recording through real MCP stdio"
-#MISE depends = ["build", "coredevice:video-build"]
+#MISE depends = ["build"]
 #MISE env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
 #USAGE arg "<device>" help="Explicit physical device UDID"
 

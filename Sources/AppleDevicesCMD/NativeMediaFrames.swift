@@ -72,6 +72,16 @@ final class NativeMediaFrames {
             "frameRate": profile.frameRate, "payloadType": profile.payloadType]
     }
 
+    func requireActive() throws {
+        try Task.checkCancellation()
+        var error = [CChar](repeating: 0, count: 1024)
+        let status = ADCVideoSessionActive(owner, { Task.isCancelled ? 1 : 0 }, &error, error.count)
+        try Task.checkCancellation()
+        guard status == 1 else {
+            throw CommandFailure(description: status == 0 ? "Owned native video stream disappeared during capture." : Self.text(error))
+        }
+    }
+
     @discardableResult
     func close() -> Cleanup {
         if let cleanup { return cleanup }

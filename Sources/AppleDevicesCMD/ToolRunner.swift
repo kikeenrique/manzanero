@@ -6,7 +6,7 @@ struct CommandFailure: Error, CustomStringConvertible {
 }
 
 /// Uses argument arrays and file-backed output so child processes cannot fill a pipe.
-struct ToolRunner {
+struct ToolRunner: Sendable {
     struct RecordingTiming {
         let seconds: Double
         var startupSeconds: Double = 30

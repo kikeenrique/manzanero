@@ -119,6 +119,9 @@ typedef struct {
 int ADCValidateVideoPacketProfile(const void *reply, ADCVideoPacketProfile *profile, char *error, size_t errorCapacity);
 /// Whitelisted negotiated video metadata only; no identities/keys or packets.
 int ADCReadVideoPacketProfile(void *owner, ADCVideoPacketProfile *profile);
+/// Read-only owned-session status: 1 present, 0 absent, -1 unknown/error.
+int ADCVideoSessionActive(void *owner, int (^cancelled)(void), char *error, size_t errorCapacity);
+int ADCValidateOwnedVideoStatus(const void *reply, uint32_t identifier, char *error, size_t errorCapacity);
 int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void), char *error, size_t errorCapacity);
 /// Returns 1 for one JPEG delivered synchronously to sink, 0 when none is ready,
 /// -1 on error. Bytes are borrowed only during sink. Time starts at first JPEG.

@@ -7,14 +7,14 @@ struct RecordingCommandTests {
 
     @Test func nativeDurationAndTimeoutCoverWholePhysicalRecording() throws {
         let recording = try #require(try RecordingCommand.parse(["physical", "phone", "record", "tmp/My Video.mp4", "300", "hevc"]))
-        let plan = recording.command(staging: URL(fileURLWithPath: "/project/tmp/capture.mp4"))
+        let plan = try recording.command(staging: URL(fileURLWithPath: "/project/tmp/capture.mp4"))
         #expect(plan.arguments == ["devicectl", "device", "capture", "screen-record", "--device", "phone", "--destination", "/project/tmp/capture.mp4", "--duration", "300.0", "--codec", "hevc", "--timeout", "360", "--json-output", "-"])
         #expect(plan.jsonOutput)
     }
 
     @Test func simulatorUsesExplicitTargetAndDoesNotForceOverwrite() throws {
         let recording = try #require(try RecordingCommand.parse(["simulator", simulator, "record", "tmp/video.mp4", "1.5"]))
-        let plan = recording.command(staging: URL(fileURLWithPath: "/project/tmp/video with spaces.mp4"))
+        let plan = try recording.command(staging: URL(fileURLWithPath: "/project/tmp/video with spaces.mp4"))
         #expect(plan.arguments == ["simctl", "io", simulator, "recordVideo", "--codec=h264", "/project/tmp/video with spaces.mp4"])
     }
 

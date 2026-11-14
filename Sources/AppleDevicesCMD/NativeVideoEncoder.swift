@@ -6,7 +6,6 @@ import ImageIO
 
 @available(macOS 26.0, *)
 actor NativeVideoEncoder {
-    private var parser: TimedVideoFrames
     private let destination: URL
     private let codec: String
     private let seconds: Double
@@ -25,62 +24,75 @@ actor NativeVideoEncoder {
         self.destination = destination
         self.seconds = seconds
         self.codec = codec
-        parser = TimedVideoFrames(maximumNanoseconds: UInt64(seconds * 1_000_000_000))
     }
 
-    func consume(_ data: Data) async throws {
-        for frame in try parser.feed(data) {
-            try Task.checkCancellation()
-            guard let source = CGImageSourceCreateWithData(frame.jpeg as CFData, nil),
-                  CGImageSourceGetType(source) as String? == "public.jpeg",
-                  let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-                  let width = properties[kCGImagePropertyPixelWidth] as? Int,
-                  let height = properties[kCGImagePropertyPixelHeight] as? Int,
-                  (1...8192).contains(width), (1...8192).contains(height), width * height <= 20_000_000,
-                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
-                throw CommandFailure(description: "Native video frame has unsupported image data or dimensions.")
+    func consume(_ frame: TimedVideoFrame) async throws {
+        guard frame.nanoseconds < UInt64(seconds * 1_000_000_000), frameCount < 10_000,
+            frameCount == 0 ? frame.nanoseconds == 0 : frame.nanoseconds > lastTime,
+            (4...8 * 1024 * 1024).contains(frame.jpeg.count)
+        else {
+            throw CommandFailure(description: "Invalid native frame timestamp, size or count budget.")
+        }
+        try Task.checkCancellation()
+        guard let source = CGImageSourceCreateWithData(frame.jpeg as CFData, nil),
+            CGImageSourceGetType(source) as String? == "public.jpeg",
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? Int,
+            let height = properties[kCGImagePropertyPixelHeight] as? Int,
+            (1...8192).contains(width), (1...8192).contains(height), width * height <= 20_000_000,
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        else {
+            throw CommandFailure(description: "Native video frame has unsupported image data or dimensions.")
+        }
+        if let dimensions {
+            guard dimensions == (width, height) else {
+                throw CommandFailure(description: "Native video dimensions changed during recording.")
             }
-            if let dimensions {
-                guard dimensions == (width, height) else { throw CommandFailure(description: "Native video dimensions changed during recording.") }
-            } else {
-                dimensions = (width, height)
-                let writer = try AVAssetWriter(outputURL: destination, fileType: .mp4)
-                let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+        } else {
+            dimensions = (width, height)
+            let writer = try AVAssetWriter(outputURL: destination, fileType: .mp4)
+            let input = AVAssetWriterInput(
+                mediaType: .video,
+                outputSettings: [
                     AVVideoCodecKey: (codec == "hevc" ? AVVideoCodecType.hevc : .h264).rawValue,
                     AVVideoWidthKey: (width + 1) / 2 * 2, AVVideoHeightKey: (height + 1) / 2 * 2,
                     // The deduplicated stream has irregular presentation times.
                     // Keep decode order equal to presentation order for seeking.
-                    AVVideoCompressionPropertiesKey: [AVVideoAllowFrameReorderingKey: false]
+                    AVVideoCompressionPropertiesKey: [AVVideoAllowFrameReorderingKey: false],
                 ])
-                input.expectsMediaDataInRealTime = true
-                guard writer.canAdd(input) else { throw CommandFailure(description: "Cannot create native movie encoder input.") }
-                receiver = writer.inputPixelBufferReceiver(for: input, pixelBufferAttributes: nil)
-                try writer.start()
-                writer.startSession(atSourceTime: .zero)
-                self.writer = writer
-                FileHandle.standardError.write(Data("Recording started (native video first frame).\n".utf8))
+            input.expectsMediaDataInRealTime = true
+            guard writer.canAdd(input) else {
+                throw CommandFailure(description: "Cannot create native movie encoder input.")
             }
-            let outWidth = (width + 1) / 2 * 2, outHeight = (height + 1) / 2 * 2
-            let pixel = try CVMutablePixelBuffer(.init(
+            receiver = writer.inputPixelBufferReceiver(for: input, pixelBufferAttributes: nil)
+            try writer.start()
+            writer.startSession(atSourceTime: .zero)
+            self.writer = writer
+            FileHandle.standardError.write(Data("Recording started (native video first frame).\n".utf8))
+        }
+        let outWidth = (width + 1) / 2 * 2
+        let outHeight = (height + 1) / 2 * 2
+        let pixel = try CVMutablePixelBuffer(
+            .init(
                 pixelFormatType: CVPixelFormatType(rawValue: kCVPixelFormatType_32BGRA),
                 size: .init(width: outWidth, height: outHeight)))
-            let background = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 1))
-                .cropped(to: CGRect(x: 0, y: 0, width: outWidth, height: outHeight))
-            pixel.withUnsafeBuffer {
-                context.render(CIImage(cgImage: image).composited(over: background), to: $0)
-            }
-            let buffer = CVReadOnlyPixelBuffer(pixel)
-            guard let receiver else { throw CommandFailure(description: "Native encoder receiver is unavailable.") }
-            try await receiver.append(buffer, with: CMTime(value: Int64(frame.nanoseconds), timescale: 1_000_000_000))
-            last = buffer
-            lastTime = frame.nanoseconds
-            frameCount += 1
+        let background = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 1))
+            .cropped(to: CGRect(x: 0, y: 0, width: outWidth, height: outHeight))
+        pixel.withUnsafeBuffer {
+            context.render(CIImage(cgImage: image).composited(over: background), to: $0)
         }
+        let buffer = CVReadOnlyPixelBuffer(pixel)
+        guard let receiver else { throw CommandFailure(description: "Native encoder receiver is unavailable.") }
+        try await receiver.append(buffer, with: CMTime(value: Int64(frame.nanoseconds), timescale: 1_000_000_000))
+        last = buffer
+        lastTime = frame.nanoseconds
+        frameCount += 1
     }
 
     func finish() async throws -> Int {
-        try parser.finish()
-        guard let writer, let receiver, let last else { throw CommandFailure(description: "Native video produced no encodable frame.") }
+        guard let writer, let receiver, let last else {
+            throw CommandFailure(description: "Native video produced no encodable frame.")
+        }
         // Deduplication/static screens must retain their last image through the
         // requested interval instead of becoming a one-frame-duration movie.
         let tail = UInt64(seconds * 1_000_000_000) - 1_000_000
@@ -99,31 +111,123 @@ actor NativeVideoEncoder {
     func cancel() { writer?.cancelWriting() }
 }
 
+struct NativeRecordingReceipt: Sendable {
+    let frames: Int
+    let media: NativeMediaFrames.Cleanup
+    let assertionRelease: String
+}
+
 @available(macOS 26.0, *)
-enum NativeRecording {
+@MainActor enum NativeRecording {
     private static let sessions = NativeRecordingSessions()
 
-    static func execute(_ command: RecordingCommand, staging: URL, runner: ToolRunner) async throws -> Int {
-        guard let details = try DeviceCommand.parse(["physical", command.device, "details"]) else {
-            throw CommandFailure(description: "Cannot plan native recording identity query.")
-        }
-        let identity = try runner.run(details.arguments + ["--quiet"])
-        let inventory = try runner.run(["devicectl", "list", "devices", "--timeout", "15", "--json-output", "-", "--quiet"])
-        let endpoint = try NativeMediaEndpoint.resolve(details: identity, inventory: inventory, requested: command.device)
-        let plan = command.nativeCommand(endpoint: endpoint)
+    static func execute(_ command: RecordingCommand, staging: URL, runner: ToolRunner) async throws
+        -> NativeRecordingReceipt
+    {
+        let input = CoreDeviceInput(device: command.device, operation: "record", operands: [])
+        let details = try runner.run(input.identityPlan().arguments, timeout: 20)
+        let identity = try DirectPhysicalInput.identity(input, query: { _ in details })
+        let assertion = try NativeTunnelAssertion(device: command.device, details: details)
+        defer { assertion.close() }
+        let inventory = try runner.run([
+            "devicectl", "list", "devices", "--timeout", "15", "--json-output", "-", "--quiet",
+        ])
+        let endpoint = try NativeMediaEndpoint.resolve(
+            details: details, inventory: inventory, requested: command.device)
+        let display = try DirectTouchDisplay(
+            runner.run(AccessibilityDisplay.plan(device: identity.uuid).arguments, timeout: 15))
         let encoder = try NativeVideoEncoder(destination: staging, seconds: command.seconds, codec: command.codec)
         try await sessions.begin(endpoint.uuid)
+        var capture: NativeMediaFrames?
+        var decoder: NativeHEVCDecoder?
+        var packetCount = 0
+        var unitCount = 0
+        var decodedCount = 0
+        func closeMedia() -> NativeMediaFrames.Cleanup? {
+            decoder?.close()
+            return capture?.close()
+        }
         do {
-            try await StreamingToolRunner().run(executable: plan.executable, arguments: plan.arguments, timeout: command.seconds + 90) {
-                try await encoder.consume($0)
+            capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version, packets: true)
+            try capture?.start(displayID: Int64(display.id))
+            guard let profile = capture?.packetProfile(), let width = profile["width"], let height = profile["height"],
+                let payload = profile["payloadType"], let payloadType = UInt8(exactly: payload)
+            else {
+                throw CommandFailure(description: "Native recording has no negotiated video profile.")
             }
+            decoder = try NativeHEVCDecoder(width: Int(width), height: Int(height))
+            var assembler = MediaHEVCAssembler()
+            let startup = DispatchTime.now().uptimeNanoseconds + 12_000_000_000
+            let duration = UInt64(command.seconds * 1_000_000_000)
+            var first: UInt64?
+            var last: UInt64 = 0
+            var checked = DispatchTime.now().uptimeNanoseconds
+            var received = 0
+            var emitted = 0
+            while true {
+                try Task.checkCancellation()
+                let now = DispatchTime.now().uptimeNanoseconds
+                if let first, now - first >= duration { break }
+                if first == nil, now >= startup {
+                    throw CommandFailure(description: "Native recording exceeded its twelve-second first-frame budget.")
+                }
+                if now - checked >= 1_000_000_000 {
+                    try capture?.requireActive()
+                    checked = DispatchTime.now().uptimeNanoseconds
+                }
+                if let packet = try capture?.nextPacket() {
+                    packetCount += 1
+                    received += packet.count
+                    guard received <= 1024 * 1024 * 1024 else {
+                        throw CommandFailure(description: "Native recording exceeded its one-GiB transport budget.")
+                    }
+                    if let packet = MediaRTPPacket(packet, payloadType: payloadType),
+                        let unit = try assembler.accept(packet)
+                    {
+                        unitCount += 1
+                        guard let jpeg = try decoder?.decode(unit, emitJPEG: first == nil || now - last >= 33_333_333)
+                        else { continue }
+                        decodedCount += 1
+                        let time = DispatchTime.now().uptimeNanoseconds
+                        if first == nil { first = time }
+                        guard let first, time - first < duration else { break }
+                        emitted += jpeg.count
+                        guard emitted <= 1024 * 1024 * 1024 else {
+                            throw CommandFailure(description: "Native recording exceeded its one-GiB JPEG budget.")
+                        }
+                        try await encoder.consume(TimedVideoFrame(nanoseconds: time - first, jpeg: jpeg))
+                        last = time
+                    }
+                } else {
+                    try await Task.sleep(for: .milliseconds(2))
+                }
+            }
+            try capture?.requireActive()
+            guard let cleanup = closeMedia() else {
+                throw CommandFailure(description: "Native recording lost its media owner.")
+            }
+            let release = assertion.close()
+            guard cleanup.stopAcknowledged, cleanup.ownedStreamAbsent, release.confirmed else {
+                throw CommandFailure(
+                    description:
+                        "Native recording cleanup unconfirmed: owned stop=\(cleanup.stopAcknowledged), stream absent=\(cleanup.ownedStreamAbsent), tunnel release=\(release.status). \(cleanup.diagnostic ?? "")"
+                )
+            }
+            try Task.checkCancellation()
             let frames = try await encoder.finish()
             await sessions.end(endpoint.uuid)
-            return frames
+            return NativeRecordingReceipt(frames: frames, media: cleanup, assertionRelease: release.status)
         } catch {
+            let cleanup = closeMedia()
+            let release = assertion.close()
             await encoder.cancel()
             await sessions.end(endpoint.uuid)
-            throw error
+            let detail = "\(error) Capture: packets=\(packetCount), access units=\(unitCount), JPEG frames=\(decodedCount). Cleanup: owned stop=\(cleanup?.stopAcknowledged ?? false), stream absent=\(cleanup?.ownedStreamAbsent ?? false), tunnel release=\(release.status). \(cleanup?.diagnostic ?? "")"
+            if error is CancellationError || Task.isCancelled {
+                FileHandle.standardError.write(Data("\(detail)\n".utf8))
+                throw CancellationError()
+            }
+            throw CommandFailure(description: detail)
         }
     }
 }

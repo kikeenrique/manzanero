@@ -180,14 +180,16 @@ actor CommandService {
             let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("tmp/recording-\(UUID().uuidString)")
             if dryRun {
-                let plan = recording.command(staging: directory.appendingPathComponent("capture.mp4"))
-                var output: [String: Any] = ["executable": plan.executable, "arguments": plan.arguments,
+                if recording.native {
+                    return try json(["execution": "in-process", "backend": "coredevice-videotoolbox",
+                        "frameworks": ["AVConference", "VideoToolbox", "AVFoundation"], "destination": recording.destination.path,
+                        "durationSeconds": recording.seconds, "codec": recording.codec,
+                        "stopPolicy": "Owned stream stop and fresh absence check, VideoToolbox invalidation, tunnel assertion release; publish only after artifact validation."] as [String: Any])
+                }
+                let plan = try recording.command(staging: directory.appendingPathComponent("capture.mp4"))
+                let output: [String: Any] = ["executable": plan.executable, "arguments": plan.arguments,
                     "destination": recording.destination.path, "durationSeconds": recording.seconds,
                     "stopPolicy": recording.native ? "Timestamped live frames; AVFoundation MP4 encoding; no automatic backend fallback." : (recording.physical ? "devicectl --duration" : "Wait for first frame, then SIGINT after duration; wait for finalization.")]
-                if recording.native {
-                    output["executionAvailable"] = false
-                    output["limitation"] = "Historical video helper plan only; direct Apple capture replacement pending."
-                }
                 return try json(output)
             }
             if recording.physical { try preflight(recording.device, operation: "record screen") }
