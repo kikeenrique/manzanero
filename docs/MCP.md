@@ -44,7 +44,7 @@ The 33 tools have object schemas with required fields, enumerated operations whe
 | Tools | Operations |
 | --- | --- |
 | `list_devices`, `doctor`, `inspect_device` | Discovery, tool checks, apps, physical details/processes/HID information |
-| `device_readiness` | [Physical preparation status](READINESS.md), including Developer Mode and developer-image services |
+| `device_readiness` | [Physical preparation status](READINESS.md), including Developer Mode/image services plus separate display-power and passcode observations; no UI Automation or current UI-unlocked guarantee |
 | `request_handoff` | [Explicit human completion request](HANDOFF.md) using a host form, with per-device mutation pause |
 | `get_ui_tree`, `get_accessibility_archive`, `ocr_image` | AXe simulator hierarchy or native physical AX snapshot with optional PID, separate raw physical callback archive, standalone Vision OCR |
 | `press_element` | [Native physical AX press](DIRECT-ACCESSIBILITY.md#current-guarded-native-press) by exact identifier/label, with unique target, live state, hit, and display checks; CLI/MCP Settings navigation verified, native acceptance does not verify generic UI effect |

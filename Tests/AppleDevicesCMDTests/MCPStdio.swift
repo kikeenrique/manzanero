@@ -87,6 +87,23 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
+            if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_READINESS"] == "1" {
+                let response = try request(4, "tools/call", ["name": "device_readiness", "arguments": ["device": physical]])
+                let result = try #require(response["result"] as? [String: Any])
+                let structured = try #require(result["structuredContent"] as? [String: Any])
+                let report = try #require(structured["result"] as? [String: Any])
+                let status = try #require(report["status"] as? String)
+                #expect(result["isError"] as? Bool == (status != "prerequisitesPresent"))
+                let ui = try #require(report["ui"] as? [String: Any])
+                #expect(["on", "off"].contains(ui["displayPower"] as? String ?? ""))
+                #expect(ui["passcodeRequired"] is Bool && ui["unlockedSinceBoot"] is Bool)
+                #expect(ui["status"] as? String != "ready")
+                #expect((ui["limitations"] as? [String])?.contains { $0.contains("do not prove") } == true)
+                try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
+                    .write(to: directory.appendingPathComponent("readiness.json"))
+                try finish()
+                return
+            }
             if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_RECORDING_INTERACTION"] == "1" {
                 func metadata(_ response: [String: Any]) throws -> [String: Any] {
                     let result = try #require(response["result"] as? [String: Any])

@@ -14,7 +14,8 @@ struct DeviceReadiness: Encodable, Sendable {
     let pairing: String
     let status: String
     let issues: [Issue]
-    let limitations = ["CoreDevice prerequisites only; UI Automation, usbmuxd availability, and live input/capture are not verified."]
+    var ui: DeviceUIReadiness? = nil
+    let limitations = ["Status and exit code reflect CoreDevice prerequisites only; any UI observations are separate. UI Automation, usbmuxd availability, and live input/capture are not verified."]
 
     static func decode(_ data: Data, device: String) throws -> Self {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],

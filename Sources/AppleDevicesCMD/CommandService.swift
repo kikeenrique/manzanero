@@ -10,6 +10,7 @@ struct CommandOutput: Sendable {
 actor CommandService {
     private let runner = ToolRunner()
     private let readinessQuery: @Sendable (String) throws -> Data
+    private let uiReadinessQuery: @Sendable (DeviceCommand) throws -> Data
     private var pendingHandoffs: Set<DeviceTarget> = []
 
     init(readinessQuery: @escaping @Sendable (String) throws -> Data = { device in
@@ -17,8 +18,11 @@ actor CommandService {
             throw CommandFailure(description: "Cannot plan device readiness query.")
         }
         return try ToolRunner().run(plan.arguments + ["--quiet"])
+    }, uiReadinessQuery: @escaping @Sendable (DeviceCommand) throws -> Data = { plan in
+        try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 15)
     }) {
         self.readinessQuery = readinessQuery
+        self.uiReadinessQuery = uiReadinessQuery
     }
 
     private func readiness(_ device: String) throws -> DeviceReadiness {
@@ -169,11 +173,17 @@ actor CommandService {
                 hierarchy: { try await self.execute([screen.platform, screen.device, "tree"]).data }))
         }
         if args.count == 3, args[0] == "physical", args[2] == "readiness" {
+            guard !args[1].isEmpty, !args[1].hasPrefix("-") else { throw CommandFailure(description: "Provide a valid device identifier.") }
             if dryRun {
                 guard let plan = try DeviceCommand.parse(["physical", args[1], "details"]) else { throw CommandFailure(description: "Invalid device.") }
-                return try json(["executable": plan.executable, "arguments": plan.arguments + ["--quiet"]])
+                return try json(["executable": plan.executable, "arguments": plan.arguments + ["--quiet"],
+                    "additionalReadOnlyQueries": ["displays", "lockState"],
+                    "targetResolution": "Additional UI observations use the UUID resolved from fresh details; no queries are performed in dry run."] as [String: Any])
             }
-            return try readiness(args[1]).output()
+            let details = try readinessQuery(args[1])
+            var report = try DeviceReadiness.decode(details, device: args[1])
+            report.ui = try DeviceUIReadiness.observe(details: details, device: args[1], query: uiReadinessQuery)
+            return try report.output()
         }
         if let recording = try RecordingCommand.parse(args) {
             if !dryRun { try checkHandoffPause([recording.physical ? "physical" : "simulator", recording.device, "record"]) }
