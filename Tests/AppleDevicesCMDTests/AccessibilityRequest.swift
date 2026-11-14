@@ -3,6 +3,31 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct AccessibilityRequestTests {
+    @Test func pointQueryUsesCapturedNSValueShapeWithoutRelaxingNativeTokens() throws {
+        let bytes = try AccessibilityRequest.hit(x: 187.5, y: 406)
+        let plist = try #require(PropertyListSerialization.propertyList(from: bytes, format: nil) as? [String: Any])
+        let objects = try #require(plist["$objects"] as? [Any])
+        let rawToken = try #require(objects.compactMap { $0 as? [String: Any] }.first { $0["pid"] != nil })
+        #expect(rawToken["pid"] as? Int32 == 0)
+        let request = try fields(bytes)
+        #expect(request["requestType"] as? Int == 6 && request["attributeType"] as? Int == 0)
+        let parameters = try #require(request["parameters"] as? [String: Any])
+        #expect(parameters["displayId"] as? Int == 0)
+        let point = try #require(parameters["point"] as? [String: Any])
+        #expect(point["className"] as? String == "NSValue")
+        let pointFields = try #require(point["fields"] as? [String: Any])
+        #expect(pointFields["NS.special"] as? Int == 1)
+        #expect(pointFields["NS.pointval"] as? String == "{187.5, 406}")
+        let translation = try #require(request["translation"] as? [String: Any])
+        let token = try #require(translation["fields"] as? [String: Any])
+        #expect(token["pid"] as? Int == 0)
+        #expect(token["isApplicationElement"] as? Bool == false)
+        #expect(token["didPopuldateAppInfo"] as? Bool == false)
+        #expect(token["rawElementData"] is NSNull && token["bridgeDelegateToken"] is NSNull)
+        #expect(throws: CommandFailure.self) { try AccessibilityRequest.hit(x: .nan, y: 0) }
+        #expect(throws: CommandFailure.self) { try AccessibilityRequest.hit(x: 0, y: .infinity) }
+        #expect(throws: CommandFailure.self) { try AccessibilityRequest.Token(pid: 0, objectID: 1) }
+    }
     private func fields(_ bytes: Data) throws -> [String: Any] {
         let inspected = try #require(try JSONSerialization.jsonObject(with: KeyedArchiveInspector.inspect(bytes)) as? [String: Any])
         let root = try #require(inspected["decoded"] as? [String: Any])

@@ -10,6 +10,7 @@ struct KeyedArchiveInspector {
     private(set) var values = 0
     private var expandedBytes = 0
     private var inspectNestedArchives = true
+    private var responseTypeOnly = false
     private var maximumDepth: Int { inspectNestedArchives ? 64 : 512 }
 
     static func inspect(_ bytes: Data) throws -> Data {
@@ -34,6 +35,22 @@ struct KeyedArchiveInspector {
             return try decoder.archive(nested, depth: 1)
         }
         return root
+    }
+
+    /// Read only the semantic envelope's request type before expanding result
+    /// data. Unrelated notifications can contain values unsupported by our
+    /// requested read schema (including NaN); they must never satisfy a read.
+    static func protocolResponseType(_ bytes: Data) throws -> UInt64 {
+        var decoder = Self()
+        decoder.inspectNestedArchives = false
+        decoder.responseTypeOnly = true
+        var value = try decoder.archive(bytes, depth: 0)
+        if case .data(let nested) = value { value = try decoder.archive(nested, depth: 1) }
+        guard case .object("AXPTranslatorResponse", let fields) = value,
+              let kind = fields["associatedRequestType"]?.unsignedInteger else {
+            throw invalid("missing response class or typed request type")
+        }
+        return kind
     }
 
     static func inspectFile(_ path: String) throws -> Data {
@@ -75,9 +92,16 @@ struct KeyedArchiveInspector {
         try Self.validateBinaryUIDs(bytes)
         let parsed = try PropertyListSerialization.propertyList(from: bytes, options: [], format: nil)
         guard let envelope = parsed as? [String: Any], envelope["$archiver"] as? String == "NSKeyedArchiver",
-              let objects = envelope["$objects"] as? [Any], objects.count <= 100_000,
+              let table = envelope["$objects"] as? [Any], table.count <= 100_000,
               let top = envelope["$top"] as? [String: Any], let root = top["root"], try uid(root) != nil else {
             throw Self.invalid("missing archiver, bounded object table or root reference")
+        }
+        var objects = table
+        if responseTypeOnly, let index = try uid(root), objects.indices.contains(index),
+           let fields = objects[index] as? [String: Any], let reference = fields["$class"],
+           let classIndex = try uid(reference), objects.indices.contains(classIndex),
+           let metadata = objects[classIndex] as? [String: Any], metadata["$classname"] as? String == "AXPTranslatorResponse" {
+            objects[index] = fields.filter { ["$class", "associatedRequestType"].contains($0.key) }
         }
         return try value(root, objects: objects, stack: [], depth: depth + 1)
     }

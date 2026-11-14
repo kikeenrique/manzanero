@@ -8,6 +8,16 @@ struct AccessibilityResponse: Sendable {
         case application(pid: Int32)
         case snapshot(AccessibilityRequest.Token)
         case attributes(AccessibilityRequest.Token)
+        case hit
+
+        var requestType: UInt64 {
+            switch self {
+            case .application: 1
+            case .snapshot: 2
+            case .attributes: 5
+            case .hit: 6
+            }
+        }
     }
 
     let requestType: UInt64
@@ -41,15 +51,13 @@ struct AccessibilityResponse: Sendable {
     /// nil means an unrelated response, not a successful empty result.
     /// A matching refusal, target mismatch or nil result terminates the request.
     func matchingResult(for expected: Expected) throws -> AccessibilityArchiveValue? {
-        let kind: UInt64
-        switch expected {
-        case .application: kind = 1
-        case .snapshot: kind = 2
-        case .attributes: kind = 5
-        }
+        let kind = expected.requestType
         guard requestType == kind else { return nil }
         guard notification == 0, error == 0 else { throw Self.invalid("semantic refusal or notification in request response (error \(error))") }
         switch expected {
+        case .hit:
+            _ = try Self.token(result)
+            guard attribute == 0 else { throw Self.invalid("hit attribute mismatch") }
         case .application(let pid):
             let token = try Self.token(result)
             guard pid > 0, token.pid == pid, token.isApplicationElement else {

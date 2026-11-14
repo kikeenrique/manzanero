@@ -3,6 +3,18 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct AccessibilityResponseTests {
+    @Test func pointResultsRequireNativeTokenAndZeroAttributeWithoutAnApplicationFlag() throws {
+        let result = token(application: false)
+        #expect(try AccessibilityResponse(value: response(kind: .signed(6), attribute: .signed(0), result: result))
+            .matchingResult(for: .hit) == result)
+        for value in [response(kind: .signed(6), attribute: .signed(1), result: result),
+                      response(kind: .signed(6), attribute: .signed(0), result: token(pid: .signed(0))),
+                      response(kind: .signed(6), attribute: .signed(0), result: .null),
+                      response(kind: .signed(6), attribute: .signed(0), result: result, error: .signed(1))] {
+            #expect(throws: CommandFailure.self) { try AccessibilityResponse(value: value).matchingResult(for: .hit) }
+        }
+        #expect(try AccessibilityResponse(value: response()).matchingResult(for: .hit) == nil)
+    }
     typealias Value = AccessibilityArchiveValue
 
     private func token(pid: Value = .signed(42), identity: Value = .unsigned(.max), application: Bool = true) -> Value {

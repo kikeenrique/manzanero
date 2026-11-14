@@ -358,10 +358,10 @@ struct MCPStdioTests {
             }
             let cleanup = try #require(tree["cleanup"] as? [String: Any])
             let stop = try #require(cleanup["subscriptionStop"] as? String)
-            if pid != nil {
+            if tree["backend"] as? String == "coredevice-direct" {
                 #expect(tree["backend"] as? String == "coredevice-direct")
                 #expect(tree["transport"] as? String == "apple-network-rsd")
-                #expect(application["selection"] as? String == "explicit-pid")
+                #expect(application["selection"] as? String == (pid == nil ? "centre-hit-test" : "explicit-pid"))
                 #expect(["acknowledged", "unconfirmed"].contains(stop))
                 #expect(cleanup["confirmed"] as? Bool == (stop == "acknowledged"))
                 if stop == "unconfirmed" { #expect(!(cleanup["diagnostic"] as? String ?? "").isEmpty) }

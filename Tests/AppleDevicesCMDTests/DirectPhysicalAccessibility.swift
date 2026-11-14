@@ -4,8 +4,47 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct DirectPhysicalAccessibilityTests {
+    @Test func foregroundCaptureBracketsTreeWithProcessAndDisplayChecks() throws {
+        let fixture = AccessibilitySessionTests()
+        for failure in ["none", "pid-changed", "display-changed"] {
+            let wire = AccessibilitySessionTests.Transport([try fixture.reply(1, value: NSNumber(value: 26)), try fixture.reply(2),
+                try fixture.reply(3), try fixture.callback(kind: 6, rootID: 5),
+                try fixture.reply(4), try fixture.callback(kind: 1, rootID: 1),
+                try fixture.reply(5), try fixture.callback(kind: 2, attribute: 52, rootID: 1, nativeSnapshot: true),
+                try fixture.reply(6), try fixture.callback(kind: 1, rootID: 1),
+                try fixture.reply(7), try fixture.callback(kind: 6, pid: failure == "pid-changed" ? 43 : 42, rootID: 7),
+                try fixture.reply(8)])
+            var queries = 0
+            let capture = {
+                try DirectPhysicalAccessibility.capture(device: "fixture", resolved: UUID().uuidString, pid: nil,
+                    session: AccessibilitySession(transport: wire), display: {
+                        queries += 1
+                        return try AccessibilityDisplay(AccessibilityDisplayTests.data(scale: queries == 2 && failure == "display-changed" ? 2 : 3))
+                    })
+            }
+            if failure == "none" {
+                let tree = try #require(JSONSerialization.jsonObject(with: capture()) as? [String: Any])
+                #expect((tree["application"] as? [String: Any])?["selection"] as? String == "centre-hit-test")
+                #expect((tree["application"] as? [String: Any])?["pid"] as? Int == 42)
+                #expect((tree["display"] as? [String: Any])?["pointScale"] as? Int == 3)
+                #expect(tree["nodeCount"] as? Int == 1)
+            } else { #expect(throws: CommandFailure.self) { try capture() } }
+            #expect(queries == (failure == "pid-changed" ? 1 : 2))
+            #expect(wire.closed && wire.incoming.isEmpty)
+            // Only read request types 6/1/2/1/6; never type 7 actions.
+            let requests = try wire.outgoing.filter { $0.kind == .invocation }.compactMap { message -> AccessibilityArchiveValue? in
+                guard try KeyedArchiveInspector.decodeProtocol(message.object) == .string("processDataFromHost:") else { return nil }
+                return try KeyedArchiveInspector.decodeProtocol(message.archiveArgument())
+            }
+            #expect(requests.count == 5)
+            for request in requests {
+                guard case .object(_, let fields) = request else { Issue.record("Missing request"); continue }
+                #expect([1, 2, 6].contains(fields["requestType"]?.unsignedInteger ?? 0))
+            }
+        }
+    }
     @Test func nativePipelineRejectsInvalidPIDsBeforeAnyQueryAndRetainsCleanupUncertainty() async throws {
-        for operands in [[], ["0"], ["-1"], ["42", "extra"]] {
+        for operands in [["0"], ["-1"], ["42", "extra"]] {
             await #expect(throws: CommandFailure.self) {
                 try await DirectPhysicalAccessibility.executeNativeRSD(.init(device: "fixture", operation: "tree", operands: operands),
                     query: { _ in Issue.record("Invalid native tree queried"); return Data() })
@@ -105,8 +144,10 @@ struct DirectPhysicalAccessibilityTests {
         #expect(mcp.isError == false && mcp.structuredContent?.objectValue?["result"]?.objectValue?["pid"] == 42)
         let plan = try #require(try JSONSerialization.jsonObject(with: cli.data) as? [String: Any])
         #expect(plan["liveVerified"] as? Bool == false && plan["executable"] == nil)
-        for invalid in [["--physical-backend", "coredevice", "physical", "fixture", "tree"],
-                        ["--physical-backend", "coredevice", "simulator", "fixture", "tree", "42"],
+        let foreground = try await service.execute(["physical", "fixture", "tree"], dryRun: true)
+        let foregroundPlan = try #require(JSONSerialization.jsonObject(with: foreground.data) as? [String: Any])
+        #expect(foregroundPlan["pid"] is NSNull)
+        for invalid in [["--physical-backend", "coredevice", "simulator", "fixture", "tree", "42"],
                         ["--physical-backend", "coredevice", "physical", "fixture", "tree", "0"]] {
             await #expect(throws: CommandFailure.self) { try await service.execute(invalid, dryRun: true) }
         }

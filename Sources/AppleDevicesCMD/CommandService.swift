@@ -58,9 +58,9 @@ actor CommandService {
             if dryRun {
                 let identity = try native.identityPlan()
                 if native.operation == "tree" {
-                    return try json(["backend": "coredevice-direct", "operation": "tree", "pid": Int(native.operands[0]) ?? 0,
+                    return try json(["backend": "coredevice-direct", "operation": "tree", "pid": native.operands.first.flatMap(Int.init).map { $0 as Any } ?? NSNull(),
                         "identityArguments": identity.arguments, "liveVerified": false,
-                        "execution": "Native Apple tunnel assertion, exact-address RSD discovery, Apple Network/RemoteXPC directory, raw AX DTX reads and application identity recheck; no helper, foreground guarantee or fallback."])
+                        "execution": "Native Apple tunnel assertion, exact-address RSD discovery, Apple Network/RemoteXPC directory, raw AX DTX reads and application identity recheck. Omitted PID selects/rechecks primary portrait display-centre process and Apple display geometry; no helper or fallback."])
                 }
                 if DirectPhysicalGesture.handles(native) {
                     let sequence = try DirectPhysicalGesture.sequence(for: native)
@@ -149,7 +149,9 @@ actor CommandService {
                     "analysis": "Prefer accessibility in auto mode (physical selects the app at primary display centre); fall back to Vision OCR, then explicitly report image-only if analysis fails."])
             }
             if screen.platform == "physical" { try preflight(screen.device, operation: "capture screen") }
-            return CommandOutput(data: try await screen.execute(directory: directory, run: { try runner.run($0.arguments, executable: $0.executable) }))
+            return CommandOutput(data: try await screen.execute(directory: directory,
+                run: { try runner.run($0.arguments, executable: $0.executable) },
+                hierarchy: { try await self.execute([screen.platform, screen.device, "tree"]).data }))
         }
         if args.count == 3, args[0] == "physical", args[2] == "readiness" {
             if dryRun {

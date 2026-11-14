@@ -1,6 +1,6 @@
 # Screen inspection
 
-Current runtime: screenshot capture and Vision OCR run through Apple tools/frameworks without a device helper. Physical foreground trees and simulator helper-based hierarchies are unavailable under the current executable policy, so `auto` falls back to OCR. The separate [native explicit-PID tree command](DIRECT-ACCESSIBILITY.md#current-native-tree-route) now has CLI/MCP Settings verification on iPhone 13 mini; it is not integrated as a foreground screen tree. Historical foreground hierarchy observations below remain migration evidence.
+Current runtime: screenshot capture, native physical hierarchy and Vision OCR run through Apple tools/frameworks without a device helper. Physical `auto`/`tree` now uses the [native primary display-centre tree](DIRECT-ACCESSIBILITY.md#current-native-tree-route) on awake portrait hardware; real MCP Settings inspection returned 106 nodes with a 1125×2436 PNG on iPhone 13 mini. Simulator helper hierarchies remain disabled; `auto` falls back to OCR when hierarchy is unavailable. Earlier helper-backed observations below remain migration evidence.
 
 ```sh
 appledevicescmd simulator <UUID> screen auto
@@ -13,6 +13,8 @@ appledevicescmd physical <device> screen tree
 The command saves a fresh screenshot beneath a unique `tmp/screen-*/` directory, checks that it decodes as PNG, and returns JSON with the image path, pixel dimensions, capture time, analysis method, coordinate space, and diagnostics. Simulator targets require an explicit UUID. Physical capture uses Xcode and its readiness preflight. Historical physical hierarchy analysis required the now-disabled idevice executable; capture and forced OCR do not.
 
 In `auto` mode, a simulator hierarchy is useful when at least one non-application node has a role/type and a nonempty label, identifier, value, or title. The original AXe hierarchy is returned without rewriting it. Physical auto uses a [foreground physical tree](ACCESSIBILITY-PROTOCOL.md#active-per-application-tree), selecting the primary display-centre process without a caller-supplied PID. It requires consistent tree metadata and a non-root node that is not marked hidden and has a nonempty label, identifier, or string value. The hierarchy is preserved, and any cleanup warning also appears in diagnostics. An unavailable, malformed, empty, or application-only hierarchy falls back to Vision OCR. These heuristics do not prove every visible control is represented. The raw `ax-snapshot` archive is not a parsed hierarchy.
+
+The current physical provider calls the shared native CLI/MCP operation instead of executing the legacy tree plan. It preserves subscription and tunnel-release uncertainty separately in diagnostics. The screen capture precedes the tree and can show a different moment. Centre-process and geometry rechecks do not establish atomicity or overlay coverage.
 
 If OCR also fails in automatic mode, the result contains `method: image-only`, `status: partial`, and diagnostics. It never invents text or a hierarchy. Successful analysis reports `status: captured`; an empty OCR result is accompanied by a diagnostic. Forced `tree` or `ocr` failures return an error that identifies the saved screenshot. Both platforms accept forced `tree`. Cancellation propagates as cancellation rather than partial success.
 

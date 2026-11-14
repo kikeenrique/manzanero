@@ -143,6 +143,32 @@ struct ScreenCommandTests {
             "nodes":[["id":"n0","label":"App"],["id":"n1","label":"Button","visible":true]]])
     }
 
+    @Test func nativeHierarchyProviderAvoidsHelperAndPreservesSeparateCleanupDiagnostics() async throws {
+        var tree = try json(physicalTree())
+        tree["cleanup"] = ["confirmed": false, "diagnostic": "AX stop lost"]
+        tree["connectionCleanup"] = ["confirmed": false, "diagnostic": "Assertion release lost"]
+        let data = try JSONSerialization.data(withJSONObject: tree)
+        try await fixture { directory in
+            var captures = 0
+            var reads = 0
+            let result = try await ScreenCommand(platform: "physical", device: "fixture", mode: .tree)
+                .execute(directory: directory, run: { plan in
+                    #expect(plan.arguments.contains("screenshot"))
+                    captures += 1
+                    try png(directory.appendingPathComponent("screen.png"))
+                    return Data("{}".utf8)
+                }, hierarchy: {
+                    #expect(captures == 1)
+                    reads += 1
+                    return data
+                }, recognize: { _ in Issue.record("Native hierarchy reached OCR"); throw CancellationError() })
+            let object = try json(result)
+            #expect(captures == 1 && reads == 1)
+            #expect(object["method"] as? String == "accessibility")
+            #expect(object["diagnostics"] as? [String] == ["cleanup unconfirmed: AX stop lost", "connectionCleanup unconfirmed: Assertion release lost"])
+        }
+    }
+
     @Test(arguments: [false, true]) func physicalAutoPrefersForegroundTreeAndPreservesItsCoordinateSpace(cleanupWarning: Bool) async throws {
         var hierarchy = try json(physicalTree())
         if cleanupWarning { hierarchy["cleanup"] = ["subscriptionStop":"connection-closed-before-ack", "warning":"Cleanup unconfirmed."] }

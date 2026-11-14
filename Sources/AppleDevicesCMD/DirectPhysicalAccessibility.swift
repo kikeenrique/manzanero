@@ -14,7 +14,8 @@ enum DirectPhysicalAccessibility {
     static func executeNativeRSD(_ input: CoreDeviceInput, isolation: isolated (any Actor)? = #isolation,
                                  query: (DeviceCommand) throws -> Data) async throws -> Data {
         try Task.checkCancellation()
-        let pid = try applicationPID(input)
+        guard input.operation == "tree" else { throw CommandFailure(description: "Native AX capture requires a tree operation.") }
+        let pid: Int32? = input.operands.isEmpty ? nil : try applicationPID(input)
         let details = try query(input.identityPlan())
         let identity = try DirectPhysicalInput.identity(input, query: { _ in details })
         guard let root = try JSONSerialization.jsonObject(with: details) as? [String: Any],
@@ -31,7 +32,11 @@ enum DirectPhysicalAccessibility {
             let directory = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: udid, transport: .network)
             defer { directory.close() }
             let transport = try directory.openAccessibility()
-            let bytes = try capture(device: input.device, resolved: identity.uuid, pid: pid, session: AccessibilitySession(transport: transport))
+            let bytes = try capture(device: input.device, resolved: identity.uuid, pid: pid,
+                session: AccessibilitySession(transport: transport), display: {
+                    try Task.checkCancellation()
+                    return try AccessibilityDisplay(query(AccessibilityDisplay.plan(device: identity.uuid)))
+                })
             directory.close()
             let release = assertion.close()
             try Task.checkCancellation()
@@ -67,23 +72,43 @@ enum DirectPhysicalAccessibility {
         return try capture(device: input.device, resolved: identity.uuid, pid: pid, session: session)
     }
 
-    static func capture(device: String, resolved: String, pid: Int32, session: AccessibilitySession) throws -> Data {
+    static func capture(device: String, resolved: String, pid: Int32?, session: AccessibilitySession,
+                        display: () throws -> AccessibilityDisplay = {
+                            throw CommandFailure(description: "Foreground AX requires an Apple display query.")
+                        }) throws -> Data {
         defer { session.close() }
         do {
-            guard pid > 0 else { throw CommandFailure(description: "Application PID must be positive.") }
+            if let pid, pid <= 0 { throw CommandFailure(description: "Application PID must be positive.") }
+            // Read Apple display geometry before subscribing, then bracket the
+            // tree with centre-process and geometry rechecks. No action is sent.
+            let selectedDisplay: AccessibilityDisplay?
+            if pid == nil {
+                selectedDisplay = try display()
+            } else { selectedDisplay = nil }
             try session.start()
-            let root = try session.application(pid: pid)
+            let selectedPID: Int32
+            if let pid { selectedPID = pid }
+            else if let selectedDisplay {
+                selectedPID = try session.hit(x: selectedDisplay.center.x, y: selectedDisplay.center.y).pid
+            } else { throw CommandFailure(description: "Missing AX selection.") }
+            let root = try session.application(pid: selectedPID)
             let snapshot = try session.snapshot(root)
             let nodes = try AccessibilitySnapshot.normalize(snapshot, root: root)
-            let after = try session.application(pid: pid)
+            let after = try session.application(pid: selectedPID)
             guard root.pid == after.pid, root.objectID == after.objectID else {
                 throw CommandFailure(description: "Application identity changed during AX observation; no tree returned.")
+            }
+            if let selectedDisplay {
+                let selectedAfter = try session.hit(x: selectedDisplay.center.x, y: selectedDisplay.center.y)
+                guard selectedAfter.pid == selectedPID else { throw CommandFailure(description: "Display-centre AX process changed during observation; no tree returned.") }
+                guard try display() == selectedDisplay else { throw CommandFailure(description: "Display geometry/orientation changed during observation; no tree returned.") }
             }
             try Task.checkCancellation()
             let cleanup = Cleanup(session.close())
             try Task.checkCancellation()
             return try JSONEncoder().encode(Observation(device: device, resolvedCoreDeviceUUID: resolved,
-                application: Application(pid: pid), nodes: nodes, cleanup: cleanup))
+                application: Application(pid: selectedPID, selection: pid == nil ? "centre-hit-test" : "explicit-pid"),
+                display: selectedDisplay, nodes: nodes, cleanup: cleanup))
         } catch {
             let cleanup = Cleanup(session.close())
             if error is CancellationError { throw error }
@@ -93,7 +118,7 @@ enum DirectPhysicalAccessibility {
 
     private struct Application: Encodable {
         let pid: Int32
-        let selection = "explicit-pid"
+        let selection: String
     }
 
     private struct Cleanup: Encodable {
@@ -118,6 +143,7 @@ enum DirectPhysicalAccessibility {
         let device: String
         let resolvedCoreDeviceUUID: String
         let application: Application
+        let display: AccessibilityDisplay?
         let deviceAPIVersion = 26
         let snapshotId = UUID().uuidString
         let nodes: [AccessibilitySnapshot.Node]
@@ -126,17 +152,18 @@ enum DirectPhysicalAccessibility {
         let referenceScope = "snapshot-local-paths"
         let coordinateSpace = "device-logical-points"
         let cleanup: Cleanup
-        let limitations = [
-            "Explicit PID may identify a background app. Foreground/display selection is not checked.",
+        var limitations: [String] { [
+            display == nil ? "Explicit PID may identify a background app. Foreground/display selection is not checked." :
+                "Primary display-centre selection may identify an overlay or embedded process; this is not a combined display tree.",
             "Root identity is checked twice; descendants can change. This is not an atomic snapshot or every UIView.",
             "Snapshot-local path IDs are not reusable action handles. Device caps and offscreen completeness are not independently verified.",
             "A disable acknowledgement is not independent verification of phone-side subscription teardown."
-        ]
+        ] }
         var nodeCount: Int { nodes.count }
 
         enum CodingKeys: String, CodingKey {
             case format, schemaVersion, backend, parsedHierarchy, experimental, device, resolvedCoreDeviceUUID
-            case application, deviceAPIVersion, snapshotId, nodes, atomic, rootStabilityScope, referenceScope, coordinateSpace, cleanup, limitations, nodeCount
+            case application, display, deviceAPIVersion, snapshotId, nodes, atomic, rootStabilityScope, referenceScope, coordinateSpace, cleanup, limitations, nodeCount
         }
 
         func encode(to encoder: any Encoder) throws {
@@ -149,6 +176,7 @@ enum DirectPhysicalAccessibility {
             try container.encode(device, forKey: .device)
             try container.encode(resolvedCoreDeviceUUID, forKey: .resolvedCoreDeviceUUID)
             try container.encode(application, forKey: .application)
+            try container.encodeIfPresent(display, forKey: .display)
             try container.encode(deviceAPIVersion, forKey: .deviceAPIVersion)
             try container.encode(snapshotId, forKey: .snapshotId)
             try container.encode(nodes, forKey: .nodes)

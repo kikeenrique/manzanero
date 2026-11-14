@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 #MISE extends = "swift"
-#MISE description = "Read one explicit-PID physical AX tree through native RSD, retaining directory through cleanup"
+#MISE description = "Read one physical AX tree through native RSD, retaining directory through cleanup"
 #USAGE arg "<device>" help="Explicit hardware UDID; uses fresh identity and directory discovery"
 #USAGE arg "<pid>" help="Positive application PID; may select a background app, not a foreground guarantee"
 #USAGE flag "--native-tunnel" help="Hold an exact-device Apple tunnel assertion through directory/AX cleanup; no pairing initiated"
 #USAGE flag "--network" help="Explicitly use Apple's unstarted Network/RemoteXPC directory bootstrap; no fallback"
+#USAGE flag "--foreground" help="Read/recheck the primary display-centre process; supplied PID is an expected result only"
 
 set -e -o pipefail
 
 unset APPLEDEVICES_RSD_TREE_NATIVE_TUNNEL
 unset APPLEDEVICES_RSD_TREE_NETWORK
+unset APPLEDEVICES_RSD_TREE_FOREGROUND
+if [ "${usage_foreground:-false}" = "true" ]; then
+  export APPLEDEVICES_RSD_TREE_FOREGROUND=1
+fi
 if [ "${usage_native_tunnel:-false}" = "true" ]; then
   export APPLEDEVICES_RSD_TREE_NATIVE_TUNNEL=1
 fi

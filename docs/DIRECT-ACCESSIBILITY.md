@@ -1,12 +1,14 @@
 # Direct physical accessibility migration
 
-Native explicit-PID physical trees now work through CLI and MCP on the selected iPhone 13 mini. The replacement operates in `appledevicescmd` against Apple interfaces, without launching an intermediary. Foreground selection and selector actions remain unfinished. This page separates current scoped verification from the migration history below.
+Native explicit-PID and primary display-centre physical trees now work through CLI and MCP on the selected iPhone 13 mini. The replacement operates in `appledevicescmd` against Apple interfaces, without launching an intermediary. Selector actions remain unfinished. This page separates current scoped verification from the migration history below.
 
 ## Current native tree route
 
 ```sh
 mise run cli physical <hardware-UDID> tree <positive-PID>
+mise run cli physical <hardware-UDID> tree
 mise run test:mcp-physical <hardware-UDID> <positive-PID>
+mise run test:mcp-foreground <hardware-UDID>
 # Explicit diagnostic with the same Network bootstrap:
 mise run test:rsd-tree <hardware-UDID> <positive-PID> --native-tunnel --network
 ```
@@ -15,7 +17,11 @@ Explicit-PID trees default to the direct backend. MCP `get_ui_tree` accepts `pla
 
 On 2026-11-13, the explicit diagnostic, actual CLI and real MCP stdio each captured 106 Settings nodes for the explicitly selected PID on iPhone 13 mini. A fresh 1125×2436 screenshot of General matched labels and row frames on the tree's 375×812 logical-point grid. Subscription stop and tunnel assertion release were acknowledged separately; MCP also completed EOF shutdown. These are protocol acknowledgements, not independent proof of phone-side teardown. Full local validation passed 272 test functions with zero errors/warnings.
 
-The PID can identify a background app. Snapshot IDs/paths are local to one non-atomic observation, and are not action handles. A visible flag or frame does not establish hittability, complete coverage or stable descendants. Automatic foreground/display selection, guarded element actions, screen-tree integration, crash recovery and other-device coverage remain incomplete. No action is replayed automatically.
+When PID is omitted, Apple's `devicectl device info displays` supplies exactly one active primary display with native/current `rot0`. Effective bounds divided by point scale locate its logical centre. A type-6 AX point read selects the PID; process and display geometry are rechecked after the application/snapshot/application sequence. The primary display must report `backlightState: activeOn`; otherwise the error asks the user to wake/unlock the device before any point query. The native tree is also integrated into physical `screen auto|tree` and MCP `get_screen`. On 2026-11-14, the diagnostic, CLI and real MCP each returned 106 Settings nodes without supplying PID to the operation; real MCP screen inspection also returned a matching 1125×2436 PNG and completed EOF shutdown.
+
+An explicit PID can identify a background app. Centre selection can identify an overlay/embedded process and is not a combined display tree. Snapshot IDs/paths are local to one non-atomic observation, and are not action handles. A visible flag or frame does not establish hittability, complete coverage or stable descendants. Guarded element actions, rotated/multiple-display support, crash recovery and other-device coverage remain incomplete. No action is replayed automatically.
+
+Before expanding semantic result data, the session now reads the callback's typed `AXPTranslatorResponse.associatedRequestType` with bounded data-only projection. Unrelated type-11 notifications observed during point selection contained `NaN`; they are ignored without expanding their results, while the full numeric/identity checks remain mandatory for matching replies. Carrier acknowledgements cannot satisfy a point request. Point translations use a primitive Int32 PID zero confined to that synthetic request, an opaque query identity, and the captured NSValue point encoding; native returned tokens still require a positive PID.
 
 DTX auxiliary dictionaries identify their tag by the low byte `0xf0`; upper header metadata varies. Live callbacks contained header words `0x3f0` and `0xb9f0`. The parser preserves that metadata as opaque and still requires exact auxiliary/archive lengths and supported entry types. It never allocates from the upper header word. Independent byte fixtures cover alternate upper metadata, wrong tags and malformed lengths. Installed Apple DTX reader inspection and the retained AXe source reference support this framing distinction; neither executable is invoked for device operations.
 

@@ -25,6 +25,7 @@ struct ScreenCommand: Sendable {
     }
 
     func execute(directory: URL, run: (DeviceCommand) throws -> Data,
+                 hierarchy: (() async throws -> Data)? = nil,
                  recognize: @Sendable (String) async throws -> ScreenText = { try await ScreenText.recognize(path: $0) },
                  isolation: isolated (any Actor)? = #isolation) async throws -> Data {
         try Task.checkCancellation()
@@ -38,16 +39,24 @@ struct ScreenCommand: Sendable {
         var diagnostics: [String] = []
         if mode != .ocr {
             do {
-                guard let tree = try DeviceCommand.parse([platform, device, "tree"]) else { throw CommandFailure(description: "Cannot plan hierarchy query.") }
-                let data = try run(tree)
+                let data: Data
+                if let hierarchy { data = try await hierarchy() }
+                else {
+                    guard let tree = try DeviceCommand.parse([platform, device, "tree"]) else { throw CommandFailure(description: "Cannot plan hierarchy query.") }
+                    data = try run(tree)
+                }
                 guard try platform == "physical" ? Self.hasUsefulPhysicalHierarchy(data) : Self.hasUsefulHierarchy(data) else {
                     throw CommandFailure(description: "Accessibility returned no labeled or identified non-application nodes.")
                 }
-                if platform == "physical",
-                   let tree = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let cleanup = tree["cleanup"] as? [String: Any],
-                   let warning = cleanup["warning"] as? String {
-                    diagnostics.append(warning)
+                if platform == "physical", let tree = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    for key in ["cleanup", "connectionCleanup"] {
+                        if let cleanup = tree[key] as? [String: Any] {
+                            if let warning = cleanup["warning"] as? String { diagnostics.append(warning) }
+                            if cleanup["confirmed"] as? Bool == false {
+                                diagnostics.append("\(key) unconfirmed: \(cleanup["diagnostic"] as? String ?? "No independent cleanup confirmation.")")
+                            }
+                        }
+                    }
                 }
                 return try result(image: image, geometry: geometry, capturedAt: capturedAt, method: "accessibility", hierarchy: data, diagnostics: diagnostics)
             } catch {

@@ -32,6 +32,14 @@ enum AccessibilityRequest {
         return try archive(kind: 1, parameters: ["pid": NSNumber(value: pid)], token: nil)
     }
 
+    /// Read-only primary-display point lookup. PID zero is confined to this
+    /// synthetic query translation; returned/native tokens still require PID > 0.
+    static func hit(x: Double, y: Double) throws -> Data {
+        guard x.isFinite, y.isFinite else { throw CommandFailure(description: "Invalid AX hit point.") }
+        return try archive(kind: 6, parameters: ["point": NSValue(point: NSPoint(x: x, y: y)),
+            "displayId": 0], token: nil, pointQuery: true)
+    }
+
     static func snapshot(_ token: Token) throws -> Data {
         try archive(kind: 2, parameters: ["parameter": [
             "attributes": [2001, 2002, 2003, 2004, 5019, 2006, 2025, 5003, 5004, 3003],
@@ -49,11 +57,11 @@ enum AccessibilityRequest {
         return try archive(kind: 5, parameters: ["attributes": attributes], token: token)
     }
 
-    private static func archive(kind: Int, parameters: [String: Any], token: Token?) throws -> Data {
+    private static func archive(kind: Int, parameters: [String: Any], token: Token?, pointQuery: Bool = false) throws -> Data {
         let coder = NSKeyedArchiver(requiringSecureCoding: true)
         coder.setClassName("AXPTranslatorRequest", for: RequestObject.self)
         coder.setClassName("AXPTranslationObject", for: TranslationObject.self)
-        coder.encode(RequestObject(kind: kind, parameters: parameters as NSDictionary, token: token), forKey: NSKeyedArchiveRootObjectKey)
+        coder.encode(RequestObject(kind: kind, parameters: parameters as NSDictionary, token: token, pointQuery: pointQuery), forKey: NSKeyedArchiveRootObjectKey)
         coder.finishEncoding()
         if let error = coder.error { throw error }
         let bytes = coder.encodedData
@@ -69,11 +77,13 @@ enum AccessibilityRequest {
         let kind: Int
         let parameters: NSDictionary
         let token: Token?
+        let pointQuery: Bool
 
-        init(kind: Int, parameters: NSDictionary, token: Token?) {
+        init(kind: Int, parameters: NSDictionary, token: Token?, pointQuery: Bool) {
             self.kind = kind
             self.parameters = parameters
             self.token = token
+            self.pointQuery = pointQuery
         }
 
         required init?(coder: NSCoder) { return nil }
@@ -84,26 +94,31 @@ enum AccessibilityRequest {
             coder.encode(0, forKey: "actionType")
             coder.encode(kind == 2 ? 52 : 0, forKey: "attributeType")
             coder.encode(parameters, forKey: "parameters")
-            coder.encode(token.map(TranslationObject.init), forKey: "translation")
+            coder.encode(pointQuery ? TranslationObject(pointQuery: ()) : token.map(TranslationObject.init), forKey: "translation")
         }
     }
 
     @objc(ADCAXTranslationArchive)
     private final class TranslationObject: NSObject, NSSecureCoding {
         static var supportsSecureCoding: Bool { true }
-        let token: Token
+        let token: Token?
+        let queryID = UInt64.random(in: 1...UInt64.max)
 
         init(_ token: Token) { self.token = token }
+        init(pointQuery: Void) { token = nil }
         required init?(coder: NSCoder) { return nil }
 
         func encode(with coder: NSCoder) {
-            coder.encode(token.pid, forKey: "pid")
-            coder.encode(NSNumber(value: token.objectID), forKey: "objectID")
-            coder.encode(token.rawElementData as NSData?, forKey: "rawElementData")
-            coder.encode(token.bridgeDelegateToken as NSData?, forKey: "bridgeDelegateToken")
-            coder.encode(token.isApplicationElement, forKey: "isApplicationElement")
+            // Keep a primitive Int32 field. An optional/coalesced expression
+            // can select NSCoder's object overload and archive an NSNumber UID.
+            let pid: Int32 = token?.pid ?? 0
+            coder.encode(pid, forKey: "pid")
+            coder.encode(NSNumber(value: token?.objectID ?? queryID), forKey: "objectID")
+            coder.encode(token?.rawElementData as NSData?, forKey: "rawElementData")
+            coder.encode(token?.bridgeDelegateToken as NSData?, forKey: "bridgeDelegateToken")
+            coder.encode(token?.isApplicationElement ?? false, forKey: "isApplicationElement")
             // The misspelling is Apple's established wire field name.
-            coder.encode(token.didPopulateAppInfo, forKey: "didPopuldateAppInfo")
+            coder.encode(token?.didPopulateAppInfo ?? false, forKey: "didPopuldateAppInfo")
         }
     }
 }

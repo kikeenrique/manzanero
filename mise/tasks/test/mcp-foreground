@@ -2,8 +2,7 @@
 #MISE extends = "swift"
 #MISE description = "Verify real MCP foreground physical tree and screenshot/tree inspection"
 #MISE depends = ["build"]
-#MISE env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
-#USAGE arg "<device>" help="Explicit physical device UDID; requires the idevice bridge connection"
+#USAGE arg "<device>" help="Explicit physical device UDID; awake portrait device with native Apple AX access"
 
 set -e -o pipefail
 

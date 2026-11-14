@@ -67,6 +67,11 @@ final class AccessibilitySession {
         return try AccessibilityResponse.token(result)
     }
 
+    func hit(x: Double, y: Double) throws -> AccessibilityRequest.Token {
+        let result = try exchange(AccessibilityRequest.hit(x: x, y: y), expected: .hit)
+        return try AccessibilityResponse.token(result)
+    }
+
     func snapshot(_ token: AccessibilityRequest.Token) throws -> AccessibilityArchiveValue {
         try exchange(AccessibilityRequest.snapshot(token), expected: .snapshot(token))
     }
@@ -180,10 +185,12 @@ final class AccessibilitySession {
                 callbackBytes += bytes.count
                 // Startup/cleanup callbacks cannot satisfy a later request.
                 if let expected {
-                    let response = try AccessibilityResponse(archive: bytes)
-                    if let result = try response.matchingResult(for: expected) {
-                        guard results.count < 8 else { throw invalid("callback queue budget exceeded") }
-                        results.append(result)
+                    if try KeyedArchiveInspector.protocolResponseType(bytes) == expected.requestType {
+                        let response = try AccessibilityResponse(archive: bytes)
+                        if let result = try response.matchingResult(for: expected) {
+                            guard results.count < 8 else { throw invalid("callback queue budget exceeded") }
+                            results.append(result)
+                        }
                     }
                 }
             }

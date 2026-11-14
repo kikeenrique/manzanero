@@ -215,7 +215,7 @@ struct AccessibilitySessionTests {
             coder.encode(0, forKey: "notification")
             coder.encode(kind == 1 ? nil : TokenFixture(pid: pid, objectID: rootID), forKey: "associatedTranslationObject")
             let result: NSObject
-            if kind == 1 { result = TokenFixture(pid: pid, objectID: rootID) }
+            if kind == 1 || kind == 6 { result = TokenFixture(pid: pid, objectID: rootID) }
             else if nativeSnapshot {
                 result = ["UIAccessibilitySnapshotKeyElement": TokenFixture(pid: pid, objectID: rootID),
                     "UIAccessibilitySnapshotKeyAttributes": [NSNumber(value: 2001): "Fixture"],
