@@ -2,6 +2,8 @@
 
 A Swift command-line tool for inspecting and automating Apple devices, with an optional MCP server for agents. It uses Apple developer tools and in-process Apple frameworks for device operations.
 
+*Manzanero* is Spanish for an apple tree or a person who grows or gathers apples—a fitting name for a tool that tends to your Apple devices.
+
 The project is in beta. Physical iPhone control is the current priority; complete feature parity and reliable unattended testing are still unfinished. iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope. Android is not. Most live evidence comes from one iPhone 13 mini; see [feature status](docs/PARITY-STATUS.md) before relying on another device or operation.
 
 ## Build and start
