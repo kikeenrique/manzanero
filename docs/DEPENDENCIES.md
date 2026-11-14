@@ -1,6 +1,6 @@
 # Architecture and dependencies
 
-`appledevicescmd` has one Swift executable. The CLI and optional stdio MCP server both call `CommandService`, which validates requests, selects the backend and returns the operation's result.
+`manzanero` has one Swift executable. The CLI and optional stdio MCP server both call `CommandService`, which validates requests, selects the backend and returns the operation's result.
 
 ## Execution boundaries
 

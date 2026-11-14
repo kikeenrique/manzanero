@@ -3,9 +3,9 @@
 Recording writes a finite MP4 to a new host path. Simulator capture uses `simctl`. Physical capture defaults to `devicectl`, but that capability is rejected by the tested iPhone 13 mini; select the in-process CoreDevice route explicitly there.
 
 ```sh
-appledevicescmd simulator <UUID> record tmp/demo.mp4 5 h264
-appledevicescmd --recording-backend coredevice physical <hardware-UDID> record tmp/phone.mp4 5 hevc
-appledevicescmd physical <device> media-status
+manzanero simulator <UUID> record tmp/demo.mp4 5 h264
+manzanero --recording-backend coredevice physical <hardware-UDID> record tmp/phone.mp4 5 hevc
+manzanero physical <device> media-status
 ```
 
 ## Requirements and destination rules

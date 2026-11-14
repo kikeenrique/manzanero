@@ -370,7 +370,7 @@ async fn run(args: &[String]) -> Result<Value, String> {
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args == ["--version"] {
-        println!("appledevices-idevice 0.1.0 (idevice 89702099f4d7552f704f93b4526756abda319ceb)");
+        println!("manzanero-idevice 0.1.0 (idevice 89702099f4d7552f704f93b4526756abda319ceb)");
         return;
     }
     let result = run(&args).await;

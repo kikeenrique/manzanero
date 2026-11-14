@@ -68,7 +68,7 @@ Snapshot normalization validates declared children, native rectangles and scalar
 Current offline inspection is available without a device or helper:
 
 ```sh
-appledevicescmd decode-ax-archive tmp/accessibility.plist
+manzanero decode-ax-archive tmp/accessibility.plist
 ```
 
 MCP `decode_accessibility_archive` takes the same local `path`. Known Foundation wrappers are expanded; unknown objects retain `className`/`fields`. The result retains `parsedHierarchy: false`; it does not turn an arbitrary callback into an actionable UI tree.

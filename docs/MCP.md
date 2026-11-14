@@ -1,6 +1,6 @@
 # MCP server
 
-`appledevicescmd mcp` exposes the CLI's operations over local stdio using the official Swift MCP SDK. It shares validation, backends and verification limits with the CLI. There is no HTTP listener.
+`manzanero mcp` exposes the CLI's operations over local stdio using the official Swift MCP SDK. It shares validation, backends and verification limits with the CLI. There is no HTTP listener.
 
 ## Configure a host
 
@@ -9,8 +9,8 @@ Use the executable's absolute path and `args: ["mcp"]`. A common configuration s
 ```json
 {
   "mcpServers": {
-    "appledevicescmd": {
-      "command": "/absolute/path/to/appledevicescmd",
+    "manzanero": {
+      "command": "/absolute/path/to/manzanero",
       "args": ["mcp"]
     }
   }

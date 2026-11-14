@@ -1,2 +1,0 @@
-/// Release tags and package metadata must match this value.
-let appleDevicesVersion = "0.1.0-beta.1"

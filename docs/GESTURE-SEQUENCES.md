@@ -8,7 +8,7 @@ CLI `physical <device> gesture <JSON>` and MCP `perform_gesture` use Apple's Uni
 
 ```sh
 # Two taps at one point; inspect the target before sending this sequence.
-appledevicescmd physical <UDID> gesture '{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]},{"ms":180,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":240,"touches":[]}]}'
+manzanero physical <UDID> gesture '{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]},{"ms":180,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":240,"touches":[]}]}'
 ```
 
 MCP takes `device` and `sequence`, where `sequence` is the same JSON string.

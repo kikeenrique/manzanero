@@ -1,14 +1,14 @@
 # Native physical accessibility
 
-Physical AX trees, exact-selector presses and scroll-to-visible run in `appledevicescmd` against Apple interfaces. No device helper is required. These operations have scoped CLI/MCP evidence in Settings on iPhone 13 mini; broad app/device coverage is unfinished.
+Physical AX trees, exact-selector presses and scroll-to-visible run in `manzanero` against Apple interfaces. No device helper is required. These operations have scoped CLI/MCP evidence in Settings on iPhone 13 mini; broad app/device coverage is unfinished.
 
 For wire contracts and decoder limits, see [protocol reference](ACCESSIBILITY-PROTOCOL.md). For the paired tunnel and directory bootstrap, see [transport](TRANSPORT.md).
 
 ## Current native tree route
 
 ```sh
-appledevicescmd physical <hardware-UDID> tree
-appledevicescmd physical <hardware-UDID> tree <positive-PID>
+manzanero physical <hardware-UDID> tree
+manzanero physical <hardware-UDID> tree <positive-PID>
 ```
 
 Without PID, the operation selects the process hit at the primary display's logical centre, then rechecks that process and the display geometry after capture. This requires one awake primary display with native/current portrait orientation (`rot0`). An overlay or embedded process can be selected; the result is not a combined system/application tree.
@@ -30,10 +30,10 @@ The normalizer caps output at 512 nodes/depth 32, validates declared children an
 ## Current guarded native press
 
 ```sh
-appledevicescmd physical <UDID> press-id com.example.control
-appledevicescmd physical <UDID> press-label 'Exact label'
+manzanero physical <UDID> press-id com.example.control
+manzanero physical <UDID> press-label 'Exact label'
 # Optional PID must agree with the selected display-centre process:
-appledevicescmd physical <UDID> press-id <pid> com.example.control
+manzanero physical <UDID> press-id <pid> com.example.control
 ```
 
 MCP `press_element` takes `device`, `by: identifier|label`, `text` and optional positive `pid`. Selector text is exact/case-sensitive, `1...4096` UTF-8 bytes without NUL. Pairing files are unsupported.
@@ -55,8 +55,8 @@ Native true returns `status: accepted`, `nativeAccepted: true` and `effectVerifi
 ## Current native scroll-to-visible
 
 ```sh
-appledevicescmd physical <UDID> scroll-id com.example.row
-appledevicescmd physical <UDID> scroll-label 'Exact row label'
+manzanero physical <UDID> scroll-id com.example.row
+manzanero physical <UDID> scroll-label 'Exact row label'
 ```
 
 Optional PID and selection rules match press. MCP `scroll_to_element` uses `device`, `by`, `text` and optional `pid`.

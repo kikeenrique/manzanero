@@ -1,8 +1,8 @@
 
 // Compiled in the same module as the pinned MIT-licensed ipb UniversalHID glue.
 // Keep the Apple HIDReport ABI and ownership in that module, outside the CLI.
-@_cdecl("appledevices_make_raw_report")
-public func appledevicesMakeRawReport(_ bytes: UnsafePointer<UInt8>?, _ count: Int,
+@_cdecl("manzanero_make_raw_report")
+public func manzaneroMakeRawReport(_ bytes: UnsafePointer<UInt8>?, _ count: Int,
                                      _ output: UnsafeMutableRawPointer?) -> Int32 {
     guard let bytes, let output, count == 58 else { return -1 }
     let payload = Array(UnsafeBufferPointer(start: bytes, count: count))

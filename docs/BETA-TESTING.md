@@ -1,6 +1,6 @@
 # Beta testing
 
-`appledevicescmd` is a macOS CLI with optional MCP over stdio. The verified physical-control paths do not install an app, profile or helper on the phone.
+`manzanero` is a macOS CLI with optional MCP over stdio. The verified physical-control paths do not install an app, profile or helper on the phone.
 
 The beta package contains a universal arm64/x86_64 executable, any required Swift compatibility libraries under `lib/`, this guide and third-party notices. It does not contain Apple device frameworks, device helpers, signing credentials or device data.
 
@@ -9,12 +9,12 @@ The beta package contains a universal arm64/x86_64 executable, any required Swif
 The initial GitHub release and tap formula are **not published yet**. For source builds, follow [README](../README.md#build-and-start) and substitute `mise run cli` for the bare executable below. Once published, installation is intended to be:
 
 ```sh
-brew install kikeenrique/tap/appledevicescmd
-appledevicescmd --version
-appledevicescmd doctor
+brew install kikeenrique/tap/manzanero
+manzanero --version
+manzanero doctor
 ```
 
-Updates use `brew update && brew upgrade appledevicescmd`. The formula records the beta version explicitly so Homebrew can distinguish prereleases.
+Updates use `brew update && brew upgrade manzanero`. The formula records the beta version explicitly so Homebrew can distinguish prereleases.
 
 For a manual release archive, download matching assets and `SHA256SUMS` from the same release. The full checksum file lists both archive names, so download both for `shasum -a 256 -c SHA256SUMS`. Extract one archive, keep `lib/` beside the executable and add that directory to PATH.
 
@@ -28,11 +28,11 @@ Archives are ad-hoc signed, without Developer ID notarization. They do not provi
 - For the verified UI flows: awake/unlocked device and **Settings → Developer → Enable UI Automation** enabled.
 
 ```sh
-appledevicescmd devices physical
-appledevicescmd physical <hardware-UDID> readiness
-appledevicescmd physical <hardware-UDID> screenshot tmp/screen.png
-appledevicescmd physical <hardware-UDID> tree
-appledevicescmd physical <hardware-UDID> button home
+manzanero devices physical
+manzanero physical <hardware-UDID> readiness
+manzanero physical <hardware-UDID> screenshot tmp/screen.png
+manzanero physical <hardware-UDID> tree
+manzanero physical <hardware-UDID> button home
 ```
 
 Ensure the output parent directory exists. Readiness reports CoreDevice prerequisites and separate display/passcode observations; it does not verify UI Automation or prove current UI unlock.

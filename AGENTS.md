@@ -4,7 +4,7 @@ Prefix shell commands with `rtk`. Use `rtk proxy` when unfiltered output is need
 
 ## Project
 
-- Build `appledevicescmd`, a Swift CLI for Apple-device inspection and control, with optional MCP support sharing the same operations.
+- Build `manzanero`, a Swift CLI for Apple-device inspection and control, with optional MCP support sharing the same operations.
 - Open-source third-party libraries such as `idevice` are permitted. Preserve licenses and attribution. Do not use proprietary device-control binaries as runtime dependencies.
 - Keep platform-specific and private interfaces behind backend boundaries. Distinguish implemented features from verified device behavior.
 

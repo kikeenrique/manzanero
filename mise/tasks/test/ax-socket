@@ -7,16 +7,16 @@
 
 set -e -o pipefail
 
-unset APPLEDEVICES_AX_SOCKET_REMOTE_UUID
-unset APPLEDEVICES_AX_SOCKET_BROWSE
+unset MANZANERO_AX_SOCKET_REMOTE_UUID
+unset MANZANERO_AX_SOCKET_BROWSE
 if [ "${usage_browse:-false}" = "true" ]; then
   if [ -z "${usage_remote_uuid:-}" ]; then
     echo "--browse requires --remote-uuid" >&2
     exit 2
   fi
-  export APPLEDEVICES_AX_SOCKET_BROWSE=1
+  export MANZANERO_AX_SOCKET_BROWSE=1
 fi
 if [ -n "${usage_remote_uuid:-}" ]; then
-  export APPLEDEVICES_AX_SOCKET_REMOTE_UUID="$usage_remote_uuid"
+  export MANZANERO_AX_SOCKET_REMOTE_UUID="$usage_remote_uuid"
 fi
-APPLEDEVICES_AX_SOCKET_DEVICE="$usage_device" swift test --cache-path tmp/swift-cache --filter AccessibilitySocketTests 2>&1 | xcsift -f toon --warnings
+MANZANERO_AX_SOCKET_DEVICE="$usage_device" swift test --cache-path tmp/swift-cache --filter AccessibilitySocketTests 2>&1 | xcsift -f toon --warnings

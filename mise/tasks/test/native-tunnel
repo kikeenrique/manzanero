@@ -5,4 +5,4 @@
 
 set -e -o pipefail
 
-APPLEDEVICES_NATIVE_TUNNEL_DEVICE="$usage_device" swift test --cache-path tmp/swift-cache --filter NativeTunnelAssertionTests 2>&1 | xcsift -f toon --warnings
+MANZANERO_NATIVE_TUNNEL_DEVICE="$usage_device" swift test --cache-path tmp/swift-cache --filter NativeTunnelAssertionTests 2>&1 | xcsift -f toon --warnings

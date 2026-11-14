@@ -10,4 +10,4 @@
 
 set -e -o pipefail
 
-APPLEDEVICES_CLI_INTERRUPT_DEVICE="$usage_device" APPLEDEVICES_CLI_INTERRUPT_HOLD="$usage_x,$usage_y,$usage_seconds" APPLEDEVICES_CLI_INTERRUPT_SIGNAL="$usage_signal" swift test --cache-path tmp/swift-cache --filter CLIInputInterruptionTests 2>&1 | xcsift -f toon --warnings
+MANZANERO_CLI_INTERRUPT_DEVICE="$usage_device" MANZANERO_CLI_INTERRUPT_HOLD="$usage_x,$usage_y,$usage_seconds" MANZANERO_CLI_INTERRUPT_SIGNAL="$usage_signal" swift test --cache-path tmp/swift-cache --filter CLIInputInterruptionTests 2>&1 | xcsift -f toon --warnings

@@ -1,17 +1,17 @@
 // Included by a small patch to the pinned MIT-licensed ipb action sender.
 #include <time.h>
 #include <errno.h>
-extern int appledevices_make_raw_report(const uint8_t *, long, void *);
+extern int manzanero_make_raw_report(const uint8_t *, long, void *);
 
-static int appledevices_hex(char c) {
+static int manzanero_hex(char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     return -1;
 }
 
-static bool appledevices_send_frame(xpc_remote_connection_t remote, uint64_t service, uint8_t *bytes) {
+static bool manzanero_send_frame(xpc_remote_connection_t remote, uint64_t service, uint8_t *bytes) {
     uint64_t words[2] = {0, 0};
-    if (appledevices_make_raw_report(bytes, 58, words) != sizeof(words)) {
+    if (manzanero_make_raw_report(bytes, 58, words) != sizeof(words)) {
         g_failures++; fprintf(stderr, "Native multitouch report construction failed\n"); return false;
     }
     int result = coredevice_send_universalhid_hid_report(remote, words, service);
@@ -19,7 +19,7 @@ static bool appledevices_send_frame(xpc_remote_connection_t remote, uint64_t ser
     return result == 0;
 }
 
-static void appledevices_multitouch(xpc_remote_connection_t remote, int argc, const char *argv[]) {
+static void manzanero_multitouch(xpc_remote_connection_t remote, int argc, const char *argv[]) {
     // Validate the entire bounded sequence before sending any contact.
     uint8_t frames[32][58];
     char *end = NULL;
@@ -31,7 +31,7 @@ static void appledevices_multitouch(xpc_remote_connection_t remote, int argc, co
         const char *hex = argv[f + 8];
         if (strlen(hex) != 116) goto invalid;
         for (int b = 0; b < 58; b++) {
-            int hi = appledevices_hex(hex[b * 2]), lo = appledevices_hex(hex[b * 2 + 1]);
+            int hi = manzanero_hex(hex[b * 2]), lo = manzanero_hex(hex[b * 2 + 1]);
             if (hi < 0 || lo < 0) goto invalid;
             frames[f][b] = (hi << 4) | lo;
         }
@@ -59,14 +59,14 @@ static void appledevices_multitouch(xpc_remote_connection_t remote, int argc, co
             }
         }
         last = f;
-        if (!appledevices_send_frame(remote, service, frames[f])) break;
+        if (!manzanero_send_frame(remote, service, frames[f])) break;
     }
     // A failed send may have arrived. Release the last attempted positions,
     // rather than moving to the final endpoint after a partial gesture.
     uint8_t release[58];
     memcpy(release, frames[last], sizeof(release));
     for (int id = 0; id < release[1]; id++) release[3 + id * 5] = id;
-    appledevices_send_frame(remote, service, release);
+    manzanero_send_frame(remote, service, release);
     send_coredevice_hid_barrier(remote, 100000);
     return;
 invalid:

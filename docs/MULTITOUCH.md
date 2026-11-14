@@ -6,14 +6,14 @@
 
 ```sh
 # Two simultaneous taps:
-appledevicescmd physical <UDID> multi-tap 0.25 0.5 0.75 0.5
+manzanero physical <UDID> multi-tap 0.25 0.5 0.75 0.5
 
 # Two paths moving apart over half a second:
-appledevicescmd physical <UDID> multi-drag 0.5 0.25 0.5 0.1 0.5 0.75 0.5 0.9 0.5
+manzanero physical <UDID> multi-drag 0.5 0.25 0.5 0.1 0.5 0.75 0.5 0.9 0.5
 
 # Horizontal spread, then inward pinch:
-appledevicescmd physical <UDID> pinch 0.5 0.5 0.5 0.8 0.5
-appledevicescmd physical <UDID> pinch 0.5 0.5 0.8 0.5 0.5
+manzanero physical <UDID> pinch 0.5 0.5 0.5 0.8 0.5
+manzanero physical <UDID> pinch 0.5 0.5 0.8 0.5 0.5
 ```
 
 All coordinates are normalized `0...1`, origin at the top left. Inspect fresh state before selecting them.

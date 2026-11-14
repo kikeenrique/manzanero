@@ -9,17 +9,17 @@
 
 set -e -o pipefail
 
-unset APPLEDEVICES_RSD_TREE_NATIVE_TUNNEL
-unset APPLEDEVICES_RSD_TREE_NETWORK
-unset APPLEDEVICES_RSD_TREE_FOREGROUND
+unset MANZANERO_RSD_TREE_NATIVE_TUNNEL
+unset MANZANERO_RSD_TREE_NETWORK
+unset MANZANERO_RSD_TREE_FOREGROUND
 if [ "${usage_foreground:-false}" = "true" ]; then
-  export APPLEDEVICES_RSD_TREE_FOREGROUND=1
+  export MANZANERO_RSD_TREE_FOREGROUND=1
 fi
 if [ "${usage_native_tunnel:-false}" = "true" ]; then
-  export APPLEDEVICES_RSD_TREE_NATIVE_TUNNEL=1
+  export MANZANERO_RSD_TREE_NATIVE_TUNNEL=1
 fi
 if [ "${usage_network:-false}" = "true" ]; then
-  export APPLEDEVICES_RSD_TREE_NETWORK=1
+  export MANZANERO_RSD_TREE_NETWORK=1
 fi
 
-APPLEDEVICES_RSD_TREE_DEVICE="$usage_device" APPLEDEVICES_RSD_TREE_PID="$usage_pid" swift test --cache-path tmp/swift-cache --filter RSDPhysicalTreeTests 2>&1 | xcsift -f toon --warnings
+MANZANERO_RSD_TREE_DEVICE="$usage_device" MANZANERO_RSD_TREE_PID="$usage_pid" swift test --cache-path tmp/swift-cache --filter RSDPhysicalTreeTests 2>&1 | xcsift -f toon --warnings

@@ -5,4 +5,4 @@
 
 set -e -o pipefail
 
-APPLEDEVICES_MEDIA_FRAMES_DEVICE="$usage_device" swift test --cache-path tmp/swift-cache --filter NativeMediaFramesTests 2>&1 | xcsift -f toon --warnings
+MANZANERO_MEDIA_FRAMES_DEVICE="$usage_device" swift test --cache-path tmp/swift-cache --filter NativeMediaFramesTests 2>&1 | xcsift -f toon --warnings

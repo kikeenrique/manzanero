@@ -7,4 +7,4 @@
 
 set -e -o pipefail
 
-APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_TEST_KEY="$usage_key" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings
+MANZANERO_MCP_LIVE=1 MANZANERO_MCP_TEST_PHYSICAL="$usage_device" MANZANERO_MCP_TEST_KEY="$usage_key" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings

@@ -3,7 +3,7 @@
 #MISE description = "Build, ad-hoc sign and smoke-test universal macOS beta archives under tmp/dist"
 set -euo pipefail
 
-version=$(sed -n 's/^let appleDevicesVersion = "\(.*\)"$/\1/p' Sources/AppleDevicesCMD/Version.swift)
+version=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || { echo "Invalid release version" >&2; exit 1; }
 mkdir -p tmp/dist
 work=$(mktemp -d tmp/package.XXXXXX)
@@ -11,32 +11,32 @@ destination="$PWD/tmp/dist/$version"
 mkdir -p "$destination" "$work/payload/ThirdParty/packages"
 
 for architecture in arm64 x86_64; do
-  swift build -c release --arch "$architecture" --product appledevicescmd --force-resolved-versions --cache-path tmp/swift-cache --scratch-path tmp/release-build 2>&1 | xcsift -f toon --warnings
+  swift build -c release --arch "$architecture" --product manzanero --force-resolved-versions --cache-path tmp/swift-cache --scratch-path tmp/release-build 2>&1 | xcsift -f toon --warnings
   products=$(swift build -c release --arch "$architecture" --show-bin-path --scratch-path tmp/release-build)
-  cp "$products/appledevicescmd" "$work/appledevicescmd-$architecture"
+  cp "$products/manzanero" "$work/manzanero-$architecture"
 done
-xcrun lipo -create "$work/appledevicescmd-arm64" "$work/appledevicescmd-x86_64" -output "$work/payload/appledevicescmd"
-xcrun lipo "$work/payload/appledevicescmd" -verify_arch arm64
-xcrun lipo "$work/payload/appledevicescmd" -verify_arch x86_64
+xcrun lipo -create "$work/manzanero-arm64" "$work/manzanero-x86_64" -output "$work/payload/manzanero"
+xcrun lipo "$work/payload/manzanero" -verify_arch arm64
+xcrun lipo "$work/payload/manzanero" -verify_arch x86_64
 mkdir -p "$work/payload/lib"
-xcrun swift-stdlib-tool --copy --platform macosx --scan-executable "$work/payload/appledevicescmd" --destination "$work/payload/lib" --sign - --Xcodesign --timestamp=none
+xcrun swift-stdlib-tool --copy --platform macosx --scan-executable "$work/payload/manzanero" --destination "$work/payload/lib" --sign - --Xcodesign --timestamp=none
 # Remove build-host rpaths from both slices. Resolve required Swift back-deploy
 # libraries beside the executable, both after extraction and in Homebrew libexec.
 while IFS= read -r search_path; do
   case "$search_path" in
     /usr/lib/swift|@loader_path) ;;
-    *) xcrun install_name_tool -delete_rpath "$search_path" "$work/payload/appledevicescmd" ;;
+    *) xcrun install_name_tool -delete_rpath "$search_path" "$work/payload/manzanero" ;;
   esac
-done < <(otool -l "$work/payload/appledevicescmd" | awk '/cmd LC_RPATH/{getline; getline; print $2}' | sort -u)
-xcrun install_name_tool -add_rpath @loader_path/lib "$work/payload/appledevicescmd"
-codesign --force --sign - --timestamp=none "$work/payload/appledevicescmd"
-codesign --verify --strict "$work/payload/appledevicescmd"
-test "$("$work/payload/appledevicescmd" --version)" = "appledevicescmd $version"
-"$work/payload/appledevicescmd" --help > "$work/help.txt"
+done < <(otool -l "$work/payload/manzanero" | awk '/cmd LC_RPATH/{getline; getline; print $2}' | sort -u)
+xcrun install_name_tool -add_rpath @loader_path/lib "$work/payload/manzanero"
+codesign --force --sign - --timestamp=none "$work/payload/manzanero"
+codesign --verify --strict "$work/payload/manzanero"
+test "$("$work/payload/manzanero" --version)" = "manzanero $version"
+"$work/payload/manzanero" --help > "$work/help.txt"
 grep -q 'Apple device tools for terminals and agents' "$work/help.txt"
 # Fail on non-system dynamic dependencies or a build-machine path. Apple private
 # device frameworks are loaded at runtime and are never copied into the archive.
-otool -L "$work/payload/appledevicescmd" > "$work/linkage.txt"
+otool -L "$work/payload/manzanero" > "$work/linkage.txt"
 while IFS= read -r dependency; do
   case "$dependency" in
     /System/Library/*|/usr/lib/*) ;;
@@ -74,11 +74,11 @@ if [ -f LICENSE ]; then cp LICENSE "$work/payload/"; fi
 cp "$work/linkage.txt" "$destination/linkage.txt"
 # One universal payload under both target-triple names, matching cmagic's tap.
 COPYFILE_DISABLE=1 tar -cf "$work/payload.tar" -C "$work/payload" .
-gzip -n -c "$work/payload.tar" > "$destination/appledevicescmd-aarch64-apple-darwin.tar.gz"
-cp "$destination/appledevicescmd-aarch64-apple-darwin.tar.gz" "$destination/appledevicescmd-x86_64-apple-darwin.tar.gz"
+gzip -n -c "$work/payload.tar" > "$destination/manzanero-aarch64-apple-darwin.tar.gz"
+cp "$destination/manzanero-aarch64-apple-darwin.tar.gz" "$destination/manzanero-x86_64-apple-darwin.tar.gz"
 (
   cd "$destination"
-  shasum -a 256 appledevicescmd-*-apple-darwin.tar.gz > SHA256SUMS
+  shasum -a 256 manzanero-*-apple-darwin.tar.gz > SHA256SUMS
   shasum -a 256 -c SHA256SUMS
 )
 echo "Packaged $version in $destination (ad-hoc signed; not notarized)"

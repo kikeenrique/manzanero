@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #MISE extends = "idevice"
 #MISE description = "Install the pinned Rust toolchain under tmp"
-#MISE env = { APPLEDEVICES_RUST_VERSION = "{{ vars.rust_version }}" }
+#MISE env = { MANZANERO_RUST_VERSION = "{{ vars.rust_version }}" }
 
 set -e -o pipefail
 
-mise install rust@${APPLEDEVICES_RUST_VERSION}
+mise install rust@${MANZANERO_RUST_VERSION}

@@ -2,22 +2,22 @@
 #MISE extends = "swift"
 #MISE description = "Verify archived beta binaries after extraction into a Homebrew-style layout"
 set -euo pipefail
-version=$(sed -n 's/^let appleDevicesVersion = "\(.*\)"$/\1/p' Sources/AppleDevicesCMD/Version.swift)
+version=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
 directory="$PWD/tmp/dist/$version"
 (cd "$directory" && shasum -a 256 -c SHA256SUMS)
 work=$(mktemp -d tmp/package-smoke.XXXXXX)
-payload="$work/Cellar/appledevicescmd/$version/libexec"
+payload="$work/Cellar/manzanero/$version/libexec"
 mkdir -p "$payload" "$work/bin"
-tar -xzf "$directory/appledevicescmd-aarch64-apple-darwin.tar.gz" -C "$payload"
-codesign --verify --strict "$payload/appledevicescmd"
-xcrun lipo "$payload/appledevicescmd" -verify_arch arm64
-xcrun lipo "$payload/appledevicescmd" -verify_arch x86_64
+tar -xzf "$directory/manzanero-aarch64-apple-darwin.tar.gz" -C "$payload"
+codesign --verify --strict "$payload/manzanero"
+xcrun lipo "$payload/manzanero" -verify_arch arm64
+xcrun lipo "$payload/manzanero" -verify_arch x86_64
 test -f "$payload/ThirdParty/Package.resolved"
 test -f "$payload/ThirdParty/packages/swift-nio/CNIOLLHTTP/LICENSE"
 test -f "$payload/BETA-TESTING.md"
-ln -s "../Cellar/appledevicescmd/$version/libexec/appledevicescmd" "$work/bin/appledevicescmd"
-test "$("$work/bin/appledevicescmd" --version)" = "appledevicescmd $version"
-"$work/bin/appledevicescmd" --help > "$work/help.txt"
+ln -s "../Cellar/manzanero/$version/libexec/manzanero" "$work/bin/manzanero"
+test "$("$work/bin/manzanero" --version)" = "manzanero $version"
+"$work/bin/manzanero" --help > "$work/help.txt"
 grep -q 'Apple device tools for terminals and agents' "$work/help.txt"
-"$work/bin/appledevicescmd" --dry-run physical beta-fixture apps > "$work/dry-run.json"
+"$work/bin/manzanero" --dry-run physical beta-fixture apps > "$work/dry-run.json"
 echo "Archive extraction, signatures, architectures, notices, symlink and native CLI smoke passed: $work"

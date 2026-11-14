@@ -26,7 +26,7 @@ These are historical results, not a guarantee that every private value is absent
 
 ## Public description
 
-> appledevicescmd is an independent Swift command-line tool for inspecting and automating Apple devices, with an optional MCP server for agents.
+> Manzanero is an independent Swift command-line tool for inspecting and automating Apple devices, with an optional MCP server for agents.
 
 Lead with actual capabilities and limitations. Retain attribution for implementation references and avoid implying affiliation with Apple.
 

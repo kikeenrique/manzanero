@@ -7,11 +7,11 @@
 
 set -e -o pipefail
 
-export APPLEDEVICES_OCR_TEST_IMAGE="$usage_image"
-export APPLEDEVICES_OCR_TEST_TIMEOUT_MS="$usage_timeout_ms"
+export MANZANERO_OCR_TEST_IMAGE="$usage_image"
+export MANZANERO_OCR_TEST_TIMEOUT_MS="$usage_timeout_ms"
 if [ "${usage_expect_timeout:-false}" = "true" ]; then
-  export APPLEDEVICES_OCR_EXPECT_TIMEOUT=1
+  export MANZANERO_OCR_EXPECT_TIMEOUT=1
 else
-  unset APPLEDEVICES_OCR_EXPECT_TIMEOUT
+  unset MANZANERO_OCR_EXPECT_TIMEOUT
 fi
 swift test --cache-path tmp/swift-cache --filter ScreenTextTests.explicitlySelectedLocalImageUsesNativeVisionWithDeadline 2>&1 | xcsift -f toon --warnings

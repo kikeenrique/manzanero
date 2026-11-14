@@ -1,5 +1,5 @@
 // Reuses the pinned helper's Apple HIDReport bridge and multitouch report layout.
-static bool appledevices_unsigned(const char *text, uint64_t *number) {
+static bool manzanero_unsigned(const char *text, uint64_t *number) {
     if (!text || !*text) return false;
     for (const char *p = text; *p; p++) if (*p < '0' || *p > '9') return false;
     errno = 0;
@@ -10,19 +10,19 @@ static bool appledevices_unsigned(const char *text, uint64_t *number) {
     return true;
 }
 
-static void appledevices_gesture(xpc_remote_connection_t remote, int argc, const char *argv[]) {
+static void manzanero_gesture(xpc_remote_connection_t remote, int argc, const char *argv[]) {
     uint8_t frames[512][58];
     uint64_t times[512], service = 0;
     if (argc < 11 || (argc - 7) % 2 || (argc - 7) / 2 > 512 ||
-        !appledevices_unsigned(argv[6], &service) || !service) goto invalid;
+        !manzanero_unsigned(argv[6], &service) || !service) goto invalid;
     int count = (argc - 7) / 2;
     for (int f = 0; f < count; f++) {
-        if (!appledevices_unsigned(argv[7 + f * 2], &times[f]) || times[f] > 10000 ||
+        if (!manzanero_unsigned(argv[7 + f * 2], &times[f]) || times[f] > 10000 ||
             (f == 0 ? times[f] != 0 : times[f] <= times[f - 1])) goto invalid;
         const char *hex = argv[8 + f * 2];
         if (strlen(hex) != 116) goto invalid;
         for (int b = 0; b < 58; b++) {
-            int hi = appledevices_hex(hex[b * 2]), lo = appledevices_hex(hex[b * 2 + 1]);
+            int hi = manzanero_hex(hex[b * 2]), lo = manzanero_hex(hex[b * 2 + 1]);
             if (hi < 0 || lo < 0) goto invalid;
             frames[f][b] = (hi << 4) | lo;
         }
@@ -60,14 +60,14 @@ static void appledevices_gesture(xpc_remote_connection_t remote, int argc, const
         }
         if (timing_failed) { g_failures++; fprintf(stderr, "Native gesture scheduling failed\n"); break; }
         last = f;
-        if (!appledevices_send_frame(remote, service, frames[f])) break;
+        if (!manzanero_send_frame(remote, service, frames[f])) break;
     }
     // A failed send may have arrived. Release every slot at its last attempted
     // position, even if the sequence was interrupted before its final frame.
     uint8_t release[58];
     memcpy(release, frames[last], sizeof(release));
     for (int id = 0; id < release[1]; id++) release[3 + id * 5] = id;
-    appledevices_send_frame(remote, service, release);
+    manzanero_send_frame(remote, service, release);
     send_coredevice_hid_barrier(remote, 100000);
     return;
 invalid:

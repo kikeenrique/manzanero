@@ -4,7 +4,7 @@ Source reviewed on 2026-11-12 at [revision `4b622d4436fc441534e6ee8c7196728cd762
 
 ## Design ideas relevant here
 
-| AXe area | Useful idea | appledevicescmd gap or application |
+| AXe area | Useful idea | manzanero gap or application |
 | --- | --- | --- |
 | Input owner/broker | Track held input across clients, attempt release, block later input after uncertain cleanup | Cross-process ownership/quarantine remains missing here |
 | Display stream | Own session UUID/control/UDP lifetime; poll disappearance of the owned session rather than stop-all | Informed session-specific media cleanup; independent teardown proof still limited |

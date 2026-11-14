@@ -3,11 +3,11 @@
 `screen` captures a PNG, then analyzes it with accessibility or Vision OCR. It gives an agent a saved image and explicit information about how the screen was interpreted.
 
 ```sh
-appledevicescmd physical <UDID> screen auto
-appledevicescmd physical <UDID> screen tree
-appledevicescmd physical <UDID> screen ocr
-appledevicescmd simulator <UUID> screen auto
-appledevicescmd ocr tmp/existing.png
+manzanero physical <UDID> screen auto
+manzanero physical <UDID> screen tree
+manzanero physical <UDID> screen ocr
+manzanero simulator <UUID> screen auto
+manzanero ocr tmp/existing.png
 ```
 
 Simulator screen inspection requires an explicit UUID. Physical capture uses Xcode and its preparation checks. The current physical hierarchy provider is native Apple AX; simulator hierarchy is unavailable because the old AXe executable is blocked.

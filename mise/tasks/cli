@@ -5,4 +5,4 @@
 
 set -e -o pipefail
 
-exec .build/debug/appledevicescmd "$@"
+exec .build/debug/manzanero "$@"

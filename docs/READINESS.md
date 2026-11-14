@@ -1,7 +1,7 @@
 # Physical-device readiness
 
 ```sh
-appledevicescmd physical <device> readiness
+manzanero physical <device> readiness
 ```
 
 The CLI and MCP `device_readiness` return preparation information without input. There are two separate results: CoreDevice prerequisites at the top level and sequential UI observations under `ui`.

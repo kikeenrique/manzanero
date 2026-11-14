@@ -3,10 +3,10 @@
 `build-run` uses the selected Xcode to build an explicit project/workspace, choose one application product, install it and launch it on an iPhone/iPad or iOS simulator.
 
 ```sh
-appledevicescmd simulator <UUID> build-run 'My App.xcodeproj' 'My App'
-appledevicescmd physical <UDID> build-run 'My App.xcworkspace' 'My Scheme' --configuration Release
-appledevicescmd simulator <UUID> build-run 'My App.xcworkspace' 'My Scheme' --app-target 'Main App'
-appledevicescmd --dry-run simulator <UUID> build-run 'My App.xcodeproj' 'My App'
+manzanero simulator <UUID> build-run 'My App.xcodeproj' 'My App'
+manzanero physical <UDID> build-run 'My App.xcworkspace' 'My Scheme' --configuration Release
+manzanero simulator <UUID> build-run 'My App.xcworkspace' 'My Scheme' --app-target 'Main App'
+manzanero --dry-run simulator <UUID> build-run 'My App.xcodeproj' 'My App'
 ```
 
 ## Required inputs

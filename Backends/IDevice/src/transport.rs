@@ -98,7 +98,7 @@ pub async fn connect(udid: &str, record_path: Option<&Path>) -> Result<Connectio
         let socket = TcpStream::connect((record.host.as_str(), record.port))
             .await
             .map_err(|e| format!("Wi-Fi endpoint: {e}"))?;
-        let mut client = RemotePairingClient::new(RpPairingSocket::new(socket), "appledevicescmd");
+        let mut client = RemotePairingClient::new(RpPairingSocket::new(socket), "manzanero");
         // Verification only: device operations never initiate trust pairing.
         client
             .attempt_pair_verify()
@@ -139,7 +139,7 @@ pub async fn connect(udid: &str, record_path: Option<&Path>) -> Result<Connectio
         let addr = UsbmuxdAddr::from_env_var().map_err(|e| e.to_string())?;
         let mut mux = addr.connect(0).await.map_err(|e| format!("usbmuxd: {e}"))?;
         let device = mux.get_device(udid).await.map_err(|e| format!("Device not available through usbmuxd: {e}; use --pairing-file for a separately paired Wi-Fi connection"))?;
-        let provider = device.to_provider(addr, "appledevicescmd");
+        let provider = device.to_provider(addr, "manzanero");
         let proxy = CoreDeviceProxy::connect(&provider)
             .await
             .map_err(|e| format!("CoreDevice proxy: {e}"))?;

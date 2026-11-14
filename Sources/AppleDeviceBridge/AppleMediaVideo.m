@@ -221,7 +221,7 @@ int ADCValidateVideoEndpoints(const void *reply, const char *hostAddress, const 
     if ((self = [super init])) {
         _socket = -1; _lock = [NSLock new]; _newestPTS = kCMTimeInvalid;
         _clientID = NSUUID.UUID;
-        _ingress = dispatch_queue_create("appledevices.video.ingress", DISPATCH_QUEUE_SERIAL);
+        _ingress = dispatch_queue_create("manzanero.video.ingress", DISPATCH_QUEUE_SERIAL);
         _sink = [ADCVideoSink new]; _sink.owner = self;
     }
     return self;

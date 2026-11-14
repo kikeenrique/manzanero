@@ -1,15 +1,15 @@
 # Physical input
 
-Physical buttons, keyboard, touch and gestures use Apple interfaces in the `appledevicescmd` process. No helper build is needed. Start with a paired, prepared, awake and unlocked device; use [readiness](READINESS.md) for preparation observations.
+Physical buttons, keyboard, touch and gestures use Apple interfaces in the `manzanero` process. No helper build is needed. Start with a paired, prepared, awake and unlocked device; use [readiness](READINESS.md) for preparation observations.
 
 ## Basic commands
 
 ```sh
-appledevicescmd physical <UDID> button home
-appledevicescmd physical <UDID> tap 0.5 0.5
-appledevicescmd physical <UDID> swipe 0.5 0.8 0.5 0.2 0.6
-appledevicescmd physical <UDID> long-press 0.5 0.5 0.8
-appledevicescmd physical <UDID> key backspace
+manzanero physical <UDID> button home
+manzanero physical <UDID> tap 0.5 0.5
+manzanero physical <UDID> swipe 0.5 0.8 0.5 0.2 0.6
+manzanero physical <UDID> long-press 0.5 0.5 0.8
+manzanero physical <UDID> key backspace
 ```
 
 `drag` and `swipe` use the same point-to-point movement. Coordinates are normalized `0...1` in the current interface, origin at the top left. Movement duration is `0.03...10` seconds; a stationary long press accepts `0.1...10` seconds.
@@ -49,7 +49,7 @@ For a string, use [US-layout ASCII typing](PHYSICAL-TYPING.md). Unicode entry us
 ## Direct Unicode paste
 
 ```sh
-appledevicescmd physical <UDID> paste 'mañana 🚀 中'
+manzanero physical <UDID> paste 'mañana 🚀 中'
 ```
 
 Paste accepts `1...65536` UTF-8 bytes without NUL. It uses Apple's `devicectl device pasteboard copy`, then sends one native Command+V sequence at the current caret/selection.

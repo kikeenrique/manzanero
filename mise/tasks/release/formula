@@ -5,24 +5,24 @@
 set -euo pipefail
 repository="$usage_repository"
 [[ "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "Provide owner/repository" >&2; exit 1; }
-version=$(sed -n 's/^let appleDevicesVersion = "\(.*\)"$/\1/p' Sources/AppleDevicesCMD/Version.swift)
+version=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || exit 1
 directory="$PWD/tmp/dist/$version"
 (cd "$directory" && shasum -a 256 -c SHA256SUMS)
-arm=$(shasum -a 256 "$directory/appledevicescmd-aarch64-apple-darwin.tar.gz" | cut -d ' ' -f 1)
-intel=$(shasum -a 256 "$directory/appledevicescmd-x86_64-apple-darwin.tar.gz" | cut -d ' ' -f 1)
-cat > "$directory/appledevicescmd.rb" <<EOF
-class Appledevicescmd < Formula
+arm=$(shasum -a 256 "$directory/manzanero-aarch64-apple-darwin.tar.gz" | cut -d ' ' -f 1)
+intel=$(shasum -a 256 "$directory/manzanero-x86_64-apple-darwin.tar.gz" | cut -d ' ' -f 1)
+cat > "$directory/manzanero.rb" <<EOF
+class Manzanero < Formula
   desc "Control and inspect Apple devices from terminals and agents"
   homepage "https://github.com/$repository"
   version "$version"
 
   on_arm do
-    url "https://github.com/$repository/releases/download/v$version/appledevicescmd-aarch64-apple-darwin.tar.gz"
+    url "https://github.com/$repository/releases/download/v$version/manzanero-aarch64-apple-darwin.tar.gz"
     sha256 "$arm"
   end
   on_intel do
-    url "https://github.com/$repository/releases/download/v$version/appledevicescmd-x86_64-apple-darwin.tar.gz"
+    url "https://github.com/$repository/releases/download/v$version/manzanero-x86_64-apple-darwin.tar.gz"
     sha256 "$intel"
   end
 
@@ -30,25 +30,25 @@ class Appledevicescmd < Formula
   depends_on xcode: :run
 
   def install
-    libexec.install "appledevicescmd", "lib"
-    bin.install_symlink libexec/"appledevicescmd"
+    libexec.install "manzanero", "lib"
+    bin.install_symlink libexec/"manzanero"
     pkgshare.install "ThirdParty", "BETA-TESTING.md"
   end
 
   def caveats
     <<~EOS
       Beta: device controls use installed Apple developer frameworks.
-      Select a full Xcode installation and run appledevicescmd doctor.
+      Select a full Xcode installation and run manzanero doctor.
       Physical UI testing needs pairing, Developer Mode and Enable UI Automation.
       Native video requires macOS 26 or later. See the installed BETA-TESTING.md.
     EOS
   end
 
   test do
-    assert_match "$version", shell_output("#{bin}/appledevicescmd --version")
-    assert_match "Apple device tools", shell_output("#{bin}/appledevicescmd --help")
+    assert_match "$version", shell_output("#{bin}/manzanero --version")
+    assert_match "Apple device tools", shell_output("#{bin}/manzanero --help")
   end
 end
 EOF
-ruby -c "$directory/appledevicescmd.rb"
-echo "$directory/appledevicescmd.rb"
+ruby -c "$directory/manzanero.rb"
+echo "$directory/manzanero.rb"

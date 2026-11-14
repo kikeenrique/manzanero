@@ -14,4 +14,4 @@ git apply --directory=tmp/coredevice-source Backends/CoreDevice/multitouch.patch
 make -C tmp/ipb SOURCES_DIR=../coredevice-source/Sources BUILD_DIR=../coredevice-build check-reports ../coredevice-build/ipb-helper 2>&1 | xcsift -f toon
 test -x tmp/coredevice-build/ipb-helper
 mkdir -p tmp/bin
-cp tmp/coredevice-build/ipb-helper tmp/bin/appledevices-coredevice
+cp tmp/coredevice-build/ipb-helper tmp/bin/manzanero-coredevice

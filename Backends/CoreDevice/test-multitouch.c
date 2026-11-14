@@ -8,7 +8,7 @@
 typedef void *xpc_remote_connection_t;
 static int g_failures, sends, barrier, fail_at;
 static uint8_t pending[58], sent[32][58];
-int appledevices_make_raw_report(const uint8_t *bytes, long size, void *words) {
+int manzanero_make_raw_report(const uint8_t *bytes, long size, void *words) {
     assert(size == 58); memcpy(pending, bytes, 58); memset(words, 0, 16); return 16;
 }
 static int mock_send(xpc_remote_connection_t remote, const void *words, uint64_t service) {
@@ -30,23 +30,23 @@ int main(void) {
         for (int b = 0; b < 58; b++) snprintf(hex[f] + 2 * b, 3, "%02x", frame[b]);
         args[f + 8] = hex[f];
     }
-    appledevices_multitouch(NULL, 40, args);
+    manzanero_multitouch(NULL, 40, args);
     assert(sends == 32 && barrier == 1 && g_failures == 0);
     assert(sent[0][4] == 0 && sent[30][4] == 30);
     assert(sent[31][3] == 0 && sent[31][8] == 1 && sent[31][4] == 30);
     for (int failure = 1; failure <= 31; failure += 15) {
         sends = barrier = g_failures = 0; fail_at = failure;
-        appledevices_multitouch(NULL, 40, args);
+        manzanero_multitouch(NULL, 40, args);
         assert(sends == failure + 1 && barrier == 1 && g_failures == 1);
         assert(sent[failure][3] == 0 && sent[failure][8] == 1);
         assert(sent[failure][4] == sent[failure - 1][4]);
     }
     sends = barrier = g_failures = 0; fail_at = 32;
-    appledevices_multitouch(NULL, 40, args);
+    manzanero_multitouch(NULL, 40, args);
     assert(g_failures == 1 && sends == 32); // Release failure cannot report success.
     sends = barrier = g_failures = fail_at = 0;
     hex[31][0] = 'z'; // Validate even the final frame before any input is sent.
-    appledevices_multitouch(NULL, 40, args);
+    manzanero_multitouch(NULL, 40, args);
     assert(sends == 0 && barrier == 0 && g_failures == 1);
     puts("Native multitouch sender tests passed");
 }

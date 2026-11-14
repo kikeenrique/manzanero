@@ -6,7 +6,7 @@ The initial release is not published. The checkout has no Git remote, the hostin
 
 ## Build and review locally
 
-`Sources/AppleDevicesCMD/Version.swift` is the single CLI/MCP version source. Increment it for each beta; never replace assets for an already published version.
+`Sources/Manzanero/Version.swift` is the single CLI/MCP version source. Increment it for each beta; never replace assets for an already published version.
 
 ```sh
 mise run test
@@ -20,7 +20,7 @@ Output is under ignored `tmp/dist/<version>/`:
 - two byte-identical universal macOS archives under architecture-specific names;
 - `SHA256SUMS`;
 - a dynamic-linkage report;
-- generated `appledevicescmd.rb`.
+- generated `manzanero.rb`.
 
 The package task builds each architecture, combines with lipo, removes machine-specific runtime paths, signs ad hoc and smoke-tests native version/help. The archive test checks extraction, signatures, architectures, notices and CLI execution through a Homebrew-style symlink.
 
@@ -43,7 +43,7 @@ The workflow selects Xcode 26.6 on `macos-26`, following the [runner inventory](
 
 ## Update the tap
 
-After publishing, copy the attached formula to `Formula/appledevicescmd.rb` in [kikeenrique/homebrew-tap](https://github.com/kikeenrique/homebrew-tap). Check URLs/checksums, test actual Homebrew installation and `brew test`, then commit/push the tap change.
+After publishing, copy the attached formula to `Formula/manzanero.rb` in [kikeenrique/homebrew-tap](https://github.com/kikeenrique/homebrew-tap). Check URLs/checksums, test actual Homebrew installation and `brew test`, then commit/push the tap change.
 
 The release repository's default token is not assumed to write to the separate tap. Formula generation produces a reviewable artifact; cross-repository automation needs a separately configured narrow token or GitHub App. No token is stored here.
 

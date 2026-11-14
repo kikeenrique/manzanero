@@ -22,7 +22,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          version=$(sed -n 's/^let appleDevicesVersion = "\(.*\)"$/\1/p' Sources/AppleDevicesCMD/Version.swift)
+          version=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
           test "$RELEASE_TAG" = "v$version"
       - run: mise run test
       - run: mise run package
@@ -58,6 +58,6 @@ jobs:
           cd "$directory"
           sha256sum --strict -c SHA256SUMS
           # Refuse replacement of an existing release: tap checksums must remain stable.
-          gh release create "$RELEASE_TAG" appledevicescmd-*-apple-darwin.tar.gz SHA256SUMS appledevicescmd.rb \
+          gh release create "$RELEASE_TAG" manzanero-*-apple-darwin.tar.gz SHA256SUMS manzanero.rb \
             --repo "$RELEASE_REPOSITORY" --verify-tag --draft --prerelease --generate-notes --title "$RELEASE_TAG"
           gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft=false --prerelease

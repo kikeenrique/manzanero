@@ -12,4 +12,4 @@ git apply --directory=tmp/coredevice-video-source Backends/CoreDevice/video.patc
 make -C tmp/coredevice-video-source BUILD_DIR=../coredevice-video-build ../coredevice-video-build/ipb-video 2>&1 | xcsift -f toon --warnings
 test -x tmp/coredevice-video-build/ipb-video
 mkdir -p tmp/bin
-cp tmp/coredevice-video-build/ipb-video tmp/bin/appledevices-video
+cp tmp/coredevice-video-build/ipb-video tmp/bin/manzanero-video

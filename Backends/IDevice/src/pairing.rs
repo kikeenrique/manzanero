@@ -56,8 +56,8 @@ pub async fn pair(host: &str, port: u16, destination: &Path) -> Result<Value, St
     let mut file = PrivateRecord::reserve(destination)?;
     let result = async {
         let socket = TcpStream::connect((host, port)).await.map_err(|e| format!("Wi-Fi pairing endpoint: {e}"))?;
-        let mut client = RemotePairingClient::new(RpPairingSocket::new(socket), "appledevicescmd");
-        let mut pairing = RpPairingFile::generate(&format!("appledevicescmd-{}", uuid::Uuid::new_v4()));
+        let mut client = RemotePairingClient::new(RpPairingSocket::new(socket), "manzanero");
+        let mut pairing = RpPairingFile::generate(&format!("manzanero-{}", uuid::Uuid::new_v4()));
         client.connect(&mut pairing, || async {
             eprint!("Enter the PIN displayed by the device, then press Return: ");
             let _ = std::io::stderr().flush();

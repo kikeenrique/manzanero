@@ -1,4 +1,4 @@
-# appledevicescmd
+# Manzanero
 
 A Swift command-line tool for inspecting and automating Apple devices, with an optional MCP server for agents. It uses Apple developer tools and in-process Apple frameworks for device operations.
 
@@ -16,7 +16,7 @@ mise run cli devices simulators
 mise run cli doctor
 ```
 
-`mise run cli` runs the built executable; it does not build it. In the guides below, substitute `mise run cli` for bare `appledevicescmd` when working from this checkout, or run `.build/debug/appledevicescmd` directly. A source build does not install a global command.
+`mise run cli` runs the built executable; it does not build it. In the guides below, substitute `mise run cli` for bare `manzanero` when working from this checkout, or run `.build/debug/manzanero` directly. A source build does not install a global command.
 
 Replace angle-bracket placeholders with your values. For physical commands, choose the hardware UDID from the physical inventory, rather than a simulator UUID. Create output parent directories before capturing or copying files.
 
@@ -83,8 +83,8 @@ Configure your host to launch the executable by absolute path with argument `mcp
 ```json
 {
   "mcpServers": {
-    "appledevicescmd": {
-      "command": "/absolute/path/to/appledevicescmd",
+    "manzanero": {
+      "command": "/absolute/path/to/manzanero",
       "args": ["mcp"]
     }
   }

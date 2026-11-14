@@ -206,7 +206,7 @@ int ADCOpenNativeTunnelAssertion(const char *expectedUDID, int (^shouldCancel)(v
             return ADCFail(error, capacity, @"Invalid or cancelled tunnel assertion target; no pairing-daemon request sent.");
         NSString *hardware = [NSString stringWithUTF8String:expectedUDID];
         ADCNativeTunnelOwner *lifetime = [ADCNativeTunnelOwner new];
-        lifetime.queue = dispatch_queue_create("appledevices.native-tunnel", DISPATCH_QUEUE_SERIAL);
+        lifetime.queue = dispatch_queue_create("manzanero.native-tunnel", DISPATCH_QUEUE_SERIAL);
         lifetime.browse = xpc_connection_create_mach_service("com.apple.CoreDevice.remotepairingd", lifetime.queue, 0);
         if (!lifetime.browse) return ADCFail(error, capacity, @"Cannot create Apple pairing-daemon connection; no assertion requested.");
         ADCReplyState *selection = [ADCReplyState new];
@@ -420,7 +420,7 @@ int ADCOpenRSDDirectory(int descriptor, const char *expectedUDID, const char *lo
         uint64_t (*failsafe)(void) = dlsym(RTLD_DEFAULT, "xpc_remote_connection_get_failsafe_version_flags");
         ADCActivate cancel = dlsym(RTLD_DEFAULT, "xpc_remote_connection_cancel");
         if (!create || !failsafe || !cancel) { close(descriptor); return ADCFail(error, capacity, @"Apple directory bootstrap APIs are unavailable."); }
-        dispatch_queue_t queue = dispatch_queue_create("appledevices.rsd.fd", DISPATCH_QUEUE_SERIAL);
+        dispatch_queue_t queue = dispatch_queue_create("manzanero.rsd.fd", DISPATCH_QUEUE_SERIAL);
         ADCRemote remote = create(descriptor, queue, failsafe(), modeFlags);
         if (!remote) { close(descriptor); return ADCFail(error, capacity, @"Apple RemoteXPC directory connection creation failed."); }
         ADCRSDDirectoryOwner *lifetime = [ADCRSDDirectoryOwner new];
@@ -455,7 +455,7 @@ int ADCOpenRSDDirectoryNetwork(const void *address, size_t addressLength, const 
         configure(parameters, 2);
         nw_connection_t network = nw_connection_create(endpoint, parameters);
         if (!network) return ADCFail(error, capacity, @"Cannot create Apple Network directory connection.");
-        dispatch_queue_t queue = dispatch_queue_create("appledevices.rsd.network", DISPATCH_QUEUE_SERIAL);
+        dispatch_queue_t queue = dispatch_queue_create("manzanero.rsd.network", DISPATCH_QUEUE_SERIAL);
         ADCRemote remote = create(network, queue, failsafe(), 2);
         if (!remote) { nw_connection_cancel(network); return ADCFail(error, capacity, @"Cannot create Apple Network RemoteXPC directory connection."); }
         ADCRSDDirectoryOwner *lifetime = [ADCRSDDirectoryOwner new];
@@ -476,7 +476,7 @@ int ADCOpenAccessibilitySocket(const char *uuid, const char *version, void **own
             return -1;
         }
         if (ADCPrepareCoreDevice(error, capacity)) return -1;
-        dispatch_queue_t queue = dispatch_queue_create("appledevices.coredevice.accessibility-socket", DISPATCH_QUEUE_SERIAL);
+        dispatch_queue_t queue = dispatch_queue_create("manzanero.coredevice.accessibility-socket", DISPATCH_QUEUE_SERIAL);
         xpc_connection_t connection = xpc_connection_create("com.apple.CoreDevice.CoreDeviceService", queue);
         xpc_connection_set_event_handler(connection, ^(xpc_object_t event) {});
         xpc_connection_resume(connection);
@@ -568,7 +568,7 @@ static int ADCOpenRSDAXSocket(const char *remoteUUID, const char *expectedUDID, 
                 ADCFail(error, capacity, @"Apple RSD one-shot browser APIs are unavailable.");
                 return -1;
             }
-            dispatch_queue_t queue = dispatch_queue_create("appledevices.rsd.present", DISPATCH_QUEUE_SERIAL);
+            dispatch_queue_t queue = dispatch_queue_create("manzanero.rsd.present", DISPATCH_QUEUE_SERIAL);
             dispatch_semaphore_t finished = dispatch_semaphore_create(0);
             NSMutableArray *choices = [NSMutableArray new];
             __block BOOL closed = NO;
@@ -944,7 +944,7 @@ int ADCValidateMediaInspection(const void *supportReply, const void *statusReply
     }
     ADCMediaControl *owner = [self new];
     owner.uuid = identity; owner.version = release;
-    owner.queue = dispatch_queue_create("appledevices.media.control", DISPATCH_QUEUE_SERIAL);
+    owner.queue = dispatch_queue_create("manzanero.media.control", DISPATCH_QUEUE_SERIAL);
     owner.connection = xpc_connection_create("com.apple.CoreDevice.CoreDeviceService", owner.queue);
     if (!owner.connection) { ADCFail(error, capacity, @"Cannot create Apple media control connection."); return nil; }
     xpc_connection_set_event_handler(owner.connection, ^(xpc_object_t event) {});
@@ -1073,7 +1073,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         ADCReply request = dlsym(RTLD_DEFAULT, "xpc_remote_connection_send_message_with_reply");
         if (!create || !handler || !activate || !cancel || !send || !request)
             return ADCFail(error, capacity, @"Required Apple CoreDevice/RemoteXPC symbols are unavailable.");
-        dispatch_queue_t queue = dispatch_queue_create("appledevices.coredevice.button", DISPATCH_QUEUE_SERIAL);
+        dispatch_queue_t queue = dispatch_queue_create("manzanero.coredevice.button", DISPATCH_QUEUE_SERIAL);
         xpc_connection_t connection = xpc_connection_create("com.apple.CoreDevice.CoreDeviceService", queue);
         xpc_connection_set_event_handler(connection, ^(xpc_object_t event) {});
         xpc_connection_resume(connection);
