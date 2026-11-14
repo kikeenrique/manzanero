@@ -1,6 +1,6 @@
 import Foundation
 
-/// Optional open-source AXe backend. No proprietary device-control tooling code is loaded.
+/// Historical AXe planner; runtime policy blocks its executable backend.
 enum SimulatorInteraction {
     static func plan(device: String, operation: String, operands: [String]) throws -> DeviceCommand? {
         let operations = ["tree", "tap", "tap-id", "tap-label", "swipe", "drag", "type", "button"]

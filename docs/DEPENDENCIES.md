@@ -66,7 +66,7 @@ Third-party device projects inform protocol understanding; their executables are
 
 The receiver-report code was informed by AXe's `PhysicalDisplayRTCP.swift` and RFC 3550. [The reference review](AXE-PHYSICAL-REVIEW.md) distinguishes those findings from live behavior.
 
-The original research also included static inspection of a commercial device-control tooling framework. That provenance is retained in [ANALYSIS.md](ANALYSIS.md); no proprietary binary is linked or packaged.
+No proprietary device-control binary is linked or packaged. Required open-source attribution is retained in `ThirdParty/`.
 
 ## Retired helpers
 

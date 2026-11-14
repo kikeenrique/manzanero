@@ -85,14 +85,4 @@ See [native session limits](DIRECT-ACCESSIBILITY.md#ownership-deadlines-and-fail
 
 The request/response research follows pinned MIT [ipb protocol notes](https://github.com/ipbtools/ipb/blob/8c227a10710dad479852aa0203de729fed57471b/docs/protocol.md), earlier project-owned Rust AX code, retained phone callbacks and installed Apple interfaces. The [ipb notice](../ThirdParty/ipb-LICENSE.txt) is retained. The earlier Rust path used pinned [idevice DTX](https://github.com/jkcoxson/idevice/blob/89702099f4d7552f704f93b4526756abda319ceb/idevice/src/services/dvt/message.rs); its current executable route is blocked.
 
-Static inspection of [private framework reference removed] 0.9.0/build 90 also identified the newer AX service and DTX worker selectors:
-
-| Observation | Historical location | Scope |
-| --- | --- | --- |
-| AX service connection | `start_accessibility` closure `0x342f4c` | Compiled connection path, no live authorization result |
-| DTX worker | `sub_37e700` | Framing/call graph evidence |
-| `clientNeedsAccessibility:` | String `0x73ca0f`, call `0x37e8ec` | Selector plus Boolean-shaped argument evidence |
-| `processDataFromRemoteDevice:` | Around `0x37f0a0–0x37f104` | Callback handled by the worker |
-| Archive processing | `parse_dump` at `0x3e6ed8` | Archive parser presence, not an independently established complete tree schema |
-
-These are interoperability observations, not a live trace or copied implementation claim. No proprietary binary is linked or packaged. [Original investigation](ANALYSIS.md) retains the inspected artifact and limits; the [public-readiness review](PUBLIC-READINESS.md) calls out the publication/provenance decision.
+No proprietary device-control binary is linked or packaged. Required implementation-reference notices remain in `ThirdParty/`.

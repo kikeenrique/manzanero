@@ -105,4 +105,4 @@ Host configuration formats vary. Set a suitable working directory: relative file
 
 Run `mise run test` for local checks and `mise tasks validate` for task definitions. Device tests are opt-in and may mutate the selected device; read their help first.
 
-Start with [architecture and dependencies](docs/DEPENDENCIES.md), [development tasks](docs/DEVELOPMENT-TASKS.md), [roadmap](docs/ROADMAP.md) and [verification](docs/VERIFICATION.md). Protocol and provenance references are collected in [accessibility notes](docs/ACCESSIBILITY-PROTOCOL.md), [transport notes](docs/TRANSPORT.md), the [AXe review](docs/AXE-PHYSICAL-REVIEW.md) and [original investigation](docs/ANALYSIS.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
+Start with [architecture and dependencies](docs/DEPENDENCIES.md), [development tasks](docs/DEVELOPMENT-TASKS.md), [roadmap](docs/ROADMAP.md) and [verification](docs/VERIFICATION.md). Protocol and implementation references are collected in [accessibility notes](docs/ACCESSIBILITY-PROTOCOL.md), [transport notes](docs/TRANSPORT.md) and the [AXe review](docs/AXE-PHYSICAL-REVIEW.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).

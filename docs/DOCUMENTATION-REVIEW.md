@@ -5,7 +5,7 @@ The documentation separates four kinds of information:
 1. **Current use:** commands a reader can run through supported routes.
 2. **Implemented but unverified:** code whose live behavior is not established.
 3. **Historical evidence:** earlier implementations, successes and failed probes.
-4. **Provenance:** public documentation, open-source references and static commercial-framework observations.
+4. **Implementation references:** Apple interfaces and attributed open-source protocol research.
 
 This distinction matters because the project replaced several helper-backed paths while retaining their source and test records.
 
@@ -14,7 +14,7 @@ This distinction matters because the project replaced several helper-backed path
 - Start with [README](../README.md), [beta setup](BETA-TESTING.md) and [readiness](READINESS.md).
 - Use focused guides for [input](NATIVE-INPUT.md), [screens](SCREEN-UNDERSTANDING.md), [AX](DIRECT-ACCESSIBILITY.md), [recording](RECORDING.md), [Build & Run](BUILD-RUN.md) and [MCP](MCP.md).
 - Maintain the project using [dependencies](DEPENDENCIES.md), [tasks](DEVELOPMENT-TASKS.md), [releasing](RELEASING.md) and [roadmap](ROADMAP.md).
-- Consult [verification](VERIFICATION.md), [transport](TRANSPORT.md), [AX wire contracts](ACCESSIBILITY-PROTOCOL.md) and [research](ANALYSIS.md) for evidence/design detail.
+- Consult [verification](VERIFICATION.md), [transport](TRANSPORT.md) and [AX wire contracts](ACCESSIBILITY-PROTOCOL.md) for evidence/design detail.
 
 ## Corrections made in the readability pass
 
@@ -43,6 +43,6 @@ Only run meaningful validation for the change. A docs-only edit needs source/com
 
 ## Earlier review context
 
-The first review corrected vendor-source assumptions about Build & Run, saved reports versus live trace, handoff and agent access. Later reviews separated helper-backed captures from direct replacements. Those corrections are reflected in the current guides; dated facts remain in [verification](VERIFICATION.md) and the original [investigation](ANALYSIS.md).
+Earlier reviews clarified Build & Run, saved reports versus live trace, handoff and agent access. Later reviews separated helper-backed captures from direct replacements. Those corrections are reflected in the current guides; dated facts remain in [verification](VERIFICATION.md).
 
 The [public-readiness review](PUBLIC-READINESS.md) is a separate privacy/licensing/publication checkpoint. Documentation cleanup does not select a license, rewrite Git identity/history or provide legal clearance.

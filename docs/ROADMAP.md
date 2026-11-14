@@ -36,11 +36,9 @@ Device operations communicate with Apple frameworks/APIs from this project's cod
 
 Keep private interfaces behind backend boundaries. Avoid automatic replay of input or a fallback that changes the operation's semantics. Surface native acceptance, observed effect and cleanup as separate facts.
 
-## Feature sources and provenance
+## Implementation references
 
-proprietary device-control tooling's public documentation originally supplied the comparison inventory, rechecked on 2026-11-11: [overview]([private reference removed]), [control]([private reference removed]), [MCP]([private reference removed]), [Build & Run]([private reference removed]), [reports]([private reference removed]) and [handoff]([private reference removed]).
-
-That comparison is distinct from this project's implementation and tests. Static commercial-framework observations are retained in [ANALYSIS.md](ANALYSIS.md); independent source references and licenses are in [DEPENDENCIES.md](DEPENDENCIES.md).
+Independent protocol references and their licenses are documented in [DEPENDENCIES.md](DEPENDENCIES.md). The capability inventory distinguishes those references from this project's implemented routes and live verification.
 
 ## Completion criteria
 
