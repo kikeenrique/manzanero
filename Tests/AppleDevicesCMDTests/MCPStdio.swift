@@ -13,7 +13,7 @@ struct MCPStdioTests {
         let simulator = physical == nil ? try #require(ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_SIMULATOR"]) : ""
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let directory = root.appendingPathComponent("tmp/mcp-live-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let errorsURL = directory.appendingPathComponent("stderr.log")
         FileManager.default.createFile(atPath: errorsURL.path, contents: nil)
         let errors = try FileHandle(forWritingTo: errorsURL)
@@ -86,6 +86,77 @@ struct MCPStdioTests {
         let invalid = try request(3, "tools/call", ["name": "tap", "arguments": ["platform": "physical", "device": "fixture", "x": 2, "y": 0]])
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
+            if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_RECORDING"] == "1" {
+                func metadata(_ response: [String: Any]) throws -> [String: Any] {
+                    let result = try #require(response["result"] as? [String: Any])
+                    try #require(result["isError"] as? Bool == false)
+                    let structured = try #require(result["structuredContent"] as? [String: Any])
+                    return try #require(structured["result"] as? [String: Any])
+                }
+                func mediaStatus(_ id: Int) throws -> [String: Any] {
+                    try metadata(request(id, "tools/call", ["name": "inspect_device", "arguments": [
+                        "platform": "physical", "device": physical, "query": "media-status"]]))
+                }
+                var verification: [String: Any] = ["plannedSeconds": 30, "cancelledRequest": 4]
+                func save() throws {
+                    try JSONSerialization.data(withJSONObject: verification, options: [.prettyPrinted, .sortedKeys])
+                        .write(to: directory.appendingPathComponent("cancel-recording.json"))
+                }
+                let baseline = try mediaStatus(40)
+                try #require(baseline["running"] as? Bool == false && baseline["sessionCount"] as? Int == 0)
+                let cancelledPath = directory.appendingPathComponent("cancelled.mp4")
+                try send(["jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": ["name": "record_screen", "arguments": [
+                    "platform": "physical", "device": physical, "path": cancelledPath.path, "seconds": 30,
+                    "codec": "hevc", "recording_backend": "coredevice"]]])
+                let firstFrameDeadline = ContinuousClock.now + .seconds(20)
+                while true {
+                    let diagnostic = try String(contentsOf: errorsURL, encoding: .utf8)
+                    if diagnostic.contains("Recording started (native video first frame).") { break }
+                    try #require(process.isRunning && ContinuousClock.now < firstFrameDeadline,
+                        "Recording did not reach a first frame; stderr at \(errorsURL.path)")
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                verification["firstFrameObserved"] = true
+                let active = try mediaStatus(41)
+                try #require(active["running"] as? Bool == true && active["sessionCount"] as? Int == 1)
+                verification["activeSessionCount"] = active["sessionCount"]
+                try await Task.sleep(for: .seconds(1)) // exercise the owned RTCP heartbeat before cancellation
+                let cancelledAt = ContinuousClock.now
+                try send(["jsonrpc": "2.0", "method": "notifications/cancelled", "params": [
+                    "requestId": 4, "reason": "Cancel an active native recording after its first frame"]])
+                verification["cancellationSent"] = true
+                try save()
+                let cleanupDeadline = ContinuousClock.now + .seconds(10)
+                while true {
+                    let diagnostic = try String(contentsOf: errorsURL, encoding: .utf8)
+                    if diagnostic.contains("Cleanup: owned stop=true, stream absent=true, tunnel release=acknowledged.") { break }
+                    try #require(process.isRunning && ContinuousClock.now < cleanupDeadline,
+                        "Recording cancellation cleanup was not acknowledged; stderr at \(errorsURL.path)")
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                verification["cleanupElapsed"] = String(describing: cancelledAt.duration(to: .now))
+                verification["ownedCleanupAcknowledged"] = true
+                let after = try mediaStatus(42)
+                try #require(after["running"] as? Bool == false && after["sessionCount"] as? Int == 0)
+                verification["postCancelSessionCount"] = after["sessionCount"]
+                verification["cancelledDestinationPublished"] = FileManager.default.fileExists(atPath: cancelledPath.path)
+                try #require(!FileManager.default.fileExists(atPath: cancelledPath.path))
+                try save()
+                let retryPath = directory.appendingPathComponent("retry-hevc.mp4")
+                let retry = try metadata(request(5, "tools/call", ["name": "record_screen", "arguments": [
+                    "platform": "physical", "device": physical, "path": retryPath.path, "seconds": 2,
+                    "codec": "hevc", "recording_backend": "coredevice"]]))
+                try #require(retry["status"] as? String == "recorded")
+                try #require((retry["cleanup"] as? [String: Any])?["deviceStopConfirmed"] as? Bool == true)
+                let artifact = try await VideoArtifact.inspect(retryPath)
+                #expect(artifact.codec == "hvc1" && abs(artifact.duration - 2) < 0.02)
+                verification["retry"] = retry
+                try save()
+                try finish()
+                verification["eofExitCode"] = process.terminationStatus
+                try save()
+                return
+            }
             let cancelFile = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_GESTURE_FILE"]
             let cancelHold = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_LONG_PRESS"]
             let shutdownMode = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_SHUTDOWN"]

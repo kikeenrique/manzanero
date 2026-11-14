@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Cancel an active native recording through MCP, check owned cleanup and record again"
+#MISE depends = ["build"]
+#USAGE arg "<device>" help="Explicit physical hardware UDID; starts and cancels one stream, then records two seconds"
+
+set -e -o pipefail
+
+APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_CANCEL_RECORDING=1 swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings
