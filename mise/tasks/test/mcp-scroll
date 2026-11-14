@@ -2,7 +2,6 @@
 #MISE extends = "swift"
 #MISE description = "Verify one real MCP physical scroll-to-visible action on an explicitly selected target"
 #MISE depends = ["build"]
-#MISE env = { PATH = "{{ config_root }}/tmp/bin:{{ env.PATH }}" }
 #USAGE arg "<device>" help="Explicit physical device UDID"
 #USAGE arg "<identifier>" help="Exact native identifier already present in the current app snapshot; sends one scroll action"
 

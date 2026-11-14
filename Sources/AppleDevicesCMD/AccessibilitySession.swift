@@ -80,9 +80,9 @@ final class AccessibilitySession {
         try exchange(AccessibilityRequest.attributes(attributes, of: token), expected: .attributes(token))
     }
 
-    func press(_ token: AccessibilityRequest.Token, onSubmission: () -> Void) throws -> Bool {
-        let result = try exchange(AccessibilityRequest.press(token), expected: .press, onSubmission: onSubmission)
-        guard let accepted = AccessibilityResponse.booleanResult(result) else { throw invalid("unknown press result") }
+    func performAction(_ token: AccessibilityRequest.Token, action: AccessibilityRequest.Action, onSubmission: () -> Void) throws -> Bool {
+        let result = try exchange(AccessibilityRequest.action(token, action: action), expected: .action, onSubmission: onSubmission)
+        guard let accepted = AccessibilityResponse.booleanResult(result) else { throw invalid("unknown action result") }
         return accepted
     }
 

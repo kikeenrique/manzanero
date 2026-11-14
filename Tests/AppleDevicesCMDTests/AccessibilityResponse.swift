@@ -6,7 +6,7 @@ struct AccessibilityResponseTests {
     @Test func actionRepliesRequireCapturedNilTranslationAndKnownBooleanShape() throws {
         for result: Value in [.boolean(true), .boolean(false), .signed(0), .unsigned(1)] {
             #expect(try AccessibilityResponse(value: response(kind: .signed(7), attribute: .signed(0), translation: .null, result: result))
-                .matchingResult(for: .press) == result)
+                .matchingResult(for: .action) == result)
         }
         for value in [response(kind: .signed(7), attribute: .signed(0), result: .boolean(true)),
                       response(kind: .signed(7), attribute: .signed(52), translation: .null, result: .boolean(true)),
@@ -14,7 +14,7 @@ struct AccessibilityResponseTests {
                       response(kind: .signed(7), attribute: .signed(0), translation: .null, result: .unsigned(2)),
                       response(kind: .signed(7), attribute: .signed(0), translation: .null, result: .null),
                       response(kind: .signed(7), attribute: .signed(0), translation: .null, result: .boolean(true), error: .signed(1))] {
-            #expect(throws: CommandFailure.self) { try AccessibilityResponse(value: value).matchingResult(for: .press) }
+            #expect(throws: CommandFailure.self) { try AccessibilityResponse(value: value).matchingResult(for: .action) }
         }
     }
     @Test func pointResultsRequireNativeTokenAndZeroAttributeWithoutAnApplicationFlag() throws {

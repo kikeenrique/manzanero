@@ -209,7 +209,7 @@ struct MCPStdioTests {
             if let text = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PRESS_TEXT"] {
                 let by = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_TEST_PRESS_BY"] ?? "identifier"
                 try #require(["identifier", "label"].contains(by))
-                _ = try DirectAccessibilityPress(.init(device: physical, operation: by == "identifier" ? "press-id" : "press-label", operands: [text]))
+                _ = try DirectAccessibilityAction(.init(device: physical, operation: by == "identifier" ? "press-id" : "press-label", operands: [text]))
                 let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical,
                     "path": directory.appendingPathComponent("native-press-before.png").path]])
                 try #require((before["result"] as? [String: Any])?["isError"] as? Bool == false)
@@ -440,6 +440,7 @@ struct MCPStdioTests {
                 let structured = try #require(result["structuredContent"] as? [String: Any])
                 let scroll = try #require(structured["result"] as? [String: Any])
                 #expect(scroll["operation"] as? String == "scroll-to-visible")
+                #expect(scroll["backend"] as? String == "coredevice-direct" && scroll["transport"] as? String == "apple-network-rsd")
                 #expect(scroll["nativeResult"] as? Bool != nil)
                 #expect(scroll["postconditionVerified"] as? Bool == true)
                 #expect((scroll["after"] as? [String: Any])?["identifier"] as? String == identifier)
@@ -447,6 +448,14 @@ struct MCPStdioTests {
                 let artifact = directory.appendingPathComponent("physical-scroll.json")
                 let data = try JSONSerialization.data(withJSONObject: scroll, options: [.prettyPrinted, .sortedKeys])
                 #expect(FileManager.default.createFile(atPath: artifact.path, contents: data, attributes: [.posixPermissions: 0o600]))
+                for key in ["cleanup", "connectionCleanup"] {
+                    let cleanup = try #require(scroll[key] as? [String: Any])
+                    let confirmed = try #require(cleanup["confirmed"] as? Bool)
+                    if !confirmed { #expect((cleanup["diagnostic"] as? String ?? "").isEmpty == false) }
+                }
+                let after = try request(7, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical,
+                    "path": directory.appendingPathComponent("native-scroll-after.png").path]])
+                try #require((after["result"] as? [String: Any])?["isError"] as? Bool == false)
             }
             try finish()
             return

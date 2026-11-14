@@ -14,13 +14,13 @@ enum DirectPhysicalAccessibility {
     static func executeNativeRSD(_ input: CoreDeviceInput, isolation: isolated (any Actor)? = #isolation,
                                  query: (DeviceCommand) throws -> Data) async throws -> Data {
         try Task.checkCancellation()
-        let press: DirectAccessibilityPress?
+        let action: DirectAccessibilityAction?
         let pid: Int32?
         if input.operation == "tree" {
-            press = nil
+            action = nil
             pid = input.operands.isEmpty ? nil : try applicationPID(input)
         } else {
-            press = try DirectAccessibilityPress(input)
+            action = try DirectAccessibilityAction(input)
             pid = nil
         }
         let details = try query(input.identityPlan())
@@ -45,12 +45,12 @@ enum DirectPhysicalAccessibility {
                     return try AccessibilityDisplay(query(AccessibilityDisplay.plan(device: identity.uuid)))
                 }
             let bytes: Data
-            if let press { bytes = try press.execute(session: session, display: display) }
+            if let action { bytes = try action.execute(session: session, display: display) }
             else { bytes = try capture(device: input.device, resolved: identity.uuid, pid: pid, session: session, display: display) }
             directory.close()
             let release = assertion.close()
-            if press != nil, Task.isCancelled {
-                FileHandle.standardError.write(Data("Native AX press was accepted, but cancellation withheld its receipt. UI effect unverified; inspect before retrying. No automatic replay.\n".utf8))
+            if action != nil, Task.isCancelled {
+                FileHandle.standardError.write(Data("Native AX action completed, but cancellation withheld its receipt. Inspect before retrying. No automatic replay.\n".utf8))
             }
             try Task.checkCancellation()
             return try annotateNativeCleanup(bytes, release: release)

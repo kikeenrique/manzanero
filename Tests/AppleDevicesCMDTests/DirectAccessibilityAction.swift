@@ -2,14 +2,18 @@ import Foundation
 import Testing
 @testable import AppleDevicesCMD
 
-struct DirectAccessibilityPressTests {
+struct DirectAccessibilityActionTests {
     final class Wire: AccessibilitySessionTransport {
         let failure: String
+        let scroll: Bool
+        var submitted = false
+        var targetY: CGFloat { scroll && !submitted && failure != "native-false" ? 900 : 20 }
+        var targetVisible: Bool { !(scroll && !submitted && failure != "native-false") && !(scroll && failure == "post-hidden") }
         var incoming: [AccessibilityDTX] = []
         var kinds: [UInt64] = []
         var snapshots = 0, hits = 0, applications = 0
         var closed = false
-        init(_ failure: String) { self.failure = failure }
+        init(_ failure: String, scroll: Bool = false) { self.failure = failure; self.scroll = scroll }
         func read(until deadline: ContinuousClock.Instant, cancelled: () -> Bool) throws -> AccessibilityDTX {
             guard !incoming.isEmpty else { throw CommandFailure(description: "Fixture EOF") }
             return incoming.removeFirst()
@@ -34,10 +38,12 @@ struct DirectAccessibilityPressTests {
             switch kind {
             case 1:
                 applications += 1
-                response = Response(kind: kind, result: Token(applications == 2 && failure == "root" ? 9 : 1))
+                response = Response(kind: kind, result: Token((applications == 2 && failure == "root") || (applications == 3 && failure == "post-root") ? 9 : 1))
             case 2:
+                if submitted && failure == "post-cancel" { throw CancellationError() }
+                if submitted && failure == "post-lost" { incoming.append(try fixture.reply(message.identifier)); return }
                 snapshots += 1
-                let target = snapshots == 2 && failure == "identity" ? 3 : 2
+                let target = (snapshots == 2 && failure == "identity") || (submitted && failure == "post-identity") ? 3 : 2
                 var children = [record(target)]
                 if failure == "ambiguous" { children.append(record(3)) }
                 if failure == "duplicate" { children.append(record(target)) }
@@ -45,19 +51,21 @@ struct DirectAccessibilityPressTests {
                 response = Response(kind: kind, translation: Token(1), result: record(1, children: children))
             case 5:
                 response = Response(kind: kind, result: [
-                    21: NSValue(rect: NSRect(x: failure == "frame" ? 11 : failure == "offscreen" ? 1000 : 10, y: 20, width: 30, height: 40)),
+                    21: NSValue(rect: NSRect(x: failure == "frame" || (submitted && failure == "post-frame") ? 11 : failure == "offscreen" ? 1000 : 10, y: targetY, width: 30, height: 40)),
                     25: failure == "identifier" ? "other" : "fixture.control",
-                    27: failure == "unknown-state" ? NSNumber(value: 2) : NSNumber(value: failure != "disabled"), 32: failure != "hidden"] as NSDictionary)
+                    27: failure == "unknown-state" ? NSNumber(value: 2) : NSNumber(value: failure != "disabled" && !(submitted && failure == "post-disabled")),
+                    32: scroll ? targetVisible : failure != "hidden"] as NSDictionary)
             case 6:
                 hits += 1
-                response = Response(kind: kind, result: Token(hits == 2 && failure == "hit" ? 3 : 2,
-                    pid: (hits == 1 && failure == "pid") || (hits == 3 && failure == "foreground") ? 43 : 42))
+                response = Response(kind: kind, result: Token((hits == 2 && failure == "hit") || (hits == 3 && failure == "post-hit") ? 3 : 2,
+                    pid: (hits == 1 && failure == "pid") || (hits == 3 && failure == "foreground") || (hits == 4 && failure == "post-foreground") ? 43 : 42))
             case 7:
-                #expect(fields["actionType"]?.unsignedInteger == 5 && fields["parameters"] == .null)
+                #expect(fields["actionType"]?.unsignedInteger == (scroll ? 11 : 5) && fields["parameters"] == .null)
+                submitted = true
                 if failure == "cancel" { throw CancellationError() }
                 incoming.append(try fixture.reply(message.identifier))
                 if failure == "lost" { return }
-                response = Response(kind: kind, result: NSNumber(value: failure != "refused"))
+                response = Response(kind: kind, result: NSNumber(value: failure != "refused" && failure != "native-false"))
                 incoming.append(try callback(response)); return
             default: throw CommandFailure(description: "Unexpected fixture request")
             }
@@ -70,7 +78,8 @@ struct DirectAccessibilityPressTests {
             ["UIAccessibilitySnapshotKeyElement": Token(id), "UIAccessibilitySnapshotKeyChildren": children,
                 "UIAccessibilitySnapshotKeyChildrenCount": children.count,
                 "UIAccessibilitySnapshotKeyAttributes": [2001: id == 1 ? "App" : "Fixture", 5019: id == 1 ? "app" : "fixture.control",
-                    2003: NSValue(rect: NSRect(x: shifted ? 11 : failure == "offscreen" ? 1000 : 10, y: 20, width: 30, height: 40)), 2025: true] as NSDictionary] as NSDictionary
+                    2003: NSValue(rect: NSRect(x: shifted ? 11 : failure == "offscreen" ? 1000 : 10, y: id == 1 ? 20 : targetY, width: 30, height: 40)),
+                    2025: id == 1 ? true : targetVisible] as NSDictionary] as NSDictionary
         }
         func callback(_ response: Response) throws -> AccessibilityDTX {
             let coder = NSKeyedArchiver(requiringSecureCoding: true)
@@ -85,7 +94,7 @@ struct DirectAccessibilityPressTests {
     @Test(arguments: ["none", "duplicate", "ambiguous", "inconsistent", "identity", "disabled", "unknown-state", "hidden", "identifier", "frame", "offscreen", "hit", "root", "foreground", "pid", "display", "refused", "lost", "cleanup", "cancel"])
     func actionGuardsAndUnknownOutcomesNeverReplay(_ failure: String) throws {
         let wire = Wire(failure)
-        let press = try DirectAccessibilityPress(.init(device: "fixture", operation: "press-id", operands: ["42", "fixture.control"]))
+        let press = try DirectAccessibilityAction(.init(device: "fixture", operation: "press-id", operands: ["42", "fixture.control"]))
         var displays = 0
         let run = {
             try press.execute(session: AccessibilitySession(transport: wire), display: {
@@ -109,6 +118,40 @@ struct DirectAccessibilityPressTests {
         }
         #expect(wire.closed)
         #expect(wire.kinds.filter { $0 == 7 }.count == (["none", "duplicate", "cleanup", "refused", "lost", "cancel"].contains(failure) ? 1 : 0))
+    }
+
+    @Test(arguments: ["none", "native-false", "post-hidden", "post-identity", "post-frame", "post-hit", "post-root", "post-foreground", "post-display", "post-disabled", "post-lost", "post-cancel", "ambiguous", "disabled", "pid", "display", "lost", "cleanup", "cancel"])
+    func scrollSeparatesNativeResultFromFreshPostconditionAndNeverReplays(_ failure: String) throws {
+        let wire = Wire(failure, scroll: true)
+        let action = try DirectAccessibilityAction(.init(device: "fixture", operation: "scroll-id", operands: ["42", "fixture.control"]))
+        var displays = 0
+        let run = {
+            try action.execute(session: AccessibilitySession(transport: wire), display: {
+                displays += 1
+                let changed = (failure == "display" && displays == 2) || (failure == "post-display" && displays == 3)
+                return try AccessibilityDisplay(AccessibilityDisplayTests.data(scale: changed ? 2 : 3))
+            })
+        }
+        if ["cancel", "post-cancel"].contains(failure) {
+            #expect(throws: CancellationError.self) { try run() }
+        } else if ["ambiguous", "disabled", "pid", "display", "lost"].contains(failure) {
+            do { _ = try run(); Issue.record("Failed scroll guard returned success") }
+            catch { #expect(String(describing: error).contains("state=\(failure == "lost" ? "submitted" : "not-sent")")) }
+        } else {
+            let result = try #require(JSONSerialization.jsonObject(with: run()) as? [String: Any])
+            let verified = ["none", "native-false", "cleanup"].contains(failure)
+            #expect(result["operation"] as? String == "scroll-to-visible")
+            #expect(result["nativeResult"] as? Bool == (failure != "native-false"))
+            #expect(result["postconditionVerified"] as? Bool == verified)
+            #expect(result["status"] as? String == (verified ? "postcondition-verified" : "postcondition-failed"))
+            let before = try #require(result["before"] as? [String: Any])
+            #expect(before["visible"] as? Bool == (failure == "native-false"))
+            if verified { #expect((result["after"] as? [String: Any])?["visible"] as? Bool == true) }
+            else { #expect((result["postconditionFailure"] as? String ?? "").isEmpty == false) }
+            #expect((result["cleanup"] as? [String: Any])?["confirmed"] as? Bool == (failure != "cleanup"))
+        }
+        #expect(wire.closed)
+        #expect(wire.kinds.filter { $0 == 7 }.count == (["ambiguous", "disabled", "pid", "display"].contains(failure) ? 0 : 1))
     }
 
     @objc(ADCAXPressTestToken)

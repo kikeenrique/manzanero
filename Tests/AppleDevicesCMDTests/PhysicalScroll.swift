@@ -35,6 +35,9 @@ struct PhysicalScrollTests {
         } catch { #expect(String(describing: error).contains("Developer Mode is disabled")) }
         let dry = CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return data })
         let output = try await dry.execute(["physical", "fixture", "scroll-id", "fixture.row"], dryRun: true)
-        #expect(String(decoding: output.data, as: UTF8.self).contains("scroll-id"))
+        let plan = try #require(JSONSerialization.jsonObject(with: output.data) as? [String: Any])
+        #expect(plan["backend"] as? String == "coredevice-direct")
+        #expect(plan["operation"] as? String == "scroll-to-visible")
+        #expect((plan["selector"] as? [String: String]) == ["by": "identifier", "text": "fixture.row"])
     }
 }

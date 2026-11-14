@@ -9,7 +9,7 @@ struct AccessibilityResponse: Sendable {
         case snapshot(AccessibilityRequest.Token)
         case attributes(AccessibilityRequest.Token)
         case hit
-        case press
+        case action
 
         var requestType: UInt64 {
             switch self {
@@ -17,7 +17,7 @@ struct AccessibilityResponse: Sendable {
             case .snapshot: 2
             case .attributes: 5
             case .hit: 6
-            case .press: 7
+            case .action: 7
             }
         }
     }
@@ -57,7 +57,7 @@ struct AccessibilityResponse: Sendable {
         guard requestType == kind else { return nil }
         guard notification == 0, error == 0 else { throw Self.invalid("semantic refusal or notification in request response (error \(error))") }
         switch expected {
-        case .press:
+        case .action:
             // Captured action replies have no translation/sequence identity.
             // Correlation relies on this session's one-outstanding-request rule.
             guard translation == .null, attribute == 0, Self.booleanResult(result) != nil else {

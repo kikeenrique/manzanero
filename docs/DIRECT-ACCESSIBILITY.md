@@ -1,6 +1,6 @@
 # Direct physical accessibility migration
 
-Native explicit-PID/foreground physical trees and guarded exact-selector presses now work through CLI and MCP on the selected iPhone 13 mini. The replacement operates in `appledevicescmd` against Apple interfaces, without launching an intermediary. Scroll actions and broad device/app coverage remain unfinished. This page separates current scoped verification from the migration history below.
+Native explicit-PID/foreground physical trees, guarded exact-selector presses and scroll-to-visible now work through CLI and MCP on the selected iPhone 13 mini. The replacement operates in `appledevicescmd` against Apple interfaces, without launching an intermediary. Broad device/app coverage remains unfinished. This page separates current scoped verification from the migration history below.
 
 ## Current native tree route
 
@@ -19,7 +19,7 @@ On 2026-11-13, the explicit diagnostic, actual CLI and real MCP stdio each captu
 
 When PID is omitted, Apple's `devicectl device info displays` supplies exactly one active primary display with native/current `rot0`. Effective bounds divided by point scale locate its logical centre. A type-6 AX point read selects the PID; process and display geometry are rechecked after the application/snapshot/application sequence. The primary display must report `backlightState: activeOn`; otherwise the error asks the user to wake/unlock the device before any point query. The native tree is also integrated into physical `screen auto|tree` and MCP `get_screen`. On 2026-11-14, the diagnostic, CLI and real MCP each returned 106 Settings nodes without supplying PID to the operation; real MCP screen inspection also returned a matching 1125×2436 PNG and completed EOF shutdown.
 
-An explicit PID can identify a background app for tree reads. Centre selection can identify an overlay/embedded process and is not a combined display tree. Snapshot IDs/paths are local to one non-atomic observation, and are not action handles. A visible flag or frame does not establish hittability, complete coverage or stable descendants. Scroll actions, rotated/multiple-display support, crash recovery and other-device coverage remain incomplete. No action is replayed automatically.
+An explicit PID can identify a background app for tree reads. Centre selection can identify an overlay/embedded process and is not a combined display tree. Snapshot IDs/paths are local to one non-atomic observation, and are not action handles. A visible flag or frame does not establish hittability, complete coverage or stable descendants. Rotated/multiple-display support, crash recovery and other-device coverage remain incomplete. No action is replayed automatically.
 
 Before expanding semantic result data, the session now reads the callback's typed `AXPTranslatorResponse.associatedRequestType` with bounded data-only projection. Unrelated type-11 notifications observed during point selection contained `NaN`; they are ignored without expanding their results, while the full numeric/identity checks remain mandatory for matching replies. Carrier acknowledgements cannot satisfy a point request. Point translations use a primitive Int32 PID zero confined to that synthetic request, an opaque query identity, and the captured NSValue point encoding; native returned tokens still require a positive PID.
 
@@ -41,6 +41,23 @@ Type-5 attributes 21/25/27/32 must agree with the fresh frame/available identifi
 Captured unit type-5 replies can have nil associated translation, and type-7 replies have nil translation. They rely on one outstanding request in a session; there is no demonstrated target/sequence correlator for those nil replies. A supplied type-5 translation must match; snapshots still require matching translation. Matching actions require error/notification zero, attribute zero and Boolean or integer 0/1 results. A carrier acknowledgement alone cannot establish acceptance.
 
 Native true returns `status: accepted`, `nativeAccepted: true`, `effectVerified: false` and separate cleanup outcomes. Pre-submission failures retain `state=not-sent`; later failures retain `submitted|refused|accepted`, stage and cleanup diagnostics. Cancellation after submission preserves uncertainty and never replays. Raw tokens are not returned. On 2026-11-14, a CLI identifier press navigated General → Información and a real MCP label press navigated back to General, independently screenshot-verified. Both cleanup acknowledgements and MCP EOF shutdown passed. Other apps, overlays, rotations and interruption effects remain unverified.
+
+## Current native scroll-to-visible
+
+```sh
+mise run cli physical <UDID> scroll-id [pid] com.example.row
+mise run cli physical <UDID> scroll-label [pid] 'Exact label'
+# Explicitly sends one native action and observes the result through real MCP:
+mise run test:mcp-scroll <UDID> com.example.row
+```
+
+`DirectAccessibilityAction` shares ownership and guards between presses and scrolling. MCP `scroll_to_element` uses `device`, `by`, `text`, and optional positive `pid`. A scroll target must already be materialized in the bounded snapshot and resolve to the same unique identity in two fresh snapshots. Live enabled state must be true; known visibility and positive-size geometry must match the snapshot, but an offscreen target is allowed. Application/display rechecks precede one type-7/action-11 request with nil parameters. It does not press, synthesize a swipe, search an unmaterialized list, or automatically repeat an action.
+
+After native true **or false**, a fresh snapshot must resolve the same target. Fresh live state must be enabled/visible, match the snapshot's identifier/frame, fit wholly inside the display and hit the exact native identity at its centre. Application, display-centre process and geometry are rechecked. The result reports `nativeResult` independently of `postconditionVerified` and includes `before`/`after` state. These are sequential AX checks, not independent pixel verification or an atomic transaction; `verified` remains false.
+
+A completed native reply with a failed observation returns `status: postcondition-failed`, `postconditionVerified: false` and `postconditionFailure` while retaining `nativeResult` and `before`. This structured result exits zero; CLI/MCP callers must inspect its status. A missing/invalid native reply remains an error with conservative submission state. Cancellation propagates after cleanup, including after a completed native action, without replay.
+
+On 2026-11-14, the CLI moved Settings' Captura de pantalla row from y793 to about y416.33 logical points, returning native true and a passing postcondition; independent screenshots confirmed movement. Real MCP then returned native false for that already-visible row, unchanged geometry and a passing postcondition. That MCP AX socket closed before disable acknowledgement: subscription cleanup was unconfirmed with its diagnostic, while tunnel release was acknowledged. EOF shutdown and subsequent screenshot capture passed. Broader apps, label-scroll hardware behavior, rotations, interrupted actions and other families remain unverified.
 
 ## Migration history and local implementation
 

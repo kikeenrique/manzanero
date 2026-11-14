@@ -57,11 +57,11 @@ actor CommandService {
         if let native = try CoreDeviceInput.parse(nativeArguments) {
             if dryRun {
                 let identity = try native.identityPlan()
-                if ["press-id", "press-label"].contains(native.operation) {
-                    let press = try DirectAccessibilityPress(native)
-                    return try json(["backend": "coredevice-direct", "operation": "press", "selector": ["by": press.by, "text": press.text],
+                if ["press-id", "press-label", "scroll-id", "scroll-label"].contains(native.operation) {
+                    let press = try DirectAccessibilityAction(native)
+                    return try json(["backend": "coredevice-direct", "operation": press.operation, "selector": ["by": press.by, "text": press.text],
                         "identityArguments": identity.arguments, "liveVerified": false,
-                        "execution": "Native AX: primary portrait display selection, two unique snapshots, live enabled/visible/frame checks, exact target hit and application/display rechecks before one press. No fallback or replay."])
+                        "execution": "Native AX: primary portrait display selection, two unique snapshots and live state/frame guards before one action. Press checks exact hit; scroll follows with fresh visibility/frame/hit and selection checks. No fallback or replay."])
                 }
                 if native.operation == "tree" {
                     return try json(["backend": "coredevice-direct", "operation": "tree", "pid": native.operands.first.flatMap(Int.init).map { $0 as Any } ?? NSNull(),
@@ -113,7 +113,7 @@ actor CommandService {
                 }
                 return try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40)
             }
-            if ["tree", "press-id", "press-label"].contains(native.operation) {
+            if ["tree", "press-id", "press-label", "scroll-id", "scroll-label"].contains(native.operation) {
                 return CommandOutput(data: try await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
             }
             if native.operation == "key" {

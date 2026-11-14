@@ -3,11 +3,12 @@ import Testing
 @testable import AppleDevicesCMD
 
 struct AccessibilityRequestTests {
-    @Test func pressUsesFreshTokenNilParametersAndCapturedActionFive() throws {
-        let bytes = try AccessibilityRequest.press(.init(pid: 42, objectID: 9, rawElementData: Data([1, 2])))
+    @Test(arguments: [AccessibilityRequest.Action.press, .scrollToVisible])
+    func actionUsesFreshTokenNilParametersAndCapturedActionType(_ action: AccessibilityRequest.Action) throws {
+        let bytes = try AccessibilityRequest.action(.init(pid: 42, objectID: 9, rawElementData: Data([1, 2])), action: action)
         guard case .object("AXPTranslatorRequest", let fields) = try KeyedArchiveInspector.decodeProtocol(bytes),
               case .object("AXPTranslationObject", let token) = fields["translation"] else { Issue.record("Invalid action archive"); return }
-        #expect(fields["requestType"]?.unsignedInteger == 7 && fields["actionType"]?.unsignedInteger == 5)
+        #expect(fields["requestType"]?.unsignedInteger == 7 && fields["actionType"]?.unsignedInteger == UInt64(action.rawValue))
         #expect(fields["clientType"]?.unsignedInteger == 0 && fields["attributeType"]?.unsignedInteger == 0)
         #expect(fields["parameters"] == .null)
         #expect(token["objectID"]?.unsignedInteger == 9 && token["pid"]?.unsignedInteger == 42)

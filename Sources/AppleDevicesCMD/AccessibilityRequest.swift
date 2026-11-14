@@ -3,6 +3,7 @@ import Foundation
 /// AXP request archives. These are protocol values, not device-side
 /// Objective-C instances. Incoming archives never instantiate these classes.
 enum AccessibilityRequest {
+    enum Action: Int { case press = 5, scrollToVisible = 11 }
     struct Token: Sendable {
         let pid: Int32
         let objectID: UInt64
@@ -57,8 +58,8 @@ enum AccessibilityRequest {
         return try archive(kind: 5, parameters: ["attributes": attributes], token: token)
     }
 
-    static func press(_ token: Token) throws -> Data {
-        try archive(kind: 7, parameters: nil, token: token, action: 5)
+    static func action(_ token: Token, action: Action) throws -> Data {
+        try archive(kind: 7, parameters: nil, token: token, action: action.rawValue)
     }
 
     private static func archive(kind: Int, parameters: [String: Any]?, token: Token?, pointQuery: Bool = false, action: Int = 0) throws -> Data {
