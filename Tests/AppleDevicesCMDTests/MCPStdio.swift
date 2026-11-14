@@ -87,6 +87,8 @@ struct MCPStdioTests {
         #expect((invalid["result"] as? [String: Any])?["isError"] as? Bool == true)
         if let physical {
             if ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_CANCEL_RECORDING"] == "1" {
+                let shutdown = ProcessInfo.processInfo.environment["APPLEDEVICES_MCP_RECORDING_SHUTDOWN"]
+                if let shutdown { try #require(["EOF", "SIGINT", "SIGTERM"].contains(shutdown)) }
                 func metadata(_ response: [String: Any]) throws -> [String: Any] {
                     let result = try #require(response["result"] as? [String: Any])
                     try #require(result["isError"] as? Bool == false)
@@ -100,7 +102,7 @@ struct MCPStdioTests {
                 var verification: [String: Any] = ["plannedSeconds": 30, "cancelledRequest": 4]
                 func save() throws {
                     try JSONSerialization.data(withJSONObject: verification, options: [.prettyPrinted, .sortedKeys])
-                        .write(to: directory.appendingPathComponent("cancel-recording.json"))
+                        .write(to: directory.appendingPathComponent(shutdown == nil ? "cancel-recording.json" : "shutdown-recording.json"))
                 }
                 let baseline = try mediaStatus(40)
                 try #require(baseline["running"] as? Bool == false && baseline["sessionCount"] as? Int == 0)
@@ -122,6 +124,60 @@ struct MCPStdioTests {
                 verification["activeSessionCount"] = active["sessionCount"]
                 try await Task.sleep(for: .seconds(1)) // exercise the owned RTCP heartbeat before cancellation
                 let cancelledAt = ContinuousClock.now
+                if let shutdown {
+                    verification["shutdown"] = shutdown
+                    try save()
+                    let expectedExit: Int32
+                    switch shutdown {
+                    case "EOF": try input.fileHandleForWriting.close(); expectedExit = 0
+                    case "SIGINT": try #require(Darwin.kill(process.processIdentifier, SIGINT) == 0); expectedExit = 130
+                    default: try #require(Darwin.kill(process.processIdentifier, SIGTERM) == 0); expectedExit = 143
+                    }
+                    let deadline = ContinuousClock.now + .seconds(35)
+                    while process.isRunning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+                    try #require(!process.isRunning, "MCP recording did not finish its shutdown grace")
+                    process.waitUntilExit()
+                    verification["shutdownElapsed"] = String(describing: cancelledAt.duration(to: .now))
+                    verification["exitCode"] = process.terminationStatus
+                    try save()
+                    try #require(process.terminationReason == .exit && process.terminationStatus == expectedExit)
+                    let diagnostic = try String(contentsOf: errorsURL, encoding: .utf8)
+                    try #require(diagnostic.contains("Cleanup: owned stop=true, stream absent=true, tunnel release=acknowledged."))
+                    try #require(!diagnostic.contains("forcing exit"))
+                    verification["ownedCleanupAcknowledged"] = true
+                    // With the child exited, drain remaining output to EOF.
+                    // All earlier responses were consumed; no recording success
+                    // may be published during shutdown.
+                    while true {
+                        let bytes = output.fileHandleForReading.availableData
+                        if bytes.isEmpty { break }
+                        buffer.append(bytes)
+                        try #require(buffer.count <= 65536)
+                    }
+                    try #require(buffer.isEmpty)
+                    verification["pendingOutputBytes"] = buffer.count
+                    verification["cancelledDestinationPublished"] = FileManager.default.fileExists(atPath: cancelledPath.path)
+                    try #require(!FileManager.default.fileExists(atPath: cancelledPath.path))
+                    try save()
+                    // Query and record from this separate process, after the
+                    // owned MCP child has exited and released its resources.
+                    let service = CommandService()
+                    let status = try await service.execute(["physical", physical, "media-status"])
+                    let after = try #require(try JSONSerialization.jsonObject(with: status.data) as? [String: Any])
+                    try #require(after["running"] as? Bool == false && after["sessionCount"] as? Int == 0)
+                    verification["postShutdownSessionCount"] = after["sessionCount"]
+                    try save()
+                    let retryPath = directory.appendingPathComponent("retry-hevc.mp4")
+                    let retry = try await service.execute(["--recording-backend", "coredevice", "physical", physical, "record", retryPath.path, "2", "hevc"])
+                    let receipt = try #require(try JSONSerialization.jsonObject(with: retry.data) as? [String: Any])
+                    try #require(receipt["status"] as? String == "recorded")
+                    try #require((receipt["cleanup"] as? [String: Any])?["deviceStopConfirmed"] as? Bool == true)
+                    let artifact = try await VideoArtifact.inspect(retryPath)
+                    #expect(artifact.codec == "hvc1" && abs(artifact.duration - 2) < 0.02)
+                    verification["retry"] = receipt
+                    try save()
+                    return
+                }
                 try send(["jsonrpc": "2.0", "method": "notifications/cancelled", "params": [
                     "requestId": 4, "reason": "Cancel an active native recording after its first frame"]])
                 verification["cancellationSent"] = true

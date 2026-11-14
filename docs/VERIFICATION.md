@@ -764,3 +764,19 @@ Same macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2, CoreDevice 651.32 a
 - Local regression validation passed 307 test functions with zero errors/warnings through xcsift; all 42 mise tasks validate. The new live branch is opt-in and is not counted as a default hardware run.
 
 This establishes one active MCP request-cancellation/cleanup/reuse path on this phone. It does not establish active-recording EOF/signal cleanup, crash/disconnect recovery, reliable startup, synchronous-call deadlines, concurrent-controller ownership or other Apple device families.
+
+## 2026-11-14 — active recording MCP EOF and signal shutdown
+
+Same macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2, CoreDevice 651.32 and designated iPhone 13 mini/iOS 27.2.1 (24B156). Added `mise run test:mcp-shutdown-recording <hardware-UDID> <EOF|SIGINT|SIGTERM>` using the real owned MCP child. The test requires a decoded first frame and an interleaved status showing one running session before shutdown of the requested 30-second capture.
+
+| Shutdown | Exit | Observed shutdown interval | Private evidence directory |
+| --- | --- | --- | --- |
+| stdin EOF | 0 | 0.090 seconds | `tmp/mcp-live-13E54FE1-9A6F-417A-9BCD-781C5CE764CB/` |
+| SIGINT | 130 | 0.148 seconds | `tmp/mcp-live-A94C9D2C-830B-4A5D-85DC-C6C0374234AF/` |
+| SIGTERM | 143 | 0.100 seconds | `tmp/mcp-live-BA8A0D04-DC6B-4A0B-8858-D695A7A2C822/` |
+
+Each selected live function passed with zero errors/warnings through xcsift. These intervals measure host observation from close/signal to child exit in one run per mode; they are not latency guarantees. Diagnostics in each run report cancellation and acknowledged owned stop, fresh owned-stream absence and acknowledged tunnel release. The child exited normally with the expected status, emitted no pending success output, did not publish the interrupted movie, and did not log a forced exit.
+
+After child exit, a new command service in the separate test process queried fresh media status: no running stream and zero sessions. It then finalized and independently decoded a two-second `hvc1` movie at 1136×2464. The EOF/SIGINT/SIGTERM retries respectively reported 40/38/39 source frames, two receiver-report sends and two validated sender reports each, with required cleanup acknowledgements. JSON receipts, stderr and movies remain private ignored artifacts. No new runtime executable or dependency was added.
+
+Default local regression validation passed 307 test functions with zero errors/warnings through xcsift, and all 43 mise tasks validate. These checks extend scoped graceful shutdown evidence to active recording. SIGKILL/crashes, cable loss, stalled framework calls, interrupted startup/finalization and simultaneous independent controllers remain unverified or incomplete; no general unattended-reliability claim follows.

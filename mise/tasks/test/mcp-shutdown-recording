@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Stop MCP during native recording, check owned cleanup and record from a new process"
+#MISE depends = ["build"]
+#USAGE arg "<device>" help="Explicit physical hardware UDID"
+#USAGE arg "<mode>" help="EOF, SIGINT or SIGTERM; affects only the owned MCP child"
+
+set -e -o pipefail
+
+APPLEDEVICES_MCP_LIVE=1 APPLEDEVICES_MCP_TEST_PHYSICAL="$usage_device" APPLEDEVICES_MCP_CANCEL_RECORDING=1 APPLEDEVICES_MCP_RECORDING_SHUTDOWN="$usage_mode" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings
