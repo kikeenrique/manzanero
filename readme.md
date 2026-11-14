@@ -4,7 +4,7 @@ Manzanero lets you inspect and control Apple devices from your Mac, either throu
 
 *Manzanero* is Spanish for an apple tree or a person who grows or gathers apples—a fitting name for a tool that tends to your Apple devices.
 
-<img src="docs/assets/manzanero.png" alt="A cheerful apple picker harvesting phones, a tablet, a watch and an Apple TV with its remote from an apple tree." width="560">
+<img src="docs/assets/manzanero.png" alt="A cheerful orchard worker biting an apple beside a tree growing a phone, a foldable iPhone Duo, a tablet, a watch and an Apple TV with its remote." width="560">
 
 The project is in beta. Physical iPhone control is the current priority, and reliable unattended testing is still unfinished. iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope, with support varying by device and operation. Most live evidence comes from one iPhone 13 mini; see [feature status](docs/feature-status.md) before relying on another device or operation.
 
