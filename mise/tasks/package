@@ -70,7 +70,7 @@ done
 mkdir -p "$work/payload/ThirdParty/packages/swift-nio/CNIOLLHTTP"
 cp tmp/release-build/checkouts/swift-nio/Sources/CNIOLLHTTP/LICENSE "$work/payload/ThirdParty/packages/swift-nio/CNIOLLHTTP/"
 cp docs/beta-testing.md "$work/payload/beta-testing.md"
-if [ -f LICENSE ]; then cp LICENSE "$work/payload/"; fi
+cp license "$work/payload/license"
 cp "$work/linkage.txt" "$destination/linkage.txt"
 # One universal payload under both target-triple names, matching cmagic's tap.
 COPYFILE_DISABLE=1 tar -cf "$work/payload.tar" -C "$work/payload" .

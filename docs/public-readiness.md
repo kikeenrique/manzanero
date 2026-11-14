@@ -1,12 +1,12 @@
 # Public repository readiness
 
-The remaining publication decisions are the root license and, as the final step, GitHub hosting and release delivery. Publication has not happened.
+The project uses the [MIT license](../license). GitHub hosting and release delivery remain the final publication step. Publication has not happened.
 
 ## Publication checklist
 
 | Item | Status |
 | --- | --- |
-| Root license | Pending owner selection. Preserve separate notices in `ThirdParty/` and reflect the license in the README and Homebrew formula. |
+| Root license | MIT, selected by the owner. The license is included in beta archives and declared in the Homebrew formula. Separate notices in `ThirdParty/` retain their own terms. |
 | Repository instructions | Portable instructions replace the personal home-directory import. Local execution permissions remain in ignored `.codex/config.toml`. |
 | Git identity | Keep existing author and committer names and email addresses, as requested by the owner. |
 | History privacy | Complete: all 95 existing commits were rewritten to remove personal home paths, local execution configuration and the private investigation document. Targeted checks passed across reachable history; author/committer identities and timestamps were preserved. |
