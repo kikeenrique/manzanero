@@ -11,7 +11,7 @@ iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope. [Feature status
 3. **Improve agent targeting.** Expand AX action/overlay/rotation coverage and useful postconditions without turning old snapshot IDs into stale action handles.
 4. **Complete direct replacements.** Restore simulator input/AX and required diagnostics through project-owned Apple APIs or Apple executables.
 5. **Validate other Apple families.** Add family-specific backends and live evidence rather than treating generic identifier acceptance as support.
-6. **Finish operational delivery.** Run the beta workflow, publish immutable release assets and update the Homebrew tap after repository/licensing/publication decisions.
+6. **Finish operational delivery.** Run the beta workflow in the public repository, publish immutable release assets and update and test the Homebrew tap.
 
 These are implementation priorities, not evidence that a feature is complete or a request to change device settings automatically.
 

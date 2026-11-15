@@ -2,7 +2,7 @@
 
 Distribution follows the prebuilt-archive model used by [cmagic](https://github.com/kikeenrique/cmagic/tree/d84805469c29a836f9328609a8cc6aef16c52cc2/mise/tasks) and its [Homebrew formula](https://github.com/kikeenrique/homebrew-tap/blob/main/Formula/cmagic.rb): GitHub release archives, SHA-256 checksums and a tap formula that installs without compiling on the tester's Mac.
 
-The initial release is not published. The checkout has no Git remote and the hosting repository is undecided. Manzanero uses the [MIT license](../license); release archives include it alongside the separate third-party notices.
+The source repository is [kikeenrique/manzanero](https://github.com/kikeenrique/manzanero), configured locally as `origin`. The initial beta release is not published. Manzanero uses the [MIT license](../license); release archives include it alongside the separate third-party notices.
 
 ## Build and review locally
 

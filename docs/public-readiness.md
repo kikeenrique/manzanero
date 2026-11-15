@@ -1,6 +1,6 @@
 # Public repository readiness
 
-The project uses the [MIT license](../license). GitHub hosting and release delivery remain the final publication step. Publication has not happened.
+The project uses the [MIT license](../license), and its public source repository is [kikeenrique/manzanero](https://github.com/kikeenrique/manzanero). Beta release assets and the Homebrew formula have not been published.
 
 ## Publication checklist
 
@@ -12,7 +12,7 @@ The project uses the [MIT license](../license). GitHub hosting and release deliv
 | History privacy | Complete: all 95 existing commits were rewritten to remove personal home paths, local execution configuration and the private investigation document. Targeted checks passed across reachable history; author/committer identities and timestamps were preserved. |
 | Documentation | Describe supported operations and distinguish implementation from observed device behavior. See [verification](verification.md). |
 | Project description | Independent Apple-device wording is used in current files and historical revisions, including source and test identifiers. Targeted checks across reachable history passed. The server identifier rename passed all 314 tests with no build errors or warnings. |
-| Hosting and releases | Deferred until other preparation is complete. Select the repository, run the beta workflow and test the Homebrew formula. See [releasing](releasing.md). |
+| Hosting and releases | Public source repository created. Running the beta workflow, publishing release assets and testing the actual Homebrew formula remain separate delivery steps. See [releasing](releasing.md). |
 
 History cleanup changes commit IDs. Recovery copies and investigation artifacts stay under ignored `tmp/`; never publish that directory or include it in a source archive. Required attribution remains in [dependencies](dependencies.md) and `ThirdParty/`.
 
