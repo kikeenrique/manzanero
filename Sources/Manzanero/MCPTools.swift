@@ -112,9 +112,9 @@ enum MCPTools {
             if $0["interval_seconds"] != nil { args += ["--interval", $0.number("interval_seconds")] }
             return args
         },
-        .init(name: "get_screen", description: "Capture a PNG and inspect it. Auto prefers a useful AX tree (physical: app at primary display centre; simulator: frontmost application, else the screen-centre one), then Vision OCR, then explicitly reports image-only. Method can force tree or ocr. Returns coordinate space, dimensions, diagnostics, and the image (downscaled, with a note, when the PNG exceeds 8 MiB). AX uses logical points, OCR normalized bounds. Capture/analysis are sequential and non-atomic.", fields: [platform, device, .init(name: "method", required: false, choices: ["auto", "tree", "ocr"])], imagePath: "imagePath", imageFromResult: true) { $0.deviceCommand(["screen", $0.text("method", default: "auto")]) },
+        .init(name: "get_screen", description: "Capture a PNG and inspect it. Auto prefers a useful AX tree (physical: app at primary display centre; simulator: frontmost application, else the screen-centre one), then Vision OCR, then explicitly reports image-only. Method can force tree or ocr. Returns coordinate space, dimensions, diagnostics, and the image. The inline image is the saved PNG unless the image_* options ask for a smaller or JPEG copy, and it is downscaled with a note when it exceeds the byte limit. AX uses logical points, OCR normalized bounds. Capture/analysis are sequential and non-atomic.", fields: [platform, device, .init(name: "method", required: false, choices: ["auto", "tree", "ocr"])] + imageFields, imagePath: "imagePath", imageFromResult: true) { $0.deviceCommand(["screen", $0.text("method", default: "auto")]) },
         .init(name: "decode_accessibility_archive", description: "Inspect a saved local keyed archive in process through Foundation, without connecting to a device or launching a helper. Bounded data-only structural decoding preserves unknown classes/fields, decodes nested archives, and represents opaque data by byte count. Does not instantiate archived classes, produce a parsed physical hierarchy or establish numeric attribute meanings.", fields: [.init(name: "path")], readOnly: true) { ["decode-ax-archive", $0.text("path")] },
-        .init(name: "screenshot", description: "Capture a PNG to a local path and return it as MCP image content, downscaled with a note when the PNG exceeds 8 MiB. May replace an existing local file. Simulator and awake/unlocked iPhone 13 mini USB capture verified; earlier captures before confirmed wake/unlock were black.", fields: [platform, device, .init(name: "path", description: "Local output path ending in .png; prefer ignored tmp/.")], imagePath: "path") { $0.deviceCommand(["screenshot", $0.text("path")]) },
+        .init(name: "screenshot", description: "Capture a PNG to a local path and return it as MCP image content. The inline image is the saved PNG unless the image_* options ask for a smaller or JPEG copy, and it is downscaled with a note when it exceeds the byte limit; the saved file is always the full-resolution PNG. May replace an existing local file. Simulator and awake/unlocked iPhone 13 mini USB capture verified; earlier captures before confirmed wake/unlock were black.", fields: [platform, device, .init(name: "path", description: "Local output path ending in .png; prefer ignored tmp/.")] + imageFields, imagePath: "path") { $0.deviceCommand(["screenshot", $0.text("path")]) },
         .init(name: "record_screen", description: "Record a finite screen video to a new host .mp4 path. Parent must exist; existing paths refused. Duration 1...300 seconds; h264 or hevc. Physical defaults to devicectl, which may lack capability; optional recording_backend coredevice uses in-process Apple negotiation, HEVC RTP decoding with VideoToolbox and AVFoundation encoding on macOS 26+. Native publication requires owned stop/absence and tunnel-release acknowledgements. Native RTCP receiver reports are sent to the owned peer. Experimental: reliable startup, keyframe/crash recovery and captures beyond verified durations remain incomplete or unverified. No automatic fallback, audio, or inline video. Metadata includes decoded duration/dimensions.", fields: [platform, device, .init(name: "path"), .init(name: "seconds", kind: .number), .init(name: "codec", required: false, choices: ["h264", "hevc"]), .init(name: "recording_backend", required: false, choices: ["devicectl", "coredevice"])]) {
             ($0["recording_backend"] == nil ? [] : ["--recording-backend", $0.text("recording_backend")]) + $0.deviceCommand(["record", $0.text("path"), $0.number("seconds"), $0.text("codec", default: "h264")])
         },
@@ -176,18 +176,54 @@ enum MCPTools {
         .init(name: "ocr_image", description: "Recognize text in a local image using Vision. Normalized top-left bounds. Recognition verified on one simulator fixture; broad accuracy remains unverified.", fields: [.init(name: "path")], readOnly: true) { ["ocr", $0.text("path")] }
     ]
 
+    /// Per-request control of the inline image on tools that return one. The
+    /// saved file is never affected; these only shape what travels in the result.
+    static let imageFields: [MCPField] = [
+        .init(name: "image_include", kind: .boolean, description: "False leaves the inline image out (the PNG is still saved and its path returned). Default true.", required: false),
+        .init(name: "image_max_edge", kind: .integer, description: "Longest edge of the inline image in pixels, \(InlineImage.Options.edgeRange.lowerBound)...\(InlineImage.Options.edgeRange.upperBound). Smaller costs fewer tokens; about 1568 keeps interface text readable. Default: the saved size.", required: false),
+        .init(name: "image_format", description: "png (lossless, default) or jpeg (smaller, lossy).", required: false, choices: InlineImage.Format.allCases.map(\.rawValue)),
+        .init(name: "image_quality", kind: .number, description: "JPEG quality 0.1...1, default 0.8. Only with image_format jpeg.", required: false),
+        .init(name: "image_max_bytes", kind: .integer, description: "Cap on the encoded inline image in bytes, \(InlineImage.Options.byteRange.lowerBound)...\(InlineImage.Options.byteRange.upperBound), default \(InlineImage.defaultByteLimit). The image is downscaled until it fits; base64 adds about a third in transit.", required: false)
+    ]
+
+    /// Reads and range-checks the image options before anything is captured.
+    static func imageOptions(_ arguments: [String: Value]) throws -> InlineImage.Options {
+        var options = InlineImage.Options()
+        func integer(_ key: String, in range: ClosedRange<Int>) throws -> Int? {
+            guard let value = arguments[key] else { return nil }
+            guard case .int(let number) = value, range.contains(number) else {
+                throw MCPError.invalidParams("\(key) must be an integer in \(range.lowerBound)...\(range.upperBound)")
+            }
+            return number
+        }
+        if let include = arguments["image_include"]?.boolValue { options.include = include }
+        options.maximumEdge = try integer("image_max_edge", in: InlineImage.Options.edgeRange)
+        if let limit = try integer("image_max_bytes", in: InlineImage.Options.byteRange) { options.byteLimit = limit }
+        if let format = arguments["image_format"]?.stringValue.flatMap(InlineImage.Format.init(rawValue:)) { options.format = format }
+        if let value = arguments["image_quality"] {
+            let quality: Double? = if case .double(let number) = value { number } else if case .int(let number) = value { Double(number) } else { nil }
+            guard let quality, InlineImage.Options.qualityRange.contains(quality) else {
+                throw MCPError.invalidParams("image_quality must be a number in 0.1...1")
+            }
+            guard options.format == .jpeg else { throw MCPError.invalidParams("image_quality applies only with image_format jpeg") }
+            options.quality = quality
+        }
+        return options
+    }
+
     static func call(name: String, arguments: [String: Value], execute: @Sendable ([String]) async throws -> CommandOutput) async throws -> CallTool.Result {
         guard let definition = definitions.first(where: { $0.name == name }) else { throw MCPError.invalidParams("Unknown tool: \(name)") }
         let command = try definition.command(arguments)
+        let imageOptions = definition.imagePath == nil ? InlineImage.Options() : try imageOptions(arguments)
         do {
             let output = try await execute(command)
             let value = try? JSONDecoder().decode(Value.self, from: output.data)
             var content: [Tool.Content] = [.text(text: String(decoding: output.data, as: UTF8.self), annotations: nil, _meta: nil)]
             if output.exitCode == 0, let key = definition.imagePath,
                let path = (definition.imageFromResult ? value?.objectValue?[key] : arguments[key])?.stringValue {
-                let (attachment, omission) = try InlineImage.attachment(for: URL(fileURLWithPath: path))
+                let (attachment, omission) = try InlineImage.attachment(for: URL(fileURLWithPath: path), options: imageOptions)
                 if let attachment {
-                    content.append(.image(data: attachment.data.base64EncodedString(), mimeType: "image/png", annotations: nil, _meta: nil))
+                    content.append(.image(data: attachment.data.base64EncodedString(), mimeType: attachment.mimeType, annotations: nil, _meta: nil))
                     if let note = attachment.note { content.append(.text(text: note, annotations: nil, _meta: nil)) }
                 }
                 if let omission { content.append(.text(text: omission, annotations: nil, _meta: nil)) }

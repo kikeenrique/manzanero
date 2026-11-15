@@ -60,7 +60,25 @@ Physical Unicode paste is `paste_text`; it replaces the clipboard and uses curre
 
 Tool content includes the CLI output as text. JSON is also returned under `structuredContent.result`; plain simulator output remains text.
 
-`screenshot` and `get_screen` append the saved PNG as an image block when it is at most 8 MiB. A larger file, which a detailed full-resolution phone screen can be, is sent as a downscaled PNG (longest edge at most 1568 pixels) with a text note giving both sizes and the scale factor; the saved file stays full resolution. Normalized coordinates are unaffected. Only a file that cannot be read or reduced is left out, with a notice. Other downloads are not embedded, parsed or symbolicated automatically.
+### Inline image options
+
+`screenshot` and `get_screen` save a full-resolution PNG and also return it inline. The inline copy costs response size and model tokens, so each call can shape it without affecting the saved file:
+
+| Parameter | Meaning | Default |
+| --- | --- | --- |
+| `image_include` | `false` leaves the inline image out; the path is still returned | `true` |
+| `image_max_edge` | Longest edge of the inline image in pixels, 64...8192 | The saved size |
+| `image_format` | `png` (lossless) or `jpeg` (smaller, lossy) | `png` |
+| `image_quality` | JPEG quality, 0.1...1; only with `image_format: jpeg` | 0.8 |
+| `image_max_bytes` | Cap on the encoded inline image, 16384...16777216 bytes | 8388608 (8 MiB) |
+
+With no options the saved PNG is sent unchanged when it fits the byte cap. An image over the cap is downscaled, starting at a 1568-pixel longest edge or the requested edge and halving until it fits, rather than left out. Whenever the inline image differs from the saved file, a text block says how: both sizes, the format, the byte count and the factor by which pixel positions must be scaled. Normalized coordinates are unaffected. Only a file that cannot be read or reduced far enough is left out, with a notice. An out-of-range option is rejected before anything is captured.
+
+For an agent that only needs to read the screen, `image_max_edge: 1568` with `image_format: jpeg` is a reasonable starting point; for one working from the accessibility tree, `image_include: false`.
+
+The 8 MiB default dates from the first MCP commit, where it was a guard against very large responses with no recorded basis in a host or model limit. The image travels as base64, about a third larger than the cap, and a host may enforce a lower limit of its own.
+
+Other downloads are not embedded, parsed or symbolicated automatically.
 
 - Unknown tools and invalid schema parameters produce JSON-RPC invalid-parameter errors.
 - Backend/domain failures produce `isError: true` and diagnostics as text, plus `structuredContent.error` with the failure's `code`, `message`, `inputSent`, `retry` and `action`, the same object the CLI prints with `--error-format json`. See [errors](errors.md) for the categories and what each asks of a caller.
