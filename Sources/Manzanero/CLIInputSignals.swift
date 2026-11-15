@@ -6,8 +6,13 @@ import Synchronization
 /// shutdown use the scope; MCP request cancellation remains a separate path.
 enum CLIInputSignals {
     static func applies(to args: [String], dryRun: Bool) -> Bool {
-        !dryRun && (try? CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args))) != nil
+        !dryRun && ((try? CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args))) != nil || isSimulator(args))
     }
+
+    /// Simulator input and accessibility run under the same scope.
+    static func isSimulator(_ args: [String]) -> Bool { (try? SimulatorInput.parse(args)) != nil }
+
+    static func context(for args: [String]) -> String { isSimulator(args) ? "simulator input" : "physical input" }
 
     final class Controller: Sendable {
         private struct State {

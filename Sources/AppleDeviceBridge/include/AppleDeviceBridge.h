@@ -219,6 +219,20 @@ void ADCCloseSimulatorDevice(void *owner);
 int ADCSimulatorAXExchange(void *owner, const uint8_t *request, size_t length, double timeoutSeconds,
                            ADCInputShouldStop shouldCancel, void (^sink)(const uint8_t *, size_t),
                            char *error, size_t errorCapacity);
+/// Simulator Indigo HID over host XPC to the simulator's dtuhidd daemon. The
+/// messages, schedules, validation, release-on-stop and the status contract
+/// (zero; ADCInputOutcomeUnknown once input was attempted; another non-zero
+/// value when nothing was sent) are those of ADCPerformTouch,
+/// ADCPerformKeyboard and ADCPressButton. The device must still be Booted.
+int ADCSimulatorPerformTouch(void *owner, const ADCTouchSample *samples, size_t count,
+                             ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
+int ADCSimulatorPerformKeyboard(void *owner, const ADCKeyboardSample *samples, size_t count,
+                                ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
+int ADCSimulatorPressKeyboardKey(void *owner, uint64_t usage, ADCInputShouldStop shouldCancel,
+                                 char *error, size_t errorCapacity);
+/// Home (64) and lock/side (48) only.
+int ADCSimulatorPressButton(void *owner, uint64_t usage, unsigned holdMicroseconds,
+                            ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 
 /// Host-only availability of the dynamically resolved Apple interfaces, grouped
 /// by capability. Loads the listed frameworks with the operations' own flags and

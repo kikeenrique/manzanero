@@ -339,6 +339,9 @@ actor CommandService {
             throw failure.noInputSent()
         }
         defer { lease?.release() }
+        if SimulatorInput.inputOperations.contains(simulator.operation) {
+            return CommandOutput(data: try DirectSimulatorInput.execute(simulator, info: info, environment: self.simulator))
+        }
         let data = try await DirectSimulatorAccessibility.execute(simulator, info: info, environment: self.simulator)
         return AccessibilityWait.operations.contains(simulator.operation) ? try AccessibilityWait.output(data) : CommandOutput(data: data)
     }

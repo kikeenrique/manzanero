@@ -118,7 +118,7 @@ do {
     let commandArgs = args
     let result: CommandOutput
     if CLIInputSignals.applies(to: commandArgs, dryRun: dryRun) {
-        result = try await CLIInputSignals.run {
+        result = try await CLIInputSignals.run(context: CLIInputSignals.context(for: commandArgs)) {
             try await CommandService().execute(commandArgs, allowInteractive: true)
         }
     } else {

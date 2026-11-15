@@ -1,3 +1,4 @@
+import AppleDeviceBridge
 import Foundation
 
 /// Simulator input and accessibility in process: argument validation, dry-run
@@ -13,7 +14,7 @@ struct SimulatorInput {
     static let accessibilityOperations = ["tree"] + selectorActions + AccessibilityWait.operations
     static let touchOperations = ["tap", "long-press", "swipe", "drag"]
     static let inputOperations = touchOperations + ["button", "key", "type"]
-    static let operations = accessibilityOperations
+    static let operations = accessibilityOperations + touchOperations
     /// Operations that exist for physical devices but not yet for simulators.
     static let unimplemented = ["multi-tap", "multi-drag", "pinch", "gesture", "paste", "wake"]
     static let buttons: [String: UInt64] = ["home": 64, "lock": 48]
@@ -47,6 +48,15 @@ struct SimulatorInput {
             _ = try DirectAccessibilityAction(probe)
         case let value where AccessibilityWait.operations.contains(value):
             _ = try AccessibilityWait(probe)
+        case "long-press":
+            guard operands.count == 3, let x = Double(operands[0]), let y = Double(operands[1]),
+                  let seconds = Double(operands[2]), x.isFinite, y.isFinite, seconds.isFinite,
+                  (0...1).contains(x), (0...1).contains(y), (0.1...10).contains(seconds) else {
+                throw CommandFailure.usage("Simulator long-press requires normalized x/y in 0...1 and duration 0.1...10 seconds.")
+            }
+            operands = [x, y, seconds].map { String($0) }
+        case "tap", "swipe", "drag":
+            try PhysicalInputOperands.validate(operation, operands, subject: "Simulator")
         default:
             throw CommandFailure.unsupported("Unsupported simulator operation: \(operation).")
         }
@@ -77,6 +87,15 @@ struct SimulatorInput {
             plan.removeValue(forKey: "identityArguments")
             plan["backend"] = AccessibilityPlatform.simulator.backend
             plan["execution"] = "\(route) Omitted PID re-selects the frontmost application on every poll; an explicit PID is observed even in the background. Each poll reads application identity and one bounded snapshot, evaluates the exact selector, and rechecks the selection before reporting a met condition. No input, fallback or reconnection."
+        } else if Self.touchOperations.contains(operation) {
+            let samples = try DirectPhysicalTouch.plan(coreDeviceInput, display: DirectTouchDisplay(portraitPoints: 1, height: 1, scale: 1))
+            plan["backend"] = DirectSimulatorInput.backend
+            plan["operands"] = operands
+            plan["deviceLease"] = "simulator UUID"
+            plan["sampleCount"] = samples.count
+            plan["contactCount"] = 1
+            plan["coordinateSpace"] = "normalized-current-interface (portrait assumed)"
+            plan["execution"] = "In-process host XPC to the simulator's dtuhidd (com.apple.coredevice.feature.remote.hid.digitizer): readiness barrier, the physical Indigo digitizer schedule, release on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
         }
         return plan
     }
@@ -88,6 +107,8 @@ struct SimulatorEnvironment: Sendable {
     var lookup: @Sendable (String) throws -> SimulatorDeviceInfo
     /// Opens an accessibility session whose whole life is bounded by the duration.
     var accessibility: @Sendable (String, Duration) throws -> any AccessibilityExchange
+    /// Sends one single-contact schedule; throws `CommandFailure.inputDispatch` failures.
+    var touch: @Sendable (String, [ADCTouchSample]) throws -> Void = DirectSimulatorInput.touch
 
     static let live = SimulatorEnvironment(
         lookup: { try SimulatorDevice.lookup($0) },
