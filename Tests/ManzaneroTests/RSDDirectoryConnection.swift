@@ -1,5 +1,4 @@
 import AppleDeviceBridge
-import Darwin
 import Foundation
 import Testing
 import XPC
@@ -67,19 +66,6 @@ struct RSDDirectoryConnectionTests {
         #expect(validate(root).0 != 0)
     }
 
-    @Test(.dedicatedThread) func bridgeConsumesRejectedDescriptorAndClearsOutputsWithoutFrameworkSetup() throws {
-        var sockets: [Int32] = [-1, -1]
-        try #require(socketpair(AF_UNIX, SOCK_STREAM, 0, &sockets) == 0)
-        defer { Darwin.close(sockets[1]) }
-        var owner: UnsafeMutableRawPointer? = UnsafeMutableRawPointer(bitPattern: 1)
-        var port: UInt16 = 123
-        var error = [CChar](repeating: 0, count: 512)
-        #expect(ADCOpenRSDDirectory(sockets[0], hardware, "11111111-1111-1111-1111-111111111111", 0, 0, { 1 }, &port, &owner, &error, error.count) != 0)
-        #expect(owner == nil && port == 0)
-        #expect(SocketPeerClosure.streamReachesEOF(sockets[1]))
-        ADCCloseRSDDirectory(nil)
-    }
-
     @Test func invalidSwiftIdentityAndAddressFailBeforeTCP() {
         #expect(throws: CommandFailure.self) { try RSDDirectoryConnection(tunnelAddress: "fd12::1", port: 1, expectedUDID: "alias") }
         #expect(throws: CommandFailure.self) { try RSDDirectoryConnection(tunnelAddress: "::1", port: 1, expectedUDID: hardware) }
@@ -107,30 +93,5 @@ struct RSDDirectoryConnectionTests {
         for text in ["", "Remote device\n\tUUID: \(uuid)", "Local device\n\tUUID: invalid\nRemote device\n\tUUID: \(uuid)"] {
             #expect(throws: CommandFailure.self) { try RSDDirectoryConnection.localPeerUUID(in: Data(text.utf8)) }
         }
-    }
-
-    @Test(.enabled(if: ProcessInfo.processInfo.environment["MANZANERO_RSD_DIRECTORY_DEVICE"] != nil))
-    func explicitLiveDirectoryVerifiesHardwareWithoutAXSubscription() async throws {
-        let device = try #require(ProcessInfo.processInfo.environment["MANZANERO_RSD_DIRECTORY_DEVICE"])
-        let plan = try CoreDeviceInput(device: device, operation: "tree", operands: []).identityPlan()
-        let details = try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 20)
-        let address = try RSDPortDiscovery.tunnelAddress(details: details, expectedUDID: device)
-        let port = try await RSDPortDiscovery.discover(tunnelAddress: address)
-        let connection = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: device)
-        defer { connection.close() }
-        let axPort = connection.accessibilityPort
-        connection.close()
-        connection.close()
-        let after = try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 20)
-        guard try RSDPortDiscovery.tunnelAddress(details: after, expectedUDID: device) == address else {
-            throw CommandFailure(description: "Tunnel changed during directory probe; discard service port.")
-        }
-        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/rsd-directory-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let metadata: [String: Any] = ["device": device, "tunnelAddress": address, "directoryPort": port,
-            "accessibilityPort": axPort, "hardwareHandshakeVerified": true, "accessibilitySubscriptionStarted": false,
-            "accessibilitySocketOpened": false, "directoryCloseRequested": true, "remoteXPCBackend": "Apple framework in process"]
-        try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys]).write(to: directory.appendingPathComponent("result.json"))
-        #expect(axPort > 0)
     }
 }

@@ -46,13 +46,11 @@ The Network handshake waits up to eight seconds with cancellation polling; the A
 ```sh
 mise run test:rsd-port <hardware-UDID>
 mise run test:native-tunnel <hardware-UDID>
-mise run test:rsd-tree <hardware-UDID> <positive-PID> --native-tunnel --network
-mise run test:rsd-wire --network
+mise run test:rsd-tree <hardware-UDID> <positive-PID> --native-tunnel
+mise run test:rsd-wire
 ```
 
-The port task reads inventory only. Assertion-only testing acquires/releases without AX. The local wire task uses an owned synthetic loopback peer and deliberately incomplete handshake; its expected directory failure is not a physical-device result.
-
-Other `test:ax-*`/`test:rsd-*` comparison modes remain explicit diagnostics. Read their help; they do not become product fallbacks.
+The port task reads inventory only. Assertion-only testing acquires/releases without AX. The tree task uses the product's Network directory and records DTX frame structure privately under `tmp/`. The local wire task uses an owned synthetic loopback peer and deliberately incomplete handshake; its expected directory failure is not a physical-device result.
 
 ## Earlier failures and why they matter
 

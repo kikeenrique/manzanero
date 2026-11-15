@@ -1,14 +1,7 @@
 #!/usr/bin/env bash
 #MISE extends = "swift"
-#MISE description = "Capture Apple's native RemoteXPC initialization on an owned loopback peer; no device query"
-#USAGE flag "--mode <mode>" default="0" help="Explicit observed Apple mode: 0 for baseline, 4 for the current CoreDevice service profile"
-#USAGE flag "--network" help="Explicit unstarted Network bootstrap with native client mode 2; requires default --mode"
+#MISE description = "Capture Apple's native Network/RemoteXPC directory bootstrap on an owned loopback peer; no device query"
 
 set -e -o pipefail
 
-unset MANZANERO_NATIVE_RSD_WIRE_NETWORK
-if [ "${usage_network:-false}" = "true" ]; then
-  export MANZANERO_NATIVE_RSD_WIRE_NETWORK=1
-fi
-
-MANZANERO_NATIVE_RSD_WIRE=1 MANZANERO_NATIVE_RSD_WIRE_MODE="$usage_mode" swift test --cache-path tmp/swift-cache --filter NativeRemoteXPCWireTests 2>&1 | xcsift -f toon --warnings
+MANZANERO_NATIVE_RSD_WIRE=1 swift test --cache-path tmp/swift-cache --filter NativeRemoteXPCWireTests 2>&1 | xcsift -f toon --warnings

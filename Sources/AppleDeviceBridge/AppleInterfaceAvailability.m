@@ -34,7 +34,6 @@ typedef struct {
 
 #define ADC_FRAMEWORK(path, flags) { ADCInterfaceFramework, path, NULL, 1, flags }
 #define ADC_SYMBOL(name) { ADCInterfaceSymbol, name, NULL, 1, 0 }
-#define ADC_OPTIONAL_SYMBOL(name) { ADCInterfaceSymbol, name, NULL, 0, 0 }
 #define ADC_CLASS(name) { ADCInterfaceClass, name, NULL, 1, 0 }
 #define ADC_OPTIONAL_CLASS(name) { ADCInterfaceClass, name, NULL, 0, 0 }
 #define ADC_METHOD(owner, name) { ADCInterfaceInstanceMethod, name, owner, 1, 0 }
@@ -113,40 +112,7 @@ static const ADCRequirementSpec ADCKeyedArchiveUID[] = {
     ADC_SYMBOL("_CFKeyedArchiverUIDGetValue"),
 };
 
-// Bridge paths that no CLI or MCP command reaches today (tests and research).
-// ADCOpenAccessibilitySocket.
-static const ADCRequirementSpec ADCCoreDeviceAccessibilitySocket[] = { ADC_COREDEVICE_PREPARE };
-// ADCOpenRSDDirectory (connected-descriptor bootstrap).
-static const ADCRequirementSpec ADCRSDDirectoryDescriptor[] = {
-    ADC_COREDEVICE_PREPARE,
-    ADC_SYMBOL("xpc_remote_connection_create_with_connected_fd"),
-    ADC_SYMBOL("xpc_remote_connection_get_failsafe_version_flags"),
-    ADC_SYMBOL("xpc_remote_connection_cancel"),
-    ADC_SYMBOL("xpc_remote_connection_set_event_handler"),
-    ADC_SYMBOL("xpc_remote_connection_activate"),
-    ADC_SYMBOL("xpc_remote_connection_send_message"),
-};
-// ADCOpenRSDAccessibilitySocket, ADCOpenBrowsedRSDAccessibilitySocket and
-// ADCReadRSDTransportProfile*. Browse and profile symbols are needed only by
-// those variants, so they are optional for the direct lookup.
-static const ADCRequirementSpec ADCRSDServiceLookup[] = {
-    ADC_FRAMEWORK("/System/Library/PrivateFrameworks/RemoteServiceDiscovery.framework/RemoteServiceDiscovery", RTLD_NOW | RTLD_GLOBAL),
-    ADC_SYMBOL("remote_device_copy_device_matching"),
-    ADC_SYMBOL("remote_device_copy_property"),
-    ADC_SYMBOL("remote_device_copy_service"),
-    ADC_SYMBOL("remote_device_copy_service_names"),
-    ADC_SYMBOL("remote_device_type_parse"),
-    ADC_SYMBOL("remote_device_type_get_description"),
-    ADC_SYMBOL("remote_device_get_type"),
-    ADC_SYMBOL("remote_device_get_state"),
-    ADC_SYMBOL("remote_service_should_encrypt_socket_data"),
-    ADC_SYMBOL("remote_service_create_connected_socket"),
-    ADC_OPTIONAL_SYMBOL("remote_device_browse_present"),
-    ADC_OPTIONAL_SYMBOL("remote_device_copy_uuid"),
-    ADC_OPTIONAL_SYMBOL("remote_device_get_xpc_remote_connection_version_flags"),
-    ADC_OPTIONAL_SYMBOL("remote_device_get_xpc_remote_connection_mode_flags"),
-    ADC_OPTIONAL_SYMBOL("remote_device_xpc_remote_connection_tls_enabled"),
-};
+// Bridge path that no CLI or MCP command reaches today.
 // ADCCreateVideoSession (decoded-JPEG mode). Its runtime access check,
 // -[AVCStreamOutput validateAccess], needs an instance and is not run here.
 static const ADCRequirementSpec ADCNativeRecordingJPEG[] = {
@@ -179,12 +145,6 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCNativeRecording, ADC_COUNT(ADCNativeRecording) },
     { "keyed-archive-uid", "Reading keyed-archive UID values in AX archives and decode-ax-archive", 0, 1,
       ADCKeyedArchiveUID, ADC_COUNT(ADCKeyedArchiveUID) },
-    { "coredevice-accessibility-socket", "Raw accessibility socket requested from CoreDevice (bridge path not used by commands)", 0, 0,
-      ADCCoreDeviceAccessibilitySocket, ADC_COUNT(ADCCoreDeviceAccessibilitySocket) },
-    { "rsd-directory-descriptor", "RSD directory over a connected descriptor (bridge path not used by commands)", 0, 0,
-      ADCRSDDirectoryDescriptor, ADC_COUNT(ADCRSDDirectoryDescriptor) },
-    { "rsd-service-lookup", "RemoteServiceDiscovery device and service lookup (bridge path not used by commands)", 0, 0,
-      ADCRSDServiceLookup, ADC_COUNT(ADCRSDServiceLookup) },
     { "native-recording-jpeg", "Decoded-JPEG native video session (bridge path not used by commands)", 26, 0,
       ADCNativeRecordingJPEG, ADC_COUNT(ADCNativeRecordingJPEG) },
 };

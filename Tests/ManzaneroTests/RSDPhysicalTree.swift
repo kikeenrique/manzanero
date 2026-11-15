@@ -68,8 +68,7 @@ struct RSDPhysicalTreeTests {
         try FileManager.default.createDirectory(at: artifacts, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         var metadata: [String: Any] = ["device": device, "pid": pid, "stage": "identity", "axSocketOpened": false,
             "nativeTunnelRequested": ProcessInfo.processInfo.environment["MANZANERO_RSD_TREE_NATIVE_TUNNEL"] == "1"]
-        let transport: RSDDirectoryConnection.Transport = ProcessInfo.processInfo.environment["MANZANERO_RSD_TREE_NETWORK"] == "1" ? .network : .connectedFD
-        metadata["directoryTransport"] = transport.rawValue
+        metadata["directoryTransport"] = "network"
         metadata["selection"] = foreground ? "centre-hit-test" : "explicit-pid"
         var assertion: NativeTunnelAssertion?
         var directory: RSDDirectoryConnection?
@@ -97,7 +96,7 @@ struct RSDPhysicalTreeTests {
             metadata["stage"] = "port-discovery"
             let port = try await RSDPortDiscovery.discover(tunnelAddress: address)
             metadata["stage"] = "directory-handshake"
-            directory = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: device, transport: transport)
+            directory = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: device)
             metadata["hardwareHandshakeVerified"] = true
             metadata["stage"] = "ax-socket"
             let transport = try #require(directory).openAccessibility()

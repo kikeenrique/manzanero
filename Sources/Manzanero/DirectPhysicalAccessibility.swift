@@ -1,4 +1,3 @@
-import AppleDeviceBridge
 import Foundation
 
 enum DirectPhysicalAccessibility {
@@ -40,7 +39,7 @@ enum DirectPhysicalAccessibility {
         do {
             let port = try await RSDPortDiscovery.discover(tunnelAddress: address)
             try Task.checkCancellation()
-            let directory = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: udid, transport: .network)
+            let directory = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: udid)
             defer { directory.close() }
             let transport = try directory.openAccessibility()
             let session = AccessibilitySession(transport: transport, limits: wait?.sessionLimits ?? .standard)
@@ -81,16 +80,6 @@ enum DirectPhysicalAccessibility {
         if let diagnostic = release.diagnostic { cleanup["diagnostic"] = diagnostic }
         root["connectionCleanup"] = cleanup
         return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
-    }
-
-    static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
-                        open: (String, String) throws -> any AccessibilitySessionTransport = openSocket) throws -> Data {
-        let pid = try applicationPID(input)
-        let identity = try DirectPhysicalInput.identity(input, query: query)
-        try Task.checkCancellation()
-        let transport = try open(identity.uuid, identity.version)
-        let session = AccessibilitySession(transport: transport)
-        return try capture(device: input.device, resolved: identity.uuid, pid: pid, session: session)
     }
 
     static func capture(device: String, resolved: String, pid: Int32?, session: AccessibilitySession,
@@ -209,15 +198,5 @@ enum DirectPhysicalAccessibility {
             try container.encode(cleanup, forKey: .cleanup)
             try container.encode(limitations, forKey: .limitations)
         }
-    }
-
-    private static func openSocket(uuid: String, version: String) throws -> any AccessibilitySessionTransport {
-        var owner: UnsafeMutableRawPointer?
-        var error = [CChar](repeating: 0, count: 1024)
-        let descriptor = ADCOpenAccessibilitySocket(uuid, version, &owner, &error, error.count)
-        guard descriptor >= 0 else {
-            throw CommandFailure(description: "Direct physical AX endpoint unavailable: " + String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
-        }
-        return try AccessibilitySocketTransport(taking: descriptor, owner: owner)
     }
 }

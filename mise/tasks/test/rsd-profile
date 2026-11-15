@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-#MISE extends = "swift"
-#MISE description = "Read identity-checked Apple RSD service transport flags without a service connection or credential access"
-#USAGE arg "<device>" help="Explicit physical hardware UDID"
-#USAGE arg "<remote_uuid>" help="Apple RSD UUID; hardware identity is checked again in process"
-
-set -e -o pipefail
-
-MANZANERO_RSD_PROFILE_DEVICE="$usage_device" MANZANERO_RSD_PROFILE_REMOTE_UUID="$usage_remote_uuid" swift test --cache-path tmp/swift-cache --filter RSDTransportProfileTests 2>&1 | xcsift -f toon --warnings

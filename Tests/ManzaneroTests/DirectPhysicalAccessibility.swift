@@ -104,34 +104,6 @@ struct DirectPhysicalAccessibilityTests {
         #expect(cleanup["diagnostic"] as? String != nil && transport.closed)
     }
 
-    @Test func invalidArgumentsAndDisabledReadinessNeverOpenTransport() throws {
-        let device = CoreDeviceInputTests().udid
-        for operands in [[], ["0"], ["-1"], ["2147483648"], ["42", "extra"]] {
-            #expect(throws: CommandFailure.self) {
-                try DirectPhysicalAccessibility.execute(.init(device: device, operation: "tree", operands: operands),
-                    query: { _ in Issue.record("Invalid PID queried"); return Data() },
-                    open: { _, _ in Issue.record("Invalid PID opened transport"); throw CancellationError() })
-            }
-        }
-        #expect(throws: CommandFailure.self) {
-            try DirectPhysicalAccessibility.execute(.init(device: device, operation: "tree", operands: ["42"]),
-                query: { _ in try DirectPhysicalInputTests().details(mode: "disabled") },
-                open: { _, _ in Issue.record("Disabled device opened transport"); throw CancellationError() })
-        }
-    }
-
-    @Test func freshIdentityPrecedesSingleOwnedCaptureWithoutHelper() throws {
-        let transport = try wire()
-        var queries = 0, opens = 0
-        _ = try DirectPhysicalAccessibility.execute(.init(device: CoreDeviceInputTests().udid, operation: "tree", operands: ["42"]),
-            query: { _ in queries += 1; return try DirectPhysicalInputTests().details() }, open: { uuid, version in
-                #expect(queries == 1 && uuid == CoreDeviceInputTests().uuid && version == "651.32")
-                opens += 1
-                return transport
-            })
-        #expect(opens == 1 && transport.closed)
-    }
-
     @Test func cliAndMCPDryRunsShareTheOptInRouteWithoutQuerying() async throws {
         let tool = try #require(MCPTools.definitions.first { $0.name == "get_ui_tree" })
         let args = try tool.command(["platform": "physical", "device": "fixture", "pid": 42])

@@ -2,8 +2,8 @@ import AppleDeviceBridge
 import Darwin
 import Foundation
 
-/// Consumes one stream descriptor and its optional Apple bridge owner. Confine
-/// it to a single session; neither the descriptor nor this object may be shared.
+/// Consumes one stream descriptor and its optional RSD directory. Confine it
+/// to a single session; neither the descriptor nor this object may be shared.
 final class AccessibilitySocketTransport: AccessibilitySessionTransport {
     enum Failure: Error, Sendable, Equatable, CustomStringConvertible {
         case deadline
@@ -20,15 +20,13 @@ final class AccessibilitySocketTransport: AccessibilitySessionTransport {
     }
 
     private var descriptor: Int32
-    private var owner: UnsafeMutableRawPointer?
     private var directory: RSDDirectoryConnection?
     var isClosed: Bool { descriptor < 0 }
 
     /// Ownership transfers even when setup throws. Never close or reuse the
-    /// original descriptor/owner after calling this initializer.
-    init(taking descriptor: Int32, owner: UnsafeMutableRawPointer? = nil, directory: RSDDirectoryConnection? = nil) throws {
+    /// original descriptor after calling this initializer.
+    init(taking descriptor: Int32, directory: RSDDirectoryConnection? = nil) throws {
         self.descriptor = descriptor
-        self.owner = owner
         self.directory = directory
         do {
             guard descriptor >= 0 else { throw Failure.closed }
@@ -54,10 +52,8 @@ final class AccessibilitySocketTransport: AccessibilitySessionTransport {
 
     func close() {
         let savedDescriptor = descriptor
-        let savedOwner = owner
         descriptor = -1
-        owner = nil
-        if savedDescriptor >= 0 || savedOwner != nil { ADCCloseAccessibilitySocket(savedDescriptor, savedOwner) }
+        if savedDescriptor >= 0 { ADCCloseAccessibilitySocket(savedDescriptor) }
         directory?.close()
         directory = nil
     }
