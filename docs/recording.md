@@ -76,7 +76,7 @@ The default physical `devicectl` path advertises finite capture in Xcode help bu
 
 Run these via `mise run`. They are opt-in; input-bearing tasks change the phone.
 
-The older `test:media-frames` AVConference-output experiment is denied by Apple's `AVCStreamOutput` access validator. No override, process spoofing or framework hook is used. The old ipb video helper/ADV1 pipe is disabled and is not setup for the current route.
+The older `test:media-frames` AVConference-output experiment is denied by Apple's `AVCStreamOutput` access validator. No override, process spoofing or framework hook is used. The old ipb video helper/ADV1 pipe has been removed.
 
 ## Verified scope
 

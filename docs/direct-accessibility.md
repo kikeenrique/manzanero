@@ -154,7 +154,7 @@ Cancellation propagates after cleanup attempts. No operation is replayed. Blocki
 
 The current Network route returned Settings trees through diagnostic, CLI and real MCP, including omitted-PID foreground selection and PNG/tree inspection. Exact identifier/label presses navigated General ↔ Información. Scroll moved a Settings row; a later MCP already-visible check returned native false with a passing postcondition and unconfirmed unsubscribe.
 
-Earlier CoreDevice named-socket, raw RSD inventory and Apple relay attempts failed before subscription. Error 4000/underlying POSIX 83 did not identify a missing UI Automation setting or establish a private entitlement requirement. The later Network route succeeded; those earlier failures were not converted into evidence for the new route.
+Earlier CoreDevice named-socket, raw RSD inventory and Apple relay attempts failed before subscription; their code has since been removed. Error 4000/underlying POSIX 83 did not identify a missing UI Automation setting or establish a private entitlement requirement. The later Network route succeeded; those earlier failures were not converted into evidence for the new route.
 
 See [verification](verification.md) for environment and scope. Other apps, overlays, rotations, families, interrupted actions and reliable recovery remain unverified or incomplete.
 
@@ -167,4 +167,4 @@ mise run test:mcp-press <UDID> identifier com.example.control
 mise run test:mcp-scroll <UDID> com.example.row
 ```
 
-Read/press/scroll tests have different effects. Use their help and inspect private captures where visual effect matters. The historical idevice AX implementation has been removed from the CLI; old helper-backed results are migration evidence, not current execution instructions.
+Read/press/scroll tests have different effects. Use their help and inspect private captures where visual effect matters. The historical idevice AX implementation has been removed; old helper-backed results are migration evidence, not current execution instructions.

@@ -50,4 +50,4 @@ Two-contact spread and inward movement visibly zoomed Maps on iPhone 13 mini; a 
 
 Local tests cover two-to-five-slot encoding, rotation, interpolation, endpoint/timing bounds and input rejection before device queries. Exact delivered timing, broad gesture semantics, hardware failure release, other apps/orientations and other Apple families remain unverified.
 
-Earlier ipb/idevice implementations are disabled research references. Their tests and receipts do not establish behavior of the current direct backend.
+Earlier ipb/idevice implementations have been removed (git history keeps them). Their tests and receipts do not establish behavior of the current direct backend.

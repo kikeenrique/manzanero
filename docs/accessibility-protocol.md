@@ -83,6 +83,6 @@ See [native session limits](direct-accessibility.md#ownership-deadlines-and-fail
 
 ## Provenance
 
-The request/response research follows pinned MIT [ipb protocol notes](https://github.com/ipbtools/ipb/blob/8c227a10710dad479852aa0203de729fed57471b/docs/protocol.md), earlier project-owned Rust AX code, retained phone callbacks and installed Apple interfaces. The [ipb notice](../ThirdParty/ipb-LICENSE.txt) is retained. The earlier Rust path used pinned [idevice DTX](https://github.com/jkcoxson/idevice/blob/89702099f4d7552f704f93b4526756abda319ceb/idevice/src/services/dvt/message.rs); its current executable route is blocked.
+The request/response research follows pinned MIT [ipb protocol notes](https://github.com/ipbtools/ipb/blob/8c227a10710dad479852aa0203de729fed57471b/docs/protocol.md), earlier project-owned Rust AX code, retained phone callbacks and installed Apple interfaces. The [ipb notice](../ThirdParty/ipb-LICENSE.txt) is retained. The earlier Rust path used pinned [idevice DTX](https://github.com/jkcoxson/idevice/blob/89702099f4d7552f704f93b4526756abda319ceb/idevice/src/services/dvt/message.rs); that path has been removed (git history keeps it).
 
 No proprietary device-control binary is linked or packaged. Required implementation-reference notices remain in `ThirdParty/`.

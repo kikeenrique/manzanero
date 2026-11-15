@@ -21,7 +21,7 @@ mise tasks validate
 | `package`, `test:package`, `release:formula` | [Beta packaging](releasing.md), archive smoke and tap formula generation |
 | `release <version>` | Check version/worktree/tag, then push the tag to publish a beta through CI |
 | `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device |
-| `test:media-*`, `test:native-tunnel`, `test:rsd-*`, `test:ax-*` | Opt-in native transport/media diagnostics |
+| `test:media-*`, `test:native-tunnel`, `test:rsd-*` | Opt-in native transport/media diagnostics |
 | `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core and measurement-runner tests on macOS; Tuist workspace generation under `tmp/probe-app/generated` |
 | `test:probe-touch <UDID>` | Opt-in [touch measurement](probe-touch-runner.md) against the foreground probe app; `--dry-run` contacts no device |
 

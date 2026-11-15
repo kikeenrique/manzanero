@@ -42,4 +42,4 @@ The live task types into the current field and saves screenshots/receipt under i
 
 ## Historical implementation
 
-The retired Rust bridge registered an owned virtual mainKeyboard and attempted reset/removal. That runtime path is blocked. Its cleanup and layout assumptions are not the current Indigo implementation's guarantees.
+The retired Rust bridge registered an owned virtual mainKeyboard and attempted reset/removal. That path has been removed. Its cleanup and layout assumptions are not the current Indigo implementation's guarantees.

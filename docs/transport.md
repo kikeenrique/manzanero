@@ -1,6 +1,6 @@
 # Native physical transport
 
-Physical AX uses an owned Apple tunnel assertion, a freshly discovered RSD directory and Apple's Network/RemoteXPC APIs, then raw TCP/DTX to the validated AX service. This is the current route; older socket experiments are diagnostics, not automatic fallbacks.
+Physical AX uses an owned Apple tunnel assertion, a freshly discovered RSD directory and Apple's Network/RemoteXPC APIs, then raw TCP/DTX to the validated AX service. This is the only route; the older socket experiments listed below have been removed (git history keeps them).
 
 ## Current Network directory and native AX route
 
@@ -54,6 +54,8 @@ The port task reads inventory only. Assertion-only testing acquires/releases wit
 
 ## Earlier failures and why they matter
 
+The code for these attempts (CoreDevice named AX socket, RemoteServiceDiscovery lookup/browse and transport-profile reads, connected-FD directory bootstrap, `remotectl netcat` relay) is gone; the findings remain as history.
+
 - CoreDevice named AX sockets failed with error 4000, later including POSIX 83 (`EDEVERR`). The category did not establish a missing setting, credential or entitlement.
 - Direct RSD lookup/browse saw zero services while Apple's tool advertised AX. Apple `remotectl netcat` also failed before DTX. Advertising or service metadata was insufficient.
 - An early directory response passed once, but later connected-FD attempts returned `Connection invalid`. Nearby generic TLS-renegotiation logs did not establish a causal device-specific explanation.
@@ -66,4 +68,4 @@ No TLS bypass, daemon suspension, private entitlement, pairing change or automat
 
 The native tunnel/directory work was informed by pinned [pymobiledevice3 native-tunnel](https://github.com/doronz88/pymobiledevice3/blob/03d788d23105c1754c27cc4e6ddc1d7e23835b32/pymobiledevice3/remote/native_tunnel.py) and [RemoteXPC](https://github.com/doronz88/pymobiledevice3/blob/03d788d23105c1754c27cc4e6ddc1d7e23835b32/pymobiledevice3/remote/remotexpc.py) references, without adding that runtime or copying credentials/source.
 
-The retired idevice path used independent pairing records and TLS-PSK software tunnels. Live pairing/reconnection remained unverified and that executable route is blocked. See [dependencies](dependencies.md), [AX contracts](accessibility-protocol.md) and [verification](verification.md).
+The retired idevice path used independent pairing records and TLS-PSK software tunnels. Live pairing/reconnection remained unverified, and that route has been removed. See [dependencies](dependencies.md), [AX contracts](accessibility-protocol.md) and [verification](verification.md).
