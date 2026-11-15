@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Measure physical touch delivery against the foreground probe app; sends touches unless --dry-run"
+#MISE depends = ["build"]
+#USAGE arg "<device>" help="Explicit physical device UDID; probe app foreground, device awake, unlocked and portrait"
+#USAGE flag "--dry-run" help="Print the plan and every command and check them with manzanero --dry-run; contacts no device"
+#USAGE flag "--plan <file>" help="Plan JSON instead of the built-in plan (docs/probe-touch-runner.md)"
+#USAGE flag "--repeat <count>" default="1" help="Run the plan this many times, 1...50"
+#USAGE flag "--readback <mode>" default="each" help="each: accessibility readback after every action; end: only after the last"
+#USAGE flag "--settle <seconds>" help="Pause before each readback, 0...5 (default: the plan's, else 0.5)"
+#USAGE flag "--out <dir>" help="New run directory (default tmp/probe-touch/<timestamp>)"
+#USAGE flag "--no-reset" help="Do not press probe.touch.reset before the first action"
+#USAGE flag "--no-pull" help="Do not pull Documents/touch-log.jsonl at the end"
+
+# Builds the probe-touch runner from Fixtures/ProbeApp/ProbeCore and runs it against
+# the built .build/debug/manzanero. The pull uses PROBE_APP_BUNDLE_ID when set (for
+# example in the untracked .env.local), else the tracked default bundle identifier.
+# Build diagnostics go to stderr; stdout carries the dry-run plan or the run summary.
+
+set -e -o pipefail
+
+swift build --package-path Fixtures/ProbeApp/ProbeCore --scratch-path tmp/probe-app/core-build \
+  --cache-path tmp/swift-cache --product probe-touch 2>&1 | xcsift -f toon --warnings >&2
+
+args=(run "$usage_device" --repeat "$usage_repeat" --readback "$usage_readback"
+  --bundle-id "${PROBE_APP_BUNDLE_ID:-com.lemambo.manzanero.probeapp}")
+if [ "${usage_dry_run:-false}" = "true" ]; then args+=(--dry-run); fi
+if [ "${usage_no_reset:-false}" = "true" ]; then args+=(--no-reset); fi
+if [ "${usage_no_pull:-false}" = "true" ]; then args+=(--no-pull); fi
+if [ -n "${usage_plan:-}" ]; then args+=(--plan "$usage_plan"); fi
+if [ -n "${usage_settle:-}" ]; then args+=(--settle "$usage_settle"); fi
+if [ -n "${usage_out:-}" ]; then args+=(--out "$usage_out"); fi
+
+exec tmp/probe-app/core-build/debug/probe-touch "${args[@]}"

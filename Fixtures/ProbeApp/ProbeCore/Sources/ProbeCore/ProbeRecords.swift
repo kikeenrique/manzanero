@@ -4,7 +4,7 @@ import Foundation
 public let probeFormatVersion = 1
 
 /// The UIKit touch callback that produced an event.
-public enum TouchPhase: String, Encodable, Sendable, CaseIterable {
+public enum TouchPhase: String, Codable, Sendable, CaseIterable {
     case began, moved, ended, cancelled
 }
 
@@ -108,7 +108,7 @@ public struct TruncationRecord: Encodable, Sendable, Equatable {
 }
 
 /// One contact of a completed gesture.
-public struct GestureContact: Encodable, Sendable, Equatable {
+public struct GestureContact: Codable, Sendable, Equatable {
     public let c: Int
     /// Normalised `[x, y]` at `began`.
     public let from: [Double]
@@ -145,7 +145,7 @@ public struct LastGestureReadout: Encodable, Sendable, Equatable {
 }
 
 /// Log state as seen by the summary.
-public struct LogStatus: Encodable, Sendable, Equatable {
+public struct LogStatus: Codable, Sendable, Equatable {
     /// Lines written or buffered, including the session header.
     public var lines: Int
     public var bytes: Int

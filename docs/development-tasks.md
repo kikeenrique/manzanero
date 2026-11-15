@@ -22,7 +22,8 @@ mise tasks validate
 | `release <version>` | Check version/worktree/tag, then push the tag to publish a beta through CI |
 | `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device |
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*`, `test:ax-*` | Opt-in native transport/media diagnostics |
-| `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core tests on macOS; Tuist workspace generation under `tmp/probe-app/generated` |
+| `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core and measurement-runner tests on macOS; Tuist workspace generation under `tmp/probe-app/generated` |
+| `test:probe-touch <UDID>` | Opt-in [touch measurement](probe-touch-runner.md) against the foreground probe app; `--dry-run` contacts no device |
 | `coredevice:*`, `idevice:*` | Retired helper research/build tests; not runtime setup |
 
 Use the installed task's argument help rather than guessing flags:
@@ -44,6 +45,8 @@ mise run test:mcp-shutdown --help
 | `test:mcp-scroll <UDID> <identifier>` | One scroll-to-visible action and observed postcondition |
 | `test:mcp-type <UDID> <text>` | Types into the current focus |
 | `test:mcp-gesture <UDID> <file>` | Sends the complete supplied touch sequence |
+| `test:probe-touch <UDID> --dry-run` | Prints the measurement plan and commands; no device contact |
+| `test:probe-touch <UDID>` | Resets the probe app through AX, sends the plan's touches and pulls its log; stops if the probe is not foreground |
 | `test:mcp-recording <UDID>` | Two-second recording and subsequent screenshot |
 | `test:mcp-recording-interaction <UDID>` | Launches Settings, records, reads AX and presses Home |
 | `test:mcp-cancel-recording <UDID>` | Starts/cancels capture, then records again |

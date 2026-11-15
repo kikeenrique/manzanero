@@ -6,7 +6,7 @@ The probe app is a small iOS app of this project's own that reports what the dev
 
 A direct physical input receipt says Manzanero dispatched a touch; it does not say iOS delivered it. Until now delivery was judged from screenshots of Settings and Maps. Some taps returned success with no visible effect, three-to-five-contact gestures were never shown to arrive as that many contacts, and hold duration and release were unverified.
 
-The touch probe records every touch UIKit delivers to the app and lets Manzanero read that record back. A later live session can send known touches and compare them with what the app received: delivery rate, coordinate error, contact count, hold duration and release. The measurement runner does not exist yet.
+The touch probe records every touch UIKit delivers to the app and lets Manzanero read that record back. The [touch measurement runner](probe-touch-runner.md) (`mise run test:probe-touch <UDID>`) sends known touches and compares them with what the app received: delivery rate, coordinate error, contact count, hold duration and release. It has been tested offline only; no live run has happened yet.
 
 The app is a test fixture. It is not part of the `manzanero` product and has no third-party dependencies.
 
@@ -16,7 +16,7 @@ The app is a test fixture. It is not part of the `manzanero` product and has no 
 | --- | --- |
 | `Fixtures/ProbeApp/Project.swift`, `Tuist.swift` | Tuist manifests (local generation only) |
 | `Fixtures/ProbeApp/Config/ProbeApp.xcconfig` | Neutral bundle identifier and signing defaults, with an optional untracked include |
-| `Fixtures/ProbeApp/ProbeCore/` | UIKit-independent Swift package: recorder, readout and log formats, log writer, Swift Testing tests |
+| `Fixtures/ProbeApp/ProbeCore/` | UIKit-independent Swift package: recorder, readout and log formats (encoding and decoding), log writer, Swift Testing tests; also the host-only [measurement runner](probe-touch-runner.md) targets, which the app does not link |
 | `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing |
 | `Fixtures/ProbeApp/UITests/` | XCUITest checks of the recording path in the simulator |
 
@@ -25,7 +25,7 @@ Requirements: iOS 18.0 or later, iPhone only, portrait only. Swift 6 language mo
 ## Generate, test and build
 
 ```sh
-mise run probe-app:test       # core unit tests on macOS through xcsift; no simulator
+mise run probe-app:test       # core and measurement-runner tests on macOS through xcsift; no simulator
 mise run probe-app:generate   # Tuist workspace at tmp/probe-app/generated/
 ```
 
@@ -252,5 +252,7 @@ Verified on 2026-11-15 with Xcode 27.2 (27B52), Tuist 4.214.0 and an iPhone 17e 
 - The app installed and launched with `xcrun simctl`, and a screenshot showed the empty probe with the status bar hidden. The session header was present in `Documents/touch-log.jsonl`.
 - Four XCUITest tests passed: an empty launch with all three elements and a new session after relaunch; a single tap recorded within 0.02 of its normalised position; a 1.5-second press measured within 0.4 s; and a two-finger tap reported as `maxActive: 2` with contacts 0 and 1. XCUITest synthesises these touches, so they exercise UIKit delivery and the accessibility readback, not Manzanero's physical input path.
 - `manzanero simulator <UUID> build-run` on the generated workspace built, installed and launched the app (`status: launched`). A physical `build-run --dry-run` produced the expected plan.
+
+Later the same day the package gained `Decodable` conformances for these formats (the encoded JSON is unchanged) and the measurement runner; `mise run probe-app:test` then passed 66 tests. See [the runner's verification](probe-touch-runner.md#what-has-and-has-not-been-verified).
 
 Not verified: anything on physical hardware. That includes signing, installation, `tree` readback, `press-id probe.touch.reset`, `pull` of the log, and every delivery measurement. Activating the reset element through accessibility was not exercised in the simulator, because XCUITest has no accessibility-activate action. Manzanero cannot inject touches into a simulator.
