@@ -1090,7 +1090,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
             return ADCFail(error, capacity, @"Apple CoreDevice service socket request timed out before input.");
         }
         xpc_object_t reply = socketReply.reply;
-        xpc_object_t output = xpc_get_type(reply) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(reply, "CoreDevice.output") : NULL;
+        xpc_object_t output = reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(reply, "CoreDevice.output") : NULL;
         int fd = output ? xpc_dictionary_dup_fd(output, "fileDescriptor") : -1;
         if (fd < 0) {
             xpc_connection_cancel(connection);

@@ -257,10 +257,18 @@ static BOOL VideoAPIAvailable(BOOL packets, char *error, size_t capacity) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{ framework = dlopen("/System/Library/PrivateFrameworks/AVConference.framework/Versions/A/AVConference", RTLD_NOW | RTLD_LOCAL); });
     if (!framework) { VideoFail(error, capacity, @"Cannot load installed AVConference; no stream started."); return NO; }
-    NSArray *checks = packets ? @[@[@"AVCMediaStreamNegotiator", @"initWithMode:options:error:"]] : @[@[@"AVCMediaStreamNegotiator", @"initWithMode:options:error:"],
+    // Every negotiator method the session later calls is checked here, so a
+    // method removed by an OS update fails cleanly instead of raising an
+    // unrecognized-selector exception after negotiation has begun.
+    NSArray *negotiation = @[@[@"AVCMediaStreamNegotiator", @"initWithMode:options:error:"],
+        @[@"AVCMediaStreamNegotiator", @"createOffer"], @[@"AVCMediaStreamNegotiator", @"offer"],
+        @[@"AVCMediaStreamNegotiator", @"setAnswer:withError:"],
+        @[@"AVCMediaStreamNegotiator", @"generateMediaStreamConfigurationWithError:"],
+        @[@"AVCMediaStreamNegotiator", @"generateMediaStreamInitOptionsWithError:"]];
+    NSArray *checks = packets ? negotiation : [negotiation arrayByAddingObjectsFromArray:@[
         @[@"AVCVideoStream", @"initWithNetworkSockets:options:error:"], @[@"AVCVideoStream", @"streamToken"],
         @[@"AVCStreamOutput", @"initWithStreamToken:delegate:queue:error:"], @[@"AVCStreamOutput", @"setDelegate:"],
-        @[@"AVCStreamOutput", @"validateAccess"]];
+        @[@"AVCStreamOutput", @"validateAccess"]]];
     for (NSArray *check in checks) {
         Class type = NSClassFromString(check[0]);
         if (!type || ![type instancesRespondToSelector:NSSelectorFromString(check[1])]) {
