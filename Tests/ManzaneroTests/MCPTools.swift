@@ -86,6 +86,50 @@ struct MCPToolsTests {
         }
     }
 
+    static let physicalDefaults: [(String, [String: Value], [String])] = [
+        ("press_element", ["device": Value.string("fixture"), "by": "identifier", "text": "x"], ["physical", "fixture", "press-id", "x"]),
+        ("scroll_to_element", ["device": Value.string("fixture"), "by": "label", "text": "x"], ["physical", "fixture", "scroll-label", "x"]),
+        ("wait_for_element", ["device": Value.string("fixture"), "by": "identifier", "text": "x"], ["physical", "fixture", "wait-id", "x"]),
+        ("press_key", ["device": Value.string("fixture"), "key": "return"], ["physical", "fixture", "key", "return"]),
+        ("long_press", ["device": Value.string("fixture"), "x": 0.5, "y": 0.5, "seconds": 1],
+         ["--physical-backend", "coredevice", "physical", "fixture", "long-press", "0.5", "0.5", "1"])
+    ]
+
+    @Test(arguments: physicalDefaults)
+    func newOptionalPlatformsKeepThePhysicalRoute(_ name: String, _ arguments: [String: Value], _ expected: [String]) throws {
+        let definition = try #require(MCPTools.definitions.first { $0.name == name })
+        #expect(try definition.command(arguments) == expected)
+        #expect(try definition.command(arguments.merging(["platform": "physical"]) { $1 }) == expected)
+        let required = Set((definition.tool.inputSchema.objectValue?["required"]?.arrayValue ?? []).compactMap(\.stringValue))
+        #expect(!required.contains("platform"))
+    }
+
+    /// Every simulator operation an agent can reach over MCP routes to the
+    /// simulator command that SimulatorInput accepts.
+    static let simulatorRoutes: [(String, [String: Value], [String])] = [
+        ("get_ui_tree", ["platform": Value.string("simulator")], ["tree"]),
+        ("get_ui_tree", ["platform": Value.string("simulator"), "pid": 42], ["tree", "42"]),
+        ("press_element", ["platform": Value.string("simulator"), "by": "identifier", "text": "probe.touch.reset"], ["press-id", "probe.touch.reset"]),
+        ("scroll_to_element", ["platform": Value.string("simulator"), "by": "label", "text": "General"], ["scroll-label", "General"]),
+        ("wait_for_element", ["platform": Value.string("simulator"), "by": "label", "text": "General", "timeout_seconds": 2], ["wait-label", "General", "--timeout", "2"]),
+        ("tap", ["platform": Value.string("simulator"), "x": 0.5, "y": 0.25], ["tap", "0.5", "0.25"]),
+        ("drag", ["platform": Value.string("simulator"), "x1": 0.3, "y1": 0.5, "x2": 0.7, "y2": 0.5, "seconds": 0.5], ["drag", "0.3", "0.5", "0.7", "0.5", "0.5"]),
+        ("long_press", ["platform": Value.string("simulator"), "x": 0.5, "y": 0.5, "seconds": 0.8], ["long-press", "0.5", "0.5", "0.8"]),
+        ("press_button", ["platform": Value.string("simulator"), "button": "home"], ["button", "home"]),
+        ("press_key", ["platform": Value.string("simulator"), "key": "backspace"], ["key", "backspace"]),
+        ("type_text", ["platform": Value.string("simulator"), "text": "Wi-Fi"], ["type", "Wi-Fi"])
+    ]
+
+    @Test(arguments: simulatorRoutes)
+    func simulatorPlatformRoutesToTheSimulatorCommand(_ name: String, _ arguments: [String: Value], _ operands: [String]) throws {
+        let uuid = "11111111-2222-3333-4444-555555555555"
+        let definition = try #require(MCPTools.definitions.first { $0.name == name })
+        let args = try definition.command(arguments.merging(["device": .string(uuid)]) { $1 })
+        #expect(args == ["simulator", uuid] + operands)
+        let parsed = try #require(try SimulatorInput.parse(args))
+        #expect(parsed.operation == operands[0])
+    }
+
     @Test(arguments: [("type_text", ["device": Value.string("fixture"), "text": "a"], ["physical", "fixture", "type", "a"]),
                       ("get_ui_tree", ["device": Value.string("fixture")], ["physical", "fixture", "tree"])])
     func optionalPlatformDefaultsToPhysical(_ name: String, _ arguments: [String: Value], _ expected: [String]) throws {

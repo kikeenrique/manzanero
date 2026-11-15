@@ -727,11 +727,32 @@ struct MCPStdioTests {
         #expect(inventoryResult["isError"] as? Bool == false)
         let structured = try #require(inventoryResult["structuredContent"] as? [String: Any])
         #expect((structured["result"] as? [String: Any])?["devices"] != nil)
-        // Simulators have no accessibility hierarchy yet; the tool must say so plainly.
+        // The frontmost application's tree through CoreSimulator. The Home
+        // Screen's snapshot can come back empty, so an app should be frontmost.
         let tree = try request(5, "tools/call", ["name": "get_ui_tree", "arguments": ["platform": "simulator", "device": simulator]])
         let treeResult = try #require(tree["result"] as? [String: Any])
-        #expect(treeResult["isError"] as? Bool == true)
-        #expect(((treeResult["content"] as? [[String: Any]])?.first?["text"] as? String)?.contains("not available yet") == true)
+        #expect(treeResult["isError"] as? Bool == false)
+        let hierarchy = try #require((treeResult["structuredContent"] as? [String: Any])?["result"] as? [String: Any])
+        #expect(hierarchy["format"] as? String == "accessibility-tree" && hierarchy["backend"] as? String == "coresimulator-ax")
+        #expect((hierarchy["application"] as? [String: Any])?["selection"] as? String == "frontmost-application")
+        let nodes = hierarchy["nodes"] as? [[String: Any]] ?? []
+        // Only the project's probe app is touched; any other app is only read.
+        if nodes.contains(where: { $0["identifier"] as? String == "probe.touch.reset" }) {
+            let pressed = try request(50, "tools/call", ["name": "press_element", "arguments": ["platform": "simulator", "device": simulator, "by": "identifier", "text": "probe.touch.reset"]])
+            let press = try #require((pressed["result"] as? [String: Any])?["structuredContent"] as? [String: Any])
+            #expect((press["result"] as? [String: Any])?["status"] as? String == "accepted")
+            let tapped = try request(51, "tools/call", ["name": "tap", "arguments": ["platform": "simulator", "device": simulator, "x": 0.5, "y": 0.45]])
+            #expect((tapped["result"] as? [String: Any])?["isError"] as? Bool == false)
+            let waited = try request(52, "tools/call", ["name": "wait_for_element", "arguments": ["platform": "simulator", "device": simulator, "by": "identifier", "text": "probe.touch.summary", "timeout_seconds": 5]])
+            let waitResult = try #require(waited["result"] as? [String: Any])
+            #expect(waitResult["isError"] as? Bool == false)
+            let wait = try #require((waitResult["structuredContent"] as? [String: Any])?["result"] as? [String: Any])
+            let value = try #require(((wait["observation"] as? [String: Any])?["element"] as? [String: Any])?["value"] as? String)
+            #expect(value.contains("\"gestures\":1"))
+        } else if let label = nodes.dropFirst().compactMap({ $0["label"] as? String }).first {
+            let waited = try request(52, "tools/call", ["name": "wait_for_element", "arguments": ["platform": "simulator", "device": simulator, "by": "label", "text": label, "timeout_seconds": 0]])
+            #expect((waited["result"] as? [String: Any])?["isError"] as? Bool == false)
+        }
         let screenshot = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "simulator", "device": simulator, "path": directory.appendingPathComponent("screen.png").path]])
         let screenshotResult = try #require(screenshot["result"] as? [String: Any])
         #expect(screenshotResult["isError"] as? Bool == false)
@@ -769,8 +790,8 @@ struct MCPStdioTests {
         #expect(inspectResult["isError"] as? Bool == false)
         let inspectStructured = try #require(inspectResult["structuredContent"] as? [String: Any])
         let screen = try #require(inspectStructured["result"] as? [String: Any])
-        #expect(["ocr", "image-only"].contains(screen["method"] as? String ?? ""))
-        #expect((screen["diagnostics"] as? [String])?.contains("Simulator accessibility hierarchy is not available yet.") == true)
+        #expect(["accessibility", "ocr", "image-only"].contains(screen["method"] as? String ?? ""))
+        #expect((screen["diagnostics"] as? [String])?.contains { $0.contains("not available yet") } == false)
         let screenContent = try #require(inspectResult["content"] as? [[String: Any]])
         #expect(screenContent.contains { $0["type"] as? String == "image" })
         // Closing stdin must end the server without a protocol shutdown request.

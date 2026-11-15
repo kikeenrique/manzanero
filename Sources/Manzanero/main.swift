@@ -19,7 +19,7 @@ Usage:
   Named keys and paste keys call Apple CoreDevice in process; paste uses Apple's devicectl clipboard copy.
   Physical type sends 1...512 printable US-layout ASCII characters, tab or LF in process; no clipboard change.
   Gesture schedules, multi-tap and three-to-five-path multi-drag use in-process Universal HID.
-  During direct physical input, SIGINT/SIGTERM cancels and attempts release, exiting 130/143.
+  During direct physical or simulator input, SIGINT/SIGTERM cancels and attempts release, exiting 130/143.
   A second signal or a 30-second cleanup deadline forces exit; device-side release is unverified.
   coredevice is the only physical backend and the default, so --physical-backend coredevice may be omitted.
   manzanero doctor               Check Xcode and device-service access, host versions, and host-only
@@ -83,8 +83,18 @@ Usage:
   manzanero simulator <device> install <app-path>
   manzanero simulator <device> open-url <url>
   manzanero simulator <device> screenshot <output.png>
-  Simulator input (tap, swipe, type, button) and accessibility hierarchy (tree) are not available yet;
-  simulator screen uses OCR.
+  manzanero simulator <UUID> tree [positive-pid]   Omitted PID selects the frontmost application
+  manzanero simulator <UUID> <press-id|press-label|scroll-id|scroll-label> [positive-pid] <exact-selector>
+  manzanero simulator <UUID> <wait-id|wait-label> [positive-pid] <exact-selector> [wait options as above]
+  manzanero simulator <UUID> tap <x> <y>
+  manzanero simulator <UUID> long-press <x> <y> <seconds: 0.1...10>
+  manzanero simulator <UUID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
+  manzanero simulator <UUID> button <home|lock>
+  manzanero simulator <UUID> key <return|escape|backspace|tab|space|up|down|left|right>
+  manzanero simulator <UUID> type <text>   US-layout ASCII, 1...512 characters
+  Simulator input and AX run in process (dtuhidd HID and CoreSimulator AX requests) on a booted
+  simulator, addressed by UUID; they never boot it. Coordinates are normalized 0...1, top left, in a
+  portrait interface. Multi-contact gestures, paste, wake and Unicode entry are physical-only for now.
   Prefix a planned command with --dry-run to print its invocation without executing.
   manzanero [--dry-run] --error-format <text|json> <command> ...
   A failure exits 1 and prints its message on stderr; json prints one object instead:
@@ -94,9 +104,9 @@ Usage:
   manzanero --help
   manzanero --version
 
-Physical input is experimental; remaining work is tracked in docs/roadmap.md.
+Physical and simulator input are experimental; remaining work is tracked in docs/roadmap.md.
 Physical single Xcode commands preserve devicectl JSON; readiness/build/record return CLI metadata.
-Simulator app/lifecycle commands preserve simctl output; simulator input and hierarchy are currently unavailable.
+Simulator app/lifecycle commands preserve simctl output; simulator input and AX return CLI metadata.
 Temporary process output is created beneath ./tmp and normally cleaned up on exit.
 """
 

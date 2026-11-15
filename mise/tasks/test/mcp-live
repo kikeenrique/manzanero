@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #MISE extends = "swift"
-#MISE description = "Verify MCP stdio tools against a selected booted simulator"
+#MISE description = "Verify MCP stdio tools against a selected booted simulator; presses, taps and waits only when the probe app is frontmost"
 #MISE depends = ["build"]
-#USAGE arg "<simulator>" help="Explicit booted simulator UUID"
+#USAGE arg "<simulator>" help="Explicit booted simulator UUID with an app frontmost (not the Home Screen); the probe app adds press/tap/wait checks"
 
 set -e -o pipefail
 
