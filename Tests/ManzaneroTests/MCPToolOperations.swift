@@ -23,7 +23,7 @@ struct MCPToolOperationsTests {
         let owner = MCPToolOperations(), gate = ShutdownGate()
         let started = Mutex(0), cleaning = Mutex(0), cleaned = Mutex(0), drained = Mutex(false)
         let calls = (0..<count).map { _ in
-            Task {
+            Task { @Sendable in
                 try await owner.perform {
                     started.withLock { $0 += 1 }
                     do { try await Task.sleep(for: .seconds(30)) }
