@@ -62,21 +62,21 @@ Tool content includes the CLI output as text. JSON is also returned under `struc
 
 ### Inline image options
 
-`screenshot` and `get_screen` save a full-resolution PNG and also return it inline. The inline copy costs response size and model tokens, so each call can shape it without affecting the saved file:
+`screenshot` and `get_screen` always save a full-resolution PNG, which is the evidence, and return its path. The image they return inline is a separate, reduced copy by default, because it is paid for in response size and in the model's context. Each call can change that:
 
 | Parameter | Meaning | Default |
 | --- | --- | --- |
-| `image_include` | `false` leaves the inline image out; the path is still returned | `true` |
-| `image_max_edge` | Longest edge of the inline image in pixels, 64...8192 | The saved size |
-| `image_format` | `png` (lossless) or `jpeg` (smaller, lossy) | `png` |
-| `image_quality` | JPEG quality, 0.1...1; only with `image_format: jpeg` | 0.8 |
-| `image_max_bytes` | Cap on the encoded inline image, 16384...16777216 bytes | 8388608 (8 MiB) |
+| `image_include` | `false` leaves the inline image out | `true` |
+| `image_max_edge` | Longest edge of the inline image in pixels, 64...8192. `8192` asks for the saved resolution | 1568 |
+| `image_format` | `auto`: lossless PNG when it fits the byte cap, otherwise JPEG. `png`: always lossless. `jpeg`: always lossy | `auto` |
+| `image_quality` | JPEG quality, 0.1...1. Not allowed with `image_format: png` | 0.8 |
+| `image_max_bytes` | Cap on the encoded inline image, 16384...16777216 bytes | 1048576 (1 MiB) |
 
-With no options the saved PNG is sent unchanged when it fits the byte cap. An image over the cap is downscaled, starting at a 1568-pixel longest edge or the requested edge and halving until it fits, rather than left out. Whenever the inline image differs from the saved file, a text block says how: both sizes, the format, the byte count and the factor by which pixel positions must be scaled. Normalized coordinates are unaffected. Only a file that cannot be read or reduced far enough is left out, with a notice. An out-of-range option is rejected before anything is captured.
+Reduction loses as little as it can, in this order: cap the longest edge; keep PNG if it fits the byte cap; with `auto`, switch to JPEG at the same size; only then halve the size until it fits. A screen that is already within the edge and the cap is sent as the saved file itself. Only a file that cannot be read or reduced far enough is left out, with a notice. An out-of-range option is rejected before anything is captured.
 
-For an agent that only needs to read the screen, `image_max_edge: 1568` with `image_format: jpeg` is a reasonable starting point; for one working from the accessibility tree, `image_include: false`.
+The result says what was sent in two places. A text block describes any difference from the saved file. `structuredContent.inlineImage` carries the same facts as data: `included`, `format`, `width`, `height`, `bytes` and `scale`, or `included: false` with a `reason`. Multiply a pixel position read from the inline image by `scale` to get the position in the saved file. Normalized coordinates, which the input tools take, are unaffected by any of this.
 
-The 8 MiB default dates from the first MCP commit, where it was a guard against very large responses with no recorded basis in a host or model limit. The image travels as base64, about a third larger than the cap, and a host may enforce a lower limit of its own.
+The 1568-pixel default is sized for a vision model to read interface text; larger images are commonly resized by the model before it looks at them. An agent working only from the accessibility tree can pass `image_include: false`; one that needs every pixel can pass `image_max_edge: 8192` with `image_format: png` and a larger `image_max_bytes`. The image travels as base64, about a third larger than the cap, and a host may enforce a limit of its own.
 
 Other downloads are not embedded, parsed or symbolicated automatically.
 

@@ -180,10 +180,10 @@ enum MCPTools {
     /// saved file is never affected; these only shape what travels in the result.
     static let imageFields: [MCPField] = [
         .init(name: "image_include", kind: .boolean, description: "False leaves the inline image out (the PNG is still saved and its path returned). Default true.", required: false),
-        .init(name: "image_max_edge", kind: .integer, description: "Longest edge of the inline image in pixels, \(InlineImage.Options.edgeRange.lowerBound)...\(InlineImage.Options.edgeRange.upperBound). Smaller costs fewer tokens; about 1568 keeps interface text readable. Default: the saved size.", required: false),
-        .init(name: "image_format", description: "png (lossless, default) or jpeg (smaller, lossy).", required: false, choices: InlineImage.Format.allCases.map(\.rawValue)),
-        .init(name: "image_quality", kind: .number, description: "JPEG quality 0.1...1, default 0.8. Only with image_format jpeg.", required: false),
-        .init(name: "image_max_bytes", kind: .integer, description: "Cap on the encoded inline image in bytes, \(InlineImage.Options.byteRange.lowerBound)...\(InlineImage.Options.byteRange.upperBound), default \(InlineImage.defaultByteLimit). The image is downscaled until it fits; base64 adds about a third in transit.", required: false)
+        .init(name: "image_max_edge", kind: .integer, description: "Longest edge of the inline image in pixels, \(InlineImage.Options.edgeRange.lowerBound)...\(InlineImage.Options.edgeRange.upperBound), default \(InlineImage.defaultEdge), which keeps interface text readable. Smaller costs less; \(InlineImage.Options.edgeRange.upperBound) asks for the saved resolution.", required: false),
+        .init(name: "image_format", description: "auto (default): lossless PNG when it fits image_max_bytes, otherwise JPEG. png: always lossless, shrinking further if needed. jpeg: always lossy and small.", required: false, choices: InlineImage.Format.allCases.map(\.rawValue)),
+        .init(name: "image_quality", kind: .number, description: "JPEG quality 0.1...1, default 0.8. Not allowed with image_format png.", required: false),
+        .init(name: "image_max_bytes", kind: .integer, description: "Cap on the encoded inline image in bytes, \(InlineImage.Options.byteRange.lowerBound)...\(InlineImage.Options.byteRange.upperBound), default \(InlineImage.defaultByteLimit). The image is converted, then downscaled, until it fits; base64 adds about a third in transit.", required: false)
     ]
 
     /// Reads and range-checks the image options before anything is captured.
@@ -197,7 +197,7 @@ enum MCPTools {
             return number
         }
         if let include = arguments["image_include"]?.boolValue { options.include = include }
-        options.maximumEdge = try integer("image_max_edge", in: InlineImage.Options.edgeRange)
+        if let edge = try integer("image_max_edge", in: InlineImage.Options.edgeRange) { options.maximumEdge = edge }
         if let limit = try integer("image_max_bytes", in: InlineImage.Options.byteRange) { options.byteLimit = limit }
         if let format = arguments["image_format"]?.stringValue.flatMap(InlineImage.Format.init(rawValue:)) { options.format = format }
         if let value = arguments["image_quality"] {
@@ -205,7 +205,7 @@ enum MCPTools {
             guard let quality, InlineImage.Options.qualityRange.contains(quality) else {
                 throw MCPError.invalidParams("image_quality must be a number in 0.1...1")
             }
-            guard options.format == .jpeg else { throw MCPError.invalidParams("image_quality applies only with image_format jpeg") }
+            guard options.format != .png else { throw MCPError.invalidParams("image_quality does not apply with image_format png") }
             options.quality = quality
         }
         return options
@@ -219,16 +219,24 @@ enum MCPTools {
             let output = try await execute(command)
             let value = try? JSONDecoder().decode(Value.self, from: output.data)
             var content: [Tool.Content] = [.text(text: String(decoding: output.data, as: UTF8.self), annotations: nil, _meta: nil)]
+            var structured: [String: Value] = [:]
+            if let value { structured["result"] = value }
             if output.exitCode == 0, let key = definition.imagePath,
                let path = (definition.imageFromResult ? value?.objectValue?[key] : arguments[key])?.stringValue {
-                let (attachment, omission) = try InlineImage.attachment(for: URL(fileURLWithPath: path), options: imageOptions)
-                if let attachment {
+                let outcome = try InlineImage.attachment(for: URL(fileURLWithPath: path), options: imageOptions)
+                switch outcome {
+                case .attached(let attachment):
                     content.append(.image(data: attachment.data.base64EncodedString(), mimeType: attachment.mimeType, annotations: nil, _meta: nil))
                     if let note = attachment.note { content.append(.text(text: note, annotations: nil, _meta: nil)) }
+                case .omitted(let reason):
+                    content.append(.text(text: reason, annotations: nil, _meta: nil))
                 }
-                if let omission { content.append(.text(text: omission, annotations: nil, _meta: nil)) }
+                // The same facts as data: an agent that reads pixel positions
+                // off the inline image needs its size and scale to compute with.
+                structured["inlineImage"] = try JSONDecoder().decode(Value.self,
+                    from: JSONSerialization.data(withJSONObject: outcome.description, options: [.sortedKeys]))
             }
-            return .init(content: content, structuredContent: value.map { .object(["result": $0]) },
+            return .init(content: content, structuredContent: structured.isEmpty ? nil : .object(structured),
                          isError: !definition.answerExitCodes.contains(output.exitCode))
         } catch is CancellationError {
             throw CancellationError()
