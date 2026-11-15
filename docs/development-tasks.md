@@ -24,8 +24,6 @@ mise tasks validate
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*`, `test:ax-*` | Opt-in native transport/media diagnostics |
 | `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core and measurement-runner tests on macOS; Tuist workspace generation under `tmp/probe-app/generated` |
 | `test:probe-touch <UDID>` | Opt-in [touch measurement](probe-touch-runner.md) against the foreground probe app; `--dry-run` contacts no device |
-| `coredevice:test` | Device-free C tests of the retained multitouch/gesture sender logic; part of CI |
-| `coredevice:setup`, `coredevice:build`, `coredevice:video-build`, `idevice:*` | Retired helper research builds; the CLI has no route to their outputs and runtime policy refuses them |
 
 Use the installed task's argument help rather than guessing flags:
 
@@ -69,6 +67,6 @@ Run these as `mise run <task> ...`. They use explicit targets and save private e
 
 Keep compiler/package caches, temporary tools and downloaded references under visible `tmp/`; build products use `.build/`. Never commit device artifacts or pairing records.
 
-The main-push/pull-request CI runs the same build, Swift tests and device-free native sender tests. It cancels superseded runs. CI and beta packaging share dependency and debug caches; release products have a separate cache. See [release workflows](releasing.md#ci-and-caching) for the paths and invalidation rules.
+The main-push/pull-request CI runs task validation, the build and the Swift tests. It cancels superseded runs. CI and beta packaging share dependency and debug caches; release products have a separate cache. See [release workflows](releasing.md#ci-and-caching) for the paths and invalidation rules.
 
 After editing task definitions, check Bash syntax, task discovery/help and `mise tasks validate`. Run the affected task when its behavior changed. The layout follows [mise file tasks](https://mise.jdx.dev/tasks/file-tasks.html).

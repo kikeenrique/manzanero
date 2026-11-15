@@ -15,7 +15,6 @@ Tasks are Bash scripts under `mise/tasks/` (directory namespaces become `group:t
 ```sh
 mise run build                      # swift build through xcsift
 mise run test                       # all Swift tests through xcsift
-mise run coredevice:test            # device-free C tests for the native multitouch/gesture senders
 mise run cli -- --help              # run .build/debug/manzanero; does NOT build first
 mise run cli --dry-run physical <UDID> tap 0.5 0.5   # print the planned invocation, touch nothing
 mise tasks validate                 # after editing task definitions
@@ -25,7 +24,7 @@ mise tasks validate                 # after editing task definitions
   `swift test --cache-path tmp/swift-cache --filter ToolRunnerTests 2>&1 | xcsift -f toon --warnings`
   (`--filter ToolRunnerTests/nonzeroExitIncludesDiagnostic` for one test). Tests use Swift Testing (`@Test`, `#expect`), not XCTest.
 - Hosted runners have about three cores, so the test suite shares a three-thread cooperative pool. Do not spin-wait (`while … { await Task.yield() }`), bound waits with short wall-clock limits, or block a pool thread while another task must make progress; use `TestSignal`, `ManualTestClock` and `.dedicatedThread` from `Tests/ManzaneroTests/TestConcurrency.swift`. Reproduce starvation locally with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 mise run test`.
-- CI runs exactly `mise tasks validate`, `build`, `test` and `coredevice:test`. Run those before committing.
+- CI runs exactly `mise tasks validate`, `build` and `test`. Run those before committing.
 - `test:mcp-*`, `test:media-*`, `test:rsd-*`, `test:ax-*`, `test:native-tunnel` and `test:cli-interrupt` need a real device and are opt-in; several send input or record. Read `mise run <task> --help` first and never run one against a device the user has not named.
 - `mise run release <version>` pushes a tag that publishes through CI. Do not run it unless explicitly asked.
 - The toolchain must be Swift 6.4+ (the resolved dependency graph requires it) even though the manifest's tools floor is 6.2.
@@ -41,7 +40,7 @@ One SwiftPM package, three targets: the `Manzanero` executable, the Objective-C 
 - **Process execution goes through `ToolRunner` (synchronous) or `StreamingToolRunner` (async, Swift Subprocess).** Both call `DeviceExecutablePolicy.validate`, which rejects anything outside Apple system binary directories (plus `remotectl`, and `xcsift` for build logs). This is the runtime enforcement of the dependency rule below; do not widen it to make a helper work.
 - **In-process native paths** (`DirectPhysical*`, `Native*`, `Accessibility*`, `Media*`, `RSD*`) implement input scheduling, AX DTX encoding/parsing, RSD discovery, and RTP/HEVC assembly and encoding in Swift. Anything that needs private Apple symbols, sockets or owner lifetimes goes through the C functions declared in `Sources/AppleDeviceBridge/include/AppleDeviceBridge.h` (prefix `ADC`); keep private-interface use behind that header.
 - **Cancellation and cleanup are part of the contract.** `CLIInputSignals` turns SIGINT/SIGTERM into cancellation with owned release (exit 130/143); `MCPToolOperations` closes admissions, cancels and drains on EOF with a 30-second forced-exit deadline. A pending handoff pauses non-observation commands for that device via `checkHandoffPause`.
-- **`Backends/IDevice` (Rust) and `Backends/CoreDevice` (C, patches) are retired references**, not runtime code. The CLI and MCP adapters have no route that plans their executables (or AXe); `pair`, `--pairing-file`, `hid-info`, live `ax-snapshot` and `logs` were removed rather than kept as disabled branches. `DeviceExecutablePolicy` still refuses those binaries. `coredevice:test` keeps testing the retained C sender logic.
+- **The retired helper backends (AXe, the Rust idevice bridge, ipb helpers) are gone**, together with their CLI routes, sources, patches and build tasks; git history has them. Do not keep unreachable code as reference. `DeviceExecutablePolicy` still refuses those binaries.
 - Temporary process output is written under `./tmp` relative to the current working directory, including by tests.
 
 `docs/feature-status.md` and `docs/verification.md` record what has actually been observed on a device; update them rather than implying coverage from a passing build.

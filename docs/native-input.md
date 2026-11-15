@@ -96,4 +96,4 @@ Local tests cover encoding, scheduling, rotation, invalid input and attempted cl
 
 ## Historical helper implementation (removed)
 
-Earlier implementations invoked ipb or a Rust idevice bridge. Their source/patches remain in `Backends/` for research; the CLI no longer plans them, and runtime policy would refuse them. Earlier helper receipts and cleanup behavior must not be treated as direct-backend evidence. See [dependencies and provenance](dependencies.md#retired-helpers).
+Earlier implementations invoked ipb or a Rust idevice bridge. Their routes, sources and patches have been removed (git history keeps them), and runtime policy would refuse those executables. Earlier helper receipts and cleanup behavior must not be treated as direct-backend evidence. See [dependencies and provenance](dependencies.md#retired-helpers).

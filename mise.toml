@@ -1,9 +1,6 @@
 [task_config]
 includes = ["mise/tasks"]
 
-[vars]
-rust_version = "1.99.1"
-
 [env]
 # Optional, untracked machine-local values (DEVELOPER_DIR, DEVELOPMENT_TEAM); see docs/development-tasks.md.
 _.file = ".env.local"
@@ -12,7 +9,3 @@ CLANG_MODULE_CACHE_PATH = "{{ config_root }}/tmp/clang-cache"
 [task_templates.swift]
 dir = "{{ config_root }}"
 shell = "bash -e -o pipefail -c"
-
-[task_templates.idevice]
-dir = "{{ config_root }}"
-env = { MISE_DATA_DIR = "{{ config_root }}/tmp/mise-data", MISE_CACHE_DIR = "{{ config_root }}/tmp/mise-cache", CARGO_HOME = "{{ config_root }}/tmp/cargo-home", RUSTUP_HOME = "{{ config_root }}/tmp/rustup" }

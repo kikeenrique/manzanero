@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-#MISE extends = "idevice"
-#MISE description = "Format the Rust bridge using its pinned toolchain"
-#MISE depends = ["idevice:setup"]
-#MISE env = { MANZANERO_RUST_VERSION = "{{ vars.rust_version }}" }
-
-set -e -o pipefail
-
-mise exec rust@${MANZANERO_RUST_VERSION} -- cargo fmt --manifest-path Backends/IDevice/Cargo.toml

@@ -43,7 +43,7 @@ The workflow selects Xcode 27.2 (`/Applications/Xcode_27.2.app`) on the `xcode-2
 
 ## CI and caching
 
-`.github/workflows/ci.yml` builds and tests pushes to `main` and pull requests, validates mise tasks and runs the device-free native sender tests. A newer run for the same ref cancels an older CI run. Release runs for the same ref are serialized without cancellation to avoid interrupting publication.
+`.github/workflows/ci.yml` builds and tests pushes to `main` and pull requests, and validates mise tasks. A newer run for the same ref cancels an older CI run. Release runs for the same ref are serialized without cancellation to avoid interrupting publication.
 
 Both workflows use the same mise tasks and cache these generated paths:
 

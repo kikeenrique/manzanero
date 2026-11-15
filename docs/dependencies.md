@@ -107,9 +107,7 @@ No proprietary device-control binary is linked or packaged. Required open-source
 
 ## Retired helpers
 
-`Backends/IDevice` and `Backends/CoreDevice` retain earlier Rust/native adapters and patches as migration references. Their build tasks can reproduce research artifacts, but the product refuses those executables.
-
-The routes that reached them were first blocked by execution policy and have since been removed from the CLI and MCP adapters, together with their planners, dry-run plans and tests:
+The AXe, Rust idevice and ipb helper backends have been removed: first their CLI and MCP routes, planners, dry-run plans and tests, then their sources, patches and build tasks. Git history keeps them. What went with them:
 
 - independent `pair wifi` and `--pairing-file` device operations (no longer recognised as commands);
 - `--physical-backend idevice` (now an unsupported backend; `coredevice` is the only physical backend and the default);
