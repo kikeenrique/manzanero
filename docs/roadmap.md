@@ -30,6 +30,8 @@ These are implementation priorities, not evidence that a feature is complete or 
 
 Readiness now distinguishes CoreDevice prerequisites from UI observations. It still cannot verify the Enable UI Automation switch or prove current UI unlock. A transient side-button wake observation does not establish unattended wake.
 
+Two research notes size the next pieces of agent-facing work: [simulator input and UI tree](simulator-input-research.md) and [app logs](app-logs-research.md).
+
 Several recent changes have local tests only. The [next live check plan](live-check-plan.md) orders their first run on a phone.
 
 ## Architecture constraints

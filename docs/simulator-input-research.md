@@ -1,0 +1,205 @@
+# Simulator input and accessibility: research
+
+This page decides how `manzanero` should get simulator input (`tap`, `swipe`, `drag`, `type`, `button`, gestures) and the simulator UI tree and element actions (`tree`, `press-id`/`-label`, `scroll-id`/`-label`, `wait-id`/`-label`) back without the retired AXe helper. It compares the Apple interfaces that can do it, recommends one route for input and one for the tree, and plans the work. No product code has changed.
+
+## Summary
+
+- **Input:** open an XPC connection from the `manzanero` process to the `dtuhidd` daemon that CoreSimulator injects into every booted iOS simulator. The connection carries the **same `IndigoDigitizerEvent`, `IndigoKeyboardButtonEvent` and `IndigoButtonEvent` dictionaries** that the physical backend already sends over RemoteXPC. Only the connection differs. On this machine a tap, a 0.5 s swipe, a two-contact gesture, Home, and US-layout typing all arrived at exactly the requested coordinates and timings, on a headless simulator (Simulator.app not running).
+- **Tree and actions:** send `AXPTranslatorRequest` objects through `-[SimDevice sendAccessibilityRequestAsync:completionQueue:completionHandler:]`. These are the **same requests and responses the physical raw-AX DTX path already encodes and decodes** (`AccessibilityRequest.swift`, `AccessibilityResponse.swift`): frontmost, hit test, application, snapshot, live attributes, press. One snapshot request returned the whole probe-app tree in 7 to 18 ms, in the `UIAccessibilitySnapshotKey*` form that the project's offline decoder (`decode-ax-archive`) already reads. A press by identifier (type 7, action 5) reset the probe app. A set-value request (type 8, attribute 53) entered `mañana 🚀 中` into a text field without the clipboard.
+- **Size:** medium overall. Almost all the logic (operand validation, schedules, selectors, waits, tree normalization, receipts) already exists for the physical device and can be shared. The new work is two small transports in the Objective-C bridge, a simulator display and selection layer, routing, doctor entries, and tests.
+- **Main risk:** both routes use private interfaces: the `_4sim` XPC functions in libxpc, the `dtuhidd` message contract, `-[SimDevice lookup:error:]`, `sendAccessibilityRequestAsync:` and the AccessibilityPlatformTranslation classes. Each can change with any Xcode or macOS update. The physical backend already carries the same risk for the same message formats, so one break would probably show on both platforms.
+
+## Environment and evidence labels
+
+All experiments ran on one machine: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), CoreSimulator 1174.21, SimulatorKit 1005.14, CoreDevice 651.32. The simulator was an iPhone 17e (390 × 844 points at 3×) on the iOS 27.2 (24B8117) runtime, freshly booted with `simctl boot` and Simulator.app not running. It was shut down afterwards. The test apps were the project's probe app (`Fixtures/ProbeApp`, built unsigned for the simulator) and Settings.
+
+The throwaway probe program is `tmp/simulator-research/probe.m` (untracked; it may be deleted). It loads the frameworks with `dlopen`, resolves names with `dlsym`/`objc_lookUpClass`, and messages the classes with `objc_msgSend`. It does not link or run any third-party code.
+
+Each claim below carries one of these labels:
+
+| Label | Meaning |
+| --- | --- |
+| **[E]** | Confirmed by experiment on this machine |
+| **[S]** | Found in an installed framework's symbols, strings or files, not exercised |
+| **[A]** | Read in AXe's source (or the IDB source it vendors) only |
+| **[I]** | Inferred |
+
+## What AXe actually does
+
+AXe (MIT, Cameron Cooke) vendors trimmed sources of Meta's IDB frameworks `FBControlCore` and `FBSimulatorControl` (MIT, Meta Platforms) under `tmp/AXe/Packages/IDBKit/`. `Package.swift` links them as binary XCFrameworks that `scripts/build.sh` builds from that source. Private Apple headers come from class dumps in `Packages/IDBKit/PrivateHeaders/`. Almost all of the simulator-relevant logic is in that vendored IDB code. AXe's own `Sources/AXe/` adds command parsing, path generation (`Utilities/SelectedHIDPath.swift`), orientation reading (`Utilities/SimulatorOrientationReader.swift`, via `SimulatorKit.SimDeviceScreen`), the iPhone Duo input broker (`Utilities/OrdinaryBrokerInput.swift`) and agent-mode observation (`Agent/AgentScreenObserver.swift`, `Agent/SimulatorAgentExecutor.swift`). `Extensions/AsyncParsableCommand+Setup.swift` only resolves Xcode and loads the frameworks. **[A]**
+
+**HID input.** AXe has two transports and picks one per simulator (`HID/FBSimulatorHIDSelection.swift`). **[A]**
+
+1. *Legacy Indigo* (`HID/FBSimulatorIndigoHID*.swift`): it builds `IndigoMessage` C structs with SimulatorKit's `IndigoHIDMessageForMouseNSEvent`, `IndigoHIDMessageForKeyboardArbitrary` and `IndigoHIDMessageForButton`, patches coordinates in at fixed byte offsets (`0x3C`, `0x44`, `0xDC`, …), and delivers them with `-[SimulatorKit.SimDeviceLegacyHIDClient sendWithMessage:freeWhenDone:completionQueue:completion:]`. AXe notes that on CoreSimulator 1155.4 and later an active `dtuhidd` disconnects the legacy keyboard service, so typed keys arrive but produce no text.
+2. *DTUHID* (`HID/FBSimulatorDTUHIDTransport.swift`, `HID/DTUHIDModels.swift`): `-[SimDevice lookup:error:]` returns the simulator's Mach port for `com.apple.coredevice.feature.remote.hid.digitizer`. `xpc_endpoint_create_mach_port_4sim(port, 0, 0)` and `xpc_connection_create_from_endpoint` turn it into an XPC connection, and `xpc_connection_enable_sim2host_4sim` makes it usable ("load-bearing: without this the daemon observes the peer but never the payload"). Messages are plain XPC dictionaries `{messageType, isBarrier, featureIdentifier, payload}`. After each send AXe sends a guest barrier (`{isBarrier: true}` with reply), then keeps the connection open for a 380 ms drain before cancelling it.
+
+**Accessibility.** `Commands/FBAXTranslationDispatcher.swift` installs itself as `bridgeTokenDelegate` of `+[AXPTranslator sharedInstance]` (AccessibilityPlatformTranslation). AXPTranslator calls back synchronously with each `AXPTranslatorRequest`, and the dispatcher forwards it with `-[SimDevice sendAccessibilityRequestAsync:completionQueue:completionHandler:]`, waiting up to 5 s for the `AXPTranslatorResponse`. Roots come from `frontmostApplicationWithDisplayId:bridgeDelegateToken:` or `objectAtPoint:displayId:bridgeDelegateToken:`. `macPlatformElementFromTranslation:` turns them into `AXPMacPlatformElement`, an AppKit `NSAccessibility` object whose `accessibilityLabel`, `accessibilityChildren`, `accessibilityPerformPress`, `setAccessibilityValue:` and so on each become one or more round trips (`Commands/FBAXPlatformElement.swift`, `Commands/FBAccessibilityElement.swift`). Point hit tests must keep client type 6's own routing; everything else gets `clientType = 2` (`FBAXClientTypeRouting`). On iOS 27 runtimes AXe first "bootstraps" accessibility with Xcode's private `XCUIAutomation` framework: `+[XCUIDeviceRemoteDaemonConnectionProvider connectionProviderForSimDevice:]`, then `+[XCUIDeviceRemoteAutomationSession requestSessionWithDaemonConnectionProvider:completion:]`, `-enableAutomationModeWithError:` and `-loadAccessibilityWithTimeout:reply:` (`Utility/FBSimulatorControlFrameworkLoader.m`). AXe's semantic press refuses to run unless the loaded AccessibilityPlatformTranslation image has one specific UUID (`FBAXPressImage`), which shows how version-specific its numeric request mapping is. **[A]**
+
+Its physical-device review is in [axe-physical-review.md](axe-physical-review.md). The other reference checkouts were also searched: `tmp/idevice/` and `tmp/cmagic/` have no simulator code. `tmp/ipb/` only mentions simulator device-type plists and documents the `AXPTranslatorRequest`/`AXPTranslatorResponse` archive fields for its physical AX path (`docs/protocol.md`). **[E: search]**
+
+## What is installed on this machine
+
+| Item | Where | Evidence |
+| --- | --- | --- |
+| `SimServiceContext +sharedServiceContextForDeveloperDir:error:`, `-defaultDeviceSetWithError:`, `SimDeviceSet -devicesByUDID`, `SimDevice -lookup:error:`, `-sendAccessibilityRequestAsync:completionQueue:completionHandler:`, `-stateString`, `-deviceType`, `SimDeviceType -mainScreenSize`/`-mainScreenScale` | `/Library/Developer/PrivateFrameworks/CoreSimulator.framework` (system-wide, installed and overwritten by Xcode) | **[S]** strings; **[E]** resolved and called |
+| `xpc_endpoint_create_mach_port_4sim`, `xpc_connection_create_from_endpoint`, `xpc_connection_enable_sim2host_4sim` | libxpc in the dyld shared cache | **[E]** `dlsym(RTLD_DEFAULT, …)` and called |
+| Host-injected simulator daemons: `dtuhidd` (Mach services `com.apple.coredevice.feature.remote.hid.{digitizer,keyboard,button,vendordefined}`, `…remote.universalhid`, `…remote.universalhidservice`), `dthidd` (`…remote.devicecontrol.orientation`), `dtdeviceinfod` (`…getdisplayinfo`, `…displayinfoupdates`, `…getlockstate`, …), `dtpasteboardd` (`…feature.pasteboard`), `dtappserviced`, `dtlocationd`, `dtconfigurationd`, `CoreSimulatorBridge` (`com.apple.CoreSimulator.accessibility`, …) | `CoreSimulator.framework/Versions/A/Resources/Platforms/iphoneos/Library/LaunchDaemons/` (and the same layout for `appletvos`, `watchos`, `xros`) | **[S]** launchd plists; **[E]** every listed service resolved to a Mach port in the booted simulator; `dtuhidd` ran as a child of the simulator's `launchd_sim` |
+| `AXPTranslator`, `AXPTranslatorRequest` (`requestType`, `attributeType`, `actionType`, `clientType`, `parameters`, `translation`), `AXPTranslatorResponse` (`resultData`, `error`, …), `AXPTranslationObject`, `AXPMacPlatformElement` | `/System/Library/PrivateFrameworks/AccessibilityPlatformTranslation.framework` (shared cache; part of macOS) | **[E]** loaded, classes and selectors resolved, used |
+| `IndigoHIDMessageFor*` (19 functions), `SimulatorKit.SimDeviceLegacyHIDClient`, `SimulatorKit.SimDeviceScreen`, `SimulatorKit.SimAccessibilityManager` | `$(xcode-select -p)/../SharedFrameworks/SimulatorKit.framework` (Xcode 27 moved it from `Developer/Library/PrivateFrameworks`) | **[S]** `nm -gU`; legacy client not exercised |
+| `XCUIDeviceRemoteAutomationSession` (163 instance methods, including `synthesizeEvent:completion:`, `requestSnapshotForElement:attributes:parameters:reply:`, `performAccessibilityAction:onElement:value:reply:`, `requestElementAtPoint:reply:`, `updateDeviceOrientation:completion:`, `requestScreenshotWithRequest:withReply:`), `XCUIDeviceRemoteDaemonConnectionProvider`, `XCSynthesizedEventRecord`, `XCPointerEventPath` | `$(xcode-select -p)/../SharedFrameworks/XCUIAutomation.framework` (private; the public macOS `XCUIAutomation.framework` headers in the SDK expose none of this) | **[S]** `otool -ov`; **[E]** a session was created for the simulator in 0.8 s; automation mode was *not* enabled |
+| simctl subcommands | `xcrun simctl help` | **[E]** no tap, touch, swipe, key or HID subcommand exists |
+
+Large dumps are in `tmp/simulator-research/` (`simulatorkit-nm.txt`, `coresimulator-nm.txt`, `xcuiautomation-otool-ov.txt`, `xcuidevice-remote-methods.txt`, `displayinfo-reply.txt`).
+
+## Options for input
+
+### I-1. Host XPC to `dtuhidd` (recommended)
+
+- **Interface.** CoreSimulator `-[SimDevice lookup:error:]` returns the port for `com.apple.coredevice.feature.remote.hid.digitizer` (or `.keyboard`, `.button`, `…universalhidservice`). Then call the libxpc private functions `xpc_endpoint_create_mach_port_4sim(port, 0, 0)`, `xpc_connection_create_from_endpoint(endpoint)` and `xpc_connection_enable_sim2host_4sim(connection)`, followed by the public `xpc_connection_set_event_handler`, `xpc_connection_resume`, `xpc_connection_send_message`, `xpc_connection_send_message_with_reply` and `xpc_connection_cancel`. **[E]**
+- **Messages.** The same dictionaries that `ADCTouchEvent`, `ADCKeyboardEvent` and `ADCButtonEvent` build in `Sources/AppleDeviceBridge/AppleDeviceBridge.m`. Digitizer: `pointOne {x, y}` normalized `0...1` with origin top left, optional `pointTwo`, `eventType` 0 start / 1 move / 2 end, `edge`, `target`. Keyboard: `usageCode` (USB HID usage), `state` 1 down / 2 up. Button: `usagePage` 12, `usageCode` (0x40 home, 0x30 lock/side, 0xCF Siri). A barrier is `{isBarrier: true}` sent with reply; the daemon answers with an empty dictionary. **[E]**
+- **Addressing and coordinates.** The device is addressed by its `SimDevice`, which `SimServiceContext` finds by UUID. Coordinates are fractions of the portrait screen in points: `x / (mainScreenSize.width / mainScreenScale)`. For the iPhone 17e that is 390 × 844. **[E]** Rotated interfaces have not been measured (see open questions).
+- **Evidence on this machine** (probe app ground truth; first connection plus barrier took 176 to 180 ms, later barriers under 1 ms) **[E]**:
+  - Tap at (195, 600) points: the probe recorded one contact at (0.500, 0.711), held 0.075 s, ended.
+  - Swipe (80, 700) → (300, 400) over 0.5 s with 31 moves: recorded (0.205, 0.829) → (0.769, 0.474), 31 moves, 0.673 s.
+  - Two contacts, each moving 60 points over 0.5 s: recorded as two simultaneous contacts (`maxActive` 2), 31 moves each, exact start and end points.
+  - Keyboard: after a tap on the Settings search field, usages for `w i f i` produced the field value `wifi`. Backspace (0x2A) cleared it.
+  - Button 0x40 (no hardware Home button on this model) returned to the Home Screen.
+  - Without `xpc_connection_enable_sim2host_4sim` the first barrier failed with "Connection interrupted" and nothing was delivered.
+- **Prerequisites.** A booted simulator with a runtime that has the injected `dtuhidd`. No entitlement, no TCC prompt, no code signing beyond what the `manzanero` executable already has. Simulator.app need not run and no window is needed. **[E]** Output appears in `simctl io screenshot` as usual.
+- **Can do.** Single contacts with any timing, two contacts through `pointTwo`, named keys and US-layout ASCII typing with the existing usage table, Home, lock/side and Siri buttons, and probably the Universal HID multi-contact service the physical backend uses for three to five contacts (the service resolves; payloads not sent, see open questions). **Cannot do directly:** Unicode text (use the AX set-value route below, or a pasteboard route), rotation (a separate `dthidd` orientation service, untested), volume buttons on the simulator (untested).
+- **Stability risk.** Medium. `dtuhidd` is new: AXe dates it to Xcode 27 / CoreSimulator 1155.4, so older Xcodes lack it. The daemon, its plist and the message contract ship inside CoreSimulator and can change with any Xcode. The `_4sim` functions are libxpc SPI. Because the message contract is shared with the physical CoreDevice HID service that `manzanero` already depends on, a change there would probably break both at once and be noticed quickly. **[I]**
+- **Dependency rule.** Fits: Apple frameworks, called from the project's own bridge code. AXe/IDB are a reference only (MIT, attribution already in `ThirdParty/AXe-LICENSE.txt`; IDB's MIT notice would need adding if any code shape is copied from `FBSimulatorDTUHIDTransport.swift`).
+
+### I-2. Legacy Indigo through SimulatorKit
+
+- **Interface.** `SimulatorKit.SimDeviceLegacyHIDClient` (`initWithDevice:error:`, `sendWithMessage:freeWhenDone:completionQueue:completion:`) and the `IndigoHIDMessageFor*` C functions. **[S]**
+- **How.** Build binary `IndigoMessage` structs and patch coordinates at hand-derived byte offsets. Digitizer, keyboard and button messages each have their own layout. **[A]**
+- **Assessment.** Not exercised. It needs the Xcode-local SimulatorKit (whose path already moved once), binary struct layouts with no header, and per AXe it no longer types text when `dtuhidd` is active, which it was in every simulator on this machine (`dtuhidd` ran under each `launchd_sim`). **[A]**/**[E]** Its only advantage is reaching Xcodes older than `dtuhidd`. It is a fallback for old toolchains only, and not worth building now.
+
+### I-3. XCTest event synthesis
+
+- **Interface, in-guest.** A UI-test runner (an `XCUIApplication`-driving test bundle, as WebDriverAgent does) built and started with `xcodebuild test-without-building`. It taps, types Unicode (`typeText`) and reads the tree with public XCTest API inside the simulator. The app under test does not need changes. Costs: a separately built and signed-for-simulator runner per Xcode version, a long-lived `xcodebuild` child process, startup of several seconds to tens of seconds **[I]**, and a private channel between `manzanero` and the runner (an HTTP server in WebDriverAgent).
+- **Interface, host-side.** Xcode's private `XCUIDeviceRemoteAutomationSession` talks to `testmanagerd` in the simulator without a runner app. It exposes `synthesizeEvent:completion:` (XCSynthesizedEventRecord multi-touch paths), `requestSnapshotForElement:…`, `performAccessibilityAction:onElement:value:reply:`, screenshots and orientation. **[S]** A session was created in 0.8 s; `supportsAutomationMode` and `isAccessibilitySupported` were both true. **[E]** Automation mode was not enabled and no event was sent, because enabling automation mode might involve an authorization step this research must not trigger.
+- **Assessment.** Most capable (XCTest's own hittability, Unicode typing, idle waits) and it could serve physical devices too. But it brings a large private Objective-C object model, Xcode-private frameworks that need rpath-correct loading, `testmanagerd` session semantics, and either a runner build or automation-mode authorization. It is a candidate for a later, deeper backend, not the first restoration.
+
+### I-4. macOS events into the Simulator window
+
+Posting `CGEvent` mouse events at the Simulator.app window needs Simulator.app running with the device window visible and unobscured, Accessibility or Input Monitoring permission for the posting process, and window-to-device coordinate mapping. It cannot do multi-touch except Simulator's Option-drag pinch. Not tried: it needs a TCC grant, and it is inferior to I-1 in every respect. **[I]**
+
+## Options for the tree and element actions
+
+### T-1. Raw `AXPTranslatorRequest` through CoreSimulator (recommended)
+
+- **Interface.** `-[SimDevice sendAccessibilityRequestAsync:completionQueue:completionHandler:]` (CoreSimulator, reaching `CoreSimulatorBridge` in the guest). Requests are instances of `AXPTranslatorRequest` with an `AXPTranslationObject` target, from AccessibilityPlatformTranslation, which ships with macOS. The completion receives an `AXPTranslatorResponse`. No `AXPTranslator`, delegate, `AXPMacPlatformElement` or XCUIAutomation bootstrap is involved. **[E]**
+- **Same protocol as the physical path.** The physical backend archives these same classes over raw DTX (`AccessibilityRequest.swift` sets class names `AXPTranslatorRequest`/`AXPTranslationObject`) and decodes `AXPTranslatorResponse` archives. On the simulator, the requests below ran with the project's own type, attribute and parameter values **[E]**:
+
+| Request (requestType / attributeType / actionType) | Parameters | Result on the simulator |
+| --- | --- | --- |
+| Frontmost application (4) | `displayId: 0` | `AXPTranslationObject` of the frontmost app (pid, objectID); 1.4 ms |
+| Hit test (6) | `point`, `displayId: 0` | Element under the point; 0.8 ms. Over an empty area the request failed (`error = 8`) with `clientType = 0` and returned a container with `clientType = 2` |
+| Application (1) | `pid` | Application element; 0.2 ms |
+| Snapshot (2 / 52) | the physical attribute list `[2001, 2002, 2003, 2004, 5019, 2006, 2025, 5003, 5004, 3003]`, `maxDepth 48`, `maxChildren 512`, … | Whole tree as nested `UIAccessibilitySnapshotKeyAttributes` / `…Children` / `…ChildrenCount` / `…Element` dictionaries; 7 to 18 ms for the probe app |
+| Live attributes (5) | `attributes: [27, 3, 21]` | `{27: enabled, 3: label, 21: frame}`; 0.5 ms |
+| Press (7 / – / 5) | none | `resultData = true`; the probe app's accessibility-only Reset ran (new session, counters zero, no touch recorded); 5.7 ms |
+| Set value (8 / 53) | `value: "…"` | Seen in AXPTranslator's own traffic: it replaced a Settings search field's text with Unicode (`mañana 🚀 中`, `héllo`, `adiós`) and Settings ran the search. Type 3 / 53 asks whether the value can be set |
+
+  A snapshot response, archived with `NSKeyedArchiver`, was decoded by the existing `manzanero decode-ax-archive` into the same structure as a physical callback: element tokens with `pid`, `objectID` and `didPopuldateAppInfo`, frames as `NSValue` rects, identifier in 5019, bundle identifier in 3003. **[E]** Frames are logical points with origin top left, matching the screenshot. **[E]**
+- **Prerequisites.** A booted simulator. No TCC prompt, no entitlement, no Simulator.app, no window. **[E]** The first request after a fresh boot took 2.7 s (through AXPTranslator). Right after `simctl launch` the frontmost request returned the previous app, or nil, for a few seconds. **[E]**
+- **Can do.** Full-tree snapshots, hit tests, live attribute reads, press, scroll-to-visible (action 11, same encoding as physical; not yet run on the simulator), and value set for Unicode text entry. **Unknown:** web content and remote (out-of-process) views. AXe has extra code for those (`FBSimulatorAXHostedWebPoint.swift`, frame-coverage grids), and snapshots may stop at a remote-element boundary (attribute 66, `AXPAttributeIsRemoteElement`, appears in AXPTranslator's traffic).
+- **Stability risk.** Medium. `sendAccessibilityRequestAsync:` is CoreSimulator SPI. The numeric request and attribute types are AccessibilityPlatformTranslation's private enumeration. The physical backend already depends on the same numbers, and AXe pins an exact image UUID before pressing, which shows the numbers are not a documented contract. **[A]**/**[I]**
+- **Dependency rule.** Fits: Apple system frameworks driven from the project's code.
+
+### T-2. AXPTranslator object layer (AXe's route)
+
+The `AXPTranslator` delegate with `AXPMacPlatformElement` returned correct trees and pressed by identifier on this machine **[E]**, but each node costs about seven round trips: 38 requests for a 5-node tree (150 to 320 ms warm), 136 requests for a 21-node Settings view. It also needs a process-wide singleton delegate, synchronous waits inside framework callbacks, and AppKit `NSAccessibility` accessors. It produces a different tree shape from the physical normalizer, so selectors and waits would need a second implementation. It is useful as a debugging cross-check (it reveals the request types the framework itself uses, as with set-value above), not as the product route.
+
+### T-3. XCUIAutomation remote session
+
+See I-3. `requestSnapshotForElement:attributes:parameters:reply:` and `performAccessibilityAction:onElement:value:reply:` would give XCTest's snapshot and action semantics. The cost and risk are as for I-3. **[S]**
+
+### T-4. macOS Accessibility (`AXUIElement`) against Simulator.app
+
+SimulatorKit has a `SimAccessibilityManager` class **[S]**, so Simulator.app probably republishes the iOS hierarchy to macOS accessibility through AXPTranslator, as Accessibility Inspector shows. **[I]** Using it needs Simulator.app running with the device window open, and Accessibility permission (TCC) granted to `manzanero` or its parent terminal. Not tried: it requires a permission grant. It would only be a slower, permission-gated copy of T-2.
+
+### T-5. Raw AX DTX to the in-simulator `axauditd`
+
+The simulator runtime ships `axauditd` with Mach services `com.apple.accessibility.axAuditDaemon.deviceservice.xpc` and `…deviceservice.lockdown`, and both resolved through `lookup:error:`. **[E]** Its RemoteXPC service requires the `AppleInternal` entitlement in the plist. **[S]** Speaking the physical DTX protocol to these Mach services is unexplored and unnecessary given T-1.
+
+## Apple-supported routes compared honestly
+
+- **simctl** cannot provide input or a tree. Useful neighbours: `io screenshot`/`recordVideo` (already used), `io enumerate`, `ui appearance|content_size|increase_contrast`, `launch`, `terminate`, `openurl`, `privacy grant|revoke|reset`, `push`, `location`, `status_bar`, `keychain`, `addmedia`, `get_app_container`, `pbcopy`/`pbpaste`/`pbsync`, `spawn`, `getenv`. **[E: help]** On this machine `printf … | simctl pbcopy <udid>` exited 0 but `pbpaste` and `pbinfo` then reported an empty pasteboard, so a Command+V paste of Unicode text inserted nothing. **[E]** Treat `pbcopy` as unreliable until explained; the AX set-value route avoids the clipboard altogether.
+- **XCUITest** is fully supported and the most semantically rich, but it needs a runner build per Xcode, a long-lived `xcodebuild`, and startup in seconds. It suits a later, optional "XCTest backend", not the default.
+- **macOS Accessibility** is supported but needs a TCC grant and Simulator.app on screen.
+
+## Recommendation
+
+**Input: I-1 (host XPC to `dtuhidd`).** It is proven on this machine for tap, swipe, two contacts, keys and Home. It runs headless, needs no permission, and reuses the physical message builders, schedulers and validation unchanged. Only the connection setup is new: about 40 lines of Objective-C. Fallback for an Xcode without `dtuhidd`: report the capability as missing in doctor and refuse with a classified `unsupported` error. Do not add the legacy Indigo client unless an old toolchain becomes a requirement.
+
+**Tree and actions: T-1 (raw `AXPTranslatorRequest` via CoreSimulator).** It is the protocol the physical AX code already speaks. One snapshot returns the whole tree in milliseconds, and the existing normalizer, selectors, press and scroll guards and `AccessibilityWait` can run unchanged over a new transport. Set-value (type 8 / 53) adds clipboard-free Unicode typing, which may also work on physical devices (untested there). Fallback: T-2 for diagnostics only.
+
+**Main risk and the cheapest check.** The risk is a silent contract change in a future Xcode: the `_4sim` functions, `dtuhidd` messages, `sendAccessibilityRequestAsync:` or the request numbering. The cheapest guard is a doctor capability check plus a 30-second live smoke test (`tap` into the probe app, then `tree`, then `press-id probe.touch.reset`) to run after every Xcode update. It is the sequence already run here.
+
+## Implementation plan
+
+The layering mirrors the physical side: C bridge functions `ADC…` in `AppleDeviceBridge`, Swift `DirectSimulator*` operations, routing in `CommandService` and `DeviceCommands`, capability rows in `AppleInterfaceAvailability.m`, and MCP tools that already take `platform: simulator`.
+
+### Bridge (`Sources/AppleDeviceBridge/`)
+
+- New `AppleSimulatorBridge.m`, declared in `include/AppleDeviceBridge.h`:
+  - `ADCPrepareCoreSimulator(developerDir, error…)`: `dlopen` CoreSimulator `RTLD_NOW | RTLD_GLOBAL` and AccessibilityPlatformTranslation `RTLD_NOW | RTLD_LOCAL`, then check classes and selectors.
+  - `ADCOpenSimulatorDevice(developerDir, uuid, &owner, error…)`: `SimServiceContext` → default set → `devicesByUDID[uuid]`. It requires `stateString == "Booted"` and returns the screen size in pixels and the scale.
+  - `ADCOpenSimulatorHID(owner, service, &connection, error…)`: `lookup:error:` → `_4sim` endpoint → connection → `enable_sim2host` → resume → initial barrier (bounded, 3 s).
+  - `ADCSimulatorTouch/TwoContactTouch/Keyboard/Button(...)`: the existing `ADCRunTouchSchedule`, `ADCRunKeyboardSchedule` and `ADCRunPress` with a sink that sends the same `ADCTouchEvent`/`ADCKeyboardEvent`/`ADCButtonEvent` dictionaries on the simulator connection, then the completion barrier and the cancel. The existing schedulers already take sinks, so cancellation, release-on-stop and the `ADCInputOutcomeUnknown` semantics carry over.
+  - `ADCSimulatorAXExchange(owner, requestArchive, &responseArchive, timeout, cancelled, error…)`: unarchive the project's request bytes with `NSKeyedUnarchiver` into a real `AXPTranslatorRequest`, call `sendAccessibilityRequestAsync:` with a bounded wait, and archive the `AXPTranslatorResponse` back to bytes. Swift then keeps using its data-only decoder and never touches the private objects.
+- `AppleInterfaceAvailability.m`: add capabilities `simulator-input` (CoreSimulator framework; `SimServiceContext`, `SimDeviceSet`, `SimDevice -lookup:error:`, `SimDeviceType -mainScreenSize/-mainScreenScale`; the three `_4sim`/endpoint symbols) and `simulator-accessibility` (CoreSimulator; `-[SimDevice sendAccessibilityRequestAsync:completionQueue:completionHandler:]`; AccessibilityPlatformTranslation framework; classes `AXPTranslatorRequest`, `AXPTranslatorResponse`, `AXPTranslationObject` with `+supportsSecureCoding`). `dtuhidd` itself cannot be checked without a booted simulator; doctor can add a non-loading file check for `CoreSimulator.framework/…/Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtuhidd.plist`.
+
+### Swift (`Sources/Manzanero/`)
+
+- `DirectSimulatorDevice.swift`: resolves the UUID (no aliases while a handoff is pending, as today), reads geometry, and maps current-interface normalized input to points. Portrait-only at first, mirroring the physical portrait requirement until rotation is measured. Takes a per-simulator `DeviceLease` keyed by the simulator UUID.
+- `DirectSimulatorInput.swift`: `tap`, `long-press`, `swipe`, `drag`, `pinch`, two-contact `multi-drag`, `button` (home, lock; volume refused until tested), `key` and `type` (reuse `DirectPhysicalTyping`'s US-layout table). Validation comes from `PhysicalInputOperands` (rename or extract to a platform-neutral `InputOperands`). Movement timing comes from the same schedule builders the physical touch uses, and gesture frames from `NativeGestureSequence` once the Universal HID service is verified on the simulator. The receipt keeps the physical shape (`verified: false`, `releaseVerified: false`) with `backend: "coresimulator-dtuhid"`.
+- `SimulatorAccessibilityTransport.swift`: an AX exchange over `ADCSimulatorAXExchange`. `AccessibilitySession` today is DTX-specific: it owns `start/application/hit/snapshot/attributes/performAction/close` on top of an `AccessibilitySessionTransport`. Extract those six calls into an `AccessibilityExchange` protocol implemented by the DTX session and by a `SimulatorAccessibilitySession`, so that `DirectAccessibilityAction`, `AccessibilitySelector`, `AccessibilityWait` and `DirectPhysicalAccessibility.capture` take the protocol. Simulator differences live in this one type: no subscription to start or stop, client type 2 for hit tests, and process selection by the frontmost request (type 4) rather than a centre hit, because a centre hit over an empty area fails.
+- `DirectSimulatorAccessibility.swift`: `tree [pid]`, `press-id`/`-label`, `scroll-id`/`-label`, `wait-id`/`-label`, reusing the physical tree JSON shape (`format: accessibility-tree`, snapshot-local IDs, logical-point frames, `nativeAttributes`) with `platform: simulator` and no tunnel cleanup fields. Add `set-value-id`/`-label <text>` (type 8 / 53) as the simulator's Unicode entry, and decide separately whether `type` should use it for non-ASCII.
+- `DeviceCommands.swift`: route the operations in `unavailableSimulatorOperations` to the new layer instead of refusing them. `ScreenCommand.swift`: simulator `screen` auto mode tries the tree before OCR. `CommandService.swift`: the simulator operations join the same lease, handoff-pause and cancellation paths as physical.
+- `MCPTools.swift`: `get_ui_tree`, `tap`, `drag`, `type_text`, `press_button`, `press_element`, `scroll_to_element`, `wait_for_element` and the gesture tools already accept or can accept `platform: simulator`. Update their descriptions and the default-platform rules.
+- Docs: `feature-status.md`, `dependencies.md` (new capability rows, IDB MIT notice if any shape is borrowed), `native-input.md` or a new simulator page, `verification.md`.
+
+### Milestones
+
+Each milestone is independently verifiable with the probe app on one simulator.
+
+| # | Milestone | Verification | Size |
+| --- | --- | --- | --- |
+| 1 | Bridge preparation, device lookup and doctor rows (`simulator-input`, `simulator-accessibility`) | Doctor shows both available. Unit tests of the capability table. A missing-framework path is simulated by name | Small: name checks and one lookup, following the existing table |
+| 2 | `tree` over the new exchange, after extracting `AccessibilityExchange` | `manzanero simulator <UUID> tree` on the probe app lists `probe.touch.summary` with value and 3003. Existing physical AX tests pass unchanged | Medium: the refactor touches every AX call site, but behaviour is unchanged; the transport is small |
+| 3 | `press-id`/`-label`, `scroll-id`/`-label`, `wait-id`/`-label` | `press-id probe.touch.reset` changes the session. A wait for the summary returns `condition-met`. A wait for a missing ID times out with exit 124 | Small: all guards exist; the simulator display check needs adapting |
+| 4 | Single-contact input: `tap`, `long-press`, `swipe`, `drag`, with lease and signals | The probe readback matches position within 0.005 and hold within 15 ms; the touch measurement runner (below) | Medium: geometry, routing, lease and receipts; the schedulers and sinks exist |
+| 5 | Buttons and keyboard: `button home/lock`, `key`, `type` | Home returns to SpringBoard (tree shows pid change); typing into a probe text field (new probe element) matches | Small |
+| 6 | Unicode entry by AX set-value | The probe field reads back accented text, emoji and CJK; refused when type 3 says not settable | Small to medium: new request type and command surface |
+| 7 | Two-contact `pinch`/`multi-drag`, then Universal HID `gesture`/`multi-tap` for three to five contacts | The probe reports `maxActive` 2 for pinch (already observed with raw messages) and 3 to 5 for Universal HID | Small for two contacts; medium for Universal HID until the service is confirmed |
+| 8 | Rotation and iPad: orientation via `getdisplayinfo` (already answers in the simulator) and the `dthidd` orientation service | Landscape tap lands where intended; tree frames agree | Medium: needs measurement first |
+
+Milestones 2 and 4 are the bulk of the work. Everything else reuses tested physical code.
+
+## How it would be verified
+
+- **Probe app on the simulator.** `mise run probe-app:generate`, then `manzanero simulator <UUID> build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp`, or `xcodebuild … -destination 'platform=iOS Simulator,id=<UUID>'` plus `simctl install`/`launch` as done here. The probe needs no signing on the simulator. `probe.touch.summary`, `probe.touch.last-gesture` and `probe.touch.recent-gestures` give ground truth for every contact. `probe.touch.reset` is an accessibility-only button, which tests press without a touch.
+- **Touch measurement runner.** `docs/probe-touch-runner.md` hard-codes `manzanero physical <UDID> …` and a physical container pull. To point it at a simulator: add `--platform simulator` (default physical) to `ProbeTouchRunner`'s argument parsing so every command vector starts with `simulator <UUID>`. The preflight, reset, baseline and per-action readbacks then work as written, because the simulator tree carries 3003 (bundle identifier) on the probe nodes (observed). Replace the pull with `xcrun simctl get_app_container <UUID> <bundle-id> data` and a local copy of `Documents/touch-log.jsonl`, or run with `--no-pull` and rely on the recent-gestures readout, which the runner already accepts as evidence. The built-in plan's three-to-five-contact actions stay `missing` until milestone 7. That is a useful negative control.
+- **Regression smoke after each Xcode update:** doctor; one `tap` into the probe; `tree`; `press-id probe.touch.reset`; `type` into a field; and an AX set-value with non-ASCII text. Record OS, Xcode, CoreSimulator and runtime versions in `verification.md`.
+- **Unit tests:** message dictionaries and schedules are already covered for physical; add tests for normalization from simulator points, request-to-object round trips (archive bytes → `AXPTranslatorRequest` → archive), response decoding of a captured simulator snapshot, the simulator selection rule (frontmost, not centre hit), and refusal when the simulator is not booted.
+
+## Open questions and the experiment that settles each
+
+1. **Universal HID on the simulator.** Does `com.apple.coredevice.feature.remote.universalhidservice` accept the physical backend's three-to-five-contact reports? *Experiment:* send `NativeTouchFrames` reports for a three-contact tap through the `_4sim` connection to that service, then read the probe's `maxActive`.
+2. **Rotation.** Are digitizer coordinates portrait-native or interface-relative in landscape, and does `dthidd`'s `OrientationRequest` rotate the simulator? *Experiment:* rotate the probe (or Settings on an iPad simulator) through the orientation service, check `getdisplayinfo`'s `currentOrientation`, send taps at known points and read the probe's normalized coordinates.
+3. **Request bytes to objects.** Does `NSKeyedUnarchiver` accept the project's own `AccessibilityRequest` archives as real `AXPTranslatorRequest` instances (secure coding, `allowedDecodableClasses`, the `didPopuldateAppInfo` field)? Here they were built with KVC. *Experiment:* unarchive `AccessibilityRequest.snapshot(…)` bytes in the probe and send them.
+4. **First-request and launch latency.** The first AX request after boot took 2.7 s. Right after `simctl launch`, frontmost lagged by several seconds and once returned nil. Does AXe's iOS 27 XCUIAutomation bootstrap remove that, or is it only a warm-up? *Experiment:* fresh boot, launch, then poll frontmost every 100 ms and time first success, with and without the bootstrap session. This involves enabling automation mode, so first confirm it prompts for nothing on the host.
+5. **Web views and remote views.** Do snapshots descend into `WKWebView` content and out-of-process views (keyboard, share sheet, Safari view controller)? *Experiment:* snapshot a page in a probe `WKWebView` and the system share sheet; look for elements with a foreign pid or attribute 66 set.
+6. **simctl pbcopy.** Why did `simctl pbcopy` leave the pasteboard empty? Does `dtpasteboardd`'s `com.apple.coredevice.feature.pasteboard` (CoreDevice request format, which `getdisplayinfo` showed works in the simulator) provide a reliable copy? *Experiment:* repeat pbcopy with Simulator.app running and with a different runtime; send a CoreDevice pasteboard request through the `_4sim` connection.
+7. **Older runtimes and Xcodes.** Is `dtuhidd` injected into iOS 26 and older runtimes under Xcode 27, and what happens under Xcode 26? *Experiment:* repeat the tap on an iOS 26.x runtime, and on a machine with Xcode 26 selected. The doctor plist check covers the second case.
+8. **Other families.** The same daemons exist for `appletvos`, `watchos` and `xros` **[S]**. Do the digitizer, button (remote, Digital Crown) and AX routes work there? *Experiment:* one simulator per family with the same probe sequence; tvOS likely needs button and remote messages rather than touch.
+9. **Set-value on physical devices.** Does type 8 / 53 enter Unicode text over the physical DTX path too, replacing clipboard paste? *Experiment:* one Settings search on the phone with an explicit owner go-ahead; outside this research's scope.
+10. **Concurrent clients.** Does an open Simulator.app window, Xcode's own UI tests, or another `manzanero` process interfere with `dtuhidd` connections? AXe drains 380 ms before cancelling. *Experiment:* run two processes' taps against one simulator and compare the probe log; repeat with Simulator.app open.
+
+## Constraints observed during this research
+
+Only the iPhone 17e simulator was booted, used and shut down. No other simulator and no physical device was contacted. AXe, idb and other third-party device tools were read, never run. No system setting was changed and no permission was granted. The macOS Accessibility and XCUIAutomation automation-mode experiments stopped before any step that could ask for a permission or authorization. The probe app remains installed on that simulator.
