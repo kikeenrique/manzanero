@@ -10,6 +10,12 @@ struct DirectTouchDisplay: Equatable {
     let native: Int
     let rotation: Int
 
+    /// An unrotated portrait screen described by another source, such as
+    /// CoreSimulator; `portrait` then leaves coordinates unchanged.
+    init(portraitPoints width: Double, height: Double, scale: Double) {
+        id = 0; self.width = width; self.height = height; self.scale = scale; native = 0; rotation = 0
+    }
+
     init(_ data: Data) throws {
         func invalid() -> CommandFailure {
             CommandFailure(.transportFailed, "Expected one integrated primary display with valid typed geometry/orientation; no touch or capture started.", inputSent: .none)

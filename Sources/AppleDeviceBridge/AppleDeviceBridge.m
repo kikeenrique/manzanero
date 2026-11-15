@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <string.h>
 #include "AppleDeviceBridge.h"
+#include "AppleDeviceBridgeInternal.h"
 #import "AppleMediaControl.h"
 
 int ADCIsRemotedProcess(int pid) {
@@ -452,7 +453,7 @@ void ADCCloseAccessibilitySocket(int descriptor) {
     if (descriptor >= 0) close(descriptor);
 }
 
-static xpc_object_t ADCButtonEvent(uint64_t usage, uint64_t state, BOOL barrier) {
+xpc_object_t ADCButtonEvent(uint64_t usage, uint64_t state, BOOL barrier) {
     xpc_object_t event = xpc_dictionary_create_empty();
     xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.button");
     xpc_dictionary_set_string(event, "messageType", "IndigoButtonEvent");
@@ -467,7 +468,7 @@ static xpc_object_t ADCButtonEvent(uint64_t usage, uint64_t state, BOOL barrier)
     return event;
 }
 
-static xpc_object_t ADCKeyboardEvent(uint64_t usage, uint64_t state, BOOL barrier) {
+xpc_object_t ADCKeyboardEvent(uint64_t usage, uint64_t state, BOOL barrier) {
     xpc_object_t event = xpc_dictionary_create_empty();
     xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.keyboard");
     xpc_dictionary_set_string(event, "messageType", "IndigoKeyboardButtonEvent");
@@ -481,7 +482,7 @@ static xpc_object_t ADCKeyboardEvent(uint64_t usage, uint64_t state, BOOL barrie
     return event;
 }
 
-static xpc_object_t ADCTouchEvent(double x, double y, const ADCTouchPoint *second, uint64_t phase, BOOL barrier) {
+xpc_object_t ADCTouchEvent(double x, double y, const ADCTouchPoint *second, uint64_t phase, BOOL barrier) {
     xpc_object_t event = xpc_dictionary_create_empty();
     xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.digitizer");
     xpc_dictionary_set_string(event, "messageType", "IndigoDigitizerEvent");
@@ -513,9 +514,6 @@ static uint64_t ADCNow(void) {
 
 static int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
                                         size_t count, char *error, size_t capacity);
-static int ADCValidateTouchSchedule(const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,
-                                    size_t count, char *error, size_t capacity);
-static int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t count, char *error, size_t capacity);
 
 static BOOL ADCWaitForInput(uint64_t start, uint64_t offset, ADCInputShouldStop shouldStop) {
     uint64_t target = start + offset, now;
@@ -959,7 +957,7 @@ int ADCPerformKeyboard(const char *uuid, const char *version, const ADCKeyboardS
     return ADCPerformInput(uuid, version, 0, 0, YES, NULL, NULL, samples, NULL, NULL, NULL, count, shouldCancel, error, capacity);
 }
 
-static int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t count, char *error, size_t capacity) {
+int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t count, char *error, size_t capacity) {
     if (!samples || count < 2 || count > 4096)
         return ADCFail(error, capacity, @"Invalid keyboard sample count; no input sent.");
     BOOL pressed[256] = {NO};
@@ -1020,8 +1018,8 @@ static int ADCValidateAndPerformTouch(const char *uuid, const char *version, con
     return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, NULL, NULL, NULL, NULL, count, shouldCancel, error, capacity);
 }
 
-static int ADCValidateTouchSchedule(const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,
-                                    size_t count, char *error, size_t capacity) {
+int ADCValidateTouchSchedule(const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,
+                             size_t count, char *error, size_t capacity) {
     if (!samples || count < 2 || count > 8192) return ADCFail(error, capacity, @"Invalid direct touch sample count.");
     for (size_t i = 0; i < count; i++) {
         ADCTouchSample sample = samples[i];

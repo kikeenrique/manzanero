@@ -1,9 +1,11 @@
 import Foundation
 
 /// Operand validation shared by native physical touch, multitouch, button and
-/// key input. Coordinates are normalized 0...1 with the origin at the top left.
+/// key input, and by simulator touch and key input. Coordinates are normalized
+/// 0...1 with the origin at the top left. `subject` names the platform in
+/// messages; the physical default keeps their established text.
 enum PhysicalInputOperands {
-    static func validate(_ operation: String, _ operands: [String]) throws {
+    static func validate(_ operation: String, _ operands: [String], subject: String = "Physical") throws {
         func require(_ count: Int) throws {
             guard operands.count == count else {
                 throw CommandFailure.usage("\(operation) expects \(count) operands. See --help.")
@@ -13,7 +15,7 @@ enum PhysicalInputOperands {
         // identical to the digitizer's coordinate resolution.
         func coordinate(_ value: String) throws -> Int {
             guard let number = Double(value), number.isFinite, (0...1).contains(number) else {
-                throw CommandFailure.usage("Physical input coordinates must be normalized numbers from 0 to 1.")
+                throw CommandFailure.usage("\(subject) input coordinates must be normalized numbers from 0 to 1.")
             }
             return Int((number * 65535).rounded())
         }
@@ -29,7 +31,7 @@ enum PhysicalInputOperands {
         case "drag", "swipe":
             try require(5)
             guard let duration = Double(operands[4]), duration.isFinite, (0.03...10).contains(duration) else {
-                throw CommandFailure.usage("Physical drag/swipe duration must be 0.03...10 seconds.")
+                throw CommandFailure.usage("\(subject) drag/swipe duration must be 0.03...10 seconds.")
             }
             _ = try operands.prefix(4).map(coordinate)
         case "multi-drag":
@@ -61,7 +63,7 @@ enum PhysicalInputOperands {
         case "key":
             try require(1)
             guard ["return", "escape", "backspace", "tab", "space", "up", "down", "left", "right"].contains(operands[0]) else {
-                throw CommandFailure.usage("Unknown physical keyboard key. See --help.")
+                throw CommandFailure.usage("Unknown \(subject.lowercased()) keyboard key. See --help.")
             }
         default:
             throw CommandFailure.unsupported("Unsupported native input operation.")
