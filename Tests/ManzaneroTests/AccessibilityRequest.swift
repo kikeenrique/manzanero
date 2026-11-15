@@ -22,6 +22,11 @@ struct AccessibilityRequestTests {
         #expect(rawToken["pid"] as? Int32 == 0)
         let request = try fields(bytes)
         #expect(request["requestType"] as? Int == 6 && request["attributeType"] as? Int == 0)
+        // An element hit keeps the default client type; process selection
+        // asks as a container, which answers over an empty area too.
+        #expect(request["clientType"] as? Int == 0)
+        let container = try fields(AccessibilityRequest.hit(x: 187.5, y: 406, container: true))
+        #expect(container["clientType"] as? Int == 2 && container["requestType"] as? Int == 6)
         let parameters = try #require(request["parameters"] as? [String: Any])
         #expect(parameters["displayId"] as? Int == 0)
         let point = try #require(parameters["point"] as? [String: Any])
