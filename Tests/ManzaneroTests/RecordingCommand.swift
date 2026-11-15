@@ -69,7 +69,11 @@ struct RecordingCommandTests {
         while True: time.sleep(0.01)
         """
         let start = ContinuousClock.now
-        try ToolRunner().recordSimulator(["-c", script], timing: .init(seconds: 0.05, startupSeconds: 2, finalizationSeconds: 1), executable: "/usr/bin/python3")
+        // The startup and finalization deadlines keep their 30 s defaults: the
+        // fixture meets both quickly, but the first `/usr/bin/python3` launch on
+        // a fresh hosted image goes through a cold xcrun shim and can take
+        // seconds before the child writes anything.
+        try ToolRunner().recordSimulator(["-c", script], timing: .init(seconds: 0.05), executable: "/usr/bin/python3")
         #expect(ContinuousClock.now - start >= .milliseconds(170))
     }
 
@@ -86,7 +90,9 @@ struct RecordingCommandTests {
     @Test func ignoredInterruptCannotHangFinalization() {
         let script = "import signal,time,sys; signal.signal(signal.SIGINT, signal.SIG_IGN); sys.stderr.write('Recording started\\n'); sys.stderr.flush(); time.sleep(10)"
         do {
-            try ToolRunner().recordSimulator(["-c", script], timing: .init(seconds: 0.01, startupSeconds: 2, finalizationSeconds: 0.1), executable: "/usr/bin/python3")
+            // Only the finalization deadline is under test; startup keeps its
+            // default so a slow first interpreter launch cannot trip it instead.
+            try ToolRunner().recordSimulator(["-c", script], timing: .init(seconds: 0.01, finalizationSeconds: 0.1), executable: "/usr/bin/python3")
             Issue.record("Expected finalization deadline failure")
         } catch {
             #expect(String(describing: error).contains("did not finalize"))
