@@ -24,7 +24,8 @@ mise tasks validate
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*`, `test:ax-*` | Opt-in native transport/media diagnostics |
 | `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core and measurement-runner tests on macOS; Tuist workspace generation under `tmp/probe-app/generated` |
 | `test:probe-touch <UDID>` | Opt-in [touch measurement](probe-touch-runner.md) against the foreground probe app; `--dry-run` contacts no device |
-| `coredevice:*`, `idevice:*` | Retired helper research/build tests; not runtime setup |
+| `coredevice:test` | Device-free C tests of the retained multitouch/gesture sender logic; part of CI |
+| `coredevice:setup`, `coredevice:build`, `coredevice:video-build`, `idevice:*` | Retired helper research builds; the CLI has no route to their outputs and runtime policy refuses them |
 
 Use the installed task's argument help rather than guessing flags:
 

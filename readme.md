@@ -62,7 +62,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
 | A step that needs a person | [Human handoff](docs/handoff.md) |
 
-Physical input, accessibility and native video need no separate device helper. AXe, idevice and ipb executables are blocked at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator input and hierarchy remain unavailable pending direct replacements.
+Physical input, accessibility and native video need no separate device helper. The CLI has no routes to AXe, idevice or ipb executables, and the process runners refuse them at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator input and hierarchy are not available yet, so simulator `screen` uses OCR.
 
 ## Apps, files and reports
 

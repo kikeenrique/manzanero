@@ -167,4 +167,4 @@ mise run test:mcp-press <UDID> identifier com.example.control
 mise run test:mcp-scroll <UDID> com.example.row
 ```
 
-Read/press/scroll tests have different effects. Use their help and inspect private captures where visual effect matters. The historical idevice AX implementation is disabled; old helper-backed results are migration evidence, not current execution instructions.
+Read/press/scroll tests have different effects. Use their help and inspect private captures where visual effect matters. The historical idevice AX implementation has been removed from the CLI; old helper-backed results are migration evidence, not current execution instructions.

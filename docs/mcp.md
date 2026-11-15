@@ -27,10 +27,10 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 | Tools | Current purpose |
 | --- | --- |
-| `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks plus host-only private-interface availability per capability ([doctor output](dependencies.md#reading-doctor-output)); apps and physical details/processes/media status. Legacy `hid-info` is unavailable. |
+| `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks plus host-only private-interface availability per capability ([doctor output](dependencies.md#reading-doctor-output)); apps and physical details/processes/media status. |
 | `device_readiness` | CoreDevice prerequisites plus separate display/passcode observations; see [readiness](readiness.md). |
 | `get_ui_tree` | Native physical AX hierarchy with optional PID. Simulator hierarchy is currently unavailable. |
-| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR |
+| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Simulator `get_screen` uses OCR; `method: tree` is refused for simulators. |
 | `press_element`, `scroll_to_element` | [Fresh exact physical AX selectors](direct-accessibility.md), guarded native press/scroll |
 | `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled or has an exact value, within one AX session. Locally tested only; not yet verified on hardware. |
 | `decode_accessibility_archive` | Offline data-only archive inspection |
@@ -43,7 +43,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `build_run` | [Xcode build/install/launch](build-run.md). Optional physical-only booleans `allow_provisioning_updates` and `allow_device_registration` let Xcode change certificates, profiles and device registrations in the user's developer account; ask the user before setting them. |
 | `request_handoff` | [Explicit human completion request](handoff.md) |
 
-Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked at runtime, and the catalogue no longer lists the tools and parameters that could only reach them: simulator selector taps, live raw callback archives, finite OS traces, `pairing_file` and the input `backend` choice. Physical input and trees always use the in-process CoreDevice route.
+Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked at runtime, and neither the catalogue nor the shared CLI command service has any route to them: simulator selector taps, live raw callback archives, finite OS traces, `hid-info`, `pairing_file` and the input `backend` choice are gone. Physical input and trees always use the in-process CoreDevice route. Tools that accept `platform: simulator` for input or trees return a "not available yet" tool error.
 
 ## Choose platform and coordinates explicitly
 
@@ -88,7 +88,7 @@ This owns tasks, not exclusive access to a device. Independent CLI/server proces
 
 `request_handoff` uses a host form when form elicitation is advertised. A required completion checkbox acknowledges only the person's response, not device success. Pending handoff pauses that device's mutations within the same server process while leaving observations available.
 
-Do not send passcodes, keys or pairing-file contents through tool arguments. No MCP tool initiates pairing. The old interactive pairing route is also blocked by current execution policy.
+Do not send passcodes, keys or pairing-file contents through tool arguments. No MCP tool or CLI command initiates pairing; pair through Xcode/CoreDevice.
 
 Read-only/destructive annotations are host hints, not permission enforcement. See [handoff](handoff.md) for identity and completion rules.
 

@@ -15,7 +15,7 @@
 
 The Objective-C bridge is linked into the main process. It is not a helper executable. Private interfaces stay behind backend boundaries because their contracts and availability can change with Xcode or the OS.
 
-Both process runners refuse non-Apple device-control executables, including AXe, idevice and ipb helpers. xcsift is allowed as a build-log formatter, not a device backend. Installing a legacy helper or selecting an old backend does not bypass this policy.
+Both process runners refuse non-Apple device-control executables, including AXe, idevice and ipb helpers. xcsift is allowed as a build-log formatter, not a device backend. The CLI no longer has any route that plans those helpers, and installing one does not bypass this policy.
 
 ## Build requirements
 
@@ -107,11 +107,14 @@ No proprietary device-control binary is linked or packaged. Required open-source
 
 ## Retired helpers
 
-`Backends/IDevice` and `Backends/CoreDevice` retain earlier Rust/native adapters and patches as migration references. Their build tasks can reproduce research artifacts, but the product refuses those executables. In particular, these routes are currently unavailable:
+`Backends/IDevice` and `Backends/CoreDevice` retain earlier Rust/native adapters and patches as migration references. Their build tasks can reproduce research artifacts, but the product refuses those executables.
 
-- independent `pair wifi` / `--pairing-file` device operations;
-- `hid-info`, raw live `ax-snapshot` and finite physical `logs`;
-- AXe-backed simulator input and hierarchy;
-- the old ipb input/video helper and its ADV1 JPEG pipe.
+The routes that reached them were first blocked by execution policy and have since been removed from the CLI and MCP adapters, together with their planners, dry-run plans and tests:
 
-Earlier successes or failures from those routes are historical evidence, not current setup instructions. The old idevice HID path could use stop-all media cleanup and returned receipts without visible input effects; it must not be substituted for the current owned native operations.
+- independent `pair wifi` and `--pairing-file` device operations (no longer recognised as commands);
+- `--physical-backend idevice` (now an unsupported backend; `coredevice` is the only physical backend and the default);
+- `hid-info`, raw live `ax-snapshot` with its archive saving, and finite physical `logs` (now unsupported physical-device operations);
+- AXe-backed simulator input and hierarchy (now refused as not available yet; simulator `screen` uses OCR);
+- the old ipb input helper plans (`coredevice-ipb` dry runs) and its video helper with the ADV1 JPEG pipe.
+
+`DeviceExecutablePolicy` remains as the runtime guarantee. Earlier successes or failures from those routes are historical evidence, not current setup instructions. The old idevice HID path could use stop-all media cleanup and returned receipts without visible input effects; it must not be substituted for the current owned native operations.

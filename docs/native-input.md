@@ -14,7 +14,7 @@ manzanero physical <UDID> key backspace
 
 `drag` and `swipe` use the same point-to-point movement. Coordinates are normalized `0...1` in the current interface, origin at the top left. Movement duration is `0.03...10` seconds; a stationary long press accepts `0.1...10` seconds.
 
-The direct backend is the default. `--physical-backend coredevice` selects the same implementation explicitly. Pairing files are unsupported. A failed action is not replayed through another backend.
+The direct backend is the only physical backend and the default. `--physical-backend coredevice` selects it explicitly and is kept for existing scripts; any other value fails as an unsupported physical backend. Pairing files are not accepted. A failed action is not replayed through another backend.
 
 ## Direct buttons
 
@@ -94,6 +94,6 @@ Scoped iPhone 13 mini checks cover Home, Settings tap/drag, long press, two-cont
 
 Local tests cover encoding, scheduling, rotation, invalid input and attempted cleanup. They do not prove hardware delivery, exact timing or release after failure. Other Apple families, rotations, quarantine after an uncertain release and reliable unattended recovery remain incomplete. [Verification](verification.md) records positive and negative results.
 
-## Historical helper implementation (disabled)
+## Historical helper implementation (removed)
 
-Earlier implementations invoked ipb or a Rust idevice bridge. Their source/patches remain in `Backends/` for research, but runtime policy blocks them. Earlier helper receipts and cleanup behavior must not be treated as direct-backend evidence. See [dependencies and provenance](dependencies.md#retired-helpers).
+Earlier implementations invoked ipb or a Rust idevice bridge. Their source/patches remain in `Backends/` for research; the CLI no longer plans them, and runtime policy would refuse them. Earlier helper receipts and cleanup behavior must not be treated as direct-backend evidence. See [dependencies and provenance](dependencies.md#retired-helpers).

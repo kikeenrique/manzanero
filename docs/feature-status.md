@@ -28,13 +28,11 @@ This page describes current product availability, not historical helper capabili
 
 ## Unavailable or missing
 
-These named interfaces may have planners/catalog entries but cannot currently execute:
+- Simulator input (`tap`, `tap-id`, `tap-label`, `swipe`, `drag`, `type`, `button`) and hierarchy (`tree`, `screen tree`): the CLI refuses them with "Simulator input and accessibility hierarchy are not available yet"; simulator `screen` in auto mode goes straight to OCR.
+- Physical `hid-info`, live raw `ax-snapshot` and finite `logs`: no direct Apple replacement yet; they fail as an unsupported physical-device operation. Offline `decode-ax-archive` still works.
+- Independent Wi-Fi pairing (`pair wifi`) and `--pairing-file`: not recognised as commands. Pair through Xcode/CoreDevice.
 
-- AXe-backed simulator input, hierarchy and selector taps;
-- idevice-backed `hid-info`, live raw `ax-snapshot`, finite `logs`, independent Wi-Fi pairing and pairing-file operations;
-- historical ipb input/video helpers.
-
-Execution policy blocks those non-Apple device binaries. Retained code and earlier successes do not make them supported runtime paths.
+These routes used to reach AXe, idevice or ipb helpers. The CLI no longer contains them (see [retired helpers](dependencies.md#retired-helpers)), and execution policy would refuse those binaries anyway.
 
 User-facing live mirroring, reusable semantic element handles, automatic permission/Face ID handling, crash recovery, quarantine after an uncertain release and a complete assertion system are missing or incomplete.
 

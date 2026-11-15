@@ -10,7 +10,7 @@ manzanero simulator <UUID> screen auto
 manzanero ocr tmp/existing.png
 ```
 
-Simulator screen inspection requires an explicit UUID. Physical capture uses Xcode and its preparation checks. The current physical hierarchy provider is native Apple AX; simulator hierarchy is unavailable because the old AXe executable is blocked.
+Simulator screen inspection requires an explicit UUID. Physical capture uses Xcode and its preparation checks. The current physical hierarchy provider is native Apple AX. Simulators have no hierarchy provider yet: simulator `screen auto` records that in its diagnostics and uses OCR, and simulator `screen tree` is refused before capture.
 
 ## Choosing a method
 
@@ -33,7 +33,6 @@ MCP `get_screen` accepts `platform`, `device` and optional `method`. JSON appear
 ## Coordinate spaces
 
 - Physical AX frames: device logical points.
-- Simulator hierarchy frames, when a provider is available: interface points.
 - OCR bounds: normalized `0...1`, origin at the top left.
 - Image-only dimensions: pixels.
 
