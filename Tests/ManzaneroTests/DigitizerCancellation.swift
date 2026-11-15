@@ -4,6 +4,8 @@ import Synchronization
 import Testing
 @testable import Manzanero
 
+// The C schedules sleep between reports on the calling thread.
+@Suite(.dedicatedThread)
 struct DigitizerCancellationTests {
     private func sequence() throws -> NativeGestureSequence {
         try NativeGestureSequence(json: """
@@ -56,13 +58,17 @@ struct DigitizerCancellationTests {
         #expect(sent.last == release)
     }
 
-    @Test func swiftTaskCancellationInterruptsLongGapAndAttemptsRelease() async throws {
+    @Test(.timeLimit(.minutes(1))) func swiftTaskCancellationInterruptsLongGapAndAttemptsRelease() async throws {
         let sequence = try sequence(), bytes = sequence.reports.flatMap { $0 }
         let times = sequence.times.map { UInt64($0) * 1_000_000 }
-        let sent = Mutex<[[UInt8]]>([])
-        // Run the blocking C boundary off the test's executor so the test can
-        // cancel its task while it is asleep between scheduled reports.
-        let task = Task { @concurrent in
+        let sent = Mutex<[[UInt8]]>([]), firstReport = TestSignal()
+        // The C schedule blocks its thread through the 10 s gap. Running it on
+        // a cooperative pool thread could leave the test itself without a
+        // thread to cancel it on a small runner, so the task prefers a thread
+        // of its own; it is still a Swift task, so Task.isCancelled reaches C.
+        let executor = DedicatedThreadExecutor()
+        defer { executor.stop() }
+        let task = Task(executorPreference: executor) {
             times.withUnsafeBufferPointer { times in
                 bytes.withUnsafeBufferPointer { reports in
                     ADCRunDigitizerSchedule(times.baseAddress, reports.baseAddress, times.count,
@@ -70,15 +76,14 @@ struct DigitizerCancellationTests {
                             if let report {
                                 let bytes = Array(UnsafeBufferPointer(start: report, count: 58))
                                 sent.withLock { $0.append(bytes) }
+                                firstReport.signal()
                             }
                         })
                 }
             }
         }
         defer { task.cancel() }
-        let deadline = ContinuousClock.now + .seconds(2)
-        while sent.withLock({ $0.isEmpty }), ContinuousClock.now < deadline { await Task.yield() }
-        let started = sent.withLock { !$0.isEmpty }
+        let started = await firstReport.wait()
         task.cancel()
         let result = await task.value
         #expect(started && result == 1)

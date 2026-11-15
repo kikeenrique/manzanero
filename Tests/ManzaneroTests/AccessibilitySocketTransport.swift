@@ -39,6 +39,9 @@ private final class DedicatedThread<Value: Sendable>: Sendable {
     }
 }
 
+// Synchronous bodies poll real sockets against real deadlines; each test gets
+// its own thread so that blocking never holds a cooperative pool thread.
+@Suite(.dedicatedThread)
 struct AccessibilitySocketTransportTests {
     private func pair(type: Int32 = SOCK_STREAM) throws -> (Int32, Int32) {
         var descriptors: [Int32] = [-1, -1]

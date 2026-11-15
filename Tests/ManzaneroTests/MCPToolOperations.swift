@@ -19,16 +19,21 @@ private actor ShutdownGate {
 }
 
 struct MCPToolOperationsTests {
-    @Test(arguments: [1, 3]) func shutdownCancelsOwnedWorkAndDrainsItsCleanupBeforeReturning(count: Int) async throws {
+    // The waits below are signals, not wall-clock polls: on a runner with few
+    // cores, how soon the pool reaches the owned tasks is not under test. The
+    // time limit turns a lost signal into a failure instead of a hang.
+    @Test(.timeLimit(.minutes(1)), arguments: [1, 3])
+    func shutdownCancelsOwnedWorkAndDrainsItsCleanupBeforeReturning(count: Int) async throws {
         let owner = MCPToolOperations(), gate = ShutdownGate()
-        let started = Mutex(0), cleaning = Mutex(0), cleaned = Mutex(0), drained = Mutex(false)
+        let started = TestSignal(count: count), cleaning = TestSignal(count: count)
+        let cleaned = Mutex(0), drained = Mutex(false)
         let calls = (0..<count).map { _ in
             Task { @Sendable in
                 try await owner.perform {
-                    started.withLock { $0 += 1 }
+                    started.signal()
                     do { try await Task.sleep(for: .seconds(30)) }
                     catch {
-                        cleaning.withLock { $0 += 1 }
+                        cleaning.signal()
                         await gate.wait()
                         cleaned.withLock { $0 += 1 }
                         throw error
@@ -37,12 +42,12 @@ struct MCPToolOperationsTests {
                 }
             }
         }
-        let deadline = ContinuousClock.now + .seconds(2)
-        while started.withLock({ $0 < count }), ContinuousClock.now < deadline { await Task.yield() }
+        #expect(await started.wait())
         await owner.cancel()
         let drain = Task { await owner.drain(); drained.withLock { $0 = true }; #expect(cleaned.withLock { $0 == count }) }
-        while cleaning.withLock({ $0 < count }), ContinuousClock.now < deadline { await Task.yield() }
-        let cleanupStarted = cleaning.withLock { $0 == count }
+        let cleanupStarted = await cleaning.wait()
+        // Every owned cleanup is now parked on the gate, so drain must still
+        // be waiting; give it a moment in which it could wrongly return.
         try await Task.sleep(for: .milliseconds(20))
         #expect(cleanupStarted && !drained.withLock { $0 })
         await gate.release()
@@ -66,18 +71,17 @@ struct MCPToolOperationsTests {
         await owner.drain()
     }
 
-    @Test func callerCancellationReachesOwnedTask() async {
-        let owner = MCPToolOperations(), started = Mutex(false), cleaned = Mutex(false)
+    @Test(.timeLimit(.minutes(1))) func callerCancellationReachesOwnedTask() async {
+        let owner = MCPToolOperations(), started = TestSignal(), cleaned = Mutex(false)
         let call = Task {
             try await owner.perform {
                 defer { cleaned.withLock { $0 = true } }
-                started.withLock { $0 = true }
+                started.signal()
                 try await Task.sleep(for: .seconds(30))
                 return .init()
             }
         }
-        let deadline = ContinuousClock.now + .seconds(2)
-        while !started.withLock({ $0 }), ContinuousClock.now < deadline { await Task.yield() }
+        #expect(await started.wait())
         call.cancel()
         if case .failure(let error) = await call.result { #expect(error is CancellationError) }
         else { Issue.record("Caller cancellation became a tool response") }
@@ -85,13 +89,13 @@ struct MCPToolOperationsTests {
         await owner.cancel(); await owner.drain()
     }
 
-    @Test func sessionStopResolvesPendingElicitationBeforeDraining() async throws {
+    @Test(.timeLimit(.minutes(1))) func sessionStopResolvesPendingElicitationBeforeDraining() async throws {
         let session = await AppleMCPServer.make(service: CommandService()), gate = ShutdownGate()
-        let formRequested = Mutex(false)
+        let formRequested = TestSignal()
         let (clientTransport, serverTransport) = await InMemoryTransport.createConnectedPair()
         let client = Client(name: "shutdown-test", version: "1", capabilities: .init(elicitation: .init()))
         await client.withElicitationHandler { _ in
-            formRequested.withLock { $0 = true }
+            formRequested.signal()
             await gate.wait()
             return .init(action: .cancel)
         }
@@ -101,9 +105,7 @@ struct MCPToolOperationsTests {
             try await client.callTool(name: "request_handoff", arguments: ["platform": "simulator",
                 "device": .string(HandoffCommandTests().device), "message": "Synthetic shutdown step"])
         }
-        let deadline = ContinuousClock.now + .seconds(2)
-        while !formRequested.withLock({ $0 }), ContinuousClock.now < deadline { await Task.yield() }
-        let requested = formRequested.withLock { $0 }
+        let requested = await formRequested.wait()
         await session.stop()
         await gate.release()
         await client.disconnect()
@@ -115,12 +117,19 @@ struct MCPToolOperationsTests {
         } catch { #expect(String(describing: error).contains("session is shut down")) }
     }
 
-    @Test func EOFDeadlineArmsOnceAndCompletionDisarmsIt() async throws {
-        let expired = Mutex(0)
-        let deadline = MCPShutdownDeadline(grace: .milliseconds(10), expire: { expired.withLock { $0 += 1 } })
+    // The watchdog fires from a Dispatch timer. Spinning on the cooperative
+    // pool while waiting for it kept every core of a small runner busy and
+    // delayed the timer past a 2 s poll limit; the test now parks on a signal.
+    @Test(.timeLimit(.minutes(1))) func EOFDeadlineArmsOnceAndCompletionDisarmsIt() async throws {
+        let expired = Mutex(0), fired = TestSignal()
+        let deadline = MCPShutdownDeadline(grace: .milliseconds(10), expire: {
+            expired.withLock { $0 += 1 }
+            fired.signal()
+        })
         deadline.arm(); deadline.arm()
-        let limit = ContinuousClock.now + .seconds(2)
-        while expired.withLock({ $0 == 0 }), ContinuousClock.now < limit { await Task.yield() }
+        #expect(await fired.wait())
+        // A second timer from the repeated arm() would be due by now.
+        try await Task.sleep(for: .milliseconds(30))
         #expect(expired.withLock { $0 } == 1)
         deadline.complete()
         let finished = MCPShutdownDeadline(grace: .milliseconds(10), expire: { Issue.record("Completed shutdown expired") })

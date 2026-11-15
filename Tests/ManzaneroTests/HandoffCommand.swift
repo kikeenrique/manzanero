@@ -52,8 +52,13 @@ struct HandoffCommandTests {
     actor Gate {
         var waiting = false
         var continuation: CheckedContinuation<HandoffStatus, Never>?
+        /// Signalled once the confirmation is parked, so tests wait without polling.
+        nonisolated let entered = TestSignal()
         func wait() async -> HandoffStatus {
-            await withCheckedContinuation { continuation in self.continuation = continuation; waiting = true }
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation; waiting = true
+                entered.signal()
+            }
         }
         func finish() { continuation?.resume(returning: .acknowledged); continuation = nil }
     }
@@ -61,8 +66,7 @@ struct HandoffCommandTests {
     @Test(.timeLimit(.minutes(1))) func pendingHandoffPausesMutationsAndUnpausesAfterResponse() async throws {
         let service = CommandService(), gate = Gate()
         let pending = Task { try await service.execute(["simulator", device, "handoff", "fixture"], handoffConfirmation: { _ in await gate.wait() }) }
-        let deadline = ContinuousClock.now + .seconds(2)
-        while !(await gate.waiting), ContinuousClock.now < deadline { await Task.yield() }
+        try #require(await gate.entered.wait())
         try #require(await gate.waiting)
         do {
             _ = try await service.execute(["simulator", device, "type", "hello"])
@@ -93,13 +97,12 @@ struct HandoffCommandTests {
         #expect(try request().output(.declined, mechanism: "test").exitCode == 1)
     }
 
-    @Test func pendingPhysicalHandoffAllowsReadinessButRejectsCoreDeviceAliasMutation() async throws {
+    @Test(.timeLimit(.minutes(1))) func pendingPhysicalHandoffAllowsReadinessButRejectsCoreDeviceAliasMutation() async throws {
         let metadata = Data("{\"info\":{\"outcome\":\"success\"},\"result\":{\"properties\":{\"state\":{\"developerModeStatus\":{\"enabled\":{}}},\"connection\":{\"state\":\"connected\",\"pairingState\":\"paired\"}},\"deviceProperties\":{\"ddiServicesAvailable\":true}}}".utf8)
         let service = CommandService(readinessQuery: { _ in metadata }), gate = Gate()
         let udid = "00000000-0000000000000000"
         let pending = Task { try await service.execute(["physical", udid, "handoff", "synthetic"], handoffConfirmation: { _ in await gate.wait() }) }
-        let deadline = ContinuousClock.now + .seconds(2)
-        while !(await gate.waiting), ContinuousClock.now < deadline { await Task.yield() }
+        try #require(await gate.entered.wait())
         try #require(await gate.waiting)
         do {
             for operands in [["multi-tap", "0.25", "0.25", "0.75", "0.25"],

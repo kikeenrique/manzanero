@@ -24,6 +24,7 @@ mise tasks validate                 # after editing task definitions
 - The `test` task takes no arguments. Run one suite or test directly, keeping the task's cache path and formatter:
   `swift test --cache-path tmp/swift-cache --filter ToolRunnerTests 2>&1 | xcsift -f toon --warnings`
   (`--filter ToolRunnerTests/nonzeroExitIncludesDiagnostic` for one test). Tests use Swift Testing (`@Test`, `#expect`), not XCTest.
+- Hosted runners have about three cores, so the test suite shares a three-thread cooperative pool. Do not spin-wait (`while … { await Task.yield() }`), bound waits with short wall-clock limits, or block a pool thread while another task must make progress; use `TestSignal`, `ManualTestClock` and `.dedicatedThread` from `Tests/ManzaneroTests/TestConcurrency.swift`. Reproduce starvation locally with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 mise run test`.
 - CI runs exactly `mise tasks validate`, `build`, `test` and `coredevice:test`. Run those before committing.
 - `test:mcp-*`, `test:media-*`, `test:rsd-*`, `test:ax-*`, `test:native-tunnel` and `test:cli-interrupt` need a real device and are opt-in; several send input or record. Read `mise run <task> --help` first and never run one against a device the user has not named.
 - `mise run release <version>` pushes a tag that publishes through CI. Do not run it unless explicitly asked.

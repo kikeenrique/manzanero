@@ -2,6 +2,9 @@ import Foundation
 import Testing
 @testable import Manzanero
 
+// The recorder fixtures block on child processes with real startup and
+// finalization timing; each test gets its own thread instead of a pool thread.
+@Suite(.dedicatedThread)
 struct RecordingCommandTests {
     let simulator = "11111111-2222-3333-4444-555555555555"
 

@@ -82,7 +82,9 @@ struct CoreDeviceInputTests {
         #expect(String(decoding: dry.data, as: UTF8.self).contains("coredevice-direct"))
     }
 
-    @Test func nativeHelperTimeoutReturnsAnErrorInsteadOfSuccess() throws {
+    // The elapsed bound is the subject (the runner must stop the child), and
+    // ToolRunner blocks while it waits, so it runs on a thread of its own.
+    @Test(.dedicatedThread) func nativeHelperTimeoutReturnsAnErrorInsteadOfSuccess() throws {
         let start = ContinuousClock.now
         #expect(throws: CommandFailure.self) { try ToolRunner().run(["10"], executable: "/bin/sleep", timeout: 0.05) }
         #expect(start.duration(to: .now) < .seconds(3))
@@ -172,7 +174,7 @@ struct CoreDeviceInputTests {
         #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(key.command(["device": .string(udid), "key": "backspace"])))?.operation == "key")
     }
 
-    @Test func subprocessStdinPreservesBinaryAndUnicodeBytesWithoutShellEvaluation() throws {
+    @Test(.dedicatedThread) func subprocessStdinPreservesBinaryAndUnicodeBytesWithoutShellEvaluation() throws {
         let bytes = Data("\0ñ🙂 '$(touch sentinel)'\n\t".utf8)
         #expect(try ToolRunner().run([], executable: "/bin/cat", timeout: 1, inputData: bytes) == bytes)
         #expect(throws: CommandFailure.self) { try ToolRunner().run([], executable: "/bin/cat", interactive: true, inputData: bytes) }

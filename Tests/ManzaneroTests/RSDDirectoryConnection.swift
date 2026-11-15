@@ -67,7 +67,7 @@ struct RSDDirectoryConnectionTests {
         #expect(validate(root).0 != 0)
     }
 
-    @Test func bridgeConsumesRejectedDescriptorAndClearsOutputsWithoutFrameworkSetup() throws {
+    @Test(.dedicatedThread) func bridgeConsumesRejectedDescriptorAndClearsOutputsWithoutFrameworkSetup() throws {
         var sockets: [Int32] = [-1, -1]
         try #require(socketpair(AF_UNIX, SOCK_STREAM, 0, &sockets) == 0)
         defer { Darwin.close(sockets[1]) }

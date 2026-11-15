@@ -4,6 +4,9 @@ import Synchronization
 import Testing
 @testable import Manzanero
 
+// The C schedules sleep between events (a 400 ms press hold included) on the
+// calling thread.
+@Suite(.dedicatedThread)
 struct IndigoCancellationTests {
     private var touch: [ADCTouchSample] {
         [ADCTouchSample(nanoseconds: 0, x: 0.2, y: 0.3, phase: 0),
@@ -92,20 +95,24 @@ struct IndigoCancellationTests {
         check(touch.withUnsafeBufferPointer { ADCPerformTouch("invalid", "invalid", $0.baseAddress, $0.count, { 1 }, &error, error.count) })
     }
 
-    @Test func swiftTaskCancellationInterruptsIndigoKeyboardGap() async throws {
-        let sent = Mutex<[[UInt64]]>([])
-        let task = Task { @concurrent in
+    @Test(.timeLimit(.minutes(1))) func swiftTaskCancellationInterruptsIndigoKeyboardGap() async throws {
+        let sent = Mutex<[[UInt64]]>([]), firstKey = TestSignal()
+        // The schedule blocks its thread through the 10 s gap; run it as a
+        // Swift task on a thread of its own so it cannot take the cooperative
+        // thread the test needs to cancel it (see DigitizerCancellationTests).
+        let executor = DedicatedThreadExecutor()
+        defer { executor.stop() }
+        let task = Task(executorPreference: executor) {
             let keys = [ADCKeyboardSample(nanoseconds: 0, usage: 4, state: 1), ADCKeyboardSample(nanoseconds: 10_000_000_000, usage: 4, state: 2)]
             return keys.withUnsafeBufferPointer {
                 ADCRunKeyboardSchedule($0.baseAddress, $0.count, { Task.isCancelled ? 1 : 0 }, { usage, state in
                     sent.withLock { $0.append([usage, state]) }
+                    firstKey.signal()
                 })
             }
         }
         defer { task.cancel() }
-        let deadline = ContinuousClock.now + .seconds(2)
-        while sent.withLock({ $0.isEmpty }), ContinuousClock.now < deadline { await Task.yield() }
-        let started = sent.withLock { !$0.isEmpty }
+        let started = await firstKey.wait()
         task.cancel()
         let result = await task.value
         #expect(started && result == 1)

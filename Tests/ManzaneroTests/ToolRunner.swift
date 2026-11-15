@@ -2,6 +2,9 @@ import Foundation
 import Testing
 @testable import Manzanero
 
+// ToolRunner blocks its caller until the child exits; keep that off the
+// cooperative pool that the rest of the suite shares.
+@Suite(.dedicatedThread)
 struct ToolRunnerTests {
     @Test func formatterSuccessCannotHideBuildFailure() throws {
         let log = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)

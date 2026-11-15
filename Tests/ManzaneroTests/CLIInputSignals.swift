@@ -56,13 +56,14 @@ struct CLIInputSignalsTests {
         completed.receive(SIGINT)
     }
 
-    @Test func stalledCleanupHasBoundedForceExit() async {
-        let forced = Mutex<[Int32]>([])
+    // Parks on a signal from the Dispatch timer instead of spinning against a
+    // wall-clock limit, which starves the timer on a runner with few cores.
+    @Test(.timeLimit(.minutes(1))) func stalledCleanupHasBoundedForceExit() async {
+        let forced = Mutex<[Int32]>([]), fired = TestSignal()
         let controller = CLIInputSignals.Controller(queue: DispatchQueue(label: "test.cli.signal-timeout"), grace: .milliseconds(20),
-            forceExit: { code in forced.withLock { $0.append(code) } }, diagnostic: { _ in })
+            forceExit: { code in forced.withLock { $0.append(code) }; fired.signal() }, diagnostic: { _ in })
         controller.receive(SIGTERM)
-        let deadline = ContinuousClock.now + .seconds(2)
-        while forced.withLock({ $0.isEmpty }), ContinuousClock.now < deadline { await Task.yield() }
+        #expect(await fired.wait())
         #expect(forced.withLock { $0 } == [143])
         #expect(controller.finish() == 143)
     }

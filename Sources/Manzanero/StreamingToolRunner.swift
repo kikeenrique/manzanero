@@ -5,16 +5,19 @@ import System
 /// Scoped asynchronous output consumption. Subprocess owns pipe IO, process
 /// termination, and reaping; no stream or execution handle escapes its closure.
 struct StreamingToolRunner: Sendable {
-    func run(executable: String, arguments: [String], timeout: Double,
-             maximumOutputBytes: Int = 1024 * 1024 * 1024,
-             receive: @Sendable @escaping (Data) async throws -> Void) async throws {
+    /// `clock` measures `timeout`; tests inject a manual clock so the deadline
+    /// does not depend on how quickly a loaded machine schedules the child.
+    func run<C: Clock>(executable: String, arguments: [String], timeout: Double, clock: C = ContinuousClock(),
+                       maximumOutputBytes: Int = 1024 * 1024 * 1024,
+                       receive: @Sendable @escaping (Data) async throws -> Void) async throws where C.Duration == Duration {
         try DeviceExecutablePolicy.validate(executable, arguments: arguments)
         guard timeout.isFinite, timeout > 0, maximumOutputBytes > 0 else {
             throw CommandFailure(description: "Invalid streaming process deadline or output limit.")
         }
+        let deadline = clock.now.advanced(by: .seconds(timeout))
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
-                try await Task.sleep(for: .seconds(timeout))
+                try await clock.sleep(until: deadline, tolerance: nil)
                 throw CommandFailure(description: "Streaming process timed out; capture cleanup may be incomplete.")
             }
             group.addTask {
