@@ -17,7 +17,6 @@ Run from the repository root with the device paired and unlocked. Replace `<UDID
 | `build-run` provisioning flags and install | Probe app cannot be installed on the phone |
 | Probe app on hardware | Readback through `tree`, reset through `press-id`, log `pull` |
 | Touch measurement runner | Wrong matching against a real log |
-| Native recording beyond a few seconds | Short captures work again with a firewall rule; long captures, motion and recording during input have not been re-run |
 
 ## Order
 
@@ -42,12 +41,6 @@ Run from the repository root with the device paired and unlocked. Replace `<UDID
    mise run test:probe-touch <UDID>
    ```
    Read `tmp/probe-touch/<timestamp>/summary.txt`. Repeat with `--repeat 5` only after one clean run.
-4. **Longer native recording.** Short captures are recorded in [verification](verification.md).
-   ```sh
-   mise run cli doctor                                             # Firewall entry should read allowed
-   mise run cli --recording-backend coredevice physical <UDID> record tmp/live/long.mp4 60 hevc
-   ```
-   Then one capture while input is sent from the same MCP server, and a look at the movie for motion.
 
 ## Questions still open
 
