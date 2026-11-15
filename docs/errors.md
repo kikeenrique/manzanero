@@ -77,8 +77,8 @@ A read-only command (`tree`, `wait-id`/`wait-label`, `screen`, `screenshot`, `de
 | `code` | Meaning | Typical cause | What a caller should do | Input may have been sent? |
 | --- | --- | --- | --- | --- |
 | `usage` | The arguments are wrong | Bad coordinates, missing operand, unknown option or command, recording destination exists | Fix the call (`retry: no`) | No |
-| `unsupported-operation` | The operation does not exist here | Simulator input or tree, unknown device operation, retired backend or helper executable | Use another operation (`retry: no`) | No |
-| `device-not-ready` | Device prerequisites block the operation | Developer Mode disabled, device not connected or paired, no tunnel | Stop and ask a person (`action: human`) | No |
+| `unsupported-operation` | The operation does not exist here | Simulator multi-contact input, paste or wake, unknown device operation, retired backend or helper executable | Use another operation (`retry: no`) | No |
+| `device-not-ready` | Device prerequisites block the operation | Developer Mode disabled, device not connected or paired, no tunnel; a simulator that is not booted (the message names the `boot` command, which a caller may run itself) | Stop and ask a person (`action: human`) | No |
 | `display-off` | The primary display is off or its state is unknown | Screen locked and dark before touch, capture or AX centre selection | Run `wake`, then retry (`action: wake`) | No |
 | `device-busy` | Another owner controls the device | Another manzanero process holds the device lease; a native recording is already running in this process | Wait, then retry (`action: wait`) | No |
 | `handoff-pending` | A human handoff is pending for the device | A mutation while the person has not answered; a second handoff | Wait for the person (`action: wait`) | No |
@@ -98,7 +98,7 @@ The set is deliberately small and closed; a new value would be a change to this 
 
 ## Where the facts come from
 
-- **Input functions in the bridge.** `ADCPerformTouch`, `ADCPerformTwoContactTouch`, `ADCPressButton`, `ADCPressKeyboardKey`, `ADCPerformKeyboard` and `ADCPerformCancellableDigitizerReports` return `ADCInputOutcomeUnknown` (2) when they fail after input was attempted (the two "do not replay automatically" paths) and another non-zero value when they stopped before sending any input. Swift maps the first to `input-outcome-unknown`/`possible` and the second to `transport-failed`/`none`. The messages are unchanged.
+- **Input functions in the bridge.** `ADCPerformTouch`, `ADCPerformTwoContactTouch`, `ADCPressButton`, `ADCPressKeyboardKey`, `ADCPerformKeyboard` and `ADCPerformCancellableDigitizerReports` (and their simulator counterparts `ADCSimulatorPerformTouch`, `ADCSimulatorPerformKeyboard`, `ADCSimulatorPressKeyboardKey` and `ADCSimulatorPressButton`) return `ADCInputOutcomeUnknown` (2) when they fail after input was attempted (the two "do not replay automatically" paths) and another non-zero value when they stopped before sending any input. Swift maps the first to `input-outcome-unknown`/`possible` and the second to `transport-failed`/`none`. The messages are unchanged.
 - **Accessibility actions** classify by the action's submission state, which their message already reports as `state=`: `not-sent` keeps the guard's category with `inputSent: none`; `submitted`, `refused` or `accepted` followed by a failure is `input-outcome-unknown`.
 - **Read-only device queries** (identity details, displays, lock state) used by input commands run before any input, so their failures report `none`.
 - **Wrapping.** When a failure adds context to an inner failure (for example "Recording failed: …" or "Direct physical wait failed: …"), it keeps the inner category.

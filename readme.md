@@ -61,8 +61,9 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Video | [Recording](docs/recording.md) |
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
 | A step that needs a person | [Human handoff](docs/handoff.md) |
+| The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
 
-Physical input, accessibility and native video need no separate device helper. The CLI has no routes to AXe, idevice or ipb executables, and the process runners refuse them at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator input and hierarchy are not available yet, so simulator `screen` uses OCR.
+Physical input, accessibility and native video need no separate device helper. The CLI has no routes to AXe, idevice or ipb executables, and the process runners refuse them at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator trees, element actions, waits, single-contact touch, Home/lock, keys and typing run in process on a booted simulator ([simulator input](docs/simulator-input.md)).
 
 ## Apps, files and reports
 

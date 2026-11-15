@@ -16,7 +16,7 @@ Checkpoint hashes below refer to the rewritten public history. The publication c
 
 ## Current local validation
 
-The latest implementation checkpoint passed 314 default Swift test functions through xcsift with zero errors/warnings; all 48 mise tasks validated. Default tests are local regression checks, not hardware runs. Live checks are explicitly enabled and may have device effects.
+The latest implementation checkpoint (simulator input, 2026-11-15) passed 451 default Swift tests through xcsift with zero errors/warnings, three times normally and three times with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`; `mise run probe-app:test` passed 94; all 40 mise tasks validated. Default tests are local regression checks, not hardware runs. Live checks are explicitly enabled and may have device effects.
 
 Coverage includes argument validation, literal subprocess arguments, bounded output/deadlines/reaping, DTX/archive parsing, identity/geometry guards, report encoding, timing/cleanup attempts, MCP routing/lifetime and recording artifacts. It does not establish the Apple service's delivery, exact scheduling, device-side cleanup or broad device compatibility.
 
@@ -109,7 +109,7 @@ Two observations about system prompts. The paste prompt is not reachable through
 
 Operator errors during this run, recorded because they changed device state: a 6-second long press meant for a Settings page was sent on the Home screen and put it into edit mode, left with one Home press and no layout change; and a `terminate` was first sent to the PID of the process listed before Maps (`passwordbreachd`, a system daemon) because of a wrong filter on the process list.
 
-**Simulator** (iPhone 17e, iOS 27.2, shut down beforehand and afterwards): `boot`, `apps`, `build-run` of the probe app, `screenshot`, `screen ocr` (read the probe's on-screen counters), `screen auto` (fell back to OCR with the "hierarchy is not available yet" diagnostic), a 3-second `record`, `terminate`, `launch`, `open-url`, `uninstall` and `shutdown` all exited 0 with the expected effect where one was checked. `tap` and `tree` were refused with the unsupported-operation error. The page opened by `open-url` was not checked beyond the foreground change.
+**Simulator** (iPhone 17e, iOS 27.2, shut down beforehand and afterwards): `boot`, `apps`, `build-run` of the probe app, `screenshot`, `screen ocr` (read the probe's on-screen counters), `screen auto` (fell back to OCR with the "hierarchy is not available yet" diagnostic), a 3-second `record`, `terminate`, `launch`, `open-url`, `uninstall` and `shutdown` all exited 0 with the expected effect where one was checked. `tap` and `tree` were refused with the unsupported-operation error; that was before [simulator input and accessibility](#simulator-input-and-accessibility) existed. The page opened by `open-url` was not checked beyond the foreground change.
 
 ## Direct physical input
 
@@ -236,6 +236,46 @@ At `ab422a6`, active EOF/SIGINT/SIGTERM checks each passed once:
 Each acknowledged owned cleanup, emitted no pending success output/partial published movie, found zero sessions from a separate process and recorded again there. These are observations, not latency guarantees. Cancellation/reuse also passed after pixel-buffer integration.
 
 Forced exits, startup/finalization interruption, blocked framework calls and independent controllers remain unverified. An acknowledged stop plus fresh absence does not prove destruction of every native resource.
+
+## Simulator input and accessibility
+
+**2026-11-15**, one simulator: iPhone 17e (390 × 844 points at 3×), iOS 27.2 runtime (24B8117), headless (Simulator.app not running). Host macOS 27.2.1 (26B131), Xcode 27.2 (27B52), CoreSimulator 1174.21, Swift 6.4.2. The simulator was booted for the run and shut down afterwards; no other simulator and no physical device was contacted. Apps: the project's probe app and Settings. Route and limits: [simulator input](simulator-input.md).
+
+| Command | Observed |
+| --- | --- |
+| `doctor` | `simulator-input` (18 interfaces) and `simulator-accessibility` (22) available |
+| Any command on the shut-down simulator | `tree` refused with `device-not-ready` before any connection |
+| `tree` | Probe: 9 nodes, the three readouts with their JSON values and `nativeAttributes["3003"]` = the probe's bundle identifier. Settings: 133 nodes. Lock screen: 105 nodes. Home Screen: failed, the full-depth SpringBoard snapshot came back empty after about 3 s (depth 4: 0.39 s, depth 10: 2.0 s in a separate experiment) |
+| `press-id probe.touch.reset` | Accepted; the probe session changed and no touch was recorded |
+| `press-label Appearance`, later `press-label General` | Settings navigated (screenshot, and a wait for the next page's row) |
+| `scroll-id com.apple.settings.standBy` | Native true, postcondition verified; the row moved from y 799 to y 377 (screenshot) |
+| `wait-id probe.touch.summary` | `condition-met` in one poll, 0.10 s |
+| `wait-id` for a missing identifier, `--timeout 2` | Exit 124, `timed-out` after 5 polls, 2.04 s |
+| `wait-label "Reset probe" --until enabled --timeout 0` | Met |
+| `wait-label General` started 1.5 s before `simctl launch` of Settings | Met after 8.5 s and 13 polls, following the process change (two PIDs observed) |
+| `wait-label Dark` in Settings' Appearance | Timed out `not-visible`: the SwiftUI static text reports visibility false while its row reports true |
+| `tap`, `long-press`, `swipe`, `drag` on the probe | Delivered at the requested positions; see the runner results below. Tap at (0.5, 0.45): received (0.5, 0.44984), held 0.074 s. 0.8 s long press held 0.800 s. 0.8 s drag: 30 moves, 0.802 s |
+| `tap` on a Home Screen icon | Opened the probe |
+| `button home` | Returned to the Home Screen (screenshot) |
+| `button lock` | Display black; the frontmost process became SpringBoard's lock screen |
+| `button home` on the dark display, then `swipe 0.5 0.99 0.5 0.4 0.3` | Lock screen shown, then unlocked back to the probe |
+| `tap` on Settings search, `type 'Wi-Fi 5'` | The field read `Wi-Fi 5` |
+| `key backspace` twice, `key return` | The field read `Wi-Fi`; return submitted the search ("No Results") |
+| SIGINT / SIGTERM during a 5 s `long-press` | Exit 130 / 143; the probe recorded the contact `ended` after 0.95 s / 1.0 s, none left down |
+| `tap` while another process held a 3 s `long-press` | Refused immediately with `device-busy` naming the holder; a concurrent `wait-id` (no lease) was met |
+| `--platform simulator` runner, built-in plan | 6 single-contact actions delivered; multi-contact ones refused, measured `missing`, run stopped after 3 consecutive dispatch failures (expected) |
+| Runner, 8 single-contact actions × 5 | 40/40 delivered; start error median 0.0001, max 0.0005; hold error median +0.6 ms, max +5.4 ms ([details](probe-touch-runner.md#simulator-runs)) |
+| `mise run test:mcp-live` (real stdio MCP session) | Passed: `get_ui_tree`, `press_element` reset, `tap`, `wait_for_element` reading one new gesture, `screenshot`, `record_screen`, synthetic `request_handoff`, `get_screen` (accessibility method). Run twice, once in each foreground-selection state below |
+
+Findings beyond the research:
+
+- The project's own request archives unarchive with secure coding into the framework's `AXPTranslatorRequest`, and the archived responses decode with the physical decoder unchanged ([research open question 3](simulator-input-research.md#open-questions-and-the-experiment-that-settles-each)).
+- Client type 2 is what makes a hit test over an empty area work: with type 0 it failed with error 8, with type 2 it returned the container; at an element centre both returned the element.
+- **Frontmost selection is not always available.** After the first boot the frontmost request answered within seconds. After a second fresh boot it answered with no application for at least 15 minutes, whatever was in front (Home Screen, probe, Settings), also through Apple's own `AXPTranslator` layer, while centre hits and explicit-PID trees worked. The session therefore falls back to a centre hit with client type 2 and reports which was used (`foregroundSelection`). The single-contact runner pass and the MCP check were repeated in that state and passed.
+- Twelve taps and swipes sent with no drain before disconnect all arrived; the 380 ms drain is kept from IDB's measurement on another model, not from evidence here.
+- The first request after boot was slow (about 3 s for the first tree) only on the first boot.
+
+Not observed: rotation or landscape, iPad or other families, other runtimes or Xcode versions, two contacts or more, Unicode entry, volume buttons, a simulator under Xcode's own UI tests or with Simulator.app open, and any effect on a physical device.
 
 ## Apps, files, reports and development
 

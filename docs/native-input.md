@@ -97,6 +97,8 @@ Physical input, accessibility press/scroll and native recording take a per-devic
 
 Within one process the lease is shared, so an MCP server can record and send input at the same time. The lease is an advisory lock on a file under `~/Library/Application Support/manzanero/leases/`, keyed by the resolved CoreDevice identifier so every alias of a device maps to one lease. The kernel releases it when the owning process exits for any reason, including a crash or SIGKILL.
 
+[Simulator input](simulator-input.md) and simulator press/scroll take the same lease, keyed by the simulator UUID; on one simulator a second process's tap during a long press was refused this way.
+
 The lease establishes host-side exclusivity only. It does not show that an earlier owner released its contacts, keys or stream on the device, and it does not restrain Xcode or other tools. Local tests cover refusal, sharing and release; no live two-process check has been run.
 
 ## CLI signals

@@ -29,30 +29,30 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | --- | --- |
 | `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks plus host-only private-interface availability per capability ([doctor output](dependencies.md#reading-doctor-output)); apps and physical details/processes/media status. |
 | `device_readiness` | CoreDevice prerequisites plus separate display/passcode observations; see [readiness](readiness.md). |
-| `get_ui_tree` | Native physical AX hierarchy with optional PID. Simulator hierarchy is currently unavailable. |
-| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Simulator `get_screen` uses OCR; `method: tree` is refused for simulators. |
-| `press_element`, `scroll_to_element` | [Fresh exact physical AX selectors](direct-accessibility.md), guarded native press/scroll |
-| `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled or has an exact value, within one AX session. Locally tested only; not yet verified on hardware. |
+| `get_ui_tree` | Native AX hierarchy with optional PID, physical or [simulator](simulator-input.md). |
+| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Auto mode prefers the tree on both platforms. |
+| `press_element`, `scroll_to_element` | [Fresh exact AX selectors](direct-accessibility.md), guarded native press/scroll, physical or simulator |
+| `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled or has an exact value, within one AX session. Run on one simulator; not yet verified on physical hardware. |
 | `decode_accessibility_archive` | Offline data-only archive inspection |
 | `record_screen` | [Finite MP4 recording](recording.md) to a new host path |
-| `tap`, `drag`, `long_press` | Direct physical single-contact input |
-| `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md) |
-| `type_text`, `paste_text`, `press_key`, `press_button` | Physical typing, clipboard-replacing paste, named keys and hardware buttons |
+| `tap`, `drag`, `long_press` | Direct single-contact input, physical or simulator |
+| `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md); physical only |
+| `type_text`, `paste_text`, `press_key`, `press_button` | US-layout typing, named keys and hardware buttons (physical or simulator; simulator buttons home and lock only), and physical clipboard-replacing paste |
 | `wake_device` | [Guarded wake](native-input.md#waking-a-dark-display) of a dark display: one side-button press only when the display reads off twice |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report` | Saved physical report listing/download |
 | `build_run` | [Xcode build/install/launch](build-run.md). Optional physical-only booleans `allow_provisioning_updates` and `allow_device_registration` let Xcode change certificates, profiles and device registrations in the user's developer account; ask the user before setting them. |
 | `request_handoff` | [Explicit human completion request](handoff.md) |
 
-Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked at runtime, and neither the catalogue nor the shared CLI command service has any route to them: simulator selector taps, live raw callback archives, finite OS traces, `hid-info`, `pairing_file` and the input `backend` choice are gone. Physical input and trees always use the in-process CoreDevice route. Tools that accept `platform: simulator` for input or trees return a "not available yet" tool error.
+Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked at runtime, and neither the catalogue nor the shared CLI command service has any route to them: simulator selector taps, live raw callback archives, finite OS traces, `hid-info`, `pairing_file` and the input `backend` choice are gone. Physical input and trees always use the in-process CoreDevice route; simulator input and trees use the in-process [CoreSimulator route](simulator-input.md) and need a booted simulator addressed by UUID. Simulator operations that are not implemented (multi-contact, paste, wake, Unicode typing) are not reachable from the tools above, and the CLI refuses them as `unsupported-operation`.
 
 ## Choose platform and coordinates explicitly
 
-`get_ui_tree` and `type_text` default to `platform: "physical"`. Other device tools require an explicit `platform` where they accept one.
+`get_ui_tree`, `type_text`, `press_element`, `scroll_to_element`, `wait_for_element`, `press_key` and `long_press` default to `platform: "physical"`, so calls written before simulator support route as before. Other device tools require an explicit `platform` where they accept one.
 
-Physical touch coordinates are normalized `0...1`. Physical AX frames use logical points; screenshots use pixels. OCR text regions are not guaranteed tap targets.
+Touch coordinates are normalized `0...1` on both platforms (a simulator's interface is assumed portrait). AX frames use logical points; screenshots use pixels. OCR text regions are not guaranteed tap targets.
 
-A physical tree without `pid` selects/rechecks the awake portrait primary display-centre process. An explicit positive PID can inspect a background app. IDs belong only to one non-atomic snapshot, not reusable action handles. Press/scroll selectors resolve fresh identities and apply additional guards.
+A physical tree without `pid` selects/rechecks the awake portrait primary display-centre process; a simulator tree the frontmost application, or the process under the screen centre when the simulator reports none. An explicit positive PID can inspect a background app. IDs belong only to one non-atomic snapshot, not reusable action handles. Press/scroll selectors resolve fresh identities and apply additional guards.
 
 Physical Unicode paste is `paste_text`; it replaces the clipboard and uses current focus. ASCII `type_text` has a US-layout mapping and does not change the clipboard. Neither approves prompts or verifies insertion.
 

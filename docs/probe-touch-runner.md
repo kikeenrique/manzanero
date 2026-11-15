@@ -1,8 +1,8 @@
 # Touch measurement runner
 
-The runner sends a known plan of touches through Manzanero's CLI to a physical iPhone running the [probe app](probe-app.md), reads back what the touch probe recorded, and reports delivery rate, coordinate error, contact counts, hold durations and release. It replaces judging delivery from screenshots.
+The runner sends a known plan of touches through Manzanero's CLI to a physical iPhone, or with `--platform simulator` to a booted simulator, running the [probe app](probe-app.md), reads back what the touch probe recorded, and reports delivery rate, coordinate error, contact counts, hold durations and release. It replaces judging delivery from screenshots.
 
-**Status: nothing here has run on hardware.** The comparison and the runner logic pass offline tests against canned `tree` output, receipts and logs built with the probe's own recorder. No live run has produced a measurement, and neither the recent-gestures evidence nor the foreground identity check has seen a real phone's tree.
+**Status: nothing here has run on hardware.** The comparison and the runner logic pass offline tests against canned `tree` output, receipts and logs built with the probe's own recorder. Live runs so far are on one iPhone 17e simulator ([results below](#simulator-runs)); no phone has produced a measurement.
 
 ## Where the code lives
 
@@ -35,7 +35,9 @@ mise run test:probe-touch <UDID> --plan <plan.json>   # your own plan
 mise run test:probe-touch <UDID> --readback end       # readback only before and after the whole plan
 ```
 
-Other flags: `--settle <seconds>` (pause before each readback, default 0.5), `--out <dir>`, `--no-reset`, `--no-pull`. The pull uses `PROBE_APP_BUNDLE_ID` when it is set (for example in `.env.local`), else the tracked default. The UDID is required; there is no default device.
+Other flags: `--settle <seconds>` (pause before each readback, default 0.5), `--out <dir>`, `--no-reset`, `--no-pull`, `--platform physical|simulator` (default physical).
+
+With `--platform simulator` the device argument must be the simulator's UUID, and every command vector starts with `simulator <UUID>` instead of `physical <UDID>`. Manzanero has no simulator app-data pull, so the pull is skipped and the recent-gestures and last-gesture readouts are the evidence. The simulator refuses multi-contact actions (`multi-tap`, `multi-drag`, `pinch`, `gesture`) as not implemented: in the built-in plan they are dispatch failures, and the third consecutive one stops the run by the ordinary stop rule. Use a single-contact plan for statistics. The pull uses `PROBE_APP_BUNDLE_ID` when it is set (for example in `.env.local`), else the tracked default. The UDID is required; there is no default device.
 
 The executable can also be run directly after `swift build --package-path Fixtures/ProbeApp/ProbeCore --scratch-path tmp/probe-app/core-build --product probe-touch`:
 
@@ -192,6 +194,15 @@ Verified on 2026-11-15 on macOS 27.2.1 with Xcode 27.2 (27B52) and Swift 6.4.2, 
 The recent-gestures evidence and the identity check were added afterwards and checked the same way, without any device: `mise run probe-app:test` passed 93 tests with zero warnings. The 19 new measurement tests cover the log staying first, a two-gesture action and errors and shortfalls measured from the recent readout, a window whose gestures were partly dropped, gestures dropped before the window, inconsistent numbering, a readout that disagrees with the summary's gesture count or phase counters or session, a contact down at the window's end, an absent readout, a shared window split by order, the built-in plan's readout size, per-readback identity in the report, tree parsing of the attribute and the readout, and the runner end to end with the identity present and equal, absent, and different at preflight, at the baseline and after an action, plus `--readback end` without a log for one and three rounds. `mise run test:probe-touch <UDID> --dry-run` again exited 0 with 17/17 commands accepted.
 
 Not verified: anything on hardware. In particular, that `tree` returns the probe's readouts on a phone (including an 8 KB recent-gestures value), that `nativeAttributes["3003"]` carries the probe's bundle identifier, that `press-id probe.touch.reset` resets it, that the settle time is long enough for UIKit to deliver the last events, the file layout `devicectl device copy from` produces at the destination (the runner accepts a file or a directory holding `touch-log.jsonl`), and every delivery figure.
+
+### Simulator runs
+
+On 2026-11-15 the runner ran with `--platform simulator` against the probe on one iPhone 17e simulator (iOS 27.2, 24B8117; Xcode 27.2; macOS 27.2.1), headless, through the in-process [simulator route](simulator-input.md). `mise run probe-app:test` passed 94 tests (one new for the platform option), and the physical dry run printed the same bytes as before the change.
+
+- **Built-in plan, once:** the three taps, the long press, the swipe and the drag were `delivered` (start error median 0.0001, max 0.0002; hold error median +0.8 ms, max +0.9 ms). Two-contact multi-tap, pinch and three-contact multi-tap were refused by Manzanero and measured `missing` with `dispatch-failed`; the run then stopped after three consecutive dispatch failures, leaving five actions `not-sent`. Exit 3. This is the expected negative control.
+- **Single-contact plan (three taps, 0.8 s and 2 s long presses, a 0.5 s and a 0.1 s swipe, a 0.8 s drag), five rounds:** 40 of 40 actions and 40 of 40 contacts `delivered`, all through the recent-gestures readout. Start error median 0.0001, max 0.0005 (normalised); hold error median +0.6 ms, max +5.4 ms; `maxActive` 1 every time. The foreground identity matched on all 41 readbacks. One more round after a second boot gave 8 of 8 (max start error 0.0005, max hold error +4.6 ms).
+
+Not shown by these runs: anything about a phone, and anything the probe log would add (per-event order), since there is no simulator pull.
 
 ## Known limits
 

@@ -17,18 +17,19 @@ This page describes current product availability, not historical helper capabili
 | Offline archive inspection | Swift/Foundation data-only structural decoding | Saved phone callback decoded locally. This is not fresh capture or a normalized tree. |
 | Physical recording | Explicit native CoreDevice HEVC input, H.264/HEVC MP4 output | Short CLI/MCP, one five-minute capture and one 20-second AX/Home interaction verified with owned cleanup. Startup and recovery remain incomplete. Default devicectl capture failed on this phone. |
 | Input/media cancellation | Cooperative release/stop attempts; MCP cancellation/EOF/signals | Scoped iPhone checks and recording reuse passed. Device-side release after failure and crash/disconnect recovery remain incomplete. |
-| Cross-process ownership | Per-device lease for physical input, AX actions and native recording; a second process is refused | Local tests only; no live two-process check. Host-side exclusivity does not prove an earlier owner released the device. See [physical input](native-input.md#ownership-across-processes). |
+| Cross-process ownership | Per-device lease for physical and simulator input, AX actions and native recording; a second process is refused | Local tests; one live two-process check on a simulator (a tap during another process's long press was refused as `device-busy`), none on a physical device. Host-side exclusivity does not prove an earlier owner released the device. See [physical input](native-input.md#ownership-across-processes). |
 | App operations | List/install/launch/uninstall, physical PID terminate, URLs | Physical app list and Settings launch verified. Other physical mutations/permissions need live coverage. |
 | Container files | Nonrecursive list, raw pull/push | Command plans and a tool-owned temporary-domain round trip verified. Actual app-container access/round trips and `.xcappdata` export remain incomplete. |
 | Saved reports | List/download | Physical listing verified; download is implemented but hardware-unverified. Parsing, symbolication, filtering and deletion are missing. |
 | Build & Run | Explicit iOS project/workspace + scheme + target | Simulator project/workspace flows verified; physical signing/deployment and general progress/cancellation incomplete. |
 | Human handoff | Terminal responses, MCP form completion, process-local mutation pause | Synthetic terminal/MCP checks only; no automatic prompt detection or native notifications. |
-| Simulator lifecycle/capture | simctl apps, boot/shutdown, screenshot, recording | Scoped capture/lifecycle/development checks exist. Current simulator input and hierarchy are unavailable. |
+| Simulator lifecycle/capture | simctl apps, boot/shutdown, screenshot, recording | Scoped capture/lifecycle/development checks exist. |
+| Simulator input and AX | [In-process](simulator-input.md) tree, press/scroll by id or label, waits, tap, long press, swipe/drag, Home/lock, named keys, US-layout typing on a booted simulator by UUID | One iPhone 17e simulator, iOS 27.2, probe app and Settings: 48/48 single-contact touches delivered (position error ≤ 0.0005, hold error ≤ 5.4 ms), presses, scroll, waits, Home/lock/unlock swipe and typing observed. Home Screen trees come back empty; rotation, iPad, other runtimes and families untested. Multi-contact input and Unicode entry not implemented. |
 | CLI/MCP interface | Shared command service; 32 stdio tools; classified failures as opt-in CLI JSON (`--error-format json`) and MCP `structuredContent.error` ([errors](errors.md)) | Error classification is unit-tested only; a few host-side recording and archive failures and non-`CommandFailure` errors remain unclassified. No HTTP, durable sessions or coordinated activity view. Host controls approvals. |
 
 ## Unavailable or missing
 
-- Simulator input (`tap`, `swipe`, `drag`, `type`, `button`) and hierarchy (`tree`, `screen tree`): the CLI refuses them with "Simulator input and accessibility hierarchy are not available yet"; simulator `screen` in auto mode goes straight to OCR.
+- Simulator multi-contact input (`multi-tap`, `multi-drag`, `pinch`, `gesture`), `paste` and `wake`: refused as not implemented (`unsupported-operation`). Simulator Unicode typing, volume buttons and rotation are not implemented either.
 - Physical `hid-info`, live raw `ax-snapshot` and finite `logs`: no direct Apple replacement yet; they fail as an unsupported physical-device operation. Offline `decode-ax-archive` still works.
 - Independent Wi-Fi pairing (`pair wifi`) and `--pairing-file`: not recognised as commands. Pair through Xcode/CoreDevice.
 
@@ -45,7 +46,7 @@ User-facing live mirroring, reusable semantic element handles, automatic permiss
 | Apple Watch | In scope; dedicated control and hardware verification missing |
 | Apple TV | In scope; dedicated tvOS control and verification missing |
 | iPhone Duo | In scope; posture/display/control verification missing |
-| Simulators | Partial lifecycle/capture/development support; direct input/AX migration unfinished |
+| Simulators | Lifecycle/capture/development support; single-contact input, keys and AX checked on one iPhone simulator runtime; multi-contact, rotation, iPad and other families unfinished |
 
 Accepting an identifier or passing a build does not establish support for a new family.
 

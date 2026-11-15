@@ -2,7 +2,7 @@
 
 Physical AX trees, exact-selector presses, scroll-to-visible and bounded selector waits run in `manzanero` against Apple interfaces. No device helper is required. Trees, presses and scrolls have scoped CLI/MCP evidence in Settings on iPhone 13 mini. Waits are tested locally only. Broad app and device coverage is unfinished.
 
-For wire contracts and decoder limits, see [protocol reference](accessibility-protocol.md). For the paired tunnel and directory bootstrap, see [transport](transport.md).
+The same trees, selector actions and waits run on a booted simulator through CoreSimulator; see [simulator input and accessibility](simulator-input.md) for how process selection and cleanup differ there. For wire contracts and decoder limits, see [protocol reference](accessibility-protocol.md). For the paired tunnel and directory bootstrap, see [transport](transport.md).
 
 ## Current native tree route
 
