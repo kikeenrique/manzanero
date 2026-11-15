@@ -15,6 +15,8 @@ public struct RunOptions: Sendable, Equatable {
     public static let maximumRepeat = 50
 
     public var device: String
+    /// `physical` (default) or `simulator`; the first word of every Manzanero command.
+    public var platform = "physical"
     public var planPath: String?
     public var repeatCount = 1
     public var readback: ReadbackMode = .each
@@ -58,6 +60,9 @@ public enum RunnerArguments {
       --out <dir>            New run directory (default tmp/probe-touch/<timestamp>)
       --no-reset             Do not press probe.touch.reset before the first action
       --no-pull              Do not pull Documents/touch-log.jsonl at the end
+      --platform physical|simulator
+                             Address a physical device (default) or a booted simulator by UUID.
+                             The simulator has no log pull; the readouts are the evidence.
 
     The UDID is required; there is no default device. The probe must already be the
     foreground app. Inputs are never retried or replayed.
@@ -117,6 +122,10 @@ public enum RunnerArguments {
                     throw RunnerError("--settle must be 0...5 seconds")
                 }
                 options.settleOverride = seconds
+            case "--platform":
+                let platform = try value(flag)
+                guard ["physical", "simulator"].contains(platform) else { throw RunnerError("--platform must be physical or simulator") }
+                options.platform = platform
             case "--bundle-id":
                 let id = try value(flag)
                 let parts = id.split(separator: ".", omittingEmptySubsequences: false)
@@ -127,6 +136,12 @@ public enum RunnerArguments {
             default:
                 throw RunnerError("unknown option \(flag); see --help")
             }
+        }
+        if options.platform == "simulator" {
+            guard UUID(uuidString: device) != nil else { throw RunnerError("--platform simulator requires the simulator's UUID") }
+            // Manzanero has no simulator app-data pull; the recent-gestures and
+            // last-gesture readouts are the evidence (docs/probe-touch-runner.md).
+            options.pull = false
         }
         return options
     }

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #MISE extends = "swift"
-#MISE description = "Measure physical touch delivery against the foreground probe app; sends touches unless --dry-run"
+#MISE description = "Measure touch delivery against the foreground probe app on a device or simulator; sends touches unless --dry-run"
 #MISE depends = ["build"]
-#USAGE arg "<device>" help="Explicit physical device UDID; probe app foreground, device awake, unlocked and portrait"
+#USAGE arg "<device>" help="Explicit physical device UDID, or simulator UUID with --platform simulator; probe app foreground, awake, unlocked and portrait"
+#USAGE flag "--platform <platform>" default="physical" help="physical, or simulator (a booted simulator; no log pull, the readouts are the evidence)"
 #USAGE flag "--dry-run" help="Print the plan and every command and check them with manzanero --dry-run; contacts no device"
 #USAGE flag "--plan <file>" help="Plan JSON instead of the built-in plan (docs/probe-touch-runner.md)"
 #USAGE flag "--repeat <count>" default="1" help="Run the plan this many times, 1...50"
@@ -24,6 +25,7 @@ swift build --package-path Fixtures/ProbeApp/ProbeCore --scratch-path tmp/probe-
 
 args=(run "$usage_device" --repeat "$usage_repeat" --readback "$usage_readback"
   --bundle-id "${PROBE_APP_BUNDLE_ID:-com.lemambo.manzanero.probeapp}")
+if [ "${usage_platform:-physical}" != "physical" ]; then args+=(--platform "$usage_platform"); fi
 if [ "${usage_dry_run:-false}" = "true" ]; then args+=(--dry-run); fi
 if [ "${usage_no_reset:-false}" = "true" ]; then args+=(--no-reset); fi
 if [ "${usage_no_pull:-false}" = "true" ]; then args+=(--no-pull); fi

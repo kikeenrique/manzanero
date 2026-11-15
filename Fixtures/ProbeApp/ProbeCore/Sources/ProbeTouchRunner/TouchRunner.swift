@@ -115,9 +115,9 @@ public final class TouchRunner {
 
     func settle(_ plan: TouchPlan) -> Double { options.settleOverride ?? plan.settle }
 
-    var treeArguments: [String] { ["physical", options.device, "tree"] }
-    var resetArguments: [String] { ["physical", options.device, "press-id", ProbeTree.resetIdentifier] }
-    func actionArguments(_ action: TouchAction) -> [String] { ["physical", options.device] + action.cliArguments }
+    var treeArguments: [String] { [options.platform, options.device, "tree"] }
+    var resetArguments: [String] { [options.platform, options.device, "press-id", ProbeTree.resetIdentifier] }
+    func actionArguments(_ action: TouchAction) -> [String] { [options.platform, options.device] + action.cliArguments }
     func pullArguments(destination: String) -> [String] {
         ["physical", options.device, "pull", options.bundleID, Self.logRemotePath, destination]
     }
@@ -144,6 +144,9 @@ public final class TouchRunner {
         var lines: [String] = []
         lines.append("probe-touch dry run: no device contacted")
         lines.append("Device: \(options.device)")
+        if options.platform != "physical" {
+            lines.append("Platform: \(options.platform); no log pull, the readouts are the evidence")
+        }
         lines.append("Plan: \(plan.name), \(plan.actions.count) action(s) x \(options.repeatCount) = \(attempts.count) sent action(s)")
         lines.append("Readback: \(options.readback.rawValue); settle \(formatCLINumber(settle)) s before each readback")
         lines.append("Tolerances: position \(formatCLINumber(plan.tolerances.position)) (normalised), hold \(formatCLINumber(plan.tolerances.duration)) s")

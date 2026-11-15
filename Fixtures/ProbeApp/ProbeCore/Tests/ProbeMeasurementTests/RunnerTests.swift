@@ -250,6 +250,34 @@ import ProbeCore
         #expect(outcome.output.contains("rejected: physical \(device) multi-tap"))
     }
 
+    @Test func simulatorPlatformAddressesTheSimulatorAndSkipsThePull() throws {
+        let simulator = "11111111-2222-3333-4444-555555555555"
+        let command = try RunnerArguments.parse(["run", simulator, "--platform", "simulator"])
+        guard case .run(var options) = command else { Issue.record("expected run"); return }
+        #expect(options.platform == "simulator" && !options.pull)
+        #expect(throws: RunnerError.self) { try RunnerArguments.parse(["run", device, "--platform", "simulator"]) }
+        #expect(throws: RunnerError.self) { try RunnerArguments.parse(["run", simulator, "--platform", "tvos"]) }
+        #expect(try RunnerArguments.parse(["run", device]) == .run(RunOptions(device: device)))
+
+        let fs = MemoryFileSystem()
+        options.outputDirectory = "tmp/probe-touch/simulator-run"
+        let fake = FakeDevice(fileSystem: fs, device: simulator, actions: TouchPlan.builtIn.actions.map(\.action))
+        fake.platform = "simulator"
+        let outcome = TouchRunner(options: options, invoker: fake, fileSystem: fs, clock: FakeClock()).execute()
+        #expect(outcome.exitCode == 0)
+        #expect(fake.invocations.allSatisfy { $0.first == "simulator" && $0[1] == simulator })
+        #expect(!operations(fake).contains("pull") && fs.files["tmp/probe-touch/simulator-run/touch-log.jsonl"] == nil)
+        let report = try #require(outcome.report)
+        #expect(report.summary.deliveryRate == 1)
+        #expect(!report.actions.contains { $0.source == .log })
+
+        options.dryRun = true
+        let dry = TouchRunner(options: options, invoker: fake, fileSystem: MemoryFileSystem(), clock: FakeClock()).execute()
+        #expect(dry.output.contains("Platform: simulator; no log pull"))
+        #expect(dry.output.contains(".build/debug/manzanero simulator \(simulator) tap 0.5 0.45"))
+        #expect(!dry.output.contains(" pull "))
+    }
+
     @Test func argumentParsing() throws {
         #expect(throws: RunnerError.self) { try RunnerArguments.parse(["run"]) }
         #expect(throws: RunnerError.self) { try RunnerArguments.parse(["run", "--dry-run"]) }

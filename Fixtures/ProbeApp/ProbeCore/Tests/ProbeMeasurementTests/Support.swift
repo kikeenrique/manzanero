@@ -221,6 +221,8 @@ final class FakeDevice: ManzaneroInvoking {
     /// Replaces the pulled log bytes.
     var pulledLog: ((ProbeSimulator) -> Data)?
     var rejectDryRun: (([String]) -> Bool)?
+    /// The first word every command must carry.
+    var platform = "physical"
     private(set) var treeCalls = 0
     private(set) var sentActions = 0
 
@@ -238,7 +240,7 @@ final class FakeDevice: ManzaneroInvoking {
             let stderr = rejected ? "Physical input coordinates must be normalized numbers from 0 to 1.\n" : ""
             return InvocationResult(exitCode: rejected ? 1 : 0, stdout: Data(stdout.utf8), stderr: Data(stderr.utf8))
         }
-        guard arguments.count >= 3, arguments[0] == "physical", arguments[1] == device else {
+        guard arguments.count >= 3, arguments[0] == platform, arguments[1] == device else {
             return InvocationResult(exitCode: 1, stderr: Data("Unsupported command\n".utf8))
         }
         switch arguments[2] {
@@ -252,7 +254,7 @@ final class FakeDevice: ManzaneroInvoking {
                                           includeRecent: !omitRecentGestures)
             return InvocationResult(exitCode: 0, stdout: foreground ? tree : otherAppTree)
         case "press-id":
-            guard arguments == ["physical", device, "press-id", "probe.touch.reset"] else {
+            guard arguments == [platform, device, "press-id", "probe.touch.reset"] else {
                 return InvocationResult(exitCode: 1, stderr: Data("unexpected press\n".utf8))
             }
             if resetTakesEffect { simulator.reset(session: sessions.removeFirst()) }
