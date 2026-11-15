@@ -19,13 +19,13 @@ struct NativeMediaEndpoint: Sendable {
         guard let value = try JSONSerialization.jsonObject(with: inventory) as? [String: Any],
               (value["info"] as? [String: Any])?["outcome"] as? String == "success",
               let devices = (value["result"] as? [String: Any])?["devices"] as? [[String: Any]] else {
-            throw CommandFailure(description: "Cannot read CoreDevice tunnel inventory.")
+            throw CommandFailure(.toolFailed, "Cannot read CoreDevice tunnel inventory.", inputSent: .none)
         }
         let matches = devices.filter { ($0["identifier"] as? String)?.caseInsensitiveCompare(uuid) == .orderedSame }
         guard matches.count == 1, let properties = matches[0]["connectionProperties"] as? [String: Any],
               properties["tunnelState"] as? String == "connected", let device = properties["tunnelIPAddress"] as? String,
               let bytes = ipv6(device) else {
-            throw CommandFailure(description: "CoreDevice did not identify one connected IPv6 media tunnel for this device.")
+            throw CommandFailure(.deviceNotReady, "CoreDevice did not identify one connected IPv6 media tunnel for this device.", inputSent: .none)
         }
         let addresses = try interfaces ?? systemInterfaces()
         let prefixMask = Array(repeating: UInt8(255), count: 8) + Array(repeating: UInt8(0), count: 8)
@@ -35,7 +35,7 @@ struct NativeMediaEndpoint: Sendable {
             return address != bytes && address.prefix(8) == bytes.prefix(8)
         }
         guard hosts.count == 1 else {
-            throw CommandFailure(description: "Expected exactly one active host utun address matching the device's /64; found \(hosts.count).")
+            throw CommandFailure(.transportFailed, "Expected exactly one active host utun address matching the device's /64; found \(hosts.count).", inputSent: .none)
         }
         return Self(uuid: uuid, interface: hosts[0].name, host: hosts[0].address, device: device)
     }
@@ -48,7 +48,7 @@ struct NativeMediaEndpoint: Sendable {
 
     private static func systemInterfaces() throws -> [Interface] {
         var first: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&first) == 0 else { throw CommandFailure(description: "Cannot enumerate host tunnel interfaces.") }
+        guard getifaddrs(&first) == 0 else { throw CommandFailure(.hostRequirement, "Cannot enumerate host tunnel interfaces.", inputSent: .none) }
         defer { freeifaddrs(first) }
         var result: [Interface] = []
         var current = first

@@ -1,10 +1,6 @@
 import Foundation
 import Darwin
 
-struct CommandFailure: Error, CustomStringConvertible {
-    let description: String
-}
-
 /// Uses argument arrays and file-backed output so child processes cannot fill a pipe.
 struct ToolRunner: Sendable {
     struct RecordingTiming {
@@ -18,13 +14,15 @@ struct ToolRunner: Sendable {
         FileHandle.standardError.write(result.output)
         FileHandle.standardError.write(result.errors)
         guard result.status == 0 else {
-            throw CommandFailure(description: "Simulator recorder failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))")
+            throw CommandFailure(.toolFailed, "Simulator recorder failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))", inputSent: .none)
         }
     }
     func run(_ arguments: [String], executable: String = "/usr/bin/xcrun", timeout: Double? = nil, inputData: Data? = nil) throws -> Data {
         let result = try capture(arguments, executable: executable, inputData: inputData, timeout: timeout)
         guard result.status == 0 else {
-            throw CommandFailure(description: "\(URL(fileURLWithPath: executable).lastPathComponent) failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))")
+            // The tool ran; whether it changed the device depends on the
+            // invocation, which only the caller knows.
+            throw CommandFailure(.toolFailed, "\(URL(fileURLWithPath: executable).lastPathComponent) failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))", inputSent: .unknown)
         }
         FileHandle.standardError.write(result.errors)
         return result.output
@@ -39,10 +37,11 @@ struct ToolRunner: Sendable {
         FileHandle.standardError.write(formatted.output)
         FileHandle.standardError.write(formatted.errors)
         guard formatted.status == 0 else {
-            throw CommandFailure(description: "xcsift failed (\(formatted.status)); raw build log: \(log.path)")
+            throw CommandFailure(.toolFailed, "xcsift failed (\(formatted.status)); raw build log: \(log.path)", inputSent: .none)
         }
         guard result.status == 0 else {
-            throw CommandFailure(description: "Xcode build failed (\(result.status)); raw build log: \(log.path)")
+            // A build runs on the Mac; the device is untouched until install.
+            throw CommandFailure(.toolFailed, "Xcode build failed (\(result.status)); raw build log: \(log.path)", inputSent: .none)
         }
     }
 
@@ -63,10 +62,10 @@ struct ToolRunner: Sendable {
         defer { try? output.close(); try? errors.close() }
         var inputURL = input
         if let inputData {
-            guard input == nil else { throw CommandFailure(description: "Process input cannot combine data and a file.") }
+            guard input == nil else { throw CommandFailure(.internal, "Process input cannot combine data and a file.", inputSent: .none) }
             let url = directory.appendingPathComponent("stdin")
             guard FileManager.default.createFile(atPath: url.path, contents: inputData, attributes: [.posixPermissions: 0o600]) else {
-                throw CommandFailure(description: "Cannot prepare private subprocess stdin.")
+                throw CommandFailure(.hostRequirement, "Cannot prepare private subprocess stdin.", inputSent: .none)
             }
             inputURL = url
         }
@@ -101,7 +100,7 @@ struct ToolRunner: Sendable {
                     if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
                     process.waitUntilExit()
                     if Task.isCancelled { throw CancellationError() }
-                    throw CommandFailure(description: "\(URL(fileURLWithPath: executable).lastPathComponent) timed out; inspect device state before retrying an action.")
+                    throw CommandFailure(.timeout, "\(URL(fileURLWithPath: executable).lastPathComponent) timed out; inspect device state before retrying an action.", inputSent: .unknown)
                 }
                 usleep(10_000)
             }
@@ -126,7 +125,7 @@ struct ToolRunner: Sendable {
                     while process.isRunning, ContinuousClock.now < deadline { usleep(10_000) }
                     guard !process.isRunning else {
                         _ = Darwin.kill(process.processIdentifier, SIGKILL)
-                        throw CommandFailure(description: "Simulator recording did not finalize before its deadline.")
+                        throw CommandFailure(.timeout, "Simulator recording did not finalize before its deadline.", inputSent: .none)
                     }
                     return
                 }
@@ -137,13 +136,13 @@ struct ToolRunner: Sendable {
                 } else {
                     pending = Data(pending.suffix(marker.count - 1))
                     guard ContinuousClock.now < startupDeadline else {
-                        throw CommandFailure(description: "Simulator recorder did not report its first frame before the startup deadline.")
+                        throw CommandFailure(.timeout, "Simulator recorder did not report its first frame before the startup deadline.", inputSent: .none)
                     }
                 }
             }
             usleep(10_000)
         }
-        throw CommandFailure(description: "Simulator recorder exited before the requested interval: \((try? String(contentsOf: stderr, encoding: .utf8)) ?? "No diagnostics")")
+        throw CommandFailure(.toolFailed, "Simulator recorder exited before the requested interval: \((try? String(contentsOf: stderr, encoding: .utf8)) ?? "No diagnostics")", inputSent: .none)
     }
 }
 

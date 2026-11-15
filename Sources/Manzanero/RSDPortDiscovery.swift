@@ -45,7 +45,7 @@ enum RSDPortDiscovery {
               let connection = properties["connection"] as? [String: Any],
               connection["state"] as? String == "connected", connection["pairingState"] as? String == "paired",
               let address = connection["tunnelIPAddressString"] as? String else {
-            throw failure("Fresh details must identify a connected paired physical device and its tunnel address.")
+            throw failure("Fresh details must identify a connected paired physical device and its tunnel address.", .deviceNotReady)
         }
         _ = try Address(address)
         return address
@@ -116,7 +116,8 @@ enum RSDPortDiscovery {
         return try candidate(in: await buffer.bytes, tunnelAddress: tunnelAddress)
     }
 
-    private static func failure(_ text: String) -> CommandFailure {
-        CommandFailure(description: "RSD port discovery: \(text) No service connection started.")
+    /// Discovery reads local state only and starts no service connection.
+    private static func failure(_ text: String, _ code: CommandFailure.Code = .transportFailed) -> CommandFailure {
+        CommandFailure(code, "RSD port discovery: \(text) No service connection started.", inputSent: .none)
     }
 }

@@ -194,7 +194,16 @@ enum MCPTools {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            return .init(content: [.text(text: String(describing: error), annotations: nil, _meta: nil)], isError: true)
+            // The text stays as before; structuredContent adds the same
+            // classification the CLI prints with --error-format json.
+            return .init(content: [.text(text: String(describing: error), annotations: nil, _meta: nil)],
+                         structuredContent: Optional(errorContent(error)), isError: true)
         }
+    }
+
+    /// `{"error": {code, message, inputSent, retry, action}}`; see docs/errors.md.
+    static func errorContent(_ error: any Error) -> Value {
+        let fields = CommandFailure.classify(error).fields.mapValues { $0.map(Value.string) ?? .null }
+        return .object(["error": .object(fields)])
     }
 }

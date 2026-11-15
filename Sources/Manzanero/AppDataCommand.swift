@@ -4,7 +4,7 @@ enum ScopedDevicePath {
     static func validate(_ path: String) throws {
         guard !path.isEmpty, !path.hasPrefix("-"), !path.hasPrefix("/"),
               !path.split(separator: "/").contains("..") else {
-            throw CommandFailure(description: "Remote paths must be relative to the selected domain and cannot contain '..'. Use '.' for its root.")
+            throw CommandFailure.usage("Remote paths must be relative to the selected domain and cannot contain '..'. Use '.' for its root.")
         }
     }
 }
@@ -15,7 +15,7 @@ enum AppDataCommand {
         guard ["files", "pull", "push"].contains(operation) else { return nil }
         let expected = operation == "files" ? 2 : 3
         guard operands.count == expected, operands.allSatisfy({ !$0.isEmpty && !$0.hasPrefix("-") }) else {
-            throw CommandFailure(description: "\(operation) expects \(expected) operands. See --help.")
+            throw CommandFailure.usage("\(operation) expects \(expected) operands. See --help.")
         }
         let remotePath = operation == "push" ? operands[2] : operands[1]
         try ScopedDevicePath.validate(remotePath)

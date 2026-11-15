@@ -132,6 +132,7 @@ struct AccessibilityResponse: Sendable {
     }
 
     private static func invalid(_ reason: String) -> CommandFailure {
-        CommandFailure(description: "Invalid accessibility response: \(reason).")
+        // A parser cannot know what its caller sent; callers refine inputSent.
+        CommandFailure(.transportFailed, "Invalid accessibility response: \(reason).", inputSent: .unknown)
     }
 }

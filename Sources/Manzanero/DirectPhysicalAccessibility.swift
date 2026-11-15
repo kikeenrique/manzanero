@@ -3,7 +3,7 @@ import Foundation
 enum DirectPhysicalAccessibility {
     private static func applicationPID(_ input: CoreDeviceInput) throws -> Int32 {
         guard input.operation == "tree", input.operands.count == 1, let pid = Int32(input.operands[0]), pid > 0 else {
-            throw CommandFailure(description: "Direct physical tree requires one positive application PID.")
+            throw CommandFailure.usage("Direct physical tree requires one positive application PID.")
         }
         return pid
     }
@@ -31,11 +31,14 @@ enum DirectPhysicalAccessibility {
         guard let root = try JSONSerialization.jsonObject(with: details) as? [String: Any],
               let result = root["result"] as? [String: Any], let properties = result["properties"] as? [String: Any],
               let hardware = properties["hardware"] as? [String: Any], let udid = hardware["udid"] as? String else {
-            throw CommandFailure(description: "Native physical AX requires fresh hardware identity; no connection started.")
+            throw CommandFailure(.deviceNotReady, "Native physical AX requires fresh hardware identity; no connection started.", inputSent: .none)
         }
         let address = try RSDPortDiscovery.tunnelAddress(details: details, expectedUDID: udid)
         let assertion = try NativeTunnelAssertion(device: udid, details: details)
         defer { assertion.close() }
+        // Classifies a failure of an action: before it nothing was sent, it
+        // classifies its own failures, and after it the input has been sent.
+        var actionStage = 0
         do {
             let port = try await RSDPortDiscovery.discover(tunnelAddress: address)
             try Task.checkCancellation()
@@ -48,7 +51,11 @@ enum DirectPhysicalAccessibility {
                     return try AccessibilityDisplay(query(AccessibilityDisplay.plan(device: identity.uuid)))
                 }
             let bytes: Data
-            if let action { bytes = try action.execute(session: session, display: display) }
+            if let action {
+                actionStage = 1
+                bytes = try action.execute(session: session, display: display)
+                actionStage = 2
+            }
             else if let wait {
                 bytes = try await wait.execute(device: input.device, resolved: identity.uuid, session: session,
                                                display: display, clock: ContinuousClock())
@@ -67,13 +74,18 @@ enum DirectPhysicalAccessibility {
                 if !release.confirmed { FileHandle.standardError.write(Data("\(release.diagnostic ?? "Native tunnel release unconfirmed")\n".utf8)) }
                 throw CancellationError()
             }
-            throw CommandFailure(description: "\(error) Tunnel assertion release: \(release.status); confirmed=\(release.confirmed). \(release.diagnostic ?? "")")
+            let failure = CommandFailure("\(error) Tunnel assertion release: \(release.status); confirmed=\(release.confirmed). \(release.diagnostic ?? "")", wrapping: error)
+            switch actionStage {
+            case 0: throw failure.noInputSent()
+            case 1: throw failure
+            default: throw failure.inputPossiblySent()
+            }
         }
     }
 
     static func annotateNativeCleanup(_ bytes: Data, release: NativeTunnelAssertion.Release) throws -> Data {
         guard var root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
-            throw CommandFailure(description: "Invalid internal native AX result.")
+            throw CommandFailure(.internal, "Invalid internal native AX result.", inputSent: .unknown)
         }
         root["transport"] = "apple-network-rsd"
         var cleanup: [String: Any] = ["tunnelAssertionRelease": release.status, "confirmed": release.confirmed]
@@ -84,11 +96,11 @@ enum DirectPhysicalAccessibility {
 
     static func capture(device: String, resolved: String, pid: Int32?, session: AccessibilitySession,
                         display: () throws -> AccessibilityDisplay = {
-                            throw CommandFailure(description: "Foreground AX requires an Apple display query.")
+                            throw CommandFailure(.internal, "Foreground AX requires an Apple display query.", inputSent: .none)
                         }) throws -> Data {
         defer { session.close() }
         do {
-            if let pid, pid <= 0 { throw CommandFailure(description: "Application PID must be positive.") }
+            if let pid, pid <= 0 { throw CommandFailure.usage("Application PID must be positive.") }
             // Read Apple display geometry before subscribing, then bracket the
             // tree with centre-process and geometry rechecks. No action is sent.
             let selectedDisplay: AccessibilityDisplay?
@@ -100,18 +112,18 @@ enum DirectPhysicalAccessibility {
             if let pid { selectedPID = pid }
             else if let selectedDisplay {
                 selectedPID = try session.hit(x: selectedDisplay.center.x, y: selectedDisplay.center.y).pid
-            } else { throw CommandFailure(description: "Missing AX selection.") }
+            } else { throw CommandFailure(.internal, "Missing AX selection.", inputSent: .none) }
             let root = try session.application(pid: selectedPID)
             let snapshot = try session.snapshot(root)
             let nodes = try AccessibilitySnapshot.normalize(snapshot, root: root)
             let after = try session.application(pid: selectedPID)
             guard root.pid == after.pid, root.objectID == after.objectID else {
-                throw CommandFailure(description: "Application identity changed during AX observation; no tree returned.")
+                throw CommandFailure(.preconditionChanged, "Application identity changed during AX observation; no tree returned.", inputSent: .none)
             }
             if let selectedDisplay {
                 let selectedAfter = try session.hit(x: selectedDisplay.center.x, y: selectedDisplay.center.y)
-                guard selectedAfter.pid == selectedPID else { throw CommandFailure(description: "Display-centre AX process changed during observation; no tree returned.") }
-                guard try display() == selectedDisplay else { throw CommandFailure(description: "Display geometry/orientation changed during observation; no tree returned.") }
+                guard selectedAfter.pid == selectedPID else { throw CommandFailure(.preconditionChanged, "Display-centre AX process changed during observation; no tree returned.", inputSent: .none) }
+                guard try display() == selectedDisplay else { throw CommandFailure(.preconditionChanged, "Display geometry/orientation changed during observation; no tree returned.", inputSent: .none) }
             }
             try Task.checkCancellation()
             let cleanup = Cleanup(session.close())
@@ -122,7 +134,8 @@ enum DirectPhysicalAccessibility {
         } catch {
             let cleanup = Cleanup(session.close())
             if error is CancellationError { throw error }
-            throw CommandFailure(description: "Direct physical tree failed: \(error). Subscription cleanup: \(cleanup.subscriptionStop); confirmed=\(cleanup.confirmed).")
+            // A tree only reads, so nothing was sent whatever failed.
+            throw CommandFailure("Direct physical tree failed: \(error). Subscription cleanup: \(cleanup.subscriptionStop); confirmed=\(cleanup.confirmed).", wrapping: error).noInputSent()
         }
     }
 

@@ -76,7 +76,7 @@ actor MCPHandoffChannel {
     func confirm(_ command: HandoffCommand, server: Server) async throws -> HandoffStatus {
         try Task.checkCancellation()
         guard supportsForm else {
-            throw CommandFailure(description: "This MCP host does not support form elicitation. Use a host with form support or perform the handoff in an interactive CLI terminal.")
+            throw CommandFailure(.hostRequirement, "This MCP host does not support form elicitation. Use a host with form support or perform the handoff in an interactive CLI terminal.", inputSent: .none)
         }
         let response = try await server.requestElicitation(
             message: "Human action needed on \(command.platform) \(command.device):\n\(command.message)\nPerform the step on the device. Do not enter credentials into this form.",

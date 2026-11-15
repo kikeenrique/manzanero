@@ -12,14 +12,14 @@ struct DirectTouchDisplay: Equatable {
 
     init(_ data: Data) throws {
         func invalid() -> CommandFailure {
-            CommandFailure(description: "Expected one integrated primary display with valid typed geometry/orientation; no touch or capture started.")
+            CommandFailure(.transportFailed, "Expected one integrated primary display with valid typed geometry/orientation; no touch or capture started.", inputSent: .none)
         }
         guard data.count <= 1_048_576,
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               (root["info"] as? [String: Any])?["outcome"] as? String == "success",
               let result = root["result"] as? [String: Any],
               let displays = result["displays"] as? [[String: Any]], (1...16).contains(displays.count) else {
-            throw CommandFailure(description: "Cannot read bounded Apple display metadata; no touch or capture started.")
+            throw CommandFailure(.transportFailed, "Cannot read bounded Apple display metadata; no touch or capture started.", inputSent: .none)
         }
         let primary = try displays.filter {
             guard let value = $0["primary"] as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else { throw invalid() }
@@ -30,7 +30,7 @@ struct DirectTouchDisplay: Equatable {
               (display["type"] as? [String: Any])?["integrated"] is [String: Any] else { throw invalid() }
         guard display["backlightState"] as? String == "activeOn" else {
             let state = display["backlightState"] as? String == "off" ? "Primary display is off." : "Primary display awake state is unknown or unsupported."
-            throw CommandFailure(description: "\(state) Wake and unlock the selected device, then try again; no touch or capture started.")
+            throw CommandFailure(.displayOff, "\(state) Wake and unlock the selected device, then try again; no touch or capture started.", inputSent: .none)
         }
         func number(_ value: Any?) throws -> Double {
             guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(), number.doubleValue.isFinite else { throw invalid() }
@@ -52,7 +52,7 @@ struct DirectTouchDisplay: Equatable {
             let sensor = (result["orientation"] as? [String: Any])?["currentDeviceNonFlatOrientation"] as? String
             let reported = ["portrait": 0, "landscapeRight": 90, "portraitUpsideDown": 180, "landscapeLeft": 270]
             guard let sensor, reported[sensor] == rotation else {
-                throw CommandFailure(description: "Device and display orientation disagree; no touch or capture started.")
+                throw CommandFailure(.preconditionChanged, "Device and display orientation disagree; no touch or capture started.", inputSent: .none)
             }
         }
     }
@@ -80,17 +80,17 @@ enum DirectPhysicalTouch {
 
     private static func validateOperation(_ input: CoreDeviceInput) throws {
         guard operations.contains(input.operation) else {
-            throw CommandFailure(description: "Unsupported direct touch operation: \(input.operation); no input sent.")
+            throw CommandFailure.unsupported("Unsupported direct touch operation: \(input.operation); no input sent.")
         }
         if input.operation == "multi-drag", input.operands.count != 9 {
-            throw CommandFailure(description: "Direct multi-drag currently requires exactly two paths. Three-to-five-contact input awaits its direct implementation; no input sent.")
+            throw CommandFailure.usage("Direct multi-drag currently requires exactly two paths. Three-to-five-contact input awaits its direct implementation; no input sent.")
         }
     }
 
     private static func pairedPlan(_ input: CoreDeviceInput, display: DirectTouchDisplay) throws -> [Sample] {
         try PhysicalInputOperands.validate(input.operation, input.operands)
         let values = input.operands.compactMap(Double.init)
-        guard values.count == input.operands.count, values.allSatisfy(\.isFinite) else { throw CommandFailure(description: "Invalid two-contact operands.") }
+        guard values.count == input.operands.count, values.allSatisfy(\.isFinite) else { throw CommandFailure.usage("Invalid two-contact operands.") }
         let duration: Double
         let paths: [[Double]]
         if input.operation == "pinch" {
@@ -108,7 +108,7 @@ enum DirectPhysicalTouch {
         let length = dx * dx + dy * dy
         let closest = length > 0 ? max(0, min(1, -(rx * dx + ry * dy) / length)) : 0
         guard hypot(rx + closest * dx, ry + closest * dy) > 0.000001 else {
-            throw CommandFailure(description: "Two-contact paths overlap or cross; no input sent.")
+            throw CommandFailure.usage("Two-contact paths overlap or cross; no input sent.")
         }
         func sample(_ time: Double, _ fraction: Double, _ phase: UInt64) -> Sample {
             let points = paths.map { path in display.portrait(path[0] + (path[2] - path[0]) * fraction, path[1] + (path[3] - path[1]) * fraction) }
@@ -124,12 +124,12 @@ enum DirectPhysicalTouch {
         if ["pinch", "multi-drag"].contains(input.operation) { return try pairedPlan(input, display: display) }
         let values = input.operands.compactMap(Double.init)
         let count = input.operation == "tap" ? 2 : (input.operation == "long-press" ? 3 : 5)
-        guard values.count == count, values.allSatisfy(\.isFinite) else { throw CommandFailure(description: "Invalid direct touch operands.") }
+        guard values.count == count, values.allSatisfy(\.isFinite) else { throw CommandFailure.usage("Invalid direct touch operands.") }
         let moving = ["drag", "swipe"].contains(input.operation)
         let coordinates = moving ? Array(values.prefix(4)) : Array(values.prefix(2))
-        guard coordinates.allSatisfy({ (0...1).contains($0) }) else { throw CommandFailure(description: "Direct touch coordinates must be normalized 0...1.") }
+        guard coordinates.allSatisfy({ (0...1).contains($0) }) else { throw CommandFailure.usage("Direct touch coordinates must be normalized 0...1.") }
         let duration = input.operation == "tap" ? 0.08 : values[count - 1]
-        guard (input.operation == "long-press" ? 0.1...10 : 0.03...10).contains(duration) else { throw CommandFailure(description: "Invalid direct touch duration.") }
+        guard (input.operation == "long-press" ? 0.1...10 : 0.03...10).contains(duration) else { throw CommandFailure.usage("Invalid direct touch duration.") }
         func sample(_ time: Double, _ x: Double, _ y: Double, _ phase: UInt64) -> Sample {
             let point = display.portrait(x, y)
             return Sample(nanoseconds: UInt64((time * 1_000_000_000).rounded()), x: point.0, y: point.1, phase: phase)
@@ -159,7 +159,7 @@ enum DirectPhysicalTouch {
         let display = try DirectTouchDisplay(query(displayPlan))
         let samples = try plan(input, display: display)
         guard try DirectTouchDisplay(query(displayPlan)) == display else {
-            throw CommandFailure(description: "Display changed before touch dispatch; no input sent.")
+            throw CommandFailure(.preconditionChanged, "Display changed before touch dispatch; no input sent.", inputSent: .none)
         }
         try Task.checkCancellation()
         try send(identity.uuid, identity.version, samples)
@@ -178,15 +178,15 @@ enum DirectPhysicalTouch {
         let status: Int32
         if samples.first?.second != nil {
             let second = samples.compactMap(\.second).map { ADCTouchPoint(x: $0.x, y: $0.y) }
-            guard second.count == wire.count else { throw CommandFailure(description: "Incomplete second-contact schedule; no input sent.") }
+            guard second.count == wire.count else { throw CommandFailure(.internal, "Incomplete second-contact schedule; no input sent.", inputSent: .none) }
             status = wire.withUnsafeBufferPointer { first in
                 second.withUnsafeBufferPointer { ADCPerformTwoContactTouch(uuid, version, first.baseAddress, $0.baseAddress, first.count, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
             }
         } else {
-            guard samples.allSatisfy({ $0.second == nil }) else { throw CommandFailure(description: "Changing contact count is unsupported; no input sent.") }
+            guard samples.allSatisfy({ $0.second == nil }) else { throw CommandFailure(.internal, "Changing contact count is unsupported; no input sent.", inputSent: .none) }
             status = wire.withUnsafeBufferPointer { ADCPerformTouch(uuid, version, $0.baseAddress, $0.count, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
         }
         try Task.checkCancellation()
-        guard status == 0 else { throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)) }
+        guard status == 0 else { throw CommandFailure.inputDispatch(status: status, message: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)) }
     }
 }

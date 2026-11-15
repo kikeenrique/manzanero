@@ -12,17 +12,17 @@ struct ScreenCommand: Sendable {
         guard (3...4).contains(args.count), !args[1].isEmpty, !args[1].hasPrefix("-"),
               let mode = Mode(rawValue: args.count == 4 ? args[3] : "auto"),
               args[0] != "simulator" || UUID(uuidString: args[1]) != nil else {
-            throw CommandFailure(description: "Usage: <physical|simulator> <device> screen [auto|tree|ocr]. Simulator screen requires an explicit UUID.")
+            throw CommandFailure.usage("Usage: <physical|simulator> <device> screen [auto|tree|ocr]. Simulator screen requires an explicit UUID.")
         }
         guard args[0] != "simulator" || mode != .tree else {
-            throw CommandFailure(description: "Simulator accessibility hierarchy is not available yet; use screen auto or ocr.")
+            throw CommandFailure.unsupported("Simulator accessibility hierarchy is not available yet; use screen auto or ocr.")
         }
         return Self(platform: args[0], device: args[1], mode: mode)
     }
 
     func capturePlan(image: URL) throws -> DeviceCommand {
         guard let plan = try DeviceCommand.parse([platform, device, "screenshot", image.path]) else {
-            throw CommandFailure(description: "Cannot plan screen capture.")
+            throw CommandFailure(.internal, "Cannot plan screen capture.", inputSent: .none)
         }
         return plan
     }
@@ -48,7 +48,7 @@ struct ScreenCommand: Sendable {
             do {
                 let data = try await hierarchy()
                 guard try Self.hasUsefulPhysicalHierarchy(data) else {
-                    throw CommandFailure(description: "Accessibility returned no labeled or identified non-application nodes.")
+                    throw CommandFailure(.targetUnresolved, "Accessibility returned no labeled or identified non-application nodes.", inputSent: .none)
                 }
                 if let tree = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     for key in ["cleanup", "connectionCleanup"] {
@@ -63,7 +63,7 @@ struct ScreenCommand: Sendable {
                 return try result(image: image, geometry: geometry, capturedAt: capturedAt, method: "accessibility", hierarchy: data, diagnostics: diagnostics)
             } catch {
                 if error is CancellationError || Task.isCancelled { throw CancellationError() }
-                if mode == .tree { throw CommandFailure(description: "Hierarchy unavailable: \(error). Screenshot saved at \(image.path)") }
+                if mode == .tree { throw CommandFailure("Hierarchy unavailable: \(error). Screenshot saved at \(image.path)", wrapping: error) }
                 diagnostics.append("Accessibility unavailable: \(String(String(describing: error).prefix(2000)))")
             }
         }
@@ -75,7 +75,7 @@ struct ScreenCommand: Sendable {
             return try result(image: image, geometry: geometry, capturedAt: capturedAt, method: "ocr", text: text, diagnostics: diagnostics)
         } catch {
             if error is CancellationError || Task.isCancelled { throw CancellationError() }
-            if mode == .ocr { throw CommandFailure(description: "OCR unavailable: \(error). Screenshot saved at \(image.path)") }
+            if mode == .ocr { throw CommandFailure("OCR unavailable: \(error). Screenshot saved at \(image.path)", wrapping: error) }
             diagnostics.append("OCR unavailable: \(String(String(describing: error).prefix(2000)))")
             return try result(image: image, geometry: geometry, capturedAt: capturedAt, method: "image-only", diagnostics: diagnostics)
         }
@@ -112,7 +112,7 @@ struct ScreenImage: Sendable {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let type = CGImageSourceGetType(source), type as String == "public.png",
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil), image.width > 0, image.height > 0 else {
-            throw CommandFailure(description: "Capture did not produce a decodable PNG: \(url.path)")
+            throw CommandFailure(.toolFailed, "Capture did not produce a decodable PNG: \(url.path)", inputSent: .none)
         }
         return Self(width: image.width, height: image.height)
     }

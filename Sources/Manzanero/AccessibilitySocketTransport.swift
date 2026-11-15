@@ -33,7 +33,7 @@ final class AccessibilitySocketTransport: AccessibilitySessionTransport {
             var type: Int32 = 0
             var size = socklen_t(MemoryLayout.size(ofValue: type))
             guard getsockopt(descriptor, SOL_SOCKET, SO_TYPE, &type, &size) == 0 else { throw Failure.system("get socket type", errno) }
-            guard type == SOCK_STREAM else { throw CommandFailure(description: "Accessibility transport requires a stream socket.") }
+            guard type == SOCK_STREAM else { throw CommandFailure(.internal, "Accessibility transport requires a stream socket.", inputSent: .unknown) }
             let flags = fcntl(descriptor, F_GETFL)
             guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else { throw Failure.system("set nonblocking mode", errno) }
             let fdFlags = fcntl(descriptor, F_GETFD)

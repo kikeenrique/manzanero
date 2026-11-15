@@ -18,7 +18,7 @@ actor NativeVideoEncoder {
 
     init(destination: URL, seconds: Double, codec: String) throws {
         guard seconds.isFinite, (1...300).contains(seconds), ["h264", "hevc"].contains(codec) else {
-            throw CommandFailure(description: "Invalid native recording duration or codec.")
+            throw CommandFailure(.internal, "Invalid native recording duration or codec.", inputSent: .none)
         }
         self.destination = destination
         self.seconds = seconds
@@ -29,7 +29,7 @@ actor NativeVideoEncoder {
         guard frame.nanoseconds < UInt64(seconds * 1_000_000_000), frameCount < 10_000,
             frameCount == 0 ? frame.nanoseconds == 0 : frame.nanoseconds > lastTime
         else {
-            throw CommandFailure(description: "Invalid native frame timestamp or count budget.")
+            throw CommandFailure(.internal, "Invalid native frame timestamp or count budget.", inputSent: .none)
         }
         try Task.checkCancellation()
         let width = frame.pixels.size.width, height = frame.pixels.size.height
@@ -37,11 +37,11 @@ actor NativeVideoEncoder {
             (1...8192).contains(width), (1...8192).contains(height), width * height <= 20_000_000,
             frame.pixels.pixelFormatType.rawValue == kCVPixelFormatType_32BGRA
         else {
-            throw CommandFailure(description: "Native video frame has unsupported pixel format or dimensions.")
+            throw CommandFailure(.transportFailed, "Native video frame has unsupported pixel format or dimensions.", inputSent: .none)
         }
         if let dimensions {
             guard dimensions == (width, height) else {
-                throw CommandFailure(description: "Native video dimensions changed during recording.")
+                throw CommandFailure(.preconditionChanged, "Native video dimensions changed during recording.", inputSent: .none)
             }
         } else {
             dimensions = (width, height)
@@ -57,7 +57,7 @@ actor NativeVideoEncoder {
                 ])
             input.expectsMediaDataInRealTime = true
             guard writer.canAdd(input) else {
-                throw CommandFailure(description: "Cannot create native movie encoder input.")
+                throw CommandFailure(.internal, "Cannot create native movie encoder input.", inputSent: .none)
             }
             receiver = writer.inputPixelBufferReceiver(for: input, pixelBufferAttributes: nil)
             try writer.start()
@@ -82,7 +82,7 @@ actor NativeVideoEncoder {
             }
             buffer = CVReadOnlyPixelBuffer(pixel)
         }
-        guard let receiver else { throw CommandFailure(description: "Native encoder receiver is unavailable.") }
+        guard let receiver else { throw CommandFailure(.internal, "Native encoder receiver is unavailable.", inputSent: .none) }
         try await receiver.append(buffer, with: CMTime(value: Int64(frame.nanoseconds), timescale: 1_000_000_000))
         last = buffer
         lastTime = frame.nanoseconds
@@ -91,7 +91,7 @@ actor NativeVideoEncoder {
 
     func finish() async throws -> Int {
         guard let writer, let receiver, let last else {
-            throw CommandFailure(description: "Native video produced no encodable frame.")
+            throw CommandFailure(.transportFailed, "Native video produced no encodable frame.", inputSent: .none)
         }
         // Deduplication/static screens must retain their last image through the
         // requested interval instead of becoming a one-frame-duration movie.
@@ -156,7 +156,7 @@ struct NativeRecordingReceipt: Sendable {
             guard let profile = capture?.packetProfile(), let width = profile["width"], let height = profile["height"],
                 let payload = profile["payloadType"], let payloadType = UInt8(exactly: payload)
             else {
-                throw CommandFailure(description: "Native recording has no negotiated video profile.")
+                throw CommandFailure(.transportFailed, "Native recording has no negotiated video profile.", inputSent: .none)
             }
             decoder = try NativeHEVCDecoder(width: Int(width), height: Int(height))
             var assembler = MediaHEVCAssembler()
@@ -171,7 +171,7 @@ struct NativeRecordingReceipt: Sendable {
                 let now = DispatchTime.now().uptimeNanoseconds
                 if let first, now - first >= duration { break }
                 if first == nil, now >= startup {
-                    throw CommandFailure(description: "Native recording exceeded its twelve-second first-frame budget.")
+                    throw CommandFailure(.timeout, "Native recording exceeded its twelve-second first-frame budget.", inputSent: .none)
                 }
                 if now - checked >= 1_000_000_000 {
                     try capture?.requireActive()
@@ -181,7 +181,7 @@ struct NativeRecordingReceipt: Sendable {
                     packetCount += 1
                     received += packet.count
                     guard received <= 1024 * 1024 * 1024 else {
-                        throw CommandFailure(description: "Native recording exceeded its one-GiB transport budget.")
+                        throw CommandFailure(.transportFailed, "Native recording exceeded its one-GiB transport budget.", inputSent: .none)
                     }
                     if let packet = MediaRTPPacket(packet, payloadType: payloadType),
                         let unit = try assembler.accept(packet)
@@ -202,13 +202,13 @@ struct NativeRecordingReceipt: Sendable {
             }
             try capture?.requireActive()
             guard let cleanup = closeMedia() else {
-                throw CommandFailure(description: "Native recording lost its media owner.")
+                throw CommandFailure(.internal, "Native recording lost its media owner.", inputSent: .none)
             }
             let release = assertion.close()
             guard cleanup.stopAcknowledged, cleanup.ownedStreamAbsent, release.confirmed else {
-                throw CommandFailure(
-                    description:
-                        "Native recording cleanup unconfirmed: owned stop=\(cleanup.stopAcknowledged), stream absent=\(cleanup.ownedStreamAbsent), tunnel release=\(release.status). \(cleanup.diagnostic ?? "")"
+                throw CommandFailure(.transportFailed,
+                        "Native recording cleanup unconfirmed: owned stop=\(cleanup.stopAcknowledged), stream absent=\(cleanup.ownedStreamAbsent), tunnel release=\(release.status). \(cleanup.diagnostic ?? "")",
+                        inputSent: .none
                 )
             }
             try Task.checkCancellation()
@@ -226,15 +226,27 @@ struct NativeRecordingReceipt: Sendable {
             var detail = "\(error) Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount). Cleanup: owned stop=\(cleanup?.stopAcknowledged ?? false), stream absent=\(cleanup?.ownedStreamAbsent ?? false), tunnel release=\(release.status). \(cleanup?.diagnostic ?? "")"
             // A started stream that delivers nothing is what a firewall
             // dropping the incoming video looks like.
+            var firewallDrops = false
             if packetCount == 0, !(error is CancellationError), !Task.isCancelled, let hint = HostFirewall.check().recordingHint {
                 detail += " \(hint)"
+                firewallDrops = true
             }
             if error is CancellationError || Task.isCancelled {
                 FileHandle.standardError.write(Data("\(detail)\n".utf8))
                 throw CancellationError()
             }
-            throw CommandFailure(description: detail)
+            throw CommandFailure.nativeRecording(detail, wrapping: error, firewallDropsVideo: firewallDrops)
         }
+    }
+}
+
+extension CommandFailure {
+    /// A failed native recording. When no packet arrived and the firewall
+    /// would drop the video, the Mac's firewall is the thing to fix.
+    static func nativeRecording(_ detail: String, wrapping error: any Error, firewallDropsVideo: Bool) -> Self {
+        firewallDropsVideo
+            ? Self(.hostRequirement, detail, inputSent: .none, action: .allowFirewall)
+            : Self(detail, wrapping: error)
     }
 }
 
@@ -246,7 +258,7 @@ actor NativeRecordingSessions {
     func begin(_ uuid: String) throws {
         try Task.checkCancellation()
         guard devices.insert(uuid.lowercased()).inserted else {
-            throw CommandFailure(description: "A native recording is already active for this device in this process.")
+            throw CommandFailure(.deviceBusy, "A native recording is already active for this device in this process.", inputSent: .none)
         }
     }
 

@@ -22,7 +22,7 @@ struct AccessibilityDisplay: Equatable, Encodable {
     }
 
     init(_ data: Data) throws {
-        func invalid() -> CommandFailure { CommandFailure(description: "Invalid, ambiguous or unsupported primary display; native AX centre selection requires portrait geometry.") }
+        func invalid() -> CommandFailure { CommandFailure(.transportFailed, "Invalid, ambiguous or unsupported primary display; native AX centre selection requires portrait geometry.", inputSent: .none) }
         guard data.count <= 1_048_576,
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               (root["info"] as? [String: Any])?["outcome"] as? String == "success",
@@ -34,7 +34,7 @@ struct AccessibilityDisplay: Equatable, Encodable {
         }
         guard primary.count == 1 else { throw invalid() }
         guard primary[0]["backlightState"] as? String == "activeOn" else {
-            throw CommandFailure(description: "Primary display is off or its awake state is unknown. Wake/unlock the selected device before foreground AX inspection; no point query sent.")
+            throw CommandFailure(.displayOff, "Primary display is off or its awake state is unknown. Wake/unlock the selected device before foreground AX inspection; no point query sent.", inputSent: .none)
         }
         guard primary.count == 1, let display = primary.first,
               display["nativeOrientation"] as? String == "rot0", display["currentOrientation"] as? String == "rot0",

@@ -11,7 +11,7 @@ actor MCPToolOperations {
     private var tasks: [UUID: Task<CallTool.Result, any Error>] = [:]
 
     func checkOpen() throws {
-        guard !closing else { throw CommandFailure(description: "MCP session is shut down; create a new session for another transport.") }
+        guard !closing else { throw CommandFailure(.cancelled, "MCP session is shut down; create a new session for another transport.", inputSent: .none) }
     }
 
     func perform(_ operation: @escaping @Sendable () async throws -> CallTool.Result) async throws -> CallTool.Result {

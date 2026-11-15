@@ -13,7 +13,7 @@ enum DirectPhysicalInput {
                         send: (Button) throws -> Void = dispatch) throws -> Data {
         guard input.operation == "button", let name = input.operands.first,
               let usage = ["home": UInt64(64), "lock": 48, "volume-up": 233, "volume-down": 234][name] else {
-            throw CommandFailure(description: "Unsupported direct button input: \(input.operation) \(input.operands.joined(separator: " ")); no input sent.")
+            throw CommandFailure.usage("Unsupported direct button input: \(input.operation) \(input.operands.joined(separator: " ")); no input sent.")
         }
         let identity = try identity(input, query: query)
         try Task.checkCancellation()
@@ -30,7 +30,7 @@ enum DirectPhysicalInput {
         guard let root = try JSONSerialization.jsonObject(with: details) as? [String: Any],
               let version = (root["info"] as? [String: Any])?["version"] as? String,
               version.range(of: "^[0-9]+(?:\\.[0-9]+){0,3}$", options: .regularExpression) != nil else {
-            throw CommandFailure(description: "CoreDevice did not report a valid service version; no input sent.")
+            throw CommandFailure(.transportFailed, "CoreDevice did not report a valid service version; no input sent.", inputSent: .none)
         }
         return (uuid, version)
     }
@@ -40,7 +40,7 @@ enum DirectPhysicalInput {
         let status = ADCPressButton(button.uuid, button.version, button.usage, button.holdMicroseconds, { Task.isCancelled ? 1 : 0 }, &error, error.count)
         try Task.checkCancellation()
         guard status == 0 else {
-            throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+            throw CommandFailure.inputDispatch(status: status, message: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }
     }
 }

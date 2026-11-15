@@ -7,7 +7,7 @@ enum NativeMediaInspection {
     static func parse(_ args: [String]) throws -> String? {
         guard args.count >= 3, args[0] == "physical", args[2] == "media-status" else { return nil }
         guard args.count == 3, !args[1].isEmpty, !args[1].hasPrefix("-") else {
-            throw CommandFailure(description: "Usage: physical <device> media-status")
+            throw CommandFailure.usage("Usage: physical <device> media-status")
         }
         return args[1]
     }
@@ -20,14 +20,14 @@ enum NativeMediaInspection {
         guard let root = try JSONSerialization.jsonObject(with: details) as? [String: Any],
               let properties = (root["result"] as? [String: Any])?["properties"] as? [String: Any],
               let udid = (properties["hardware"] as? [String: Any])?["udid"] as? String else {
-            throw CommandFailure(description: "Media inspection requires fresh physical hardware identity.")
+            throw CommandFailure(.deviceNotReady, "Media inspection requires fresh physical hardware identity.", inputSent: .none)
         }
         _ = try RSDPortDiscovery.tunnelAddress(details: details, expectedUDID: udid)
         var result = ADCMediaInspection(), error = [CChar](repeating: 0, count: 1024)
         let status = ADCInspectMedia(identity.uuid, identity.version, { Task.isCancelled ? 1 : 0 }, &result, &error, error.count)
         try Task.checkCancellation()
         guard status == 0 else {
-            throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+            throw CommandFailure(.transportFailed, String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self), inputSent: .none)
         }
         let version = withUnsafeBytes(of: result.avcVersion) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
         return try JSONSerialization.data(withJSONObject: ["backend": "coredevice-direct", "operation": "media-status", "device": device,

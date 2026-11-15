@@ -164,6 +164,7 @@ struct AccessibilityDTX: Sendable {
     }
 
     private static func invalid(_ detail: String) -> CommandFailure {
-        CommandFailure(description: "Invalid accessibility DTX \(detail).")
+        // A parser cannot know what its caller sent; callers refine inputSent.
+        CommandFailure(.transportFailed, "Invalid accessibility DTX \(detail).", inputSent: .unknown)
     }
 }

@@ -36,7 +36,7 @@ final class NativeMediaFrames {
             result = ADCCreateVideoSession(endpoint.uuid, version, endpoint.interface, endpoint.host, endpoint.device,
                 { Task.isCancelled ? 1 : 0 }, &pointer, &error, error.count)
         }
-        guard result == 0, let pointer else { throw CommandFailure(description: Self.text(error)) }
+        guard result == 0, let pointer else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
         owner = pointer
     }
 
@@ -47,11 +47,11 @@ final class NativeMediaFrames {
         var error = [CChar](repeating: 0, count: 1024)
         let result = ADCStartVideoSession(owner, displayID, { Task.isCancelled ? 1 : 0 }, &error, error.count)
         try Task.checkCancellation()
-        guard result == 0 else { throw CommandFailure(description: Self.text(error)) }
+        guard result == 0 else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
         if packetMode {
             var profile = ADCVideoRTCPProfile()
             guard ADCReadVideoRTCPProfile(owner, &profile) == 0, let payload = packetProfile()?["payloadType"],
-                  let payload = UInt8(exactly: payload) else { throw CommandFailure(description: "Native media has no owned RTCP profile.") }
+                  let payload = UInt8(exactly: payload) else { throw CommandFailure(.transportFailed, "Native media has no owned RTCP profile.", inputSent: .none) }
             negotiatedFeedback = profile.feedbackKnown == 0 ? "unknown" : (profile.feedbackEnabled != 0 ? "enabled" : "disabled")
             feedback = try MediaRTCPReceiver(sender: profile.senderSSRC, receiver: profile.receiverSSRC,
                 payloadType: payload, cname: UUID().uuidString.lowercased() + "@manzanero",
@@ -74,20 +74,20 @@ final class NativeMediaFrames {
             if let bytes { frame = TimedVideoFrame(nanoseconds: time, jpeg: Data(bytes: bytes, count: count)) }
         }, &error, error.count)
         try Task.checkCancellation()
-        guard result >= 0 else { throw CommandFailure(description: Self.text(error)) }
+        guard result >= 0 else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
         return frame
     }
 
     /// Experimental transport path. Packets are not decoded frames.
     func nextPacket() throws -> Data? {
         try Task.checkCancellation()
-        if let feedbackFailure { throw CommandFailure(description: feedbackFailure) }
+        if let feedbackFailure { throw CommandFailure(.transportFailed, feedbackFailure, inputSent: .none) }
         var error = [CChar](repeating: 0, count: 1024), packet: Data?
         let result = ADCCopyNextVideoPacket(owner, { Task.isCancelled ? 1 : 0 }, { bytes, count in
             if let bytes { packet = Data(bytes: bytes, count: count) }
         }, &error, error.count)
         try Task.checkCancellation()
-        guard result >= 0 else { throw CommandFailure(description: Self.text(error)) }
+        guard result >= 0 else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
         if let packet {
             try feedback?.observe(packet, now: DispatchTime.now().uptimeNanoseconds)
             senderReportsObserved = feedback?.senderReportsObserved ?? 0
@@ -103,7 +103,7 @@ final class NativeMediaFrames {
             ADCSendVideoReceiverReport(owner, $0.bindMemory(to: UInt8.self).baseAddress, $0.count,
                 { Task.isCancelled ? 1 : 0 }, &error, error.count)
         }
-        guard sent >= 0 else { throw CommandFailure(description: Self.text(error)) }
+        guard sent >= 0 else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
         if sent == 1 { receiverReportsSent += 1 }
     }
 
@@ -120,7 +120,7 @@ final class NativeMediaFrames {
         let status = ADCVideoSessionActive(owner, { Task.isCancelled ? 1 : 0 }, &error, error.count)
         try Task.checkCancellation()
         guard status == 1 else {
-            throw CommandFailure(description: status == 0 ? "Owned native video stream disappeared during capture." : Self.text(error))
+            throw CommandFailure(.transportFailed, status == 0 ? "Owned native video stream disappeared during capture." : Self.text(error), inputSent: .none)
         }
     }
 

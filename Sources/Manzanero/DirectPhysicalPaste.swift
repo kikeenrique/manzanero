@@ -17,7 +17,7 @@ enum DirectPhysicalPaste {
                         send: (Dispatch) throws -> Void = DirectPhysicalKeyboard.dispatchSequence) throws -> Data {
         guard input.operation == "paste", input.operands.count == 1,
               let text = input.operands.first, (1...65536).contains(text.utf8.count), !text.contains("\0") else {
-            throw CommandFailure(description: "Paste requires 1...65536 UTF-8 bytes without NUL; no clipboard write or input sent.")
+            throw CommandFailure.usage("Paste requires 1...65536 UTF-8 bytes without NUL; no clipboard write or input sent.")
         }
         let identity = try DirectPhysicalInput.identity(input, query: query)
         try Task.checkCancellation()
@@ -25,13 +25,17 @@ enum DirectPhysicalPaste {
             let output = try copy(input.clipboardPlan(identity.uuid), Data(text.utf8))
             guard let value = try JSONSerialization.jsonObject(with: output) as? [String: Any],
                   (value["info"] as? [String: Any])?["outcome"] as? String == "success" else {
-                throw CommandFailure(description: "Apple clipboard writer did not confirm success.")
+                throw CommandFailure(.toolFailed, "Apple clipboard writer did not confirm success.", inputSent: .possible)
             }
         } catch is CancellationError {
             FileHandle.standardError.write(Data("Paste cancelled during clipboard write; clipboard state may have changed. No paste keys were sent.\n".utf8))
             throw CancellationError()
         } catch {
-            throw CommandFailure(description: "Clipboard write failed or was not confirmed; clipboard state may have changed. No paste keys were sent. \(error)")
+            // Only the clipboard may have changed; a retry writes the same text
+            // again before pasting, so repeating cannot paste twice.
+            throw CommandFailure((error as? CommandFailure)?.code ?? .unclassified,
+                "Clipboard write failed or was not confirmed; clipboard state may have changed. No paste keys were sent. \(error)",
+                inputSent: .possible, retry: .safe)
         }
         do {
             try Task.checkCancellation()
@@ -40,7 +44,9 @@ enum DirectPhysicalPaste {
             FileHandle.standardError.write(Data("Paste cancelled after clipboard replacement; insertion and key release are unverified. Inspect before retrying.\n".utf8))
             throw CancellationError()
         } catch {
-            throw CommandFailure(description: "Clipboard was replaced, but paste dispatch failed or was cancelled; insertion and key release are unknown. Inspect the focused field before retrying; no automatic replay. \(error)")
+            // The clipboard already changed, so input reached the device even
+            // when the keys did not.
+            throw CommandFailure(.inputOutcomeUnknown, "Clipboard was replaced, but paste dispatch failed or was cancelled; insertion and key release are unknown. Inspect the focused field before retrying; no automatic replay. \(error)", inputSent: .possible)
         }
         return try JSONSerialization.data(withJSONObject: ["backend": "coredevice-direct", "operation": "paste",
             "status": "dispatched", "verified": false, "insertionVerified": false, "releaseVerified": false,

@@ -37,7 +37,7 @@ struct MediaHEVCAssembler {
 
     mutating func accept(_ packet: MediaRTPPacket) throws -> MediaHEVCAccessUnit? {
         if let source, source != packet.source {
-            throw CommandFailure(description: "RTP video source changed during capture.")
+            throw CommandFailure(.transportFailed, "RTP video source changed during capture.", inputSent: .none)
         }
         source = packet.source
         var gap = false

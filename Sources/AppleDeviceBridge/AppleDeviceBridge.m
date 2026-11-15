@@ -52,6 +52,12 @@ static int ADCFail(char *error, size_t capacity, NSString *message) {
     return 1;
 }
 
+/// The same message for a failure after input was attempted, distinguished by status.
+static int ADCFailAfterInput(char *error, size_t capacity, NSString *message) {
+    ADCFail(error, capacity, message);
+    return ADCInputOutcomeUnknown;
+}
+
 static NSString *ADCErrorText(xpc_object_t dictionary, const char *key) {
     const char *text = xpc_dictionary_get_string(dictionary, key);
     if (!text) return nil;
@@ -927,8 +933,8 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         cancel(remote);
         xpc_connection_cancel(connection);
         if (scheduleStopped || (shouldCancel && shouldCancel()))
-            return ADCFail(error, capacity, @"Input stopped after cancellation or transport failure; release was attempted for active contacts or keys. UI effect and device-side release are unverified; do not replay automatically.");
-        if (failed) return ADCFail(error, capacity, @"Input was attempted, but the Apple service barrier was not confirmed. UI effect and release are unknown; do not replay automatically.");
+            return ADCFailAfterInput(error, capacity, @"Input stopped after cancellation or transport failure; release was attempted for active contacts or keys. UI effect and device-side release are unverified; do not replay automatically.");
+        if (failed) return ADCFailAfterInput(error, capacity, @"Input was attempted, but the Apple service barrier was not confirmed. UI effect and release are unknown; do not replay automatically.");
         if (resolvedSurface) *resolvedSurface = surface;
         return 0;
     }

@@ -72,7 +72,7 @@ final class DeviceLeaseRegistry: Sendable {
     static func key(_ device: String) throws -> String {
         let allowed = CharacterSet(charactersIn: "0123456789ABCDEFabcdef-")
         guard (8...64).contains(device.utf8.count), device.unicodeScalars.allSatisfy(allowed.contains) else {
-            throw CommandFailure(description: "Device ownership requires a resolved device identifier; no input sent.")
+            throw CommandFailure(.internal, "Device ownership requires a resolved device identifier; no input sent.", inputSent: .none)
         }
         return device.uppercased()
     }
@@ -82,7 +82,7 @@ final class DeviceLeaseRegistry: Sendable {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                                     attributes: [.posixPermissions: 0o700])
         } catch {
-            throw CommandFailure(description: "Cannot prepare the device ownership directory: \(error.localizedDescription). No input sent.")
+            throw CommandFailure(.hostRequirement, "Cannot prepare the device ownership directory: \(error.localizedDescription). No input sent.", inputSent: .none)
         }
         let path = directory.appendingPathComponent("\(key).lock").path
         // The file is never unlinked by this code, but a person or cleanup tool
@@ -91,16 +91,16 @@ final class DeviceLeaseRegistry: Sendable {
         for _ in 0..<8 {
             let descriptor = Darwin.open(path, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0o600)
             guard descriptor >= 0 else {
-                throw CommandFailure(description: "Cannot open the device ownership file (\(String(cString: strerror(errno)))). No input sent.")
+                throw CommandFailure(.hostRequirement, "Cannot open the device ownership file (\(String(cString: strerror(errno)))). No input sent.", inputSent: .none)
             }
             guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else {
                 let code = errno
                 let holder = Self.readHolder(descriptor)
                 _ = close(descriptor)
                 guard code == EWOULDBLOCK else {
-                    throw CommandFailure(description: "Cannot take device ownership (\(String(cString: strerror(code)))). No input sent.")
+                    throw CommandFailure(.hostRequirement, "Cannot take device ownership (\(String(cString: strerror(code)))). No input sent.", inputSent: .none)
                 }
-                throw CommandFailure(description: "Device is controlled by another manzanero process\(holder.map { " (\($0))" } ?? ""). Wait for it to finish or stop it; no input sent.")
+                throw CommandFailure(.deviceBusy, "Device is controlled by another manzanero process\(holder.map { " (\($0))" } ?? ""). Wait for it to finish or stop it; no input sent.", inputSent: .none)
             }
             var held = stat(), current = stat()
             if fstat(descriptor, &held) == 0, stat(path, &current) == 0,
@@ -110,7 +110,7 @@ final class DeviceLeaseRegistry: Sendable {
             }
             _ = close(descriptor)
         }
-        throw CommandFailure(description: "The device ownership file kept changing; no input sent.")
+        throw CommandFailure(.deviceBusy, "The device ownership file kept changing; no input sent.", inputSent: .none)
     }
 
     private static func writeHolder(_ descriptor: Int32, operation: String) {

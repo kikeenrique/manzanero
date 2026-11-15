@@ -33,7 +33,7 @@ enum DirectPhysicalTyping {
     static func samples(_ text: String) throws -> [ADCKeyboardSample] {
         let bytes = Array(text.utf8)
         guard (1...512).contains(bytes.count) else {
-            throw CommandFailure(description: "Physical typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; no input sent.")
+            throw CommandFailure.usage("Physical typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; no input sent.")
         }
         var result: [ADCKeyboardSample] = []
         func append(_ usage: UInt64, _ state: UInt64) {
@@ -41,7 +41,7 @@ enum DirectPhysicalTyping {
         }
         for byte in bytes {
             guard let key = stroke(byte) else {
-                throw CommandFailure(description: "Physical typing requires printable US-layout ASCII, tab or LF newline. For Unicode use explicit paste, which replaces the clipboard. No input sent.")
+                throw CommandFailure.usage("Physical typing requires printable US-layout ASCII, tab or LF newline. For Unicode use explicit paste, which replaces the clipboard. No input sent.")
             }
             if key.shift { append(225, 1) }
             append(key.usage, 1)
@@ -54,7 +54,7 @@ enum DirectPhysicalTyping {
     static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
                         send: (DirectPhysicalKeyboard.Sequence) throws -> Void = DirectPhysicalKeyboard.dispatchSequence) throws -> Data {
         guard input.operation == "type", input.operands.count == 1 else {
-            throw CommandFailure(description: "Physical typing expects one text operand; no input sent.")
+            throw CommandFailure.usage("Physical typing expects one text operand; no input sent.")
         }
         let schedule = try samples(input.operands[0])
         let identity = try DirectPhysicalInput.identity(input, query: query)

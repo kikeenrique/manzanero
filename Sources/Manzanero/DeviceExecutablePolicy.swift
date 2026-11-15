@@ -19,7 +19,7 @@ enum DeviceExecutablePolicy {
         // Apple's firewall tool, used only to read whether incoming video is allowed.
         if executable == HostFirewall.tool { return }
         guard name != "env", isAppleSystemExecutable else {
-            throw CommandFailure(description: "The \(command) executable backend is disabled: device operations must call Apple frameworks/APIs directly or use Apple executables. Its in-process replacement is not yet available for this operation.")
+            throw CommandFailure(.unsupportedOperation, "The \(command) executable backend is disabled: device operations must call Apple frameworks/APIs directly or use Apple executables. Its in-process replacement is not yet available for this operation.", inputSent: .none)
         }
     }
 }

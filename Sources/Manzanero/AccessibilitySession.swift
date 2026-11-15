@@ -223,6 +223,7 @@ final class AccessibilitySession {
     private var cleanupFrames = 0
 
     private func invalid(_ reason: String) -> CommandFailure {
-        CommandFailure(description: "Accessibility session: \(reason).")
+        // The session cannot know which stage its caller is in; callers refine inputSent.
+        CommandFailure(.transportFailed, "Accessibility session: \(reason).", inputSent: .unknown)
     }
 }

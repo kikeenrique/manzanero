@@ -13,7 +13,7 @@ final class RSDDirectoryConnection {
     init(tunnelAddress: String, port: UInt16, expectedUDID: String) throws {
         try Task.checkCancellation()
         guard expectedUDID.range(of: "^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$", options: .regularExpression) != nil else {
-            throw CommandFailure(description: "RSD directory requires an explicit hardware UDID; no connection started.")
+            throw CommandFailure(.internal, "RSD directory requires an explicit hardware UDID; no connection started.", inputSent: .none)
         }
         _ = try RSDPortDiscovery.socketAddress(tunnelAddress, port: port)
         let host = try Self.localPeerUUID(in: ToolRunner().run(["dumpstate"], executable: "/usr/libexec/remotectl", timeout: 5))
@@ -33,7 +33,7 @@ final class RSDDirectoryConnection {
         }
         guard status == 0, let owner, servicePort > 0 else {
             ADCCloseRSDDirectory(owner)
-            throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+            throw CommandFailure(.transportFailed, String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self), inputSent: .none)
         }
         self.owner = owner
         self.tunnelAddress = tunnelAddress
@@ -42,13 +42,13 @@ final class RSDDirectoryConnection {
 
     static func localPeerUUID(in dump: Data) throws -> String {
         guard dump.count <= 4 * 1024 * 1024, let text = String(data: dump, encoding: .utf8) else {
-            throw CommandFailure(description: "Invalid or oversized Apple RSD host inventory; no connection started.")
+            throw CommandFailure(.toolFailed, "Invalid or oversized Apple RSD host inventory; no connection started.", inputSent: .none)
         }
         let lines = text.split(whereSeparator: \.isNewline)
         guard lines.count >= 2, lines[0] == "Local device",
               lines[1].trimmingCharacters(in: .whitespaces).hasPrefix("UUID: "),
               let uuid = UUID(uuidString: String(lines[1].trimmingCharacters(in: .whitespaces).dropFirst(6))) else {
-            throw CommandFailure(description: "Apple RSD host identity was not available; no connection started.")
+            throw CommandFailure(.toolFailed, "Apple RSD host identity was not available; no connection started.", inputSent: .none)
         }
         return uuid.uuidString
     }
@@ -64,7 +64,7 @@ final class RSDDirectoryConnection {
     /// close its service socket before releasing the directory connection.
     func openAccessibility() throws -> AccessibilitySocketTransport {
         guard let owner, !serviceOpened, ADCIsRSDDirectoryActive(owner) == 1 else {
-            throw CommandFailure(description: "RSD directory is closed, failed or already has an AX service owner; no new service connection started.")
+            throw CommandFailure(.transportFailed, "RSD directory is closed, failed or already has an AX service owner; no new service connection started.", inputSent: .none)
         }
         serviceOpened = true
         do {
@@ -100,7 +100,7 @@ final class RSDDirectoryConnection {
             let deadline = ContinuousClock.now.advanced(by: .seconds(8))
             while true {
                 try Task.checkCancellation()
-                guard ContinuousClock.now < deadline else { throw CommandFailure(description: "RSD TCP connection exceeded its eight-second deadline.") }
+                guard ContinuousClock.now < deadline else { throw CommandFailure(.timeout, "RSD TCP connection exceeded its eight-second deadline.", inputSent: .none) }
                 var event = pollfd(fd: descriptor, events: Int16(POLLOUT), revents: 0)
                 let ready = poll(&event, 1, 10)
                 if ready == 0 { continue }

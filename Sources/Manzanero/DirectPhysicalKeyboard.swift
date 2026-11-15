@@ -25,7 +25,7 @@ enum DirectPhysicalKeyboard {
         }
         try Task.checkCancellation()
         guard status == 0 else {
-            throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+            throw CommandFailure.inputDispatch(status: status, message: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }
     }
 
@@ -33,7 +33,7 @@ enum DirectPhysicalKeyboard {
                         send: (Key) throws -> Void = dispatch) throws -> Data {
         guard input.operation == "key", input.operands.count == 1,
               let name = input.operands.first, let usage = usages[name] else {
-            throw CommandFailure(description: "Unsupported direct keyboard key; no input sent.")
+            throw CommandFailure.usage("Unsupported direct keyboard key; no input sent.")
         }
         let identity = try DirectPhysicalInput.identity(input, query: query)
         try Task.checkCancellation()
@@ -48,7 +48,7 @@ enum DirectPhysicalKeyboard {
         let status = ADCPressKeyboardKey(key.uuid, key.version, key.usage, { Task.isCancelled ? 1 : 0 }, &error, error.count)
         try Task.checkCancellation()
         guard status == 0 else {
-            throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+            throw CommandFailure.inputDispatch(status: status, message: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }
     }
 }

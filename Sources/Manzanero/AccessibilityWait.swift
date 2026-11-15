@@ -119,7 +119,7 @@ struct AccessibilityWait {
     }
 
     private static func invalid(_ reason: String) -> CommandFailure {
-        CommandFailure(description: reason.isEmpty ? usage : "\(reason) \(usage)")
+        CommandFailure.usage(reason.isEmpty ? usage : "\(reason) \(usage)")
     }
 
     /// A timeout is an answer with structured output, not a malfunction.
@@ -207,13 +207,13 @@ struct AccessibilityWait {
                 try await clock.sleep(until: min(now.advanced(by: interval), deadline), tolerance: nil)
             }
             let elapsed = start.duration(to: clock.now)
-            guard let last else { throw failure("no observation was made") }
+            guard let last else { throw failure("no observation was made", .internal) }
             var displayRecheck: String?
             if let selectedDisplay {
                 stage = "display-recheck"
                 if last.met {
                     guard try display() == selectedDisplay else {
-                        throw failure("display geometry/orientation changed during the wait; the condition is not reported")
+                        throw failure("display geometry/orientation changed during the wait; the condition is not reported", .preconditionChanged)
                     }
                     displayRecheck = "unchanged"
                 } else {
@@ -257,7 +257,8 @@ struct AccessibilityWait {
                 FileHandle.standardError.write(Data("Native AX wait cancelled. \(detail)\n".utf8))
                 throw CancellationError()
             }
-            throw CommandFailure(description: "Direct physical wait failed: \(error) \(detail)")
+            // A wait only reads, so nothing was sent whatever failed.
+            throw CommandFailure("Direct physical wait failed: \(error) \(detail)", wrapping: error).noInputSent()
         }
     }
 
@@ -275,11 +276,11 @@ struct AccessibilityWait {
         let selected: Int32
         if let pid { selected = pid }
         else if let display { selected = try session.hit(x: display.center.x, y: display.center.y).pid }
-        else { throw failure("missing process selection") }
+        else { throw failure("missing process selection", .internal) }
         stage = "application"
         let root = try session.application(pid: selected)
         stage = "snapshot"
-        let matches = try selector.matches(session.snapshot(root), root: root, failure: failure)
+        let matches = try selector.matches(session.snapshot(root), root: root, failure: { failure($0, .transportFailed) })
         var observation = try evaluate(matches, root: root, session: session, stage: &stage)
         if observation.met {
             // A met condition counts only if the poll's selection held.
@@ -372,7 +373,7 @@ struct AccessibilityWait {
         }
         stage = "live-attributes"
         let live = try session.attributes([27, 32], of: node.token)
-        guard case .dictionary(let fields) = live else { throw failure("live attributes are not a dictionary") }
+        guard case .dictionary(let fields) = live else { throw failure("live attributes are not a dictionary", .transportFailed) }
         let enabled = fields["27"].flatMap(AccessibilityResponse.booleanResult)
         observation.element?["enabled"] = enabled ?? NSNull()
         if let liveVisible = fields["32"].flatMap(AccessibilityResponse.booleanResult), !liveVisible {
@@ -401,7 +402,7 @@ struct AccessibilityWait {
 
     private static func describe(_ node: AccessibilitySnapshot.Node) throws -> [String: Any] {
         guard var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(node)) as? [String: Any] else {
-            throw CommandFailure(description: "Invalid internal wait element JSON.")
+            throw CommandFailure(.internal, "Invalid internal wait element JSON.", inputSent: .none)
         }
         for key in ["id", "parentId", "children", "depth", "attributeSource"] { json.removeValue(forKey: key) }
         json["visible"] = node.visible.map { $0 as Any } ?? NSNull()
@@ -414,5 +415,7 @@ struct AccessibilityWait {
         return (value * 1000).rounded() / 1000
     }
 
-    private func failure(_ reason: String) -> CommandFailure { CommandFailure(description: "Native AX wait: \(reason).") }
+    private func failure(_ reason: String, _ code: CommandFailure.Code) -> CommandFailure {
+        CommandFailure(code, "Native AX wait: \(reason).", inputSent: .none)
+    }
 }

@@ -21,7 +21,7 @@ struct DeviceReadiness: Encodable, Sendable {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               (root["info"] as? [String: Any])?["outcome"] as? String == "success",
               let result = root["result"] as? [String: Any] else {
-            throw CommandFailure(description: "CoreDevice did not return a successful device-details result.")
+            throw CommandFailure(.deviceNotReady, "CoreDevice did not return a successful device-details result.", inputSent: .none)
         }
         let properties = result["properties"] as? [String: Any] ?? [:]
         let state = properties["state"] as? [String: Any] ?? [:]
@@ -70,7 +70,7 @@ struct DeviceReadiness: Encodable, Sendable {
 
     func requireDeveloperMode(operation: String) throws {
         if developerMode == "disabled" {
-            throw CommandFailure(description: "Cannot \(operation): Developer Mode is disabled. \(issues.first(where: { $0.code == "developerModeDisabled" })?.action ?? "Enable Developer Mode on the device.")")
+            throw CommandFailure(.deviceNotReady, "Cannot \(operation): Developer Mode is disabled. \(issues.first(where: { $0.code == "developerModeDisabled" })?.action ?? "Enable Developer Mode on the device.")", inputSent: .none)
         }
         if developerMode == "unknown" || developerDiskImageServices != "available" {
             FileHandle.standardError.write(Data("Device readiness: Developer Mode \(developerMode); developer-image services \(developerDiskImageServices). Run physical <device> readiness for preparation guidance.\n".utf8))

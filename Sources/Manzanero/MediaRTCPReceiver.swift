@@ -24,7 +24,7 @@ struct MediaRTCPReceiver {
         guard sender != 0, receiver != 0, sender != receiver, payloadType <= 127,
               !(64...95).contains(payloadType), (1...255).contains(cname.utf8.count),
               intervalSeconds.isFinite, (0.2...10).contains(intervalSeconds) else {
-            throw CommandFailure(description: "Invalid owned unicast RTCP profile.")
+            throw CommandFailure(.transportFailed, "Invalid owned unicast RTCP profile.", inputSent: .none)
         }
         self.sender = sender; self.receiver = receiver; self.payloadType = payloadType
         self.cname = Data(cname.utf8)
@@ -40,7 +40,7 @@ struct MediaRTCPReceiver {
             return
         }
         guard let packet = MediaRTPPacket(datagram, payloadType: payloadType) else { return }
-        guard packet.source == sender else { throw CommandFailure(description: "RTP source differs from the negotiated RTCP sender.") }
+        guard packet.source == sender else { throw CommandFailure(.transportFailed, "RTP source differs from the negotiated RTCP sender.", inputSent: .none) }
         let generation = sequences.generation
         guard sequences.observe(packet.sequence) else { return }
         if generation != sequences.generation { previousArrival = nil; previousTimestamp = nil; jitter = 0 }

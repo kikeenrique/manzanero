@@ -27,11 +27,11 @@ struct ScreenText: Encodable, Sendable {
         async throws -> ScreenText where C.Duration == Duration {
         try Task.checkCancellation()
         guard timeout > .zero, timeout <= .seconds(300) else {
-            throw CommandFailure(description: "OCR recognition deadline must be positive and at most 300 seconds.")
+            throw CommandFailure(.internal, "OCR recognition deadline must be positive and at most 300 seconds.", inputSent: .none)
         }
         let url = URL(fileURLWithPath: path)
         guard FileManager.default.isReadableFile(atPath: url.path) else {
-            throw CommandFailure(description: "Image is not readable: \(path)")
+            throw CommandFailure.usage("Image is not readable: \(path)")
         }
         let deadline = clock.now.advanced(by: timeout)
         do {

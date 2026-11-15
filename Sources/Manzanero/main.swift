@@ -86,6 +86,11 @@ Usage:
   Simulator input (tap, swipe, type, button) and accessibility hierarchy (tree) are not available yet;
   simulator screen uses OCR.
   Prefix a planned command with --dry-run to print its invocation without executing.
+  manzanero [--dry-run] --error-format <text|json> <command> ...
+  A failure exits 1 and prints its message on stderr; json prints one object instead:
+  {"error":{"code","message","inputSent","retry","action"}}. MANZANERO_ERROR_FORMAT=json sets the
+  default. Answers with their own exit code (wait timeout 124, wake, readiness) stay JSON on stdout.
+  See docs/errors.md.
   manzanero --help
   manzanero --version
 
@@ -95,8 +100,10 @@ Simulator app/lifecycle commands preserve simctl output; simulator input and hie
 Temporary process output is created beneath ./tmp and normally cleaned up on exit.
 """
 
+var errorFormat = ErrorFormat.text
 do {
     var args = Array(CommandLine.arguments.dropFirst())
+    errorFormat = try ErrorFormat.select(&args, environment: ProcessInfo.processInfo.environment)
     if args == ["mcp"] {
         let result = try await CLIInputSignals.run(context: "MCP server") {
             try await AppleMCPServer.run()
@@ -122,6 +129,6 @@ do {
     if result.data.last != 10 { print() }
     exit(result.exitCode)
 } catch {
-    FileHandle.standardError.write(Data("\(error)\n".utf8))
+    FileHandle.standardError.write(errorFormat.render(error))
     exit(1)
 }

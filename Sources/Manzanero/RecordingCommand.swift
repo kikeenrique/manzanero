@@ -14,7 +14,7 @@ struct RecordingCommand {
         var native = false
         if args.first == "--recording-backend" {
             guard args.count >= 3, ["devicectl", "coredevice"].contains(args[1]), args[2] == "physical" else {
-                throw CommandFailure(description: "--recording-backend <devicectl|coredevice> requires a physical recording command.")
+                throw CommandFailure.usage("--recording-backend <devicectl|coredevice> requires a physical recording command.")
             }
             native = args[1] == "coredevice"
             args = Array(args.dropFirst(2))
@@ -24,16 +24,16 @@ struct RecordingCommand {
               !args[3].hasPrefix("-"), args[3].lowercased().hasSuffix(".mp4"),
               let seconds = Double(args[4]), seconds.isFinite, (1...300).contains(seconds),
               ["h264", "hevc"].contains(args.count == 6 ? args[5] : "h264") else {
-            throw CommandFailure(description: "Usage: <physical|simulator> <device> record <output.mp4> <seconds: 1...300> [h264|hevc]")
+            throw CommandFailure.usage("Usage: <physical|simulator> <device> record <output.mp4> <seconds: 1...300> [h264|hevc]")
         }
         guard args[0] == "physical" || UUID(uuidString: args[1]) != nil else {
-            throw CommandFailure(description: "Simulator recording requires an explicit simulator UUID.")
+            throw CommandFailure.usage("Simulator recording requires an explicit simulator UUID.")
         }
         return Self(physical: args[0] == "physical", device: args[1], destination: URL(fileURLWithPath: args[3]), seconds: seconds, codec: args.count == 6 ? args[5] : "h264", native: native)
     }
 
     func command(staging: URL) throws -> DeviceCommand {
-        guard !native else { throw CommandFailure(description: "Native recording runs in process through Apple media frameworks.") }
+        guard !native else { throw CommandFailure(.internal, "Native recording runs in process through Apple media frameworks.", inputSent: .none) }
         if physical {
             return DeviceCommand(arguments: ["devicectl", "device", "capture", "screen-record", "--device", device,
                 "--destination", staging.path, "--duration", String(seconds), "--codec", codec,
@@ -46,17 +46,17 @@ struct RecordingCommand {
         let parent = destination.deletingLastPathComponent()
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: parent.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-            throw CommandFailure(description: "Recording destination's parent directory must exist.")
+            throw CommandFailure.usage("Recording destination's parent directory must exist.")
         }
         guard !FileManager.default.fileExists(atPath: destination.path) else {
-            throw CommandFailure(description: "Recording destination already exists; choose a new .mp4 path.")
+            throw CommandFailure.usage("Recording destination already exists; choose a new .mp4 path.")
         }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let staging = directory.appendingPathComponent("capture.mp4")
         do {
             var nativeReceipt: NativeRecordingReceipt?
             if native {
-                guard #available(macOS 26.0, *) else { throw CommandFailure(description: "Native recording requires macOS 26 or later.") }
+                guard #available(macOS 26.0, *) else { throw CommandFailure(.hostRequirement, "Native recording requires macOS 26 or later.", inputSent: .none) }
                 nativeReceipt = try await NativeRecording.execute(self, staging: staging, runner: runner)
             } else if physical {
                 let plan = try command(staging: staging)
@@ -92,7 +92,8 @@ struct RecordingCommand {
                 FileHandle.standardError.write(Data("Recording cancelled. Investigation artifacts: \(directory.path)\n".utf8))
                 throw CancellationError()
             }
-            throw CommandFailure(description: "Recording failed: \(error). Investigation artifacts: \(directory.path)")
+            // A recording sends no input, so nothing was sent whatever failed.
+            throw CommandFailure("Recording failed: \(error). Investigation artifacts: \(directory.path)", wrapping: error).noInputSent()
         }
     }
 }
@@ -106,13 +107,13 @@ struct VideoArtifact: Sendable {
     static func inspect(_ url: URL) async throws -> Self {
         let asset = AVURLAsset(url: url)
         let duration = try await asset.load(.duration).seconds
-        guard duration.isFinite, duration > 0 else { throw CommandFailure(description: "Recording has no finite positive duration.") }
+        guard duration.isFinite, duration > 0 else { throw CommandFailure(.toolFailed, "Recording has no finite positive duration.", inputSent: .none) }
         let generator = AVAssetImageGenerator(asset: asset)
         let frame = try await generator.image(at: .zero)
-        guard frame.image.width > 0, frame.image.height > 0 else { throw CommandFailure(description: "Recording has no decodable video frame.") }
+        guard frame.image.width > 0, frame.image.height > 0 else { throw CommandFailure(.toolFailed, "Recording has no decodable video frame.", inputSent: .none) }
         guard let track = try await asset.loadTracks(withMediaType: .video).first,
               let format = try await track.load(.formatDescriptions).first else {
-            throw CommandFailure(description: "Recording has no video format description.")
+            throw CommandFailure(.toolFailed, "Recording has no video format description.", inputSent: .none)
         }
         let subtype = CMFormatDescriptionGetMediaSubType(format)
         let codec = String(decoding: [24, 16, 8, 0].map { UInt8(truncatingIfNeeded: subtype >> $0) }, as: UTF8.self)

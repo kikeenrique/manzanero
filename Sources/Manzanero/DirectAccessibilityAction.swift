@@ -12,10 +12,10 @@ struct DirectAccessibilityAction {
     init(_ input: CoreDeviceInput) throws {
         guard ["press-id", "press-label", "scroll-id", "scroll-label"].contains(input.operation), (1...2).contains(input.operands.count),
               let text = input.operands.last, (1...4096).contains(text.utf8.count), !text.contains("\0") else {
-            throw CommandFailure(description: "Native AX selector action requires an optional positive PID and 1...4096 UTF-8 bytes of exact selector without NUL.")
+            throw CommandFailure.usage("Native AX selector action requires an optional positive PID and 1...4096 UTF-8 bytes of exact selector without NUL.")
         }
         if input.operands.count == 2 {
-            guard let pid = Int32(input.operands[0]), pid > 0 else { throw CommandFailure(description: "Native AX selector PID must be positive.") }
+            guard let pid = Int32(input.operands[0]), pid > 0 else { throw CommandFailure.usage("Native AX selector PID must be positive.") }
             self.pid = pid
         } else { pid = nil }
         action = input.operation.hasPrefix("scroll-") ? .scrollToVisible : .press
@@ -27,15 +27,15 @@ struct DirectAccessibilityAction {
 
     func resolve(_ snapshot: AccessibilityArchiveValue, root: AccessibilityRequest.Token) throws -> AccessibilitySnapshot.Node {
         var found: AccessibilitySelector.Match?
-        for match in try selector.matches(snapshot, root: root, failure: failure) {
-            guard match.node.token.pid == root.pid else { throw failure("target belongs to another process") }
+        for match in try selector.matches(snapshot, root: root, failure: { failure($0, .transportFailed) }) {
+            guard match.node.token.pid == root.pid else { throw failure("target belongs to another process", .targetUnresolved) }
             if let found {
                 guard sameIdentity(found.node.token, match.node.token), found.attributes == match.attributes else {
-                    throw failure("selector has multiple distinct or inconsistent matches")
+                    throw failure("selector has multiple distinct or inconsistent matches", .targetUnresolved)
                 }
             } else { found = match }
         }
-        guard let found else { throw failure("selector has no match in the fresh bounded snapshot") }
+        guard let found else { throw failure("selector has no match in the fresh bounded snapshot", .targetUnresolved) }
         return found.node
     }
 
@@ -49,14 +49,14 @@ struct DirectAccessibilityAction {
             try session.start()
             stage = "select-process"
             let selected = try session.hit(x: geometry.center.x, y: geometry.center.y)
-            if let pid, pid != selected.pid { throw failure("requested PID differs from display-centre process") }
+            if let pid, pid != selected.pid { throw failure("requested PID differs from display-centre process", .targetUnresolved) }
             stage = "application"
             let root = try session.application(pid: selected.pid)
             stage = "first-snapshot"
             let first = try resolve(session.snapshot(root), root: root)
             stage = "second-snapshot"
             let target = try resolve(session.snapshot(root), root: root)
-            guard sameIdentity(first.token, target.token) else { throw failure("selector identity changed between snapshots") }
+            guard sameIdentity(first.token, target.token) else { throw failure("selector identity changed between snapshots", .preconditionChanged) }
             stage = "live-attributes"
             let before = try liveState(target, session: session, requireVisible: action == .press)
             if action == .press {
@@ -76,7 +76,7 @@ struct DirectAccessibilityAction {
                     "No coordinate fallback or automatic replay. Inspect a fresh observation before retrying."]]
             if action == .press {
                 state = native ? "accepted" : "refused"
-                guard native else { throw failure("native press was refused") }
+                guard native else { throw failure("native press was refused", .inputOutcomeUnknown, inputSent: .possible) }
                 result["status"] = state
                 result["nativeAccepted"] = true
                 result["effectVerified"] = false
@@ -88,7 +88,7 @@ struct DirectAccessibilityAction {
                 stage = "post-action-observation"
                 do {
                     let afterTarget = try resolve(session.snapshot(root), root: root)
-                    guard sameIdentity(afterTarget.token, target.token) else { throw failure("target identity changed after scroll") }
+                    guard sameIdentity(afterTarget.token, target.token) else { throw failure("target identity changed after scroll", .preconditionChanged) }
                     let after = try liveState(afterTarget, session: session, requireVisible: true)
                     try verifyHit(afterTarget, frame: after.frame, geometry: geometry, session: session)
                     try verifySelection(root, geometry: geometry, session: session, display: display)
@@ -114,7 +114,11 @@ struct DirectAccessibilityAction {
                 FileHandle.standardError.write(Data("\(detail)\n".utf8))
                 throw CancellationError()
             }
-            throw CommandFailure(description: "\(error) \(detail)")
+            // Before submission only read-only AX requests were sent; after it
+            // the action may have reached the app whatever failed next.
+            let failure = CommandFailure("\(error) \(detail)", wrapping: error)
+            throw state == "not-sent" ? failure.noInputSent()
+                : CommandFailure(.inputOutcomeUnknown, failure.description, inputSent: .possible)
         }
     }
 
@@ -125,15 +129,15 @@ struct DirectAccessibilityAction {
               fields["27"].flatMap(AccessibilityResponse.booleanResult) == true,
               let visible = fields["32"].flatMap(AccessibilityResponse.booleanResult),
               target.visible == visible, !requireVisible || visible else {
-            throw failure("target enabled/visible state is unavailable, changed or unsuitable")
+            throw failure("target enabled/visible state is unavailable, changed or unsuitable", .preconditionChanged)
         }
         if let identifier = target.identifier {
-            guard case .string(let identifier) = identifier, fields["25"] == .string(identifier) else { throw failure("live identifier differs") }
+            guard case .string(let identifier) = identifier, fields["25"] == .string(identifier) else { throw failure("live identifier differs", .preconditionChanged) }
         }
         guard let frame = target.frame, frame.width > 0, frame.height > 0, let liveFrame = fields["21"],
-              try AccessibilitySnapshot.rectangle(liveFrame) == frame else { throw failure("live geometry is unavailable or differs") }
+              try AccessibilitySnapshot.rectangle(liveFrame) == frame else { throw failure("live geometry is unavailable or differs", .preconditionChanged) }
         guard var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(target)) as? [String: Any] else {
-            throw failure("invalid internal target JSON")
+            throw failure("invalid internal target JSON", .internal)
         }
         for key in ["id", "parentId", "children", "depth"] { json.removeValue(forKey: key) }
         json["enabled"] = true
@@ -145,24 +149,26 @@ struct DirectAccessibilityAction {
                            geometry: AccessibilityDisplay, session: AccessibilitySession) throws {
         let bounds = geometry.bounds
         guard frame.x >= bounds.x, frame.y >= bounds.y, frame.x + frame.width <= bounds.x + bounds.width,
-              frame.y + frame.height <= bounds.y + bounds.height else { throw failure("target is not wholly inside the primary display") }
+              frame.y + frame.height <= bounds.y + bounds.height else { throw failure("target is not wholly inside the primary display", .targetUnresolved) }
         let hit = try session.hit(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2)
-        guard sameIdentity(hit, target.token) else { throw failure("target centre hit is another native element") }
+        guard sameIdentity(hit, target.token) else { throw failure("target centre hit is another native element", .targetUnresolved) }
     }
 
     private func verifySelection(_ root: AccessibilityRequest.Token, geometry: AccessibilityDisplay,
                                  session: AccessibilitySession, display: () throws -> AccessibilityDisplay) throws {
         let after = try session.application(pid: root.pid)
-        guard sameIdentity(after, root) else { throw failure("application identity changed") }
+        guard sameIdentity(after, root) else { throw failure("application identity changed", .preconditionChanged) }
         let displayed = try session.hit(x: geometry.center.x, y: geometry.center.y)
-        guard displayed.pid == root.pid else { throw failure("display-centre process changed") }
-        guard try display() == geometry else { throw failure("display geometry changed") }
+        guard displayed.pid == root.pid else { throw failure("display-centre process changed", .preconditionChanged) }
+        guard try display() == geometry else { throw failure("display geometry changed", .preconditionChanged) }
     }
 
     private func sameIdentity(_ a: AccessibilityRequest.Token, _ b: AccessibilityRequest.Token) -> Bool {
         a.pid == b.pid && a.objectID == b.objectID
     }
-    private func failure(_ reason: String) -> CommandFailure { CommandFailure(description: "Native AX \(operation): \(reason).") }
+    private func failure(_ reason: String, _ code: CommandFailure.Code, inputSent: CommandFailure.InputSent = .none) -> CommandFailure {
+        CommandFailure(code, "Native AX \(operation): \(reason).", inputSent: inputSent)
+    }
 }
 
 /// One exact identifier or label selector, shared by actions and waits so

@@ -17,7 +17,7 @@ enum DirectPhysicalWake {
 
     static func validate(_ operands: [String]) throws {
         guard operands.isEmpty || operands == [noDismissFlag] else {
-            throw CommandFailure(description: "Usage: physical <UDID> wake [\(noDismissFlag)]")
+            throw CommandFailure.usage("Usage: physical <UDID> wake [\(noDismissFlag)]")
         }
     }
 
@@ -39,13 +39,24 @@ enum DirectPhysicalWake {
         let dismiss = input.operands.isEmpty
         let details = try query(input.identityPlan())
         _ = try DirectPhysicalInput.identity(input, query: { _ in details })
+        // Once a press went out, any later failure leaves the device changed.
+        var pressSent = false
         func observe() throws -> DeviceUIReadiness {
-            try Task.checkCancellation()
-            return try DeviceUIReadiness.observe(details: details, device: input.device, query: query)
+            do {
+                try Task.checkCancellation()
+                return try DeviceUIReadiness.observe(details: details, device: input.device, query: query)
+            } catch let failure as CommandFailure where pressSent {
+                throw failure.inputPossiblySent()
+            }
         }
         func button(_ name: String) throws {
-            try Task.checkCancellation()
-            try press(CoreDeviceInput(device: input.device, operation: "button", operands: [name]), details)
+            do {
+                try Task.checkCancellation()
+                try press(CoreDeviceInput(device: input.device, operation: "button", operands: [name]), details)
+                pressSent = true
+            } catch let failure as CommandFailure where pressSent {
+                throw failure.inputPossiblySent()
+            }
         }
         var result: [String: Any] = ["backend": "coredevice-direct", "operation": operation, "device": input.device,
             "sideButtonPressed": false, "homePressed": false,
@@ -97,7 +108,7 @@ enum DirectPhysicalWake {
     static func output(_ data: Data) throws -> CommandOutput {
         guard var root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let code = root.removeValue(forKey: "exitCode") as? Int else {
-            throw CommandFailure(description: "Invalid internal wake result.")
+            throw CommandFailure(.internal, "Invalid internal wake result.", inputSent: .unknown)
         }
         return CommandOutput(data: try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys]), exitCode: Int32(code))
     }

@@ -185,6 +185,7 @@ enum AccessibilitySnapshot {
     }
 
     private static func invalid(_ reason: String) -> CommandFailure {
-        CommandFailure(description: "Invalid native accessibility snapshot: \(reason).")
+        // A parser cannot know what its caller sent; callers refine inputSent.
+        CommandFailure(.transportFailed, "Invalid native accessibility snapshot: \(reason).", inputSent: .unknown)
     }
 }

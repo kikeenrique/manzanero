@@ -123,6 +123,10 @@ int ADCCopyNextVideoFrame(void *owner, int (^cancelled)(void),
 int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size_t errorCapacity);
 
 typedef int (^ADCInputShouldStop)(void);
+/// Non-zero status of the input functions below (digitizer reports, button,
+/// key, keyboard and touch) once input was attempted: its effect and release
+/// are unknown. Any other non-zero status means no input was sent.
+#define ADCInputOutcomeUnknown 2
 typedef void (^ADCDigitizerSink)(const uint8_t *report);
 /// Shared scheduler, also exercised with a local sink. Returns 0 completed,
 /// 1 stopped (with release attempted), or 2 invalid (no callbacks invoked).

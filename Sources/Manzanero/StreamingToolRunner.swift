@@ -12,13 +12,13 @@ struct StreamingToolRunner: Sendable {
                        receive: @Sendable @escaping (Data) async throws -> Void) async throws where C.Duration == Duration {
         try DeviceExecutablePolicy.validate(executable, arguments: arguments)
         guard timeout.isFinite, timeout > 0, maximumOutputBytes > 0 else {
-            throw CommandFailure(description: "Invalid streaming process deadline or output limit.")
+            throw CommandFailure(.internal, "Invalid streaming process deadline or output limit.", inputSent: .none)
         }
         let deadline = clock.now.advanced(by: .seconds(timeout))
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
                 try await clock.sleep(until: deadline, tolerance: nil)
-                throw CommandFailure(description: "Streaming process timed out; capture cleanup may be incomplete.")
+                throw CommandFailure(.timeout, "Streaming process timed out; capture cleanup may be incomplete.", inputSent: .unknown)
             }
             group.addTask {
                 var options = PlatformOptions()
@@ -32,7 +32,7 @@ struct StreamingToolRunner: Sendable {
                         try Task.checkCancellation()
                         let data = buffer.withUnsafeBytes { Data($0) }
                         guard data.count <= maximumOutputBytes - count else {
-                            throw CommandFailure(description: "Streaming process exceeded the output byte limit.")
+                            throw CommandFailure(.toolFailed, "Streaming process exceeded the output byte limit.", inputSent: .unknown)
                         }
                         count += data.count
                         try await receive(data)
@@ -40,7 +40,7 @@ struct StreamingToolRunner: Sendable {
                 }
                 let diagnostics = result.standardError
                 guard result.terminationStatus.isSuccess else {
-                    throw CommandFailure(description: "Streaming process failed (\(result.terminationStatus)): \(diagnostics)")
+                    throw CommandFailure(.toolFailed, "Streaming process failed (\(result.terminationStatus)): \(diagnostics)", inputSent: .unknown)
                 }
                 FileHandle.standardError.write(Data(diagnostics.utf8))
             }

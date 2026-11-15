@@ -17,7 +17,7 @@ enum AccessibilityRequest {
              didPopulateAppInfo: Bool = false) throws {
             guard pid > 0, (rawElementData?.count ?? 0) <= 1_048_576,
                   (bridgeDelegateToken?.count ?? 0) <= 1_048_576 - (rawElementData?.count ?? 0) else {
-                throw CommandFailure(description: "Invalid AX translation token PID or data size.")
+                throw CommandFailure(.transportFailed, "Invalid AX translation token PID or data size.", inputSent: .unknown)
             }
             self.pid = pid
             self.objectID = objectID
@@ -29,14 +29,14 @@ enum AccessibilityRequest {
     }
 
     static func application(pid: Int32) throws -> Data {
-        guard pid > 0 else { throw CommandFailure(description: "AX application PID must be positive.") }
+        guard pid > 0 else { throw CommandFailure(.internal, "AX application PID must be positive.", inputSent: .unknown) }
         return try archive(kind: 1, parameters: ["pid": NSNumber(value: pid)], token: nil)
     }
 
     /// Read-only primary-display point lookup. PID zero is confined to this
     /// synthetic query translation; returned/native tokens still require PID > 0.
     static func hit(x: Double, y: Double) throws -> Data {
-        guard x.isFinite, y.isFinite else { throw CommandFailure(description: "Invalid AX hit point.") }
+        guard x.isFinite, y.isFinite else { throw CommandFailure(.internal, "Invalid AX hit point.", inputSent: .unknown) }
         return try archive(kind: 6, parameters: ["point": NSValue(point: NSPoint(x: x, y: y)),
             "displayId": 0], token: nil, pointQuery: true)
     }
@@ -53,7 +53,7 @@ enum AccessibilityRequest {
         let supported: Set<Int> = [3, 8, 21, 25, 27, 32, 53]
         guard !attributes.isEmpty, attributes.count <= supported.count,
               Set(attributes).count == attributes.count, attributes.allSatisfy(supported.contains) else {
-            throw CommandFailure(description: "Unsupported, duplicate or empty AX attribute query.")
+            throw CommandFailure(.internal, "Unsupported, duplicate or empty AX attribute query.", inputSent: .unknown)
         }
         return try archive(kind: 5, parameters: ["attributes": attributes], token: token)
     }
@@ -71,7 +71,7 @@ enum AccessibilityRequest {
         if let error = coder.error { throw error }
         let bytes = coder.encodedData
         guard bytes.count <= KeyedArchiveInspector.maximumBytes else {
-            throw CommandFailure(description: "AX request archive exceeds byte limit.")
+            throw CommandFailure(.internal, "AX request archive exceeds byte limit.", inputSent: .unknown)
         }
         return bytes
     }

@@ -16,7 +16,7 @@ struct HandoffCommand: Sendable {
               !args[3].isEmpty, args[3].utf8.count <= 2048,
               args[3].unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) || $0.value == 9 || $0.value == 10 }),
               let timeout = Int(args.count == 5 ? args[4] : "300"), (1...3600).contains(timeout) else {
-            throw CommandFailure(description: "Usage: <physical|simulator> <UDID> handoff <message> [terminal-timeout-seconds: 1...3600]. Message must be 1...2048 UTF-8 bytes without terminal control codes.")
+            throw CommandFailure.usage("Usage: <physical|simulator> <UDID> handoff <message> [terminal-timeout-seconds: 1...3600]. Message must be 1...2048 UTF-8 bytes without terminal control codes.")
         }
         return Self(platform: args[0], device: args[1], message: args[3], timeoutSeconds: timeout, target: DeviceTarget(platform: args[0], identifier: identifier))
     }
@@ -45,7 +45,7 @@ enum TerminalHandoff {
     static func confirm(_ request: HandoffCommand, input: Int32 = STDIN_FILENO, requireTTY: Bool = true,
                         timeout: Duration? = nil, prompt: (String) -> Void = { FileHandle.standardError.write(Data($0.utf8)) }) throws -> HandoffStatus {
         guard !requireTTY || isatty(input) != 0 else {
-            throw CommandFailure(description: "Handoff needs an interactive terminal, or an MCP host with form elicitation support.")
+            throw CommandFailure(.hostRequirement, "Handoff needs an interactive terminal, or an MCP host with form elicitation support.", inputSent: .none)
         }
         prompt("\u{7}Human action needed on \(request.platform) \(request.device):\n\(request.message)\nPerform the action on the device. Type 'done', 'decline', or 'cancel'; do not enter credentials here.\n")
         let deadline = ContinuousClock.now + (timeout ?? .seconds(request.timeoutSeconds))
@@ -56,12 +56,12 @@ enum TerminalHandoff {
             var descriptor = pollfd(fd: input, events: Int16(POLLIN), revents: 0)
             let ready = poll(&descriptor, 1, 50)
             if ready < 0, errno == EINTR { continue }
-            guard ready >= 0 else { throw CommandFailure(description: "Unable to read handoff confirmation.") }
+            guard ready >= 0 else { throw CommandFailure(.hostRequirement, "Unable to read handoff confirmation.", inputSent: .none) }
             if ready == 0 { continue }
             var byte: UInt8 = 0
             let count = Darwin.read(input, &byte, 1)
             if count < 0, errno == EINTR { continue }
-            guard count >= 0 else { throw CommandFailure(description: "Unable to read handoff confirmation.") }
+            guard count >= 0 else { throw CommandFailure(.hostRequirement, "Unable to read handoff confirmation.", inputSent: .none) }
             if count == 0 { return .cancelled }
             if byte == 10 {
                 if overflowed { return .notCompleted }

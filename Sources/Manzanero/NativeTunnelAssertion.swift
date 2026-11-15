@@ -32,15 +32,16 @@ final class NativeTunnelAssertion {
         }
         guard status == 0, let owner else {
             _ = Self.release(owner)
-            throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+            // The assertion only opens a tunnel; it never sends device input.
+            throw CommandFailure(.transportFailed, String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self), inputSent: .none)
         }
         let value = String(decoding: address.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         do {
             _ = try RSDPortDiscovery.socketAddress(value, port: 1)
-            guard value == expected else { throw CommandFailure(description: "Apple assertion address differs from fresh selected-device details; discard it and refresh discovery.") }
+            guard value == expected else { throw CommandFailure(.preconditionChanged, "Apple assertion address differs from fresh selected-device details; discard it and refresh discovery.", inputSent: .none) }
         } catch {
             let release = Self.release(owner)
-            throw CommandFailure(description: "\(error) Assertion release confirmed=\(release.confirmed); \(release.diagnostic ?? release.status)")
+            throw CommandFailure("\(error) Assertion release confirmed=\(release.confirmed); \(release.diagnostic ?? release.status)", wrapping: error).noInputSent()
         }
         self.owner = owner
         self.address = value

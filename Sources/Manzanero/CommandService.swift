@@ -24,7 +24,7 @@ actor CommandService {
 
     init(leases: DeviceLeaseRegistry = .shared, readinessQuery: @escaping @Sendable (String) throws -> Data = { device in
         guard let plan = try DeviceCommand.parse(["physical", device, "details"]) else {
-            throw CommandFailure(description: "Cannot plan device readiness query.")
+            throw CommandFailure(.internal, "Cannot plan device readiness query.", inputSent: .none)
         }
         return try ToolRunner().run(plan.arguments + ["--quiet"])
     }, uiReadinessQuery: @escaping @Sendable (DeviceCommand) throws -> Data = { plan in
@@ -36,7 +36,7 @@ actor CommandService {
     }
 
     private func readiness(_ device: String) throws -> DeviceReadiness {
-        guard !device.isEmpty, !device.hasPrefix("-") else { throw CommandFailure(description: "Provide a valid device identifier.") }
+        guard !device.isEmpty, !device.hasPrefix("-") else { throw CommandFailure.usage("Provide a valid device identifier.") }
         return try DeviceReadiness.decode(readinessQuery(device), device: device)
     }
 
@@ -53,6 +53,29 @@ actor CommandService {
 
     func execute(_ args: [String], dryRun: Bool = false, allowInteractive: Bool = false,
                  handoffConfirmation: (@Sendable (HandoffCommand) async throws -> HandoffStatus)? = nil) async throws -> CommandOutput {
+        do {
+            return try await perform(args, dryRun: dryRun, allowInteractive: allowInteractive, handoffConfirmation: handoffConfirmation)
+        } catch let failure as CommandFailure where dryRun || Self.isReadOnly(args) {
+            // A dry run never contacts a device and an observation sends it
+            // nothing, whatever stage failed; the message is unchanged.
+            throw failure.noInputSent()
+        }
+    }
+
+    /// Commands that only read from the device (or touch no device at all).
+    /// Their failures cannot have sent input. Any other command is not
+    /// assumed read-only.
+    static func isReadOnly(_ args: [String]) -> Bool {
+        var args = CoreDeviceInput.selectDefaultBackend(args)
+        if args.count >= 2, args[0] == "--physical-backend" { args.removeFirst(2) }
+        if args.count >= 3, ["physical", "simulator"].contains(args[0]) {
+            return (observationOperations + ["media-status"]).contains(args[2])
+        }
+        return ["ocr", "devices", "doctor", "decode-ax-archive"].contains(args.first ?? "")
+    }
+
+    private func perform(_ args: [String], dryRun: Bool, allowInteractive: Bool,
+                         handoffConfirmation: (@Sendable (HandoffCommand) async throws -> HandoffStatus)?) async throws -> CommandOutput {
         try Task.checkCancellation()
         if let device = try NativeMediaInspection.parse(args) {
             if dryRun {
@@ -64,7 +87,7 @@ actor CommandService {
             }))
         }
         if args.first == "decode-ax-archive" {
-            guard args.count == 2, !args[1].isEmpty else { throw CommandFailure(description: "Usage: decode-ax-archive <local-plist>") }
+            guard args.count == 2, !args[1].isEmpty else { throw CommandFailure.usage("Usage: decode-ax-archive <local-plist>") }
             if dryRun { return try json(["backend": "foundation", "operation": "decode-ax-archive", "path": args[1], "execution": "In-process structural inspection; no device query or helper executable."]) }
             return CommandOutput(data: try KeyedArchiveInspector.inspectFile(args[1]))
         }
@@ -108,7 +131,7 @@ actor CommandService {
                         "execution": "In-process Apple Indigo keyboard at current focus; no clipboard operation or helper executable."])
                 }
                 guard (["button", "key"] + DirectPhysicalTouch.operations).contains(native.operation) else {
-                    throw CommandFailure(description: "Unsupported native physical operation: \(native.operation).")
+                    throw CommandFailure.unsupported("Unsupported native physical operation: \(native.operation).")
                 }
                 return try json(["backend": "coredevice-direct", "identityArguments": identity.arguments,
                     "operation": native.operation, "operands": native.operands,
@@ -123,24 +146,35 @@ actor CommandService {
             // identifier, whichever alias the caller used. The operation then
             // reuses these details for its own first identity read instead of
             // querying the device a second time.
-            var details: Data? = try readinessQuery(native.device)
+            var details: Data?
             let lease: DeviceLease?
-            if Self.nativeObservations.contains(native.operation) {
-                lease = nil
-            } else {
-                let resolved = try DirectPhysicalInput.identity(native, query: { _ in details ?? Data() })
-                lease = try leases.acquire(device: resolved.uuid, operation: native.operation)
+            do {
+                details = try readinessQuery(native.device)
+                if Self.nativeObservations.contains(native.operation) {
+                    lease = nil
+                } else {
+                    let resolved = try DirectPhysicalInput.identity(native, query: { _ in details ?? Data() })
+                    lease = try leases.acquire(device: resolved.uuid, operation: native.operation)
+                }
+            } catch let failure as CommandFailure {
+                throw failure.noInputSent()
             }
             defer { lease?.release() }
+            // Only read-only devicectl queries (details, displays, lock state)
+            // run through this closure, so its failures cannot have sent input.
             let query: (DeviceCommand) throws -> Data = { plan in
-                if plan.executable == identity.executable, plan.arguments == identity.arguments {
-                    if let prefetched = details {
-                        details = nil
-                        return prefetched
+                do {
+                    if plan.executable == identity.executable, plan.arguments == identity.arguments {
+                        if let prefetched = details {
+                            details = nil
+                            return prefetched
+                        }
+                        return try self.readinessQuery(native.device)
                     }
-                    return try self.readinessQuery(native.device)
+                    return try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40)
+                } catch let failure as CommandFailure {
+                    throw failure.noInputSent()
                 }
-                return try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40)
             }
             if native.operation == DirectPhysicalWake.operation {
                 return try DirectPhysicalWake.output(DirectPhysicalWake.execute(native, query: query))
@@ -174,13 +208,13 @@ actor CommandService {
         }
         if let handoff = try HandoffCommand.parse(args) {
             if dryRun { return try json(["platform": handoff.platform, "device": handoff.device, "message": handoff.message, "action": "Request human completion; no device action or prompt is executed by this dry run."]) }
-            guard pendingHandoffs.insert(handoff.target).inserted else { throw CommandFailure(description: "A handoff is already pending for this device.") }
+            guard pendingHandoffs.insert(handoff.target).inserted else { throw CommandFailure(.handoffPending, "A handoff is already pending for this device.", inputSent: .none) }
             defer { pendingHandoffs.remove(handoff.target) }
             if let handoffConfirmation {
                 let status = try await handoffConfirmation(handoff)
                 return try handoff.output(status, mechanism: "mcp-form")
             }
-            guard allowInteractive else { throw CommandFailure(description: "Handoff requires a terminal or an MCP host with form elicitation.") }
+            guard allowInteractive else { throw CommandFailure(.hostRequirement, "Handoff requires a terminal or an MCP host with form elicitation.", inputSent: .none) }
             return try handoff.output(TerminalHandoff.confirm(handoff), mechanism: "terminal")
         }
         if !dryRun { try checkHandoffPause(args) }
@@ -197,9 +231,9 @@ actor CommandService {
                 hierarchy: { try await self.execute([screen.platform, screen.device, "tree"]).data }))
         }
         if args.count == 3, args[0] == "physical", args[2] == "readiness" {
-            guard !args[1].isEmpty, !args[1].hasPrefix("-") else { throw CommandFailure(description: "Provide a valid device identifier.") }
+            guard !args[1].isEmpty, !args[1].hasPrefix("-") else { throw CommandFailure.usage("Provide a valid device identifier.") }
             if dryRun {
-                guard let plan = try DeviceCommand.parse(["physical", args[1], "details"]) else { throw CommandFailure(description: "Invalid device.") }
+                guard let plan = try DeviceCommand.parse(["physical", args[1], "details"]) else { throw CommandFailure.usage("Invalid device.") }
                 return try json(["executable": plan.executable, "arguments": plan.arguments + ["--quiet"],
                     "additionalReadOnlyQueries": ["displays", "lockState"],
                     "targetResolution": "Additional UI observations use the UUID resolved from fresh details; no queries are performed in dry run."] as [String: Any])
@@ -226,14 +260,19 @@ actor CommandService {
                     "stopPolicy": recording.native ? "Timestamped live frames; AVFoundation MP4 encoding; no automatic backend fallback." : (recording.physical ? "devicectl --duration" : "Wait for first frame, then SIGINT after duration; wait for finalization.")]
                 return try json(output)
             }
-            if recording.physical { try preflight(recording.device, operation: "record screen") }
-            // The native stream is owned for the whole capture. This process
-            // may still send input meanwhile; another process may not.
-            let lease = recording.native
-                ? try leases.acquire(device: CoreDeviceInput.resolve(readinessQuery(recording.device), requested: recording.device), operation: "record")
-                : nil
-            defer { lease?.release() }
-            return CommandOutput(data: try await recording.execute(directory: directory, runner: runner))
+            // Recording sends no input, so none of its failures can have.
+            do {
+                if recording.physical { try preflight(recording.device, operation: "record screen") }
+                // The native stream is owned for the whole capture. This process
+                // may still send input meanwhile; another process may not.
+                let lease = recording.native
+                    ? try leases.acquire(device: CoreDeviceInput.resolve(readinessQuery(recording.device), requested: recording.device), operation: "record")
+                    : nil
+                defer { lease?.release() }
+                return CommandOutput(data: try await recording.execute(directory: directory, runner: runner))
+            } catch let failure as CommandFailure {
+                throw failure.noInputSent()
+            }
         }
         if var command = try BuildRunCommand.parse(args) {
             let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
@@ -257,10 +296,10 @@ actor CommandService {
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
             return CommandOutput(data: data)
         }
-        guard !dryRun else { throw CommandFailure(description: "--dry-run requires a physical or simulator command.") }
+        guard !dryRun else { throw CommandFailure.usage("--dry-run requires a physical or simulator command.") }
         switch args {
         case let values where values.first == "ocr":
-            guard values.count == 2 else { throw CommandFailure(description: "Usage: manzanero ocr <image-path>") }
+            guard values.count == 2 else { throw CommandFailure.usage("Usage: manzanero ocr <image-path>") }
             let result = try await ScreenText.recognize(path: values[1])
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -275,12 +314,16 @@ actor CommandService {
         case ["doctor"]:
             return try Doctor.run { try runner.run($0) }
         default:
-            throw CommandFailure(description: "Unknown command. Run manzanero --help.")
+            throw CommandFailure.usage("Unknown command. Run manzanero --help.")
         }
     }
 
     /// Native AX reads: no device lease, and not paused by a pending handoff.
     static let nativeObservations = ["tree"] + AccessibilityWait.operations
+
+    /// Device operations that only read: not paused by a pending handoff.
+    static let observationOperations = ["readiness", "details", "apps", "processes", "screen", "screenshot", "files", "pull", "reports", "report"]
+        + nativeObservations
 
     private func json(_ value: Any) throws -> CommandOutput {
         CommandOutput(data: try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]))
@@ -288,14 +331,12 @@ actor CommandService {
 
     private func checkHandoffPause(_ args: [String]) throws {
         guard args.count >= 3, ["physical", "simulator"].contains(args[0]), pendingHandoffs.contains(where: { $0.platform == args[0] }) else { return }
-        let observations = ["readiness", "details", "apps", "processes", "screen", "screenshot", "files", "pull", "reports", "report"]
-            + Self.nativeObservations
-        guard !observations.contains(args[2]) else { return }
+        guard !Self.observationOperations.contains(args[2]) else { return }
         guard let id = DeviceTarget.identifier(args[1]), args[0] != "physical" || UUID(uuidString: args[1]) == nil else {
-            throw CommandFailure(description: "Use an explicit device ID (physical hardware UDID or simulator UUID) while a handoff is pending; aliases cannot be resolved safely for pause coordination.")
+            throw CommandFailure.usage("Use an explicit device ID (physical hardware UDID or simulator UUID) while a handoff is pending; aliases cannot be resolved safely for pause coordination.")
         }
         if pendingHandoffs.contains(DeviceTarget(platform: args[0], identifier: id)) {
-            throw CommandFailure(description: "Automation is paused for this device while human handoff is pending. Wait for the person's response.")
+            throw CommandFailure(.handoffPending, "Automation is paused for this device while human handoff is pending. Wait for the person's response.", inputSent: .none)
         }
     }
 }

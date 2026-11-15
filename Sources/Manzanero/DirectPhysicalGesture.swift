@@ -13,7 +13,7 @@ enum DirectPhysicalGesture {
             return try NativeGestureSequence(json: input.operands[0], transform: transform)
         }
         guard ["multi-tap", "multi-drag"].contains(input.operation) else {
-            throw CommandFailure(description: "Direct gesture expects a JSON schedule, multi-tap points, or multi-drag paths; no input sent.")
+            throw CommandFailure.usage("Direct gesture expects a JSON schedule, multi-tap points, or multi-drag paths; no input sent.")
         }
         try PhysicalInputOperands.validate(input.operation, input.operands)
         // The validation above guarantees finite coordinates and duration.
@@ -54,7 +54,7 @@ enum DirectPhysicalGesture {
         let display = try DirectTouchDisplay(query(plan))
         let sequence = try sequence(for: input, transform: display.portrait)
         guard try DirectTouchDisplay(query(plan)) == display else {
-            throw CommandFailure(description: "Display changed before gesture dispatch; no input sent.")
+            throw CommandFailure(.preconditionChanged, "Display changed before gesture dispatch; no input sent.", inputSent: .none)
         }
         try Task.checkCancellation()
         let surface = try send(Request(uuid: identity.uuid, version: identity.version, sequence: sequence))
@@ -81,7 +81,7 @@ enum DirectPhysicalGesture {
         // escapes to MCP's request-cancellation handler.
         try Task.checkCancellation()
         guard status == 0 else {
-            throw CommandFailure(description: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+            throw CommandFailure.inputDispatch(status: status, message: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
         }
         return surface
     }
