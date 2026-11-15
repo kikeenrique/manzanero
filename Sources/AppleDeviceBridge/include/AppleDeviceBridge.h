@@ -205,4 +205,34 @@ int ADCRunTouchSchedule(const ADCTouchSample *samples, const ADCTouchPoint *seco
 int ADCRunKeyboardSchedule(const ADCKeyboardSample *samples, size_t count,
                            ADCInputShouldStop shouldStop, ADCKeySink sendKey);
 int ADCRunPress(uint64_t usage, unsigned holdMicroseconds, ADCInputShouldStop shouldStop, ADCKeySink sendKey);
+
+/// Host-only availability of the dynamically resolved Apple interfaces, grouped
+/// by capability. Loads the listed frameworks with the operations' own flags and
+/// looks up symbols, classes and selectors; never calls a resolved function,
+/// messages a checked class, opens a connection or contacts a device.
+enum {
+    ADCInterfaceFramework = 0,      // name is the framework binary path
+    ADCInterfaceSymbol = 1,         // C symbol resolved with RTLD_DEFAULT
+    ADCInterfaceClass = 2,          // Objective-C class name
+    ADCInterfaceInstanceMethod = 3, // owner is the class, name the selector
+    ADCInterfaceClassMethod = 4
+};
+typedef struct {
+    int kind;
+    const char *name;
+    const char *owner;  // NULL unless kind is a method
+    int required;       // 0: missing degrades the capability without disabling it
+    int available;
+} ADCInterfaceRequirement;
+typedef struct {
+    const char *identifier;
+    const char *summary;
+    int minimumMacOSMajor;  // 0 when the executable's floor suffices
+    int usedByCommands;     // 0 for bridge paths no CLI/MCP command reaches
+    const ADCInterfaceRequirement *requirements;
+    size_t requirementCount;
+} ADCCapabilityCheck;
+/// Calls sink synchronously once per capability. Every pointer, including the
+/// static strings, is borrowed only for the duration of the call.
+void ADCCheckCapabilities(__attribute__((noescape)) void (^sink)(const ADCCapabilityCheck *capability));
 #endif

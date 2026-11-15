@@ -297,22 +297,7 @@ actor CommandService {
             _ = try JSONSerialization.jsonObject(with: data)
             return CommandOutput(data: data)
         case ["doctor"]:
-            var checks: [[String: String]] = []
-            for (name, command) in [
-                ("Xcode", ["xcodebuild", "-version"]),
-                ("CoreDevice", ["devicectl", "list", "devices", "--timeout", "5", "--json-output", "-"]),
-                ("CoreSimulator", ["simctl", "list", "devices", "available", "--json"])
-            ] {
-                do {
-                    _ = try runner.run(command)
-                    checks.append(["name": name, "status": "available"])
-                } catch {
-                    checks.append(["name": name, "status": "unavailable", "detail": String(describing: error)])
-                }
-            }
-            var output = try json(checks)
-            if checks.contains(where: { $0["status"] == "unavailable" }) { output.exitCode = 1 }
-            return output
+            return try Doctor.run { try runner.run($0) }
         default:
             throw CommandFailure(description: "Unknown command. Run manzanero --help.")
         }

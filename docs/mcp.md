@@ -27,7 +27,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 | Tools | Current purpose |
 | --- | --- |
-| `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks; apps and physical details/processes/media status. Legacy `hid-info` is unavailable. |
+| `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks plus host-only private-interface availability per capability ([doctor output](dependencies.md#reading-doctor-output)); apps and physical details/processes/media status. Legacy `hid-info` is unavailable. |
 | `device_readiness` | CoreDevice prerequisites plus separate display/passcode observations; see [readiness](readiness.md). |
 | `get_ui_tree` | Native physical AX hierarchy with optional PID. Simulator hierarchy is currently unavailable. |
 | `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR |
@@ -62,7 +62,7 @@ Tool content includes the CLI output as text. JSON is also returned under `struc
 
 - Unknown tools and invalid schema parameters produce JSON-RPC invalid-parameter errors.
 - Backend/domain failures produce `isError: true` and diagnostics.
-- Unsuccessful readiness/doctor results preserve structured data and set `isError: true`.
+- Unsuccessful readiness/doctor results preserve structured data and set `isError: true`. For doctor that means an unavailable Xcode, CoreDevice or CoreSimulator tool; a missing private interface is reported in its capability entry without `isError`.
 - Readiness's top-level status describes CoreDevice prerequisites; inspect `ui` separately.
 - Dispatch receipts retain unverified effect/release fields. Scroll callers must inspect `postconditionVerified`, even when the call exits successfully.
 

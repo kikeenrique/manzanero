@@ -53,6 +53,43 @@ Preserve the [MCP license/transition notice](../ThirdParty/swift-mcp-sdk-LICENSE
 
 No Apple device framework is redistributed. Runtime use depends on what the host's installed Apple software exposes. A successful build is not proof that a private interface works on a particular device.
 
+### Dynamically resolved interfaces
+
+The bridge resolves private interfaces lazily inside each operation (`dlopen`, `dlsym`, class and selector checks). The single list of them is the capability table in [`AppleInterfaceAvailability.m`](../Sources/AppleDeviceBridge/AppleInterfaceAvailability.m), exposed as `ADCCheckCapabilities`. The operations keep their own guards; when a guard changes, update the table too.
+
+Shared groups:
+
+- **CoreDevice preparation** (`ADCPrepareCoreDevice`): framework `/Library/Developer/PrivateFrameworks/CoreDevice.framework/CoreDevice` (`RTLD_NOW | RTLD_GLOBAL`), symbols `_coredevice_xpc_add_bundle`, `_coredevice_xpc_init_services`.
+- **RemoteXPC descriptor control**: `xpc_remote_connection_create_with_connected_fd`, `xpc_remote_connection_set_event_handler`, `xpc_remote_connection_activate`, `xpc_remote_connection_cancel`.
+- **Media control** (`ADCMediaControl`): CoreDevice preparation + descriptor control + `xpc_remote_connection_send_message_with_reply`.
+- **AVConference negotiation**: framework `/System/Library/PrivateFrameworks/AVConference.framework/Versions/A/AVConference` (`RTLD_NOW | RTLD_LOCAL`); classes `AVCMediaStreamNegotiator`, `AVCMediaStreamNegotiatorSettings`, `AVCMediaStreamNegotiatorSettingsCoreDeviceScreenSharing`; `-[AVCMediaStreamNegotiator initWithMode:options:error:]`, `-negotiatorSettings`, `-createOffer`, `-offer`, `-setAnswer:withError:`, `-generateMediaStreamConfigurationWithError:`, `-generateMediaStreamInitOptionsWithError:`; `+[AVCMediaStreamNegotiatorSettings negotiatorSettingsForMode:deviceRole:options:errorString:]`, `-[AVCMediaStreamNegotiatorSettings localSSRC]`. The five selectors from `createOffer` on are called without an operation guard, so doctor is the only advance check for them.
+
+| Capability (doctor `name`) | Commands | Requires | Optional |
+| --- | --- | --- | --- |
+| `physical-input` | `button`, `key`, `type`, `paste`, `tap`, `long-press`, `drag`, `swipe`, `pinch`, two-contact `multi-drag` (Indigo HID) | CoreDevice preparation, descriptor control, `xpc_remote_connection_send_message`, `xpc_remote_connection_send_message_with_reply` | — |
+| `multi-contact-input` | `gesture`, `multi-tap`, three-to-five-path `multi-drag` (Universal HID) | Same as `physical-input` | — |
+| `tunnel-assertion` | Native AX and native recording | Nothing dynamic: public XPC to the pairing daemon, which doctor does not contact | — |
+| `rsd-accessibility` | `tree`, `press-id`/`-label`, `scroll-id`/`-label` | CoreDevice preparation, `xpc_remote_connection_create_with_nw_connection`, `_setup_nw_parameters`, `_get_failsafe_version_flags`, `_cancel`, `_set_event_handler`, `_activate`, `_send_message` | — |
+| `media-inspection` | `media-status` | Media control | — |
+| `native-recording` (macOS 26+) | `record-screen --recording-backend coredevice` (packet mode) | Media control, AVConference negotiation | `-[AVCMediaStreamNegotiator mediaNegotiator]`, `VCMediaNegotiatorBase` and `-negotiatedScreenSettings`, `VCMediaNegotiatorResultsVideo` and `-isRTCPFBEnabled` (RTCP feedback stays unknown without them) |
+| `keyed-archive-uid` | AX archives, `decode-ax-archive` | `_CFKeyedArchiverUIDGetTypeID`, `_CFKeyedArchiverUIDGetValue` (linked CoreFoundation) | — |
+| `coredevice-accessibility-socket` | none (`ADCOpenAccessibilitySocket`) | CoreDevice preparation | — |
+| `rsd-directory-descriptor` | none (`ADCOpenRSDDirectory`) | CoreDevice preparation, `xpc_remote_connection_create_with_connected_fd`, `_get_failsafe_version_flags`, `_cancel`, `_set_event_handler`, `_activate`, `_send_message` | — |
+| `rsd-service-lookup` | none (`ADCOpenRSDAccessibilitySocket`, transport-profile reads) | `/System/Library/PrivateFrameworks/RemoteServiceDiscovery.framework/RemoteServiceDiscovery`, `remote_device_copy_device_matching`, `_copy_property`, `_copy_service`, `_copy_service_names`, `_type_parse`, `_type_get_description`, `_get_type`, `_get_state`, `remote_service_should_encrypt_socket_data`, `remote_service_create_connected_socket` | `remote_device_browse_present`, `_copy_uuid` (browse variant); `remote_device_get_xpc_remote_connection_version_flags`, `_mode_flags`, `remote_device_xpc_remote_connection_tls_enabled` (profile variant) |
+| `native-recording-jpeg` (macOS 26+) | none (`ADCCreateVideoSession`) | Media control, AVConference negotiation, `AVCVideoStream` (`-initWithNetworkSockets:options:error:`, `-configure:error:`, `-setDelegate:`, `-start`, `-stop`, `-streamToken`), `AVCStreamOutput` (`-initWithStreamToken:delegate:queue:error:`, `-setDelegate:`, `-validateAccess`) | — |
+
+The check loads each framework with the operation's own path and flags, which runs the image's initializers, and then only looks names up: `dlsym(RTLD_DEFAULT, …)`, `objc_lookUpClass` and a walk of `class_copyMethodList` up the superclass chain. It never calls a resolved function (in particular not the two CoreDevice initialisers), sends no message to a checked class (so no `+initialize` or dynamic method resolution runs), opens no connection and contacts no device. `AVCStreamOutput`'s runtime access validator needs an instance and is not run. A method provided only through dynamic resolution would be reported missing although `respondsToSelector:` accepts it; none of the listed methods is known to work that way.
+
+### Reading doctor output
+
+`manzanero doctor` prints one JSON array. Each entry has `name`, `kind` and `status`:
+
+- `kind: "tool"` — the original `Xcode`, `CoreDevice` (`devicectl`) and `CoreSimulator` (`simctl`) entries, with `status` `available` or `unavailable` (plus `detail`).
+- `kind: "host"` — `name: "Host"`, `status: "reported"`, with `macOSVersion`, `macOSBuild`, `xcodeVersion`, `xcodeBuild` (parsed from `xcodebuild -version`), `coreDeviceVersion` and `avConferenceVersion` (the frameworks' `CFBundleVersion`, read from `Info.plist` without loading code). Values that cannot be read are omitted.
+- `kind: "private-interface"` — one entry per capability above, with `summary`, `usedByCommands`, `checked` (number of interfaces checked), `missing` and `optionalMissing` (exact names: framework path, symbol, class, or `-[Class selector]` / `+[Class selector]`), and `minimumMacOS` where one applies. `status` is `available`, `degraded` (only optional names missing), `missing` (a required name is missing; that capability's commands will fail) or `unsupported-host` (the host macOS is below `minimumMacOS`, explained in `detail`; missing names are still listed).
+
+The exit code is 1 only when an entry has status `unavailable`, which only tool entries use, so the original rule is unchanged. Private-interface gaps keep exit code 0 (and MCP `isError: false`): each one disables a subset of commands, the rest of the product still works, and a host that uses only `devicectl`/`simctl` wrappers needs none of them. A non-zero exit for an optional capability would make doctor useless as a gate. Scripts that need a capability should test its entry's `status`. All results describe this host only; an `available` capability is not proof that the device accepts the operation.
+
 ## Implementation references and attribution
 
 Third-party device projects inform protocol understanding; their executables are not runtime dependencies.

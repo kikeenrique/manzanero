@@ -23,7 +23,8 @@ Usage:
   A second signal or a 30-second cleanup deadline forces exit; device-side release is unverified.
   Non-Apple device helper executables are disabled, including AXe, idevice, and ipb helpers.
   Legacy independent Wi-Fi pairing and pairing-file device operations are unavailable.
-  manzanero doctor               Check Xcode and device-service access
+  manzanero doctor               Check Xcode and device-service access, host versions, and host-only
+                                 availability of each private Apple interface by capability (no device contact)
   manzanero ocr <image-path>     Recognize image text and normalized bounds as JSON
   manzanero physical <device> apps
   manzanero physical <device> <processes|details>
