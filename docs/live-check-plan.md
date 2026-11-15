@@ -42,7 +42,16 @@ Run from the repository root with the device paired and unlocked. Replace `<UDID
    ```
    Read `tmp/probe-touch/<timestamp>/summary.txt`. Repeat with `--repeat 5` only after one clean run.
 
+## Not yet run on hardware
+
+- `install` and `uninstall` on the phone, `files`, `pull` and `push` against a real app container: all wait on the probe app.
+- `handoff` with a real prompt, and the `disabled` and `value` wait conditions.
+- `wake_device`, `wait_for_element` and the JSON error object through a live MCP session.
+- Anything on a second device.
+
 ## Questions still open
+
+- Can a system prompt (paste permission, and by extension trust or location prompts) be detected reliably? Accessibility refused at process selection with error 8 while one was showing.
 
 - Do the earlier unexplained tap misses reproduce against the probe, and if so are the touches absent from the log or delivered at another position?
 - Does `press-id` activate the reset element through accessibility, or does iOS synthesize a tap that the probe records?

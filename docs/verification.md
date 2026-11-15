@@ -82,6 +82,35 @@ Two longer checks followed with the rule in place. A 60-second CLI HEVC capture 
 
 These are single observations on one phone. The lease check used one pair of processes and one timing; the interrupt check does not show the contact was released on the device.
 
+### Wider command run on the phone and a simulator
+
+**2026-11-15, through `084b809`**, same iPhone 13 mini and host. Each row is one run unless it says otherwise; effects were checked by screenshot or a follow-up read.
+
+| Command | Observed |
+| --- | --- |
+| `screen auto`, `screen ocr` | In Settings: accessibility method with 106 nodes; OCR returned the visible Spanish labels |
+| `swipe`, `drag` | Scrolled the General list down and back; the tree's row positions changed accordingly |
+| `scroll-id` | A partly off-screen row was scrolled into view: native result true, postcondition verified |
+| `wait-id … --until enabled` | Met for that row |
+| `press-label` | First attempt refused before sending: the row and its hidden text share the label. After the change that accepts one visible match among explicitly hidden ones, it navigated |
+| `button volume-up`, `volume-down` | The volume indicator appeared after volume-up; volume-down was dispatched |
+| `type`, `key backspace` | `Wifi 12` typed into Settings search and two backspaces left `Wifi `, with matching results listed |
+| `paste` | The clipboard was replaced and iOS asked whether Settings may paste. After the operator allowed it, the field read `Wifi mañana 🚀 中` |
+| `pinch`, two-path `multi-drag`, two-contact `multi-tap` | In Maps: zoomed out, zoomed in and zoomed out respectively |
+| `gesture` (timed double tap) | Zoomed Maps in |
+| Three-contact `multi-tap` | Opened the place card under the middle contact, as a single tap would. Not evidence of three contacts |
+| `processes`, `terminate` | Maps was terminated by PID and left the process list |
+| `open-url` | An https URL opened in the default browser |
+| `reports`, `report` | 30 reports listed; one `.ips` (about 290 kB) downloaded and began with its JSON header |
+| MCP readiness and Home button checks | Passed |
+| MCP foreground check (`get_ui_tree`, `get_screen`) | Failed on the Home screen: its PNG is about 8.9 MB and was left out of the result. Passed after oversized images are sent downscaled |
+
+Two observations about system prompts. The paste prompt is not reachable through accessibility: `press-label` on its button failed before sending with `semantic refusal or notification in request response (error 8)` at process selection, while a coordinate tap worked. And a `wait-label` for a static detail row reported the single match as not visible, so labels of non-interactive rows are not reliable wait targets.
+
+Operator errors during this run, recorded because they changed device state: a 6-second long press meant for a Settings page was sent on the Home screen and put it into edit mode, left with one Home press and no layout change; and a `terminate` was first sent to the PID of the process listed before Maps (`passwordbreachd`, a system daemon) because of a wrong filter on the process list.
+
+**Simulator** (iPhone 17e, iOS 27.2, shut down beforehand and afterwards): `boot`, `apps`, `build-run` of the probe app, `screenshot`, `screen ocr` (read the probe's on-screen counters), `screen auto` (fell back to OCR with the "hierarchy is not available yet" diagnostic), a 3-second `record`, `terminate`, `launch`, `open-url`, `uninstall` and `shutdown` all exited 0 with the expected effect where one was checked. `tap` and `tree` were refused with the unsupported-operation error. The page opened by `open-url` was not checked beyond the foreground change.
+
 ## Direct physical input
 
 **2026-11-12 through 2026-11-14 — project-owned in-process Apple backends.**
