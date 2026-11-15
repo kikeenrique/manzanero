@@ -1,0 +1,19 @@
+// Tracked defaults for the probe app target. Account values never go here.
+//
+// Simulator builds need nothing else. For a physical device, put your own
+// values in the untracked repository file tmp/probe-app/Signing.xcconfig
+// (the probe-app:generate task writes it from DEVELOPMENT_TEAM and, when
+// set, PROBE_APP_BUNDLE_ID; both can live in the untracked .env.local):
+//
+//   DEVELOPMENT_TEAM = <your team identifier>
+//   PROBE_APP_BUNDLE_ID = <only if your team cannot sign the default below>
+//
+// The Tuist manifest sets the target's bundle identifier to
+// $(PROBE_APP_BUNDLE_ID), so it resolves from this file and its include.
+
+PROBE_APP_BUNDLE_ID = com.lemambo.manzanero.probeapp
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+
+// Optional include: a missing file is not an error. The path is relative to this file.
+#include? "../../../tmp/probe-app/Signing.xcconfig"

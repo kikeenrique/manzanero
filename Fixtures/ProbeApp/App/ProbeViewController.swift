@@ -59,9 +59,10 @@ final class ProbeResetElement: UIAccessibilityElement {
 /// Its accessibility children are UIAccessibilityElement objects, not views,
 /// so they cannot intercept touches.
 final class ProbeSurfaceView: UIView {
-    static let summaryIdentifier = "probe.summary"
-    static let lastGestureIdentifier = "probe.last-gesture"
-    static let resetIdentifier = "probe.reset"
+    // Namespaced by probe so later probes can add their own elements.
+    static let summaryIdentifier = "probe.touch.summary"
+    static let lastGestureIdentifier = "probe.touch.last-gesture"
+    static let resetIdentifier = "probe.touch.reset"
 
     private let model: ProbeModel
     private let summaryElement: ProbeReadoutElement

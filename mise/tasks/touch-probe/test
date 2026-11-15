@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-#MISE extends = "swift"
-#MISE description = "Run the touch probe's UIKit-independent core tests on macOS through xcsift (no simulator or device)"
-
-set -e -o pipefail
-
-swift test --package-path Fixtures/TouchProbe/ProbeCore --scratch-path tmp/touch-probe/core-build --cache-path tmp/swift-cache 2>&1 | xcsift -f toon --warnings

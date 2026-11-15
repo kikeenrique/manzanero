@@ -1,8 +1,12 @@
-# Touch probe fixture app
+# Probe fixture app
+
+The probe app is a small iOS app of this project's own that reports what the device actually received, so Manzanero's operations can be checked against ground truth instead of screenshots. It is meant to hold several probes. The first, and so far the only one, is the touch probe described here; its accessibility identifiers are namespaced `probe.touch.*` so later probes can add their own.
+
+## Touch probe
 
 A direct physical input receipt says Manzanero dispatched a touch; it does not say iOS delivered it. Until now delivery was judged from screenshots of Settings and Maps. Some taps returned success with no visible effect, three-to-five-contact gestures were never shown to arrive as that many contacts, and hold duration and release were unverified.
 
-The touch probe is a small iOS app of this project's own that records every touch UIKit delivers to it and lets Manzanero read that record back. A later live session can send known touches and compare them with what the app received: delivery rate, coordinate error, contact count, hold duration and release. The measurement runner does not exist yet.
+The touch probe records every touch UIKit delivers to the app and lets Manzanero read that record back. A later live session can send known touches and compare them with what the app received: delivery rate, coordinate error, contact count, hold duration and release. The measurement runner does not exist yet.
 
 The app is a test fixture. It is not part of the `manzanero` product and has no third-party dependencies.
 
@@ -10,38 +14,38 @@ The app is a test fixture. It is not part of the `manzanero` product and has no 
 
 | Path | Contents |
 | --- | --- |
-| `Fixtures/TouchProbe/Project.swift`, `Tuist.swift` | Tuist manifests (local generation only) |
-| `Fixtures/TouchProbe/Config/TouchProbe.xcconfig` | Neutral bundle identifier and signing defaults, with an optional untracked include |
-| `Fixtures/TouchProbe/ProbeCore/` | UIKit-independent Swift package: recorder, readout and log formats, log writer, Swift Testing tests |
-| `Fixtures/TouchProbe/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing |
-| `Fixtures/TouchProbe/UITests/` | XCUITest checks of the recording path in the simulator |
+| `Fixtures/ProbeApp/Project.swift`, `Tuist.swift` | Tuist manifests (local generation only) |
+| `Fixtures/ProbeApp/Config/ProbeApp.xcconfig` | Neutral bundle identifier and signing defaults, with an optional untracked include |
+| `Fixtures/ProbeApp/ProbeCore/` | UIKit-independent Swift package: recorder, readout and log formats, log writer, Swift Testing tests |
+| `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing |
+| `Fixtures/ProbeApp/UITests/` | XCUITest checks of the recording path in the simulator |
 
 Requirements: iOS 18.0 or later, iPhone only, portrait only. Swift 6 language mode with complete strict concurrency. Built and tested with Xcode 27.2 and Tuist 4.214.0.
 
 ## Generate, test and build
 
 ```sh
-mise run touch-probe:test       # core unit tests on macOS through xcsift; no simulator
-mise run touch-probe:generate   # Tuist workspace at tmp/touch-probe/generated/
+mise run probe-app:test       # core unit tests on macOS through xcsift; no simulator
+mise run probe-app:generate   # Tuist workspace at tmp/probe-app/generated/
 ```
 
-Tuist always writes the project, workspace and `Derived/` next to the manifest it loads and has no output-directory option. So the generate task copies `Project.swift` and `Tuist.swift` into `tmp/touch-probe/generated/` and generates there. It sets `TUIST_TOUCH_PROBE_FIXTURE` so the copied manifest points back at the tracked sources in `Fixtures/TouchProbe/`. Nothing generated lands in the tracked tree, and no `.gitignore` change is needed. Do not run `tuist generate` inside `Fixtures/TouchProbe/` itself: it would work, but it writes untracked projects there. The task pins Tuist through mise and does not use a Tuist account, server or binary cache.
+Tuist always writes the project, workspace and `Derived/` next to the manifest it loads and has no output-directory option. So the generate task copies `Project.swift` and `Tuist.swift` into `tmp/probe-app/generated/` and generates there. It sets `TUIST_PROBE_APP_FIXTURE` so the copied manifest points back at the tracked sources in `Fixtures/ProbeApp/`. Nothing generated lands in the tracked tree, and no `.gitignore` change is needed. Do not run `tuist generate` inside `Fixtures/ProbeApp/` itself: it would work, but it writes untracked projects there. The task pins Tuist through mise and does not use a Tuist account, server or binary cache.
 
 Build for a simulator (the simulator must exist; building does not boot it):
 
 ```sh
-xcodebuild -workspace tmp/touch-probe/generated/TouchProbe.xcworkspace -scheme TouchProbe \
+xcodebuild -workspace tmp/probe-app/generated/ProbeApp.xcworkspace -scheme ProbeApp \
   -destination 'platform=iOS Simulator,id=<simulator-UUID>' \
-  -derivedDataPath tmp/touch-probe/DerivedData build 2>&1 | xcsift -f toon --warnings
+  -derivedDataPath tmp/probe-app/DerivedData build 2>&1 | xcsift -f toon --warnings
 ```
 
-Replace `build` with `test` to run the XCUITest target on a booted simulator. Then install and launch with `xcrun simctl install <simulator-UUID> <path>/TouchProbe.app` and `xcrun simctl launch <simulator-UUID> com.lemambo.manzanero.probeapp`. Or use Manzanero's Build & Run, which takes the generated workspace:
+Replace `build` with `test` to run the XCUITest target on a booted simulator. Then install and launch with `xcrun simctl install <simulator-UUID> <path>/ProbeApp.app` and `xcrun simctl launch <simulator-UUID> com.lemambo.manzanero.probeapp`. Or use Manzanero's Build & Run, which takes the generated workspace:
 
 ```sh
-manzanero simulator <simulator-UUID> build-run tmp/touch-probe/generated/TouchProbe.xcworkspace TouchProbe
+manzanero simulator <simulator-UUID> build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp
 ```
 
-Xcode's package resolution can create an ignored `Fixtures/TouchProbe/ProbeCore/.swiftpm/`.
+Xcode's package resolution can create an ignored `Fixtures/ProbeApp/ProbeCore/.swiftpm/`.
 
 ## Signing for a physical device
 
@@ -50,22 +54,22 @@ The tracked files hold no team identifier. The default bundle identifier is the 
 ```sh
 DEVELOPMENT_TEAM=<team-id>
 DEVELOPER_DIR=/path/to/Xcode-27.2.app/Contents/Developer
-# TOUCH_PROBE_BUNDLE_ID=<your.bundle.id>   only if you cannot sign the default
+# PROBE_APP_BUNDLE_ID=<your.bundle.id>   only if you cannot sign the default
 ```
 
-`DEVELOPER_DIR` selects Xcode 27.2 for the tasks without changing the system-wide `xcode-select` choice; `Tuist.swift` refuses to generate with any other Xcode version. Then run `mise run touch-probe:generate`. Alternatively, pass the variables on the command line, or write the untracked `tmp/touch-probe/Signing.xcconfig` yourself:
+`DEVELOPER_DIR` selects Xcode 27.2 for the tasks without changing the system-wide `xcode-select` choice; `Tuist.swift` refuses to generate with any other Xcode version. Then run `mise run probe-app:generate`. Alternatively, pass the variables on the command line, or write the untracked `tmp/probe-app/Signing.xcconfig` yourself:
 
 ```
 DEVELOPMENT_TEAM = <team-id>
-TOUCH_PROBE_BUNDLE_ID = <your.bundle.id>
+PROBE_APP_BUNDLE_ID = <your.bundle.id>
 ```
 
-`Config/TouchProbe.xcconfig` includes that file optionally (`#include?`). The manifest sets the app target's bundle identifier to `$(TOUCH_PROBE_BUNDLE_ID)` because Tuist writes its `bundleId` into the target's build settings, which would otherwise override any xcconfig value. Signing is automatic. The task validates the formats, overwrites the file when either variable is set, and leaves it alone when neither is set.
+`Config/ProbeApp.xcconfig` includes that file optionally (`#include?`). The manifest sets the app target's bundle identifier to `$(PROBE_APP_BUNDLE_ID)` because Tuist writes its `bundleId` into the target's build settings, which would otherwise override any xcconfig value. Signing is automatic. The task validates the formats, overwrites the file when either variable is set, and leaves it alone when neither is set.
 
 Build & Run builds with the project's existing signing configuration and does not pass `-allowProvisioningUpdates`. A team, a registered device and a usable development provisioning profile for your bundle identifier must already exist on the Mac. One way to create them is a single interactive build from Xcode, or your own `xcodebuild ... -allowProvisioningUpdates`. After that:
 
 ```sh
-manzanero physical <UDID> build-run tmp/touch-probe/generated/TouchProbe.xcworkspace TouchProbe
+manzanero physical <UDID> build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp
 ```
 
 Physical signing and deployment of this app have not been tried.
@@ -145,9 +149,9 @@ The surface view is an accessibility container. Its children are three `UIAccess
 
 | Identifier | Label | Value |
 | --- | --- | --- |
-| `probe.summary` | `Probe summary` | Summary JSON (below) |
-| `probe.last-gesture` | `Probe last gesture` | Last completed gesture JSON (below) |
-| `probe.reset` | `Reset probe` | Current session identifier; button trait; resets when activated |
+| `probe.touch.summary` | `Probe summary` | Summary JSON (below) |
+| `probe.touch.last-gesture` | `Probe last gesture` | Last completed gesture JSON (below) |
+| `probe.touch.reset` | `Reset probe` | Current session identifier; button trait; resets when activated |
 
 **Why the value carries the JSON.** Manzanero's physical tree (`AccessibilitySnapshot.normalize`) returns `label`, `hint`, `identifier`, `value`, `frame`, `traits` and `visible` for each node. Each text field is returned verbatim as a string scalar, with no per-string length cap. The bounds are 512 nodes, depth 32, a 16 MiB archive limit and a 40 MiB per-session callback budget, far above these readouts, which are a few hundred bytes to about 1.5 KB. `identifier` is the stable selector. `label` stays a short fixed name, because `press-label` matches on it exactly and VoiceOver speaks it. `accessibilityValue` is the property meant for changing content. Values are computed when they are queried, so every snapshot reads current state.
 
@@ -155,9 +159,9 @@ The surface view is an accessibility container. Its children are three `UIAccess
 manzanero physical <UDID> tree
 ```
 
-Find the nodes whose `identifier` is `probe.summary` or `probe.last-gesture` and parse their `value` as JSON. The tree route requires the probe to be the foreground app at the display centre and the device in native portrait orientation (`rot0`). The probe locks portrait.
+Find the nodes whose `identifier` is `probe.touch.summary` or `probe.touch.last-gesture` and parse their `value` as JSON. The tree route requires the probe to be the foreground app at the display centre and the device in native portrait orientation (`rot0`). The probe locks portrait.
 
-Summary (`probe.summary`; illustrative values):
+Summary (`probe.touch.summary`; illustrative values):
 
 ```json
 {"active":0,"began":2,"cancelled":0,"ended":2,"events":4,"gestures":1,"log":{"bytes":748,"dropped":0,"lines":5},"maxActive":2,"moved":0,"session":"f3cebbed89520c56","size":[390,844],"unmatched":0,"v":1}
@@ -173,7 +177,7 @@ Summary (`probe.summary`; illustrative values):
 | `gestures` | Completed gestures in this session |
 | `log` | `lines` (including the header), `bytes`, `dropped`, and `error` when a write failed |
 
-Last completed gesture (`probe.last-gesture`). A gesture runs from a `began` with no contacts down until no contacts remain down:
+Last completed gesture (`probe.touch.last-gesture`). A gesture runs from a `began` with no contacts down until no contacts remain down:
 
 ```json
 {"contacts":[{"began":433566.56084,"c":0,"duration":0.066667,"end":"ended","from":[0.5,0.00592],"moves":0,"to":[0.5,0.00592]},{"began":433566.56084,"c":1,"duration":0.066667,"end":"ended","from":[0.5,0.99408],"moves":0,"to":[0.5,0.99408]}],"duration":0.066667,"gesture":1,"maxActive":2,"session":"f3cebbed89520c56","v":1}
@@ -203,10 +207,10 @@ manzanero physical <UDID> pull <bundle-id> Documents/touch-log.jsonl tmp/touch-l
 
 ## Reset without touching the surface
 
-Activating `probe.reset` through accessibility clears the counters, the marks and the log, and starts a new session whose header has `reason: reset`. Manzanero does this with an exact-identifier press:
+Activating `probe.touch.reset` through accessibility clears the counters, the marks and the log, and starts a new session whose header has `reason: reset`. Manzanero does this with an exact-identifier press:
 
 ```sh
-manzanero physical <UDID> press-id probe.reset
+manzanero physical <UDID> press-id probe.touch.reset
 ```
 
 The element meets `press-id`'s guards by construction. It has a fixed unique identifier, a positive frame wholly inside the display (a 180×52-point box near the bottom centre, outlined on screen), enabled and visible state, and no overlapping element, so an AX hit test at its centre should resolve to it. `accessibilityActivate()` performs the reset and returns `true`, which tells UIKit not to fall back to a synthesized tap. If a press were ever delivered as a tap instead, it would show as a `began`/`ended` pair at the reset box in the new session. A touch on the reset box is recorded like any other touch and does not reset.
@@ -238,10 +242,10 @@ Cannot show:
 
 Verified on 2026-11-15 with Xcode 27.2 (27B52), Tuist 4.214.0 and an iPhone 17e simulator running iOS 27.2 (24B8117):
 
-- 22 core unit tests passed through xcsift (`mise run touch-probe:test`).
+- 22 core unit tests passed through xcsift (`mise run probe-app:test`).
 - The Tuist workspace generated, and a clean simulator build reported zero errors and zero warnings.
 - The app installed and launched with `xcrun simctl`, and a screenshot showed the empty probe with the status bar hidden. The session header was present in `Documents/touch-log.jsonl`.
 - Four XCUITest tests passed: an empty launch with all three elements and a new session after relaunch; a single tap recorded within 0.02 of its normalised position; a 1.5-second press measured within 0.4 s; and a two-finger tap reported as `maxActive: 2` with contacts 0 and 1. XCUITest synthesises these touches, so they exercise UIKit delivery and the accessibility readback, not Manzanero's physical input path.
 - `manzanero simulator <UUID> build-run` on the generated workspace built, installed and launched the app (`status: launched`). A physical `build-run --dry-run` produced the expected plan.
 
-Not verified: anything on physical hardware. That includes signing, installation, `tree` readback, `press-id probe.reset`, `pull` of the log, and every delivery measurement. Activating the reset element through accessibility was not exercised in the simulator, because XCUITest has no accessibility-activate action. Manzanero cannot inject touches into a simulator.
+Not verified: anything on physical hardware. That includes signing, installation, `tree` readback, `press-id probe.touch.reset`, `pull` of the log, and every delivery measurement. Activating the reset element through accessibility was not exercised in the simulator, because XCUITest has no accessibility-activate action. Manzanero cannot inject touches into a simulator.

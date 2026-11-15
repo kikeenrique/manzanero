@@ -3,7 +3,7 @@ import XCTest
 /// End-to-end checks of the recording path in the iOS Simulator. XCUITest
 /// synthesizes the touches here; this exercises UIKit delivery to the probe and
 /// the accessibility readback, not Manzanero's physical-device input path.
-final class TouchProbeUITests: XCTestCase {
+final class ProbeAppUITests: XCTestCase {
     private var app: XCUIApplication!
 
     @MainActor
@@ -24,27 +24,27 @@ final class TouchProbeUITests: XCTestCase {
     @MainActor
     private func waitForSummary(_ condition: @escaping ([String: Any]) -> Bool) throws -> [String: Any] {
         let deadline = Date().addingTimeInterval(5)
-        var summary = try readout("probe.summary")
+        var summary = try readout("probe.touch.summary")
         while !condition(summary), Date() < deadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-            summary = try readout("probe.summary")
+            summary = try readout("probe.touch.summary")
         }
         return summary
     }
 
     @MainActor
     func testLaunchShowsEmptySessionAndResetElement() throws {
-        let summary = try readout("probe.summary")
+        let summary = try readout("probe.touch.summary")
         XCTAssertEqual(summary["v"] as? Int, 1)
         XCTAssertEqual(summary["events"] as? Int, 0)
         XCTAssertEqual(summary["maxActive"] as? Int, 0)
         let session = try XCTUnwrap(summary["session"] as? String)
         XCTAssertEqual(session.count, 16)
-        let gesture = try readout("probe.last-gesture")
+        let gesture = try readout("probe.touch.last-gesture")
         XCTAssertEqual(gesture["gesture"] as? Int, 0)
         XCTAssertEqual(gesture["session"] as? String, session)
 
-        let reset = app.descendants(matching: .any)["probe.reset"]
+        let reset = app.descendants(matching: .any)["probe.touch.reset"]
         XCTAssertTrue(reset.exists)
         XCTAssertEqual(reset.label, "Reset probe")
         XCTAssertEqual(reset.value as? String, session)
@@ -54,7 +54,7 @@ final class TouchProbeUITests: XCTestCase {
         // Relaunching must start a new session.
         app.terminate()
         app.launch()
-        let relaunched = try readout("probe.summary")
+        let relaunched = try readout("probe.touch.summary")
         XCTAssertNotEqual(relaunched["session"] as? String, session)
     }
 
@@ -68,7 +68,7 @@ final class TouchProbeUITests: XCTestCase {
         XCTAssertEqual(summary["maxActive"] as? Int, 1)
         XCTAssertEqual(summary["gestures"] as? Int, 1)
 
-        let gesture = try readout("probe.last-gesture")
+        let gesture = try readout("probe.touch.last-gesture")
         let contacts = try XCTUnwrap(gesture["contacts"] as? [[String: Any]])
         XCTAssertEqual(contacts.count, 1)
         let from = try XCTUnwrap(contacts[0]["from"] as? [Double])
@@ -81,7 +81,7 @@ final class TouchProbeUITests: XCTestCase {
     func testHoldDurationIsMeasured() throws {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)).press(forDuration: 1.5)
         _ = try waitForSummary { ($0["gestures"] as? Int ?? 0) >= 1 }
-        let gesture = try readout("probe.last-gesture")
+        let gesture = try readout("probe.touch.last-gesture")
         let contacts = try XCTUnwrap(gesture["contacts"] as? [[String: Any]])
         let duration = try XCTUnwrap(contacts.first?["duration"] as? Double)
         // XCUITest's own timing is approximate; this checks the measurement path, not precision.
@@ -94,7 +94,7 @@ final class TouchProbeUITests: XCTestCase {
         let summary = try waitForSummary { ($0["gestures"] as? Int ?? 0) >= 1 && ($0["active"] as? Int) == 0 }
         XCTAssertEqual(summary["maxActive"] as? Int, 2)
         XCTAssertEqual(summary["began"] as? Int, 2)
-        let gesture = try readout("probe.last-gesture")
+        let gesture = try readout("probe.touch.last-gesture")
         let contacts = try XCTUnwrap(gesture["contacts"] as? [[String: Any]])
         XCTAssertEqual(contacts.compactMap { $0["c"] as? Int }, [0, 1])
     }

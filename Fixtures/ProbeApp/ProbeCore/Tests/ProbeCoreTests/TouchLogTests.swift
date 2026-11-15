@@ -4,11 +4,11 @@ import Testing
 
 /// Log files go under the repository's tmp/ directory. SwiftPM runs these tests
 /// from the package directory, so the root is found from this file's path
-/// (Fixtures/TouchProbe/ProbeCore/Tests/ProbeCoreTests/ is five levels deep).
+/// (Fixtures/ProbeApp/ProbeCore/Tests/ProbeCoreTests/ is five levels deep).
 private func scratchURL(file: String = #filePath) throws -> URL {
     var root = URL(fileURLWithPath: file)
     for _ in 0..<6 { root.deleteLastPathComponent() }
-    let directory = root.appendingPathComponent("tmp/touch-probe/core-tests/\(UUID().uuidString)")
+    let directory = root.appendingPathComponent("tmp/probe-app/core-tests/\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     return directory.appendingPathComponent("Documents/touch-log.jsonl")
 }

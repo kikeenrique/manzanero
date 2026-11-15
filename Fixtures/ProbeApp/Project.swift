@@ -1,13 +1,13 @@
 import ProjectDescription
 
-// Tuist manifest for the touch probe fixture app. Generate it with
-// `mise run touch-probe:generate`, which copies this manifest and Tuist.swift
-// into tmp/touch-probe/generated/ and generates there, so no Xcode project or
+// Tuist manifest for the probe fixture app. Generate it with
+// `mise run probe-app:generate`, which copies this manifest and Tuist.swift
+// into tmp/probe-app/generated/ and generates there, so no Xcode project or
 // Derived/ output is written next to the tracked sources. The task sets
-// TUIST_TOUCH_PROBE_FIXTURE to the fixture directory relative to that copy;
-// without it, paths resolve next to this manifest. See docs/touch-probe.md.
+// TUIST_PROBE_APP_FIXTURE to the fixture directory relative to that copy;
+// without it, paths resolve next to this manifest. See docs/probe-app.md.
 
-let fixture = Environment.touchProbeFixture.getString(default: ".")
+let fixture = Environment.probeAppFixture.getString(default: ".")
 
 let swiftSettings: SettingsDictionary = [
     "SWIFT_VERSION": "6.0",
@@ -20,25 +20,25 @@ let swiftSettings: SettingsDictionary = [
 
 // Tuist writes `bundleId` into the target's build settings, which would
 // override any xcconfig value. The variable defers it to the xcconfig: the
-// tracked default lives in Config/TouchProbe.xcconfig and a person's own
-// value in the untracked tmp/touch-probe/Signing.xcconfig it includes.
-let signingConfig: Path = .relativeToManifest("\(fixture)/Config/TouchProbe.xcconfig")
+// tracked default lives in Config/ProbeApp.xcconfig and a person's own
+// value in the untracked tmp/probe-app/Signing.xcconfig it includes.
+let signingConfig: Path = .relativeToManifest("\(fixture)/Config/ProbeApp.xcconfig")
 
 let project = Project(
-    name: "TouchProbe",
+    name: "ProbeApp",
     options: .options(automaticSchemesOptions: .disabled),
     packages: [.package(path: .relativeToManifest("\(fixture)/ProbeCore"))],
     settings: .settings(base: swiftSettings),
     targets: [
         .target(
-            name: "TouchProbe",
+            name: "ProbeApp",
             destinations: [.iPhone],
             product: .app,
-            bundleId: "$(TOUCH_PROBE_BUNDLE_ID)",
+            bundleId: "$(PROBE_APP_BUNDLE_ID)",
             deploymentTargets: .iOS("18.0"),
             infoPlist: .dictionary([
                 "CFBundleDevelopmentRegion": "en",
-                "CFBundleDisplayName": "Touch Probe",
+                "CFBundleDisplayName": "Probe",
                 "CFBundleExecutable": "$(EXECUTABLE_NAME)",
                 "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
                 "CFBundleInfoDictionaryVersion": "6.0",
@@ -62,22 +62,22 @@ let project = Project(
             ])
         ),
         .target(
-            name: "TouchProbeUITests",
+            name: "ProbeAppUITests",
             destinations: [.iPhone],
             product: .uiTests,
             bundleId: "com.lemambo.manzanero.probeapp.uitests",
             deploymentTargets: .iOS("18.0"),
             infoPlist: .default,
             sources: [.glob(.relativeToManifest("\(fixture)/UITests/**/*.swift"))],
-            dependencies: [.target(name: "TouchProbe")]
+            dependencies: [.target(name: "ProbeApp")]
         ),
     ],
     schemes: [
         .scheme(
-            name: "TouchProbe",
-            buildAction: .buildAction(targets: ["TouchProbe"]),
-            testAction: .targets(["TouchProbeUITests"]),
-            runAction: .runAction(executable: "TouchProbe")
+            name: "ProbeApp",
+            buildAction: .buildAction(targets: ["ProbeApp"]),
+            testAction: .targets(["ProbeAppUITests"]),
+            runAction: .runAction(executable: "ProbeApp")
         ),
     ]
 )

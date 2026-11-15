@@ -124,7 +124,7 @@ public struct GestureContact: Encodable, Sendable, Equatable {
     public let moves: Int
 }
 
-/// Value of the `probe.last-gesture` accessibility element.
+/// Value of the `probe.touch.last-gesture` accessibility element.
 /// A gesture runs from a `began` with no contacts down until no contacts remain down.
 public struct LastGestureReadout: Encodable, Sendable, Equatable {
     public let v = probeFormatVersion
@@ -162,7 +162,7 @@ public struct LogStatus: Encodable, Sendable, Equatable {
     }
 }
 
-/// Value of the `probe.summary` accessibility element.
+/// Value of the `probe.touch.summary` accessibility element.
 public struct SummaryReadout: Encodable, Sendable, Equatable {
     public let v = probeFormatVersion
     public let session: String

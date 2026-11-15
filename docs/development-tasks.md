@@ -22,7 +22,7 @@ mise tasks validate
 | `release <version>` | Check version/worktree/tag, then push the tag to publish a beta through CI |
 | `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device |
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*`, `test:ax-*` | Opt-in native transport/media diagnostics |
-| `touch-probe:test`, `touch-probe:generate` | [Touch probe](touch-probe.md) core tests on macOS; Tuist workspace generation under `tmp/touch-probe/generated` |
+| `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core tests on macOS; Tuist workspace generation under `tmp/probe-app/generated` |
 | `coredevice:*`, `idevice:*` | Retired helper research/build tests; not runtime setup |
 
 Use the installed task's argument help rather than guessing flags:
@@ -61,7 +61,7 @@ Run these as `mise run <task> ...`. They use explicit targets and save private e
 
 `#MISE` headers declare descriptions, templates, dependencies and environment. `#USAGE` headers declare arguments. Scripts run from the repository root, including when invoked from a child directory.
 
-`mise.toml` loads an optional, ignored `.env.local` from the repository root into every task. Use it for machine-local values such as `DEVELOPER_DIR` (to pin the Xcode the tasks use) and `DEVELOPMENT_TEAM` (for [touch probe](touch-probe.md) device signing). Never commit it.
+`mise.toml` loads an optional, ignored `.env.local` from the repository root into every task. Use it for machine-local values such as `DEVELOPER_DIR` (to pin the Xcode the tasks use) and `DEVELOPMENT_TEAM` (for [probe app](probe-app.md) device signing). Never commit it.
 
 Keep compiler/package caches, temporary tools and downloaded references under visible `tmp/`; build products use `.build/`. Never commit device artifacts or pairing records.
 

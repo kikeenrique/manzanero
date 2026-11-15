@@ -113,7 +113,7 @@ Host configuration formats vary. Set a suitable working directory: relative file
 
 Run `mise run test` for local checks and `mise tasks validate` for task definitions. Device tests are opt-in and may mutate the selected device; read their help first.
 
-Start with [architecture and dependencies](docs/dependencies.md), [development tasks](docs/development-tasks.md), [roadmap](docs/roadmap.md) and [verification](docs/verification.md). Protocol and implementation references are collected in [accessibility notes](docs/accessibility-protocol.md), [transport notes](docs/transport.md) and the [AXe review](docs/axe-physical-review.md). The [touch probe](docs/touch-probe.md) is a fixture iOS app for measuring physical touch delivery. Repository workflow rules are in [AGENTS.md](AGENTS.md).
+Start with [architecture and dependencies](docs/dependencies.md), [development tasks](docs/development-tasks.md), [roadmap](docs/roadmap.md) and [verification](docs/verification.md). Protocol and implementation references are collected in [accessibility notes](docs/accessibility-protocol.md), [transport notes](docs/transport.md) and the [AXe review](docs/axe-physical-review.md). The [probe app](docs/probe-app.md) is a fixture iOS app for measuring physical touch delivery. Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
 
 ## License

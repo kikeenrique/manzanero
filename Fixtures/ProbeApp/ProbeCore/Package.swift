@@ -1,7 +1,7 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
-// UIKit-independent recording, summary and log logic for the touch probe app.
+// UIKit-independent recording, summary and log logic for the probe app's touch probe.
 // Its tests run on macOS with `swift test`; the app links the library.
 let package = Package(
     name: "ProbeCore",
