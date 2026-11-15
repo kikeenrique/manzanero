@@ -203,10 +203,13 @@ int ADCOpenNativeTunnelAssertion(const char *expectedUDID, int (^shouldCancel)(v
         if (!lifetime.browse) return ADCFail(error, capacity, @"Cannot create Apple pairing-daemon connection; no assertion requested.");
         ADCReplyState *selection = [ADCReplyState new];
         __block unsigned events = 0;
+        // Diagnostic only: which of the browse's failure modes occurred.
+        __block NSString *reason = nil;
         xpc_connection_set_event_handler(lifetime.browse, ^(xpc_object_t event) {
             @synchronized(selection) {
                 if (selection.finished) return;
                 if (xpc_get_type(event) == XPC_TYPE_ERROR || ++events > 256) {
+                    if (!reason) reason = xpc_get_type(event) == XPC_TYPE_ERROR ? @"the browse connection reported an error" : @"more than 256 browse events arrived";
                     selection.failed = YES; dispatch_semaphore_signal(selection.semaphore); return;
                 }
                 if (xpc_get_type(event) != XPC_TYPE_DICTIONARY) return;
@@ -217,7 +220,10 @@ int ADCOpenNativeTunnelAssertion(const char *expectedUDID, int (^shouldCancel)(v
                 const char *udid = info ? xpc_dictionary_get_string(info, "udid") : NULL;
                 if (!udid || !ADCValidHardwareUDID(udid) || strcasecmp(udid, hardware.UTF8String)) return;
                 xpc_object_t endpoint = xpc_dictionary_get_value(info, "endpoint");
-                if (!endpoint || xpc_get_type(endpoint) != XPC_TYPE_ENDPOINT || selection.reply) selection.failed = YES;
+                if (!endpoint || xpc_get_type(endpoint) != XPC_TYPE_ENDPOINT || selection.reply) {
+                    if (!reason) reason = selection.reply ? @"the device was announced more than once" : @"the device was announced without a usable endpoint";
+                    selection.failed = YES;
+                }
                 else selection.reply = endpoint;
                 dispatch_semaphore_signal(selection.semaphore);
             }
@@ -228,20 +234,25 @@ int ADCOpenNativeTunnelAssertion(const char *expectedUDID, int (^shouldCancel)(v
         xpc_connection_send_message_with_reply(lifetime.browse, ADCMercuryMessage("RemotePairing.BrowseRequest", options), lifetime.queue, ^(xpc_object_t reply) {
             if (xpc_get_type(reply) == XPC_TYPE_ERROR || (xpc_get_type(reply) == XPC_TYPE_DICTIONARY && xpc_dictionary_get_value(reply, "error"))) {
                 @synchronized(selection) {
-                    if (!selection.finished) { selection.failed = YES; dispatch_semaphore_signal(selection.semaphore); }
+                    if (!selection.finished) {
+                        if (!reason) reason = @"the browse request was refused";
+                        selection.failed = YES; dispatch_semaphore_signal(selection.semaphore);
+                    }
                 }
             }
         });
         uint64_t deadline = clock_gettime_nsec_np(CLOCK_MONOTONIC) + 12ULL * NSEC_PER_SEC;
         BOOL selected = ADCWaitForReply(selection, deadline, shouldCancel);
         xpc_object_t endpoint;
+        NSString *cause;
         @synchronized(selection) {
             selection.finished = YES;
             endpoint = selected && !selection.failed ? selection.reply : nil;
+            cause = reason ?: (selected ? @"no endpoint was selected" : @"the device was not announced in time");
         }
         if (!endpoint || (shouldCancel && shouldCancel())) {
             xpc_connection_cancel(lifetime.browse);
-            return ADCFail(error, capacity, @"Apple pairing daemon did not select the exact hardware endpoint within the bounded browse; no assertion or pairing requested.");
+            return ADCFail(error, capacity, [NSString stringWithFormat:@"Apple pairing daemon did not select the exact hardware endpoint within the bounded browse (%@); no assertion or pairing requested.", cause]);
         }
         lifetime.device = xpc_connection_create_from_endpoint(endpoint);
         if (!lifetime.device) {
