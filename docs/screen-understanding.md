@@ -28,7 +28,7 @@ The screenshot precedes the hierarchy query. These are different observations of
 
 Images are saved under a new `tmp/screen-<UUID>/` directory. JSON includes image path, decoded pixel dimensions, capture time, selected method, coordinate space and diagnostics. Successful analysis reports `status: captured`; automatic image-only fallback reports `status: partial`. An empty OCR result has an explicit diagnostic.
 
-MCP `get_screen` accepts `platform`, `device` and optional `method`. JSON appears under `structuredContent.result`; the saved PNG is included as image content up to 8 MiB. Larger images stay on disk with an omission notice.
+MCP `get_screen` accepts `platform`, `device` and optional `method`. JSON appears under `structuredContent.result`; the saved PNG is included as image content up to 8 MiB, and a larger one is included as a downscaled copy with a note (see [MCP](mcp.md)).
 
 ## Coordinate spaces
 

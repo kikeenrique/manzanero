@@ -110,9 +110,9 @@ enum MCPTools {
             if $0["interval_seconds"] != nil { args += ["--interval", $0.number("interval_seconds")] }
             return args
         },
-        .init(name: "get_screen", description: "Capture a PNG and inspect it. Auto prefers a useful physical AX tree (app at primary display centre), then Vision OCR, then explicitly reports image-only. Method can force tree or ocr. Simulators have no accessibility tree yet: auto uses OCR and tree is refused. Returns coordinate space, dimensions, diagnostics, and image content up to 8 MiB. Physical AX uses logical points, OCR normalized bounds. Capture/analysis are sequential and non-atomic.", fields: [platform, device, .init(name: "method", required: false, choices: ["auto", "tree", "ocr"])], imagePath: "imagePath", imageFromResult: true) { $0.deviceCommand(["screen", $0.text("method", default: "auto")]) },
+        .init(name: "get_screen", description: "Capture a PNG and inspect it. Auto prefers a useful physical AX tree (app at primary display centre), then Vision OCR, then explicitly reports image-only. Method can force tree or ocr. Simulators have no accessibility tree yet: auto uses OCR and tree is refused. Returns coordinate space, dimensions, diagnostics, and the image (downscaled, with a note, when the PNG exceeds 8 MiB). Physical AX uses logical points, OCR normalized bounds. Capture/analysis are sequential and non-atomic.", fields: [platform, device, .init(name: "method", required: false, choices: ["auto", "tree", "ocr"])], imagePath: "imagePath", imageFromResult: true) { $0.deviceCommand(["screen", $0.text("method", default: "auto")]) },
         .init(name: "decode_accessibility_archive", description: "Inspect a saved local keyed archive in process through Foundation, without connecting to a device or launching a helper. Bounded data-only structural decoding preserves unknown classes/fields, decodes nested archives, and represents opaque data by byte count. Does not instantiate archived classes, produce a parsed physical hierarchy or establish numeric attribute meanings.", fields: [.init(name: "path")], readOnly: true) { ["decode-ax-archive", $0.text("path")] },
-        .init(name: "screenshot", description: "Capture a PNG to a local path and return it as MCP image content if at most 8 MiB. May replace an existing local file. Simulator and awake/unlocked iPhone 13 mini USB capture verified; earlier captures before confirmed wake/unlock were black.", fields: [platform, device, .init(name: "path", description: "Local output path ending in .png; prefer ignored tmp/.")], imagePath: "path") { $0.deviceCommand(["screenshot", $0.text("path")]) },
+        .init(name: "screenshot", description: "Capture a PNG to a local path and return it as MCP image content, downscaled with a note when the PNG exceeds 8 MiB. May replace an existing local file. Simulator and awake/unlocked iPhone 13 mini USB capture verified; earlier captures before confirmed wake/unlock were black.", fields: [platform, device, .init(name: "path", description: "Local output path ending in .png; prefer ignored tmp/.")], imagePath: "path") { $0.deviceCommand(["screenshot", $0.text("path")]) },
         .init(name: "record_screen", description: "Record a finite screen video to a new host .mp4 path. Parent must exist; existing paths refused. Duration 1...300 seconds; h264 or hevc. Physical defaults to devicectl, which may lack capability; optional recording_backend coredevice uses in-process Apple negotiation, HEVC RTP decoding with VideoToolbox and AVFoundation encoding on macOS 26+. Native publication requires owned stop/absence and tunnel-release acknowledgements. Native RTCP receiver reports are sent to the owned peer. Experimental: reliable startup, keyframe/crash recovery and captures beyond verified durations remain incomplete or unverified. No automatic fallback, audio, or inline video. Metadata includes decoded duration/dimensions.", fields: [platform, device, .init(name: "path"), .init(name: "seconds", kind: .number), .init(name: "codec", required: false, choices: ["h264", "hevc"]), .init(name: "recording_backend", required: false, choices: ["devicectl", "coredevice"])]) {
             ($0["recording_backend"] == nil ? [] : ["--recording-backend", $0.text("recording_backend")]) + $0.deviceCommand(["record", $0.text("path"), $0.number("seconds"), $0.text("codec", default: "h264")])
         },
@@ -181,13 +181,12 @@ enum MCPTools {
             var content: [Tool.Content] = [.text(text: String(decoding: output.data, as: UTF8.self), annotations: nil, _meta: nil)]
             if output.exitCode == 0, let key = definition.imagePath,
                let path = (definition.imageFromResult ? value?.objectValue?[key] : arguments[key])?.stringValue {
-                let url = URL(fileURLWithPath: path)
-                let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-                if size <= 8 * 1024 * 1024 {
-                    content.append(.image(data: try Data(contentsOf: url).base64EncodedString(), mimeType: "image/png", annotations: nil, _meta: nil))
-                } else {
-                    content.append(.text(text: "PNG saved; image content omitted because it exceeds 8 MiB.", annotations: nil, _meta: nil))
+                let (attachment, omission) = try InlineImage.attachment(for: URL(fileURLWithPath: path))
+                if let attachment {
+                    content.append(.image(data: attachment.data.base64EncodedString(), mimeType: "image/png", annotations: nil, _meta: nil))
+                    if let note = attachment.note { content.append(.text(text: note, annotations: nil, _meta: nil)) }
                 }
+                if let omission { content.append(.text(text: omission, annotations: nil, _meta: nil)) }
             }
             return .init(content: content, structuredContent: value.map { .object(["result": $0]) },
                          isError: !definition.answerExitCodes.contains(output.exitCode))
