@@ -59,6 +59,13 @@ Usage:
   manzanero physical <UDID> <press-id|press-label> [positive-pid] <exact-selector>
   manzanero physical <UDID> <scroll-id|scroll-label> [positive-pid] <exact-selector>
   AX press resolves a fresh unique visible/enabled element; native acceptance does not verify UI effect.
+  manzanero physical <UDID> <wait-id|wait-label> [positive-pid] <exact-selector>
+      [--until visible|gone|enabled|disabled|value] [--value <exact-text>]
+      [--timeout <seconds: 0...60, default 10>] [--interval <seconds: 0.25...5, default 0.5>]
+  AX wait polls one session read-only until the condition holds: visible (default) needs exactly one
+  visible match; gone means no match or none visible. Omitted PID re-selects the display-centre app
+  each poll. Exit 0 when met, 124 on timeout (JSON on stdout either way), 1 on failure. No input sent.
+  Options follow the selector; with a PID, the selector cannot be one of the option names.
   manzanero decode-ax-archive <local-plist>  Offline structural archive inspection
   manzanero physical <UDID> tap <x> <y>
   manzanero physical <UDID> multi-tap <x1> <y1> <x2> <y2> [<x3> <y3> ...]

@@ -23,25 +23,20 @@ struct DirectAccessibilityAction {
         self.text = text
     }
 
+    var selector: AccessibilitySelector { AccessibilitySelector(by: by, text: text) }
+
     func resolve(_ snapshot: AccessibilityArchiveValue, root: AccessibilityRequest.Token) throws -> AccessibilitySnapshot.Node {
-        let nodes = try AccessibilitySnapshot.normalize(snapshot, root: root)
-        var records = [snapshot]
-        var found: (AccessibilitySnapshot.Node, AccessibilityArchiveValue)?
-        for (index, node) in nodes.enumerated() {
-            guard case .dictionary(let record) = records[index], case .array(let children) = record["UIAccessibilitySnapshotKeyChildren"],
-                  let attributes = record["UIAccessibilitySnapshotKeyAttributes"] else { throw failure("invalid snapshot record") }
-            records.append(contentsOf: children)
-            let value = by == "identifier" ? node.identifier : node.label
-            guard value == .string(text) else { continue }
-            guard node.token.pid == root.pid else { throw failure("target belongs to another process") }
+        var found: AccessibilitySelector.Match?
+        for match in try selector.matches(snapshot, root: root, failure: failure) {
+            guard match.node.token.pid == root.pid else { throw failure("target belongs to another process") }
             if let found {
-                guard sameIdentity(found.0.token, node.token), found.1 == attributes else {
+                guard sameIdentity(found.node.token, match.node.token), found.attributes == match.attributes else {
                     throw failure("selector has multiple distinct or inconsistent matches")
                 }
-            } else { found = (node, attributes) }
+            } else { found = match }
         }
         guard let found else { throw failure("selector has no match in the fresh bounded snapshot") }
-        return found.0
+        return found.node
     }
 
     func execute(session: AccessibilitySession, display: () throws -> AccessibilityDisplay) throws -> Data {
@@ -168,4 +163,36 @@ struct DirectAccessibilityAction {
         a.pid == b.pid && a.objectID == b.objectID
     }
     private func failure(_ reason: String) -> CommandFailure { CommandFailure(description: "Native AX \(operation): \(reason).") }
+}
+
+/// One exact identifier or label selector, shared by actions and waits so
+/// both read a snapshot the same way. Matching is exact, case-sensitive string
+/// equality on the normalized node field; non-string scalars never match.
+struct AccessibilitySelector: Sendable, Equatable {
+    struct Match {
+        let node: AccessibilitySnapshot.Node
+        /// The node's full native attribute record, for duplicate-path checks.
+        let attributes: AccessibilityArchiveValue
+    }
+
+    let by: String
+    let text: String
+
+    /// Normalizes the snapshot (its node/depth bounds apply) and returns every
+    /// matching node in traversal order, including repeated paths and foreign
+    /// process references. Callers decide what ambiguity means.
+    func matches(_ snapshot: AccessibilityArchiveValue, root: AccessibilityRequest.Token,
+                 failure: (String) -> CommandFailure) throws -> [Match] {
+        let nodes = try AccessibilitySnapshot.normalize(snapshot, root: root)
+        var records = [snapshot]
+        var found: [Match] = []
+        for (index, node) in nodes.enumerated() {
+            guard case .dictionary(let record) = records[index], case .array(let children) = record["UIAccessibilitySnapshotKeyChildren"],
+                  let attributes = record["UIAccessibilitySnapshotKeyAttributes"] else { throw failure("invalid snapshot record") }
+            records.append(contentsOf: children)
+            let value = by == "identifier" ? node.identifier : node.label
+            if value == .string(text) { found.append(Match(node: node, attributes: attributes)) }
+        }
+        return found
+    }
 }

@@ -18,10 +18,22 @@ final class AccessibilitySession {
         case unconfirmed(String)
     }
 
+    /// Whole-session bounds against a slow, chatty or hostile peer. The
+    /// standard values serve single observations and actions; a bounded wait
+    /// scales them to its own maximum poll count. Cleanup keeps its separate
+    /// three-second/32-frame allowance either way.
+    struct Limits: Sendable, Equatable {
+        var lifetime: Duration = .seconds(30)
+        var frames = 256
+        var callbackBytes = 40 * 1024 * 1024
+        static let standard = Limits()
+    }
+
     private enum State { case new, active, closed }
     private let transport: any AccessibilitySessionTransport
     private let now: () -> ContinuousClock.Instant
     private let cancelled: () -> Bool
+    private let limits: Limits
     private let deadline: ContinuousClock.Instant
     private var state = State.new
     private var busy = false
@@ -34,13 +46,14 @@ final class AccessibilitySession {
     private var results: [AccessibilityArchiveValue] = []
     private(set) var cleanup: Cleanup?
 
-    init(transport: any AccessibilitySessionTransport,
+    init(transport: any AccessibilitySessionTransport, limits: Limits = .standard,
          now: @escaping () -> ContinuousClock.Instant = { ContinuousClock.now },
          cancelled: @escaping () -> Bool = { Task.isCancelled }) {
         self.transport = transport
         self.now = now
         self.cancelled = cancelled
-        deadline = now().advanced(by: .seconds(30))
+        self.limits = limits
+        deadline = now().advanced(by: limits.lifetime)
     }
 
     deinit { transport.close() }
@@ -164,7 +177,7 @@ final class AccessibilitySession {
         try check(limit)
         // Reserve a separate frame budget for cleanup after a read budget fails.
         if !stopping {
-            guard frames < 256 else { throw invalid("frame budget exceeded") }
+            guard frames < limits.frames else { throw invalid("frame budget exceeded") }
             frames += 1
         } else {
             guard cleanupFrames < 32 else { throw invalid("cleanup frame budget exceeded") }
@@ -188,7 +201,7 @@ final class AccessibilitySession {
             }
             if selector == "processDataFromRemoteDevice:" {
                 let bytes = try frame.archiveArgument()
-                guard bytes.count <= 40 * 1024 * 1024 - callbackBytes else { throw invalid("callback byte budget exceeded") }
+                guard bytes.count <= limits.callbackBytes - callbackBytes else { throw invalid("callback byte budget exceeded") }
                 callbackBytes += bytes.count
                 // Startup/cleanup callbacks cannot satisfy a later request.
                 if let expected {

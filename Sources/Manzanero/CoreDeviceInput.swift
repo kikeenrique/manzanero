@@ -11,15 +11,16 @@ struct CoreDeviceInput {
 
     static func selectDefaultBackend(_ args: [String]) -> [String] {
         args.count >= 3 && args[0] == "physical" &&
-            (["button", "key", "type", "paste", "gesture", "multi-tap", "tree", "press-id", "press-label", "scroll-id", "scroll-label"] + DirectPhysicalTouch.operations).contains(args[2])
+            (["button", "key", "type", "paste", "gesture", "multi-tap", "tree", "press-id", "press-label", "scroll-id", "scroll-label"]
+                + AccessibilityWait.operations + DirectPhysicalTouch.operations).contains(args[2])
             ? ["--physical-backend", "coredevice"] + args : args
     }
 
     static func parse(_ args: [String]) throws -> Self? {
         guard args.first == "--physical-backend" else { return nil }
         guard args.count >= 5, args[1] == "coredevice", args[2] == "physical",
-              ["button", "tap", "multi-tap", "long-press", "gesture", "drag", "swipe", "key", "type", "paste", "multi-drag", "pinch", "tree", "press-id", "press-label", "scroll-id", "scroll-label"].contains(args[4]) else {
-            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|multi-tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch|tree|press-id|press-label|scroll-id|scroll-label> ... . Tree and selector actions accept an optional PID. Pairing files are not supported by this backend.")
+              (["button", "tap", "multi-tap", "long-press", "gesture", "drag", "swipe", "key", "type", "paste", "multi-drag", "pinch", "tree", "press-id", "press-label", "scroll-id", "scroll-label"] + AccessibilityWait.operations).contains(args[4]) else {
+            throw CommandFailure(description: "Native backend usage: --physical-backend coredevice physical <device> <button|tap|multi-tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch|tree|press-id|press-label|scroll-id|scroll-label|wait-id|wait-label> ... . Tree, selector actions and waits accept an optional PID. Pairing files are not supported by this backend.")
         }
         var operands = Array(args.dropFirst(5))
         guard !args[3].isEmpty, !args[3].hasPrefix("-") else {
@@ -27,6 +28,8 @@ struct CoreDeviceInput {
         }
         if ["press-id", "press-label", "scroll-id", "scroll-label"].contains(args[4]) {
             _ = try DirectAccessibilityAction(Self(device: args[3], operation: args[4], operands: operands))
+        } else if AccessibilityWait.operations.contains(args[4]) {
+            _ = try AccessibilityWait(Self(device: args[3], operation: args[4], operands: operands))
         } else if args[4] == "tree" {
             if !operands.isEmpty {
                 guard operands.count == 1, let pid = Int32(operands[0]), pid > 0 else {

@@ -86,6 +86,9 @@ actor CommandService {
                         "identityArguments": identity.arguments, "liveVerified": false,
                         "execution": "Native AX: primary portrait display selection, two unique snapshots and live state/frame guards before one action. Press checks exact hit; scroll follows with fresh visibility/frame/hit and selection checks. No fallback or replay."])
                 }
+                if AccessibilityWait.operations.contains(native.operation) {
+                    return try json(AccessibilityWait(native).plan(identityArguments: identity.arguments))
+                }
                 if native.operation == "tree" {
                     return try json(["backend": "coredevice-direct", "operation": "tree", "pid": native.operands.first.flatMap(Int.init).map { $0 as Any } ?? NSNull(),
                         "identityArguments": identity.arguments, "liveVerified": false,
@@ -131,7 +134,7 @@ actor CommandService {
             try checkHandoffPause(Array(nativeArguments.dropFirst(2)))
             let identity = try native.identityPlan()
             // Input and AX actions own the device across processes for their
-            // duration; a tree read is an observation and takes no lease.
+            // duration; tree reads and waits are observations and take no lease.
             // Readiness and identity are checked first, so preparation errors
             // keep their meaning and the lease is keyed by the resolved CoreDevice
             // identifier, whichever alias the caller used. The operation then
@@ -139,7 +142,7 @@ actor CommandService {
             // querying the device a second time.
             var details: Data? = try readinessQuery(native.device)
             let lease: DeviceLease?
-            if native.operation == "tree" {
+            if Self.nativeObservations.contains(native.operation) {
                 lease = nil
             } else {
                 let resolved = try DirectPhysicalInput.identity(native, query: { _ in details ?? Data() })
@@ -155,6 +158,11 @@ actor CommandService {
                     return try self.readinessQuery(native.device)
                 }
                 return try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40)
+            }
+            if AccessibilityWait.operations.contains(native.operation) {
+                // A wait suspends between polls, so other calls to this
+                // service can run then; each poll's requests still block it.
+                return try AccessibilityWait.output(await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
             }
             if ["tree", "press-id", "press-label", "scroll-id", "scroll-label"].contains(native.operation) {
                 return CommandOutput(data: try await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
@@ -303,6 +311,9 @@ actor CommandService {
         }
     }
 
+    /// Native AX reads: no device lease, and not paused by a pending handoff.
+    static let nativeObservations = ["tree"] + AccessibilityWait.operations
+
     private func json(_ value: Any) throws -> CommandOutput {
         CommandOutput(data: try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]))
     }
@@ -310,7 +321,8 @@ actor CommandService {
     private func checkHandoffPause(_ args: [String]) throws {
         let args = args.first == "--pairing-file" ? Array(args.dropFirst(2)) : args
         guard args.count >= 3, ["physical", "simulator"].contains(args[0]), pendingHandoffs.contains(where: { $0.platform == args[0] }) else { return }
-        let observations = ["readiness", "details", "apps", "processes", "hid-info", "tree", "screen", "screenshot", "files", "pull", "reports", "report", "logs"]
+        let observations = ["readiness", "details", "apps", "processes", "hid-info", "screen", "screenshot", "files", "pull", "reports", "report", "logs"]
+            + Self.nativeObservations
         guard !observations.contains(args[2]) else { return }
         guard let id = DeviceTarget.identifier(args[1]), args[0] != "physical" || UUID(uuidString: args[1]) == nil else {
             throw CommandFailure(description: "Use an explicit device ID (physical hardware UDID or simulator UUID) while a handoff is pending; aliases cannot be resolved safely for pause coordination.")

@@ -15,13 +15,17 @@ enum DirectPhysicalAccessibility {
                                  query: (DeviceCommand) throws -> Data) async throws -> Data {
         try Task.checkCancellation()
         let action: DirectAccessibilityAction?
+        let wait: AccessibilityWait?
         let pid: Int32?
         if input.operation == "tree" {
-            action = nil
+            action = nil; wait = nil
             pid = input.operands.isEmpty ? nil : try applicationPID(input)
+        } else if AccessibilityWait.operations.contains(input.operation) {
+            action = nil; pid = nil
+            wait = try AccessibilityWait(input)
         } else {
             action = try DirectAccessibilityAction(input)
-            pid = nil
+            wait = nil; pid = nil
         }
         let details = try query(input.identityPlan())
         let identity = try DirectPhysicalInput.identity(input, query: { _ in details })
@@ -39,13 +43,17 @@ enum DirectPhysicalAccessibility {
             let directory = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: udid, transport: .network)
             defer { directory.close() }
             let transport = try directory.openAccessibility()
-            let session = AccessibilitySession(transport: transport)
+            let session = AccessibilitySession(transport: transport, limits: wait?.sessionLimits ?? .standard)
             let display = {
                     try Task.checkCancellation()
                     return try AccessibilityDisplay(query(AccessibilityDisplay.plan(device: identity.uuid)))
                 }
             let bytes: Data
             if let action { bytes = try action.execute(session: session, display: display) }
+            else if let wait {
+                bytes = try await wait.execute(device: input.device, resolved: identity.uuid, session: session,
+                                               display: display, clock: ContinuousClock())
+            }
             else { bytes = try capture(device: input.device, resolved: identity.uuid, pid: pid, session: session, display: display) }
             directory.close()
             let release = assertion.close()

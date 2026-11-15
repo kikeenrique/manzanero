@@ -114,6 +114,14 @@ struct HandoffCommandTests {
             }
             let observation = try await service.execute(["physical", udid, "readiness"])
             #expect(observation.exitCode == 0)
+            // An AX wait is an observation like a tree: it proceeds (and here
+            // stops at the fixture's missing identity) instead of pausing.
+            for operands in [["tree"], ["wait-id", "fixture.button", "--until", "gone"], ["wait-label", "123", "Button"]] {
+                do {
+                    _ = try await service.execute(["physical", udid] + operands)
+                    Issue.record("Fixture details unexpectedly reached a device connection")
+                } catch { #expect(!String(describing: error).contains("paused")) }
+            }
             do {
                 _ = try await service.execute(["physical", device, "terminate", "123"])
                 Issue.record("CoreDevice alias bypassed handoff pause")

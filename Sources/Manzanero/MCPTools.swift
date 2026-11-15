@@ -41,6 +41,9 @@ struct MCPToolDefinition: Sendable {
     var readOnly = false
     var imagePath: String? = nil
     var imageFromResult = false
+    /// Exit codes that carry an answer rather than a malfunction (such as a
+    /// wait's timeout); they do not set `isError`.
+    var answerExitCodes: Set<Int32> = [0]
     let route: @Sendable ([String: Value]) -> [String]
 
     var tool: Tool {
@@ -93,6 +96,19 @@ enum MCPTools {
         .init(name: "inspect_device", description: "List apps on either platform, or physical details/processes/media status. Physical media-status reads native Apple media support flags, running state and session count only; it never starts/stops a stream or exports session identities/keys, and does not prove recording support. The hid-info query reaches a disabled legacy helper and always fails.", fields: [platform, device, .init(name: "query", choices: ["apps", "details", "processes", "hid-info", "media-status"])], readOnly: true) { $0.deviceCommand([$0.text("query")]) },
         .init(name: "get_ui_tree", description: "Read a native physical accessibility tree using Apple's tunnel, Network/RemoteXPC and raw AX DTX in process. Platform defaults to physical. Optional positive pid may inspect a background app. Without pid, selects/rechecks the primary portrait display-centre process and Apple display geometry; the display must be awake. Centre selection can identify an overlay/embedded process, not a combined system tree. Settings has scoped iPhone 13 mini verification. Returns logical-point frames, non-atomic snapshot-local IDs and separate subscription/tunnel cleanup outcomes. No selector action or fallback. Simulator helper trees remain disabled.", fields: [device, .init(name: "platform", required: false, choices: ["physical", "simulator"]), .init(name: "pid", kind: .integer, description: "Physical only: optional current application PID; omitted selects the primary display-centre process.", required: false)], readOnly: true) {
             $0.deviceCommand(["tree"] + ($0["pid"] == nil ? [] : [$0.number("pid")]), platform: $0.text("platform", default: "physical"))
+        },
+        .init(name: "wait_for_element", description: "Wait, read-only, until one exact identifier/label selector meets a condition on a physical device, using one in-process Apple AX session for the whole wait. until: visible (default; exactly one matching element, visible in the snapshot), gone (no match, or every match explicitly not visible), enabled/disabled (visible plus live enabled state), or value (visible plus exact string value; requires value). timeout_seconds 0...60 (default 10; 0 checks once), interval_seconds 0.25...5 (default 0.5). Without pid every poll re-selects the awake portrait primary display-centre process, so app launches and sheets are followed; with pid that app is observed even in the background, and its exit ends the wait as an error. Several distinct matches never satisfy a positive condition and are reported as ambiguous. A timeout returns status timed-out with the last observation and isError false; transport/session failure returns isError true with cleanup outcomes. No input, lease, fallback or reconnection. Each poll is a non-atomic snapshot; locally tested only, not yet verified on hardware.", fields: [device, .init(name: "pid", kind: .integer, description: "Optional positive application PID; omitted re-selects the display-centre process each poll.", required: false), .init(name: "by", choices: ["identifier", "label"]), .init(name: "text", description: "Exact, case-sensitive selector, 1...4096 UTF-8 bytes."),
+            .init(name: "until", required: false, choices: AccessibilityWait.conditionNames),
+            .init(name: "value", description: "Exact expected value text for until=value.", required: false),
+            .init(name: "timeout_seconds", kind: .number, description: "0...60, default 10.", required: false),
+            .init(name: "interval_seconds", kind: .number, description: "0.25...5, default 0.5.", required: false)],
+            readOnly: true, answerExitCodes: [0, AccessibilityWait.timeoutExitCode]) {
+            var args = $0.deviceCommand([$0.text("by") == "identifier" ? "wait-id" : "wait-label"] + ($0["pid"] == nil ? [] : [$0.number("pid")]) + [$0.text("text")], platform: "physical")
+            if $0["until"] != nil { args += ["--until", $0.text("until")] }
+            if $0["value"] != nil { args += ["--value", $0.text("value")] }
+            if $0["timeout_seconds"] != nil { args += ["--timeout", $0.number("timeout_seconds")] }
+            if $0["interval_seconds"] != nil { args += ["--interval", $0.number("interval_seconds")] }
+            return args
         },
         .init(name: "get_screen", description: "Capture a PNG and inspect it. Auto prefers a useful AX tree (physical selects app at primary display centre; simulator uses AXe), then Vision OCR, then explicitly reports image-only. Method can force tree or ocr. Returns coordinate space, dimensions, diagnostics, and image content up to 8 MiB. Physical AX uses logical points, OCR normalized bounds. Capture/analysis are sequential and non-atomic.", fields: [platform, device, .init(name: "method", required: false, choices: ["auto", "tree", "ocr"])], imagePath: "imagePath", imageFromResult: true) { $0.deviceCommand(["screen", $0.text("method", default: "auto")]) },
         .init(name: "decode_accessibility_archive", description: "Inspect a saved local keyed archive in process through Foundation, without connecting to a device or launching a helper. Bounded data-only structural decoding preserves unknown classes/fields, decodes nested archives, and represents opaque data by byte count. Does not instantiate archived classes, produce a parsed physical hierarchy or establish numeric attribute meanings.", fields: [.init(name: "path")], readOnly: true) { ["decode-ax-archive", $0.text("path")] },
@@ -170,7 +186,8 @@ enum MCPTools {
                     content.append(.text(text: "PNG saved; image content omitted because it exceeds 8 MiB.", annotations: nil, _meta: nil))
                 }
             }
-            return .init(content: content, structuredContent: value.map { .object(["result": $0]) }, isError: output.exitCode != 0)
+            return .init(content: content, structuredContent: value.map { .object(["result": $0]) },
+                         isError: !definition.answerExitCodes.contains(output.exitCode))
         } catch is CancellationError {
             throw CancellationError()
         } catch {

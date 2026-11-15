@@ -23,7 +23,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 ## Tool catalog
 
-`tools/list` is the exact schema reference: 30 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
+`tools/list` is the exact schema reference: 31 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
 
 | Tools | Current purpose |
 | --- | --- |
@@ -32,6 +32,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `get_ui_tree` | Native physical AX hierarchy with optional PID. Simulator hierarchy is currently unavailable. |
 | `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR |
 | `press_element`, `scroll_to_element` | [Fresh exact physical AX selectors](direct-accessibility.md), guarded native press/scroll |
+| `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled or has an exact value, within one AX session. Locally tested only; not yet verified on hardware. |
 | `decode_accessibility_archive` | Offline data-only archive inspection |
 | `record_screen` | [Finite MP4 recording](recording.md) to a new host path |
 | `tap`, `drag`, `long_press` | Direct physical single-contact input |
@@ -62,6 +63,7 @@ Tool content includes the CLI output as text. JSON is also returned under `struc
 
 - Unknown tools and invalid schema parameters produce JSON-RPC invalid-parameter errors.
 - Backend/domain failures produce `isError: true` and diagnostics.
+- A `wait_for_element` timeout is an answer: `status: timed-out` with the last observation and `isError: false` (the CLI exits 124). Session or transport failure sets `isError: true`.
 - Unsuccessful readiness/doctor results preserve structured data and set `isError: true`. For doctor that means an unavailable Xcode, CoreDevice or CoreSimulator tool; a missing private interface is reported in its capability entry without `isError`.
 - Readiness's top-level status describes CoreDevice prerequisites; inspect `ui` separately.
 - Dispatch receipts retain unverified effect/release fields. Scroll callers must inspect `postconditionVerified`, even when the call exits successfully.
