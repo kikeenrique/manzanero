@@ -25,7 +25,7 @@ struct AccessibilityRequestTests {
         // An element hit keeps the default client type; process selection
         // asks as a container, which answers over an empty area too.
         #expect(request["clientType"] as? Int == 0)
-        let container = try fields(AccessibilityRequest.hit(x: 187.5, y: 406, container: true))
+        let container = try fields(AccessibilityRequest.hit(x: 187.5, y: 406, container: true), clientType: 2)
         #expect(container["clientType"] as? Int == 2 && container["requestType"] as? Int == 6)
         let parameters = try #require(request["parameters"] as? [String: Any])
         #expect(parameters["displayId"] as? Int == 0)
@@ -44,12 +44,13 @@ struct AccessibilityRequestTests {
         #expect(throws: CommandFailure.self) { try AccessibilityRequest.hit(x: 0, y: .infinity) }
         #expect(throws: CommandFailure.self) { try AccessibilityRequest.Token(pid: 0, objectID: 1) }
     }
-    private func fields(_ bytes: Data) throws -> [String: Any] {
+    /// Every request uses client type 0 except a container hit test.
+    private func fields(_ bytes: Data, clientType: Int = 0) throws -> [String: Any] {
         let inspected = try #require(try JSONSerialization.jsonObject(with: KeyedArchiveInspector.inspect(bytes)) as? [String: Any])
         let root = try #require(inspected["decoded"] as? [String: Any])
         #expect(root["className"] as? String == "AXPTranslatorRequest")
         let fields = try #require(root["fields"] as? [String: Any])
-        #expect(fields["clientType"] as? Int == 0)
+        #expect(fields["clientType"] as? Int == clientType)
         #expect(fields["actionType"] as? Int == 0)
         return fields
     }
