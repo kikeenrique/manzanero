@@ -83,7 +83,7 @@ Usage:
   manzanero simulator <device> install <app-path>
   manzanero simulator <device> open-url <url>
   manzanero simulator <device> screenshot <output.png>
-  manzanero simulator <UUID> tree [positive-pid]   Omitted PID selects the frontmost application
+  manzanero simulator <UUID> tree [positive-pid]   Omitted PID selects the frontmost app, else the centre one
   manzanero simulator <UUID> <press-id|press-label|scroll-id|scroll-label> [positive-pid] <exact-selector>
   manzanero simulator <UUID> <wait-id|wait-label> [positive-pid] <exact-selector> [wait options as above]
   manzanero simulator <UUID> tap <x> <y>

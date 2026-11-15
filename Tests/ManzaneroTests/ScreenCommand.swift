@@ -43,7 +43,7 @@ struct ScreenCommandTests {
 
     @Test func simulatorAutoPrefersTheFrontmostApplicationTree() async throws {
         var hierarchy = try json(physicalTree())
-        hierarchy["application"] = ["selection": "frontmost-application"]
+        hierarchy["application"] = ["selection": "frontmost-or-centre-hit"]
         hierarchy["cleanup"] = ["subscriptionStop": "not-applicable", "confirmed": true]
         let data = try JSONSerialization.data(withJSONObject: hierarchy)
         try await fixture { directory in

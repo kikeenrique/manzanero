@@ -727,14 +727,14 @@ struct MCPStdioTests {
         #expect(inventoryResult["isError"] as? Bool == false)
         let structured = try #require(inventoryResult["structuredContent"] as? [String: Any])
         #expect((structured["result"] as? [String: Any])?["devices"] != nil)
-        // The frontmost application's tree through CoreSimulator. The Home
-        // Screen's snapshot can come back empty, so an app should be frontmost.
+        // The foreground application's tree through CoreSimulator. The Home
+        // Screen's snapshot can come back empty, so an app should be in front.
         let tree = try request(5, "tools/call", ["name": "get_ui_tree", "arguments": ["platform": "simulator", "device": simulator]])
         let treeResult = try #require(tree["result"] as? [String: Any])
         #expect(treeResult["isError"] as? Bool == false)
         let hierarchy = try #require((treeResult["structuredContent"] as? [String: Any])?["result"] as? [String: Any])
         #expect(hierarchy["format"] as? String == "accessibility-tree" && hierarchy["backend"] as? String == "coresimulator-ax")
-        #expect((hierarchy["application"] as? [String: Any])?["selection"] as? String == "frontmost-application")
+        #expect((hierarchy["application"] as? [String: Any])?["selection"] as? String == "frontmost-or-centre-hit")
         let nodes = hierarchy["nodes"] as? [[String: Any]] ?? []
         // Only the project's probe app is touched; any other app is only read.
         if nodes.contains(where: { $0["identifier"] as? String == "probe.touch.reset" }) {

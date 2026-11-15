@@ -40,7 +40,7 @@ struct SimulatorInput {
         case "tree":
             if !operands.isEmpty {
                 guard operands.count == 1, let pid = Int32(operands[0]), pid > 0 else {
-                    throw CommandFailure.usage("Simulator tree accepts one PID in 1...2147483647, or no PID for the frontmost application.")
+                    throw CommandFailure.usage("Simulator tree accepts one PID in 1...2147483647, or no PID for the foreground application.")
                 }
                 operands = [String(pid)]
             }
@@ -82,7 +82,7 @@ struct SimulatorInput {
             plan["backend"] = AccessibilityPlatform.simulator.backend
             plan["pid"] = operands.first.flatMap(Int.init).map { $0 as Any } ?? NSNull()
             plan["deviceLease"] = "not taken (observation)"
-            plan["execution"] = "\(route) Omitted PID selects and rechecks the frontmost application (request type 4); application, snapshot and application identity recheck as on physical devices. No helper or fallback."
+            plan["execution"] = "\(route) Omitted PID selects and rechecks the foreground application: the frontmost application (request type 4), or the element under the screen centre (client type 2) when the simulator reports none; application, snapshot and application identity recheck as on physical devices. No helper or fallback."
         } else if Self.selectorActions.contains(operation) {
             let action = try DirectAccessibilityAction(coreDeviceInput)
             plan["backend"] = AccessibilityPlatform.simulator.backend
@@ -90,13 +90,13 @@ struct SimulatorInput {
             plan["selector"] = ["by": action.by, "text": action.text]
             plan["pid"] = action.pid.map { Int($0) as Any } ?? NSNull()
             plan["deviceLease"] = "simulator UUID"
-            plan["execution"] = "\(route) Frontmost-application selection, two unique snapshots and live state/frame guards before one action, as on physical devices. Press checks an exact hit (client type 2) at the target centre; scroll follows with fresh visibility/frame/hit and selection checks. No fallback or replay."
+            plan["execution"] = "\(route) Foreground selection (frontmost application, else the screen-centre process), two unique snapshots and live state/frame guards before one action, as on physical devices. Press checks an exact hit (client type 2) at the target centre; scroll follows with fresh visibility/frame/hit and selection checks. No fallback or replay."
         } else if AccessibilityWait.operations.contains(operation) {
             let wait = try AccessibilityWait(coreDeviceInput)
             plan.merge(wait.plan(identityArguments: [])) { _, shared in shared }
             plan.removeValue(forKey: "identityArguments")
             plan["backend"] = AccessibilityPlatform.simulator.backend
-            plan["execution"] = "\(route) Omitted PID re-selects the frontmost application on every poll; an explicit PID is observed even in the background. Each poll reads application identity and one bounded snapshot, evaluates the exact selector, and rechecks the selection before reporting a met condition. No input, fallback or reconnection."
+            plan["execution"] = "\(route) Omitted PID re-selects the foreground application (frontmost, else the screen-centre process) on every poll; an explicit PID is observed even in the background. Each poll reads application identity and one bounded snapshot, evaluates the exact selector, and rechecks the selection before reporting a met condition. No input, fallback or reconnection."
         } else if Self.touchOperations.contains(operation) {
             let samples = try DirectPhysicalTouch.plan(coreDeviceInput, display: DirectTouchDisplay(portraitPoints: 1, height: 1, scale: 1))
             plan["backend"] = DirectSimulatorInput.backend
@@ -183,16 +183,22 @@ enum DirectSimulatorAccessibility {
             bytes = try DirectPhysicalAccessibility.capture(device: input.device, resolved: info.uuid, pid: pid,
                                                             session: session, display: display)
         }
-        return try annotate(bytes, info: info)
+        return try annotate(bytes, info: info, selections: (session as? SimulatorAccessibilitySession)?.selections ?? [])
     }
 
-    static func annotate(_ bytes: Data, info: SimulatorDeviceInfo) throws -> Data {
+    static func annotate(_ bytes: Data, info: SimulatorDeviceInfo, selections: [String] = []) throws -> Data {
         guard var root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
             throw CommandFailure(.internal, "Invalid internal simulator AX result.", inputSent: .unknown)
         }
         root["platform"] = "simulator"
         root["transport"] = "coresimulator"
         root["screen"] = info.screenJSON
+        // How many foreground selections and rechecks used the frontmost
+        // request (type 4) and how many the centre hit, when it reported none.
+        if !selections.isEmpty {
+            root["foregroundSelection"] = ["frontmost": selections.filter { $0 == "frontmost" }.count,
+                                           "centre-hit": selections.filter { $0 == "centre-hit" }.count]
+        }
         return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
     }
 }

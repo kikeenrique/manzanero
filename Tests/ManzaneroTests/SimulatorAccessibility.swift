@@ -43,6 +43,8 @@ final class SimulatorAXFixture: @unchecked Sendable {
     var actionResult: Bool? = true
     var onAction: (() -> Void)?
     var emptySnapshot = false
+    /// The frontmost request answers without an application.
+    var noFrontmost = false
     var frontmostPIDs: [Int32] = []
     var failKind: UInt64?
 
@@ -76,7 +78,7 @@ final class SimulatorAXFixture: @unchecked Sendable {
                                                        value: $0.value, visible: $0.visible, frame: $0.frame) }))
         case 4:
             let current = frontmostPIDs.isEmpty ? pid : frontmostPIDs.removeFirst()
-            response = Response(kind: 4, result: Token(1, pid: current, application: true))
+            response = Response(kind: 4, result: noFrontmost ? nil : Token(1, pid: current, application: true))
         case 5:
             let element = elements.first ?? Element()
             var live: [Int: Any] = [21: NSValue(rect: element.frame)]
@@ -220,7 +222,7 @@ struct SimulatorAccessibilityTests {
         #expect(tree["backend"] as? String == "coresimulator-ax" && tree["platform"] as? String == "simulator")
         #expect(tree["transport"] as? String == "coresimulator" && tree["resolvedSimulatorUUID"] as? String == Self.uuid)
         #expect(tree["resolvedCoreDeviceUUID"] == nil && tree["deviceAPIVersion"] == nil && tree["connectionCleanup"] == nil)
-        #expect((tree["application"] as? [String: Any])?["selection"] as? String == "frontmost-application")
+        #expect((tree["application"] as? [String: Any])?["selection"] as? String == "frontmost-or-centre-hit")
         #expect((tree["application"] as? [String: Any])?["pid"] as? Int == 42)
         #expect((tree["cleanup"] as? [String: Any])?["subscriptionStop"] as? String == "not-applicable")
         #expect((tree["display"] as? [String: Any])?["orientation"] as? String == "portrait-assumed")
@@ -247,7 +249,7 @@ struct SimulatorAccessibilityTests {
             _ = try await Self.service(fixture).execute(["simulator", Self.uuid, "tree"])
         })
         #expect(failure.code == .preconditionChanged && failure.inputSent == .none)
-        #expect(failure.description.hasPrefix("Simulator tree failed: Frontmost application AX process changed"))
+        #expect(failure.description.hasPrefix("Simulator tree failed: Foreground application AX process changed"))
     }
 
     @Test(arguments: ["Shutdown", "Booting"])
@@ -270,6 +272,26 @@ struct SimulatorAccessibilityTests {
         #expect(failure.description.contains("no snapshot data"))
     }
 
+    @Test func withoutAFrontmostApplicationTheScreenCentreProcessIsSelected() async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.noFrontmost = true
+        let tree = try Self.json(await Self.service(fixture).execute(["simulator", Self.uuid, "tree"]))
+        // frontmost (none), centre hit, application, snapshot, application,
+        // frontmost (none) and centre hit again for the recheck.
+        #expect(fixture.kinds == [4, 6, 1, 2, 1, 4, 6])
+        #expect((tree["application"] as? [String: Any])?["selection"] as? String == "frontmost-or-centre-hit")
+        #expect(tree["foregroundSelection"] as? [String: Int] == ["frontmost": 0, "centre-hit": 2])
+        // A frontmost application is used when there is one.
+        let normal = SimulatorAXFixture()
+        let selected = try Self.json(await Self.service(normal).execute(["simulator", Self.uuid, "tree"]))
+        #expect(selected["foregroundSelection"] as? [String: Int] == ["frontmost": 2, "centre-hit": 0])
+        // An explicit PID needs neither.
+        let explicit = SimulatorAXFixture()
+        explicit.noFrontmost = true
+        let pid = try Self.json(await Self.service(explicit).execute(["simulator", Self.uuid, "tree", "42"]))
+        #expect(explicit.kinds == [1, 2, 1] && pid["foregroundSelection"] == nil)
+    }
+
     @Test func capturedSimulatorResponsesDecodeWithThePhysicalDecoder() throws {
         let frontmost = try AccessibilityResponse(archive: Self.capturedFrontmost)
         #expect(frontmost.requestType == 4 && frontmost.error == 0 && frontmost.attribute == 0)
@@ -279,7 +301,7 @@ struct SimulatorAccessibilityTests {
         var replies = [Self.capturedFrontmost, Self.capturedEmptySnapshot]
         let session = SimulatorAccessibilitySession(carrier: { _, _ in replies.removeFirst() }, cancelled: { false })
         try session.start()
-        let root = try session.frontmost()
+        let root = try #require(try session.frontmost())
         #expect(throws: CommandFailure.self) { try session.snapshot(root) }
         // Any failure closes the session.
         #expect(throws: CommandFailure.self) { try session.frontmost() }
@@ -344,7 +366,8 @@ struct SimulatorAccessibilityTests {
         #expect(receipt["status"] as? String == "accepted" && receipt["nativeAccepted"] as? Bool == true)
         #expect(receipt["backend"] as? String == "coresimulator-ax" && receipt["platform"] as? String == "simulator")
         #expect(receipt["verified"] as? Bool == false && receipt["effectVerified"] as? Bool == false)
-        #expect((receipt["application"] as? [String: Any])?["selection"] as? String == "frontmost-application")
+        #expect((receipt["application"] as? [String: Any])?["selection"] as? String == "frontmost-or-centre-hit")
+        #expect(receipt["foregroundSelection"] as? [String: Int] == ["frontmost": 2, "centre-hit": 0])
         #expect((receipt["target"] as? [String: Any])?["identifier"] as? String == "probe.touch.reset")
         // The lease was released afterwards: another holder can take it.
         let after = try leases.acquire(device: Self.uuid, operation: "check")
@@ -370,7 +393,7 @@ struct SimulatorAccessibilityTests {
             _ = try await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "7", "probe.touch.reset"])
         })
         #expect(foreign.code == .targetUnresolved && foreign.inputSent == .none)
-        #expect(foreign.description.contains("requested PID differs from frontmost application process"))
+        #expect(foreign.description.contains("requested PID differs from foreground application process"))
         let missing = try #require(await #expect(throws: CommandFailure.self) {
             _ = try await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "absent"])
         })
@@ -409,7 +432,7 @@ struct SimulatorAccessibilityTests {
         #expect(met.exitCode == 0)
         let json = try Self.json(met)
         #expect(json["status"] as? String == "condition-met" && json["readOnly"] as? Bool == true)
-        #expect((json["application"] as? [String: Any])?["selection"] as? String == "frontmost-application-per-poll")
+        #expect((json["application"] as? [String: Any])?["selection"] as? String == "frontmost-or-centre-hit-per-poll")
         #expect(json["resolvedSimulatorUUID"] as? String == Self.uuid && json["displayRecheck"] as? String == "unchanged")
         #expect(present.kinds == [4, 1, 2, 5, 1, 4] && !present.kinds.contains(7))
         // The session's whole life scales with the wait, as for physical.
@@ -429,7 +452,7 @@ struct SimulatorAccessibilityTests {
         #expect(output.exitCode == AccessibilityWait.timeoutExitCode && json["status"] as? String == "timed-out")
         let observation = try #require(json["observation"] as? [String: Any])
         #expect(observation["reason"] as? String == "selection-changed")
-        #expect((observation["detail"] as? String)?.contains("frontmost application process changed") == true)
+        #expect((observation["detail"] as? String)?.contains("foreground application process changed") == true)
     }
 
     @Test func actionAndWaitDryRunsDescribeTheSimulatorRoute() async throws {
@@ -442,7 +465,7 @@ struct SimulatorAccessibilityTests {
         let wait = try Self.json(await service.execute(["simulator", Self.uuid, "wait-id", "x", "--timeout", "3"], dryRun: true))
         #expect(wait["backend"] as? String == "coresimulator-ax" && wait["operation"] as? String == "wait" && wait["readOnly"] as? Bool == true)
         #expect(wait["maximumPolls"] as? Int == 8 && wait["identityArguments"] == nil && wait["platform"] as? String == "simulator")
-        #expect((wait["execution"] as? String)?.contains("frontmost application") == true)
+        #expect((wait["execution"] as? String)?.contains("foreground application") == true)
         #expect(fixture.requests.isEmpty)
     }
 }

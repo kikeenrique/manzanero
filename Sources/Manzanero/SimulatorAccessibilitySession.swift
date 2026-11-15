@@ -55,12 +55,25 @@ final class SimulatorAccessibilitySession: AccessibilityExchange {
         try AccessibilityResponse.token(exchange(AccessibilityRequest.hit(x: x, y: y), expected: .hit))
     }
 
-    func frontmost() throws -> AccessibilityRequest.Token {
-        try AccessibilityResponse.token(exchange(AccessibilityRequest.frontmost(), expected: .frontmost))
+    /// The frontmost application, or nil when the simulator reports none.
+    func frontmost() throws -> AccessibilityRequest.Token? {
+        let result = try exchange(AccessibilityRequest.frontmost(), expected: .frontmost, allowEmpty: true)
+        return result == .null ? nil : try AccessibilityResponse.token(result)
     }
 
+    /// How each foreground selection was made, in order.
+    private(set) var selections: [String] = []
+
+    /// The frontmost application; when the simulator reports none (observed
+    /// for minutes after a fresh boot, on the Home Screen and in apps alike),
+    /// the element under the display centre, hit-tested with client type 2.
     func foregroundProcess(_ display: AccessibilityDisplay) throws -> AccessibilityRequest.Token {
-        try frontmost()
+        if let token = try frontmost() {
+            selections.append("frontmost")
+            return token
+        }
+        selections.append("centre-hit")
+        return try hit(x: display.center.x, y: display.center.y)
     }
 
     func snapshot(_ token: AccessibilityRequest.Token) throws -> AccessibilityArchiveValue {
@@ -83,7 +96,8 @@ final class SimulatorAccessibilitySession: AccessibilityExchange {
         return .notApplicable
     }
 
-    private func exchange(_ archive: Data, expected: AccessibilityResponse.Expected, onSubmission: () -> Void = {}) throws -> AccessibilityArchiveValue {
+    private func exchange(_ archive: Data, expected: AccessibilityResponse.Expected, allowEmpty: Bool = false,
+                          onSubmission: () -> Void = {}) throws -> AccessibilityArchiveValue {
         guard state == .active, !busy else { throw invalid("session unavailable or request already active") }
         busy = true
         defer { busy = false }
@@ -99,6 +113,10 @@ final class SimulatorAccessibilitySession: AccessibilityExchange {
                 throw invalid("response is for another request type")
             }
             let response = try AccessibilityResponse(archive: bytes)
+            if allowEmpty, response.requestType == expected.requestType, response.error == 0, response.notification == 0,
+               response.attribute == 0, response.result == .null {
+                return .null
+            }
             if case .snapshot = expected, response.error == 0, response.result == .null {
                 // Observed for SpringBoard: its full-depth snapshot exceeds a
                 // roughly three-second budget and comes back empty.
@@ -172,8 +190,8 @@ final class SimulatorBridgeOwner {
 extension AccessibilityPlatform {
     static let simulator = AccessibilityPlatform(
         backend: "coresimulator-ax", resolvedKey: "resolvedSimulatorUUID", deviceAPIVersion: nil,
-        selectionSubject: "frontmost application", selection: "frontmost-application", failurePrefix: "Simulator",
-        treeSelectionLimitation: "Frontmost-application selection may miss system overlays such as alerts or the keyboard, which belong to other processes; this is not a combined display tree.",
-        waitSelectionLimitation: "Every poll re-selects the frontmost application; an app launch is followed once CoreSimulator reports it frontmost, which can lag the launch by seconds. The condition is evaluated in that poll's process.",
+        selectionSubject: "foreground application", selection: "frontmost-or-centre-hit", failurePrefix: "Simulator",
+        treeSelectionLimitation: "The foreground application is the simulator's frontmost application, or the process under the screen centre when the simulator reports none (see foregroundSelection); system overlays such as alerts or the keyboard belong to other processes. This is not a combined display tree.",
+        waitSelectionLimitation: "Every poll re-selects the foreground application (frontmost, else the process under the screen centre); an app launch is followed once the simulator reports it, which can lag the launch by seconds. The condition is evaluated in that poll's process.",
         cleanupLimitation: "The simulator route has no accessibility subscription; each request is independent.")
 }
