@@ -130,6 +130,64 @@ struct DoctorTests {
         #expect(entries["CoreSimulator"]?["status"] as? String == "unavailable")
     }
 
+    private static let coreSimulatorPath = "/Library/Developer/PrivateFrameworks/CoreSimulator.framework/CoreSimulator"
+    private static let translationPath = "/System/Library/PrivateFrameworks/AccessibilityPlatformTranslation.framework/AccessibilityPlatformTranslation"
+    private static let dtuhiddPlist = "/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtuhidd.plist"
+
+    /// The two simulator rows as the bridge table lists them, with the named
+    /// interfaces reported unavailable.
+    private static func simulatorCapabilities(missing: Set<String> = []) -> [PrivateCapability] {
+        func requirement(_ kind: PrivateInterfaceRequirement.Kind, _ name: String, owner: String? = nil, required: Bool = true) -> PrivateInterfaceRequirement {
+            .init(kind: kind, name: name, owner: owner, required: required, available: !missing.contains(name))
+        }
+        let device = [requirement(.framework, coreSimulatorPath), requirement(.objcClass, "SimServiceContext"),
+                      requirement(.classMethod, "sharedServiceContextForDeveloperDir:error:", owner: "SimServiceContext"),
+                      requirement(.instanceMethod, "lookup:error:", owner: "SimDevice"),
+                      requirement(.instanceMethod, "name", owner: "SimDevice", required: false)]
+        return [
+            .init(identifier: "simulator-input", summary: "dtuhidd", requirements: device + [
+                requirement(.symbol, "xpc_endpoint_create_mach_port_4sim"), requirement(.symbol, "xpc_connection_enable_sim2host_4sim"),
+                requirement(.file, dtuhiddPlist)]),
+            .init(identifier: "simulator-accessibility", summary: "AXP", requirements: device + [
+                requirement(.instanceMethod, "sendAccessibilityRequestAsync:completionQueue:completionHandler:", owner: "SimDevice"),
+                requirement(.framework, translationPath), requirement(.objcClass, "AXPTranslatorRequest"),
+                requirement(.classMethod, "supportsSecureCoding", owner: "AXPTranslatorRequest")])
+        ]
+    }
+
+    @Test func simulatorRowsAreAvailableWhenEveryNameResolves() throws {
+        let entries = try Self.entries(try Doctor.report(tools: Self.tools, host: Self.host(), capabilities: Self.simulatorCapabilities()))
+        for name in ["simulator-input", "simulator-accessibility"] {
+            #expect(entries[name]?["status"] as? String == "available")
+            #expect(entries[name]?["kind"] as? String == "private-interface")
+            #expect(entries[name]?["usedByCommands"] as? Bool == true)
+        }
+        #expect(entries["simulator-input"]?["checked"] as? Int == 8)
+    }
+
+    @Test func missingCoreSimulatorDisablesBothSimulatorRowsWithoutFailingExit() throws {
+        let output = try Doctor.report(tools: Self.tools, host: Self.host(), capabilities: Self.simulatorCapabilities(missing: [Self.coreSimulatorPath]))
+        #expect(output.exitCode == 0)
+        let entries = try Self.entries(output)
+        for name in ["simulator-input", "simulator-accessibility"] {
+            #expect(entries[name]?["status"] as? String == "missing")
+            #expect((entries[name]?["missing"] as? [String])?.first == Self.coreSimulatorPath)
+        }
+    }
+
+    @Test func simulatorRowsNameEachMissingInterface() throws {
+        let entries = try Self.entries(try Doctor.report(tools: Self.tools, host: Self.host(), capabilities: Self.simulatorCapabilities(
+            missing: [Self.dtuhiddPlist, "xpc_connection_enable_sim2host_4sim", "supportsSecureCoding", "name"])))
+        // A daemon plist absent from an older CoreSimulator disables input only.
+        #expect(entries["simulator-input"]?["missing"] as? [String] == ["xpc_connection_enable_sim2host_4sim", Self.dtuhiddPlist])
+        #expect(entries["simulator-input"]?["optionalMissing"] as? [String] == ["-[SimDevice name]"])
+        #expect(entries["simulator-accessibility"]?["missing"] as? [String] == ["+[AXPTranslatorRequest supportsSecureCoding]"])
+        #expect(entries["simulator-accessibility"]?["status"] as? String == "missing")
+        let degraded = try Self.entries(try Doctor.report(tools: Self.tools, host: Self.host(), capabilities: Self.simulatorCapabilities(missing: ["name"])))
+        #expect(degraded["simulator-input"]?["status"] as? String == "degraded")
+        #expect(PrivateInterfaceRequirement(kind: .file, name: "/x.plist", available: true).displayName == "/x.plist")
+    }
+
     @Test func parsesXcodeVersionOutput() {
         let parsed = DoctorHost.parseXcode(Data("Xcode 27.2\nBuild version 27B52\n".utf8))
         #expect(parsed.version == "27.2")
@@ -145,7 +203,7 @@ struct DoctorTests {
         let identifiers = capabilities.map(\.identifier)
         #expect(Set(identifiers).count == identifiers.count)
         for expected in ["physical-input", "multi-contact-input", "tunnel-assertion", "rsd-accessibility",
-                         "media-inspection", "native-recording", "keyed-archive-uid"] {
+                         "media-inspection", "native-recording", "keyed-archive-uid", "simulator-input", "simulator-accessibility"] {
             #expect(capabilities.first { $0.identifier == expected }?.usedByCommands == true)
         }
         #expect(capabilities.first { $0.identifier == "native-recording" }?.minimumMacOSMajor == 26)

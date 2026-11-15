@@ -4,7 +4,7 @@ import Foundation
 
 /// One dynamically resolved Apple interface from the bridge's capability table.
 struct PrivateInterfaceRequirement: Sendable, Equatable {
-    enum Kind: String, Sendable { case framework, symbol, objcClass, instanceMethod, classMethod }
+    enum Kind: String, Sendable { case framework, symbol, objcClass, instanceMethod, classMethod, file }
     let kind: Kind
     let name: String
     var owner: String? = nil
@@ -16,7 +16,7 @@ struct PrivateInterfaceRequirement: Sendable, Equatable {
         switch kind {
         case .instanceMethod: "-[\(owner ?? "?") \(name)]"
         case .classMethod: "+[\(owner ?? "?") \(name)]"
-        case .framework, .symbol, .objcClass: name
+        case .framework, .symbol, .objcClass, .file: name
         }
     }
 }
@@ -66,6 +66,7 @@ enum PrivateInterfaces {
         case ADCInterfaceClass: .objcClass
         case ADCInterfaceInstanceMethod: .instanceMethod
         case ADCInterfaceClassMethod: .classMethod
+        case ADCInterfaceFile: .file
         default: .symbol
         }
     }

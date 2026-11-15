@@ -180,6 +180,32 @@ int ADCRunKeyboardSchedule(const ADCKeyboardSample *samples, size_t count,
                            ADCInputShouldStop shouldStop, ADCKeySink sendKey);
 int ADCRunPress(uint64_t usage, unsigned holdMicroseconds, ADCInputShouldStop shouldStop, ADCKeySink sendKey);
 
+/// Simulator bridge (AppleSimulatorBridge.m). CoreSimulator addresses one
+/// SimDevice of the default device set by UUID. Nothing here starts, boots or
+/// shuts down a simulator.
+typedef struct {
+    double widthPoints;   // portrait main-screen size in points
+    double heightPoints;
+    double scale;         // pixels per point
+    int booted;           // stateString is exactly "Booted"
+    char state[32];       // CoreSimulator's stateString, truncated
+    char name[128];       // device name, truncated
+} ADCSimulatorInfo;
+/// Status of ADCOpenSimulatorDevice when no simulator has the UUID.
+#define ADCSimulatorNotFound 3
+/// Loads CoreSimulator (RTLD_NOW | RTLD_GLOBAL) and, when accessibility is
+/// non-zero, AccessibilityPlatformTranslation (RTLD_NOW | RTLD_LOCAL), then
+/// checks the classes and selectors the simulator paths call. Returns zero.
+int ADCPrepareCoreSimulator(int accessibility, char *error, size_t errorCapacity);
+/// Looks up the UUID in the default device set of developerDir. Returns 0 with
+/// an owner (whatever the state; check info->booted), ADCSimulatorNotFound, or
+/// 1. Reads properties only; sends nothing to the simulator.
+int ADCOpenSimulatorDevice(const char *developerDir, const char *uuid, ADCSimulatorInfo *info,
+                           void **owner, char *error, size_t errorCapacity);
+/// Re-reads state and geometry of an open device. Returns zero.
+int ADCReadSimulatorDevice(void *owner, ADCSimulatorInfo *info, char *error, size_t errorCapacity);
+void ADCCloseSimulatorDevice(void *owner);
+
 /// Host-only availability of the dynamically resolved Apple interfaces, grouped
 /// by capability. Loads the listed frameworks with the operations' own flags and
 /// looks up symbols, classes and selectors; never calls a resolved function,
@@ -189,7 +215,8 @@ enum {
     ADCInterfaceSymbol = 1,         // C symbol resolved with RTLD_DEFAULT
     ADCInterfaceClass = 2,          // Objective-C class name
     ADCInterfaceInstanceMethod = 3, // owner is the class, name the selector
-    ADCInterfaceClassMethod = 4
+    ADCInterfaceClassMethod = 4,
+    ADCInterfaceFile = 5            // name is a path; existence only, never opened
 };
 typedef struct {
     int kind;

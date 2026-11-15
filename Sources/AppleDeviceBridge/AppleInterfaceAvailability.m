@@ -3,6 +3,7 @@
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "AppleDeviceBridge.h"
 
 // The single table of dynamically resolved Apple interfaces, grouped by the
@@ -39,6 +40,7 @@ typedef struct {
 #define ADC_METHOD(owner, name) { ADCInterfaceInstanceMethod, name, owner, 1, 0 }
 #define ADC_OPTIONAL_METHOD(owner, name) { ADCInterfaceInstanceMethod, name, owner, 0, 0 }
 #define ADC_CLASS_METHOD(owner, name) { ADCInterfaceClassMethod, name, owner, 1, 0 }
+#define ADC_FILE(path) { ADCInterfaceFile, path, NULL, 1, 0 }
 #define ADC_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 
 // Frameworks listed before the names they provide; flags match the operation's dlopen.
@@ -106,6 +108,46 @@ static const ADCRequirementSpec ADCNativeRecording[] = {
     ADC_OPTIONAL_CLASS("VCMediaNegotiatorResultsVideo"),
     ADC_OPTIONAL_METHOD("VCMediaNegotiatorResultsVideo", "isRTCPFBEnabled"),
 };
+// ADCPrepareCoreSimulator and ADCOpenSimulatorDevice: one SimDevice by UUID.
+#define ADC_CORESIMULATOR_DEVICE \
+    ADC_FRAMEWORK("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/CoreSimulator", RTLD_NOW | RTLD_GLOBAL), \
+    ADC_CLASS("SimServiceContext"), \
+    ADC_CLASS_METHOD("SimServiceContext", "sharedServiceContextForDeveloperDir:error:"), \
+    ADC_METHOD("SimServiceContext", "defaultDeviceSetWithError:"), \
+    ADC_CLASS("SimDeviceSet"), \
+    ADC_METHOD("SimDeviceSet", "devicesByUDID"), \
+    ADC_CLASS("SimDevice"), \
+    ADC_METHOD("SimDevice", "stateString"), \
+    ADC_METHOD("SimDevice", "deviceType"), \
+    ADC_METHOD("SimDevice", "lookup:error:"), \
+    ADC_OPTIONAL_METHOD("SimDevice", "name"), \
+    ADC_CLASS("SimDeviceType"), \
+    ADC_METHOD("SimDeviceType", "mainScreenSize"), \
+    ADC_METHOD("SimDeviceType", "mainScreenScale")
+// Simulator tap, long-press, swipe, drag, button, key and type: Indigo HID
+// dictionaries over host XPC to the dtuhidd daemon CoreSimulator injects into
+// a booted iOS simulator. The daemon's launchd plist is a file check only;
+// whether the booted runtime runs it cannot be seen without a simulator.
+static const ADCRequirementSpec ADCSimulatorInput[] = {
+    ADC_CORESIMULATOR_DEVICE,
+    ADC_SYMBOL("xpc_endpoint_create_mach_port_4sim"),
+    ADC_SYMBOL("xpc_connection_create_from_endpoint"),
+    ADC_SYMBOL("xpc_connection_enable_sim2host_4sim"),
+    ADC_FILE("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtuhidd.plist"),
+};
+// Simulator tree, press/scroll by id or label and waits: archived
+// AXPTranslatorRequest objects through -[SimDevice sendAccessibilityRequestAsync:...].
+static const ADCRequirementSpec ADCSimulatorAccessibility[] = {
+    ADC_CORESIMULATOR_DEVICE,
+    ADC_METHOD("SimDevice", "sendAccessibilityRequestAsync:completionQueue:completionHandler:"),
+    ADC_FRAMEWORK("/System/Library/PrivateFrameworks/AccessibilityPlatformTranslation.framework/AccessibilityPlatformTranslation", RTLD_NOW | RTLD_LOCAL),
+    ADC_CLASS("AXPTranslatorRequest"),
+    ADC_CLASS_METHOD("AXPTranslatorRequest", "supportsSecureCoding"),
+    ADC_CLASS("AXPTranslatorResponse"),
+    ADC_CLASS_METHOD("AXPTranslatorResponse", "supportsSecureCoding"),
+    ADC_CLASS("AXPTranslationObject"),
+    ADC_CLASS_METHOD("AXPTranslationObject", "supportsSecureCoding"),
+};
 // ADCReadArchiveUID (CoreFoundation is linked, so no framework load).
 static const ADCRequirementSpec ADCKeyedArchiveUID[] = {
     ADC_SYMBOL("_CFKeyedArchiverUIDGetTypeID"),
@@ -143,6 +185,10 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCMediaInspectionRequirements, ADC_COUNT(ADCMediaInspectionRequirements) },
     { "native-recording", "record-screen --recording-backend coredevice: AVConference negotiation over the media socket", 26, 1,
       ADCNativeRecording, ADC_COUNT(ADCNativeRecording) },
+    { "simulator-input", "Simulator tap, long-press, swipe, drag, button, key and type through host XPC to the simulator's dtuhidd Indigo HID daemon", 0, 1,
+      ADCSimulatorInput, ADC_COUNT(ADCSimulatorInput) },
+    { "simulator-accessibility", "Simulator accessibility (tree, press/scroll by id or label, waits) through CoreSimulator AXPTranslator requests", 0, 1,
+      ADCSimulatorAccessibility, ADC_COUNT(ADCSimulatorAccessibility) },
     { "keyed-archive-uid", "Reading keyed-archive UID values in AX archives and decode-ax-archive", 0, 1,
       ADCKeyedArchiveUID, ADC_COUNT(ADCKeyedArchiveUID) },
     { "native-recording-jpeg", "Decoded-JPEG native video session (bridge path not used by commands)", 26, 0,
@@ -170,6 +216,9 @@ static int ADCRequirementAvailable(const ADCRequirementSpec *spec) {
         return dlopen(spec->name, spec->loadFlags) != NULL;
     case ADCInterfaceSymbol:
         return dlsym(RTLD_DEFAULT, spec->name) != NULL;
+    case ADCInterfaceFile:
+        // Existence only: the file is neither opened nor parsed.
+        return access(spec->name, F_OK) == 0;
     case ADCInterfaceClass:
         return objc_lookUpClass(spec->name) != Nil;
     case ADCInterfaceInstanceMethod:
