@@ -4,4 +4,4 @@
 
 set -e -o pipefail
 
-swift test --cache-path tmp/swift-cache 2>&1 | xcsift -f toon --warnings
+swift test --cache-path tmp/swift-cache 2>&1 | xcsift -f toon --warnings --Werror --exit-on-failure

@@ -4,4 +4,4 @@
 
 set -e -o pipefail
 
-swift build --cache-path tmp/swift-cache 2>&1 | xcsift -f toon --warnings
+swift build --cache-path tmp/swift-cache 2>&1 | xcsift -f toon --warnings --Werror --exit-on-failure

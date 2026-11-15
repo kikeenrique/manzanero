@@ -28,9 +28,8 @@ jobs:
           swift --version
           fingerprint=$( { xcodebuild -version; swift --version; } | shasum -a 256 | cut -d ' ' -f 1)
           echo "key=$fingerprint" >> "$GITHUB_OUTPUT"
+      # Installs the tools pinned in mise.toml, including the xcsift formatter.
       - uses: jdx/mise-action@v4
-      - name: Install build output formatter
-        run: brew install xcsift
       - name: Cache SwiftPM dependencies
         uses: actions/cache@v6
         with:

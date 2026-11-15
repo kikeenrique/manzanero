@@ -62,5 +62,5 @@ Other observations from the hosted logs, not changed:
 
 - `actions/cache` saves only when the job succeeds, so while CI was red every run started without SwiftPM or build caches.
 - Debug and release build caches are keyed by commit, so every green push stores a new full `.build`; the repository cache quota will evict older entries.
-- `brew install xcsift` is unpinned. A formatter release can change parsing or summaries without a repository change.
-- The build and test tasks report warnings but do not fail on them.
+- Fixed since: xcsift is pinned in `mise.toml` and installed by `mise-action` instead of an unpinned `brew install`.
+- Fixed since: the `build` and `test` tasks pass `--Werror --exit-on-failure`, so a compiler warning fails them.

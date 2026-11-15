@@ -13,8 +13,8 @@ Prefix shell commands with `rtk`. Use `rtk proxy` when unfiltered output is need
 Tasks are Bash scripts under `mise/tasks/` (directory namespaces become `group:task`); see `docs/development-tasks.md`.
 
 ```sh
-mise run build                      # swift build through xcsift
-mise run test                       # all Swift tests through xcsift
+mise run build                      # swift build through xcsift; a compiler warning fails it
+mise run test                       # all Swift tests through xcsift; a compiler warning fails it
 mise run cli -- --help              # run .build/debug/manzanero; does NOT build first
 mise run cli --dry-run physical <UDID> tap 0.5 0.5   # print the planned invocation, touch nothing
 mise tasks validate                 # after editing task definitions
