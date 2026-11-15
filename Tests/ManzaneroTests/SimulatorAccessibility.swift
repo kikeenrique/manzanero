@@ -134,10 +134,20 @@ struct SimulatorAccessibilityTests {
     static func environment(_ fixture: SimulatorAXFixture, state: String = "Booted",
                             sessions: SessionCounter = SessionCounter()) -> SimulatorEnvironment {
         SimulatorEnvironment(lookup: { _ in SimulatorDeviceTests.info(state) },
-                             accessibility: { _ in sessions.count += 1; return fixture.session() })
+                             accessibility: { _, lifetime in sessions.count += 1; sessions.lifetimes.append(lifetime); return fixture.session(lifetime: lifetime) })
     }
 
-    final class SessionCounter: @unchecked Sendable { var count = 0 }
+    final class SessionCounter: @unchecked Sendable { var count = 0; var lifetimes: [Duration] = [] }
+
+    /// A registry in a fresh directory of its own, for tests that take leases.
+    static func usableLeases(_ directory: URL = URL(fileURLWithPath: "tmp/simulator-leases-\(UUID().uuidString)")) -> DeviceLeaseRegistry {
+        DeviceLeaseRegistry(directory: directory)
+    }
+
+    /// The holder note of the simulator's lease file, while it is held.
+    static func leaseHolder(_ directory: URL) -> String {
+        (try? String(contentsOf: directory.appendingPathComponent("\(uuid).lock"), encoding: .utf8)) ?? ""
+    }
 
     /// A registry that cannot create its directory: taking a lease fails, so a
     /// successful command proves no lease was taken.
@@ -188,7 +198,7 @@ struct SimulatorAccessibilityTests {
         let fixture = SimulatorAXFixture()
         let service = CommandService(leases: try Self.unusableLeases(), simulator: SimulatorEnvironment(
             lookup: { _ in Issue.record("Dry run looked the simulator up"); return Self.screen },
-            accessibility: { _ in Issue.record("Dry run opened AX"); return fixture.session() }),
+            accessibility: { _, _ in Issue.record("Dry run opened AX"); return fixture.session() }),
             readinessQuery: { _ in Issue.record("Dry run queried CoreDevice"); return Data() })
         let plan = try Self.json(await service.execute(["simulator", Self.uuid, "tree"], dryRun: true))
         #expect(plan["backend"] as? String == "coresimulator-ax" && plan["platform"] as? String == "simulator")
@@ -294,5 +304,145 @@ struct SimulatorAccessibilityTests {
         #expect(throws: CommandFailure.self) { try session.frontmost() }
         let cancelled = SimulatorAccessibilitySession(carrier: fixture.carrier(), cancelled: { true })
         #expect(throws: CancellationError.self) { try cancelled.start() }
+    }
+
+    // MARK: - Selector actions and waits
+
+    static func pressable() -> SimulatorAXFixture {
+        let fixture = SimulatorAXFixture()
+        fixture.elements = [.init(identifier: "probe.touch.reset", label: "Reset probe")]
+        return fixture
+    }
+
+    @Test func selectorActionsAndWaitsParseLikePhysical() throws {
+        for args in [["press-id", "probe.touch.reset"], ["press-label", "42", "Reset probe"], ["scroll-id", "row"],
+                     ["wait-id", "x", "--until", "gone", "--timeout", "0"], ["wait-label", "42", "Done", "--value", "v"]] {
+            let input = try #require(try SimulatorInput.parse(["simulator", Self.uuid] + args))
+            #expect(input.operation == args[0] && input.operands == Array(args.dropFirst()))
+        }
+        for invalid in [["press-id"], ["press-id", "0", "x"], ["scroll-label", ""], ["wait-id", "x", "--timeout", "99"], ["wait-id", "x", "--bogus", "1"]] {
+            let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + invalid) }
+            #expect(failure.code == .usage && failure.inputSent == .none)
+        }
+    }
+
+    @Test func pressSendsOneActionAfterTheSharedGuardsAndTakesTheLease() async throws {
+        let fixture = Self.pressable()
+        let directory = URL(fileURLWithPath: "tmp/simulator-leases-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let leases = Self.usableLeases(directory)
+        var holder = ""
+        fixture.onAction = { holder = Self.leaseHolder(directory) }
+        let output = try await Self.service(fixture, leases: leases).execute(["simulator", Self.uuid, "press-id", "probe.touch.reset"])
+        #expect(holder.contains("press-id") && holder.contains("pid \(getpid())"))
+        #expect(Self.leaseHolder(directory).isEmpty)
+        let receipt = try Self.json(output)
+        // frontmost, application, two snapshots, live attributes, hit at the
+        // target centre, application and frontmost rechecks, then one press.
+        #expect(fixture.kinds == [4, 1, 2, 2, 5, 6, 1, 4, 7])
+        #expect(fixture.requests.last?.action == 5)
+        #expect(receipt["status"] as? String == "accepted" && receipt["nativeAccepted"] as? Bool == true)
+        #expect(receipt["backend"] as? String == "coresimulator-ax" && receipt["platform"] as? String == "simulator")
+        #expect(receipt["verified"] as? Bool == false && receipt["effectVerified"] as? Bool == false)
+        #expect((receipt["application"] as? [String: Any])?["selection"] as? String == "frontmost-application")
+        #expect((receipt["target"] as? [String: Any])?["identifier"] as? String == "probe.touch.reset")
+        // The lease was released afterwards: another holder can take it.
+        let after = try leases.acquire(device: Self.uuid, operation: "check")
+        after.release()
+    }
+
+    @Test func pressIsRefusedWhenTheSimulatorIsBusyOrUnbooted() async throws {
+        let fixture = Self.pressable()
+        let unusable = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(fixture).execute(["simulator", Self.uuid, "press-id", "probe.touch.reset"])
+        })
+        #expect(unusable.code == .hostRequirement && unusable.inputSent == .none)
+        let unbooted = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(fixture, state: "Shutdown", leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-label", "Reset probe"])
+        })
+        #expect(unbooted.code == .deviceNotReady && unbooted.inputSent == .none)
+        #expect(fixture.requests.isEmpty)
+    }
+
+    @Test func pressWithAnotherPIDOrAMissingTargetSendsNoAction() async throws {
+        let fixture = Self.pressable()
+        let foreign = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "7", "probe.touch.reset"])
+        })
+        #expect(foreign.code == .targetUnresolved && foreign.inputSent == .none)
+        #expect(foreign.description.contains("requested PID differs from frontmost application process"))
+        let missing = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "absent"])
+        })
+        #expect(missing.code == .targetUnresolved && missing.inputSent == .none)
+        #expect(!fixture.kinds.contains(7))
+    }
+
+    @Test func actionWithoutAUsableReplyIsAnUnknownOutcome() async throws {
+        let fixture = Self.pressable()
+        fixture.actionResult = nil
+        let failure = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "probe.touch.reset"])
+        })
+        #expect(failure.code == .inputOutcomeUnknown && failure.inputSent == .possible && failure.retry == .afterInspection)
+        #expect(failure.description.contains("state=submitted"))
+        let refused = Self.pressable()
+        refused.actionResult = false
+        let refusal = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(refused, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "probe.touch.reset"])
+        })
+        #expect(refusal.code == .inputOutcomeUnknown && refusal.description.contains("state=refused"))
+    }
+
+    @Test func scrollReportsItsPostcondition() async throws {
+        let fixture = Self.pressable()
+        let receipt = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "scroll-label", "Reset probe"]))
+        #expect(fixture.requests.filter { $0.kind == 7 }.map(\.action) == [11])
+        #expect(receipt["status"] as? String == "postcondition-verified" && receipt["nativeResult"] as? Bool == true)
+        #expect(receipt["operation"] as? String == "scroll-to-visible")
+    }
+
+    @Test func waitIsReadOnlyTakesNoLeaseAndAnswersATimeoutWith124() async throws {
+        let present = Self.pressable()
+        let sessions = SessionCounter()
+        let met = try await Self.service(present, sessions: sessions).execute(["simulator", Self.uuid, "wait-id", "probe.touch.reset"])
+        #expect(met.exitCode == 0)
+        let json = try Self.json(met)
+        #expect(json["status"] as? String == "condition-met" && json["readOnly"] as? Bool == true)
+        #expect((json["application"] as? [String: Any])?["selection"] as? String == "frontmost-application-per-poll")
+        #expect(json["resolvedSimulatorUUID"] as? String == Self.uuid && json["displayRecheck"] as? String == "unchanged")
+        #expect(present.kinds == [4, 1, 2, 5, 1, 4] && !present.kinds.contains(7))
+        // The session's whole life scales with the wait, as for physical.
+        #expect(sessions.lifetimes == [.seconds(40)])
+        let absent = SimulatorAXFixture()
+        let timedOut = try await Self.service(absent).execute(["simulator", Self.uuid, "wait-id", "probe.touch.reset", "--timeout", "0"])
+        #expect(timedOut.exitCode == AccessibilityWait.timeoutExitCode)
+        #expect(try Self.json(timedOut)["status"] as? String == "timed-out")
+    }
+
+    @Test func waitTreatsAFrontmostChangeWithinAPollAsNotMet() async throws {
+        let fixture = Self.pressable()
+        // Selected 42, but the recheck finds another app frontmost.
+        fixture.frontmostPIDs = [42, 77]
+        let output = try await Self.service(fixture).execute(["simulator", Self.uuid, "wait-id", "probe.touch.reset", "--timeout", "0"])
+        let json = try Self.json(output)
+        #expect(output.exitCode == AccessibilityWait.timeoutExitCode && json["status"] as? String == "timed-out")
+        let observation = try #require(json["observation"] as? [String: Any])
+        #expect(observation["reason"] as? String == "selection-changed")
+        #expect((observation["detail"] as? String)?.contains("frontmost application process changed") == true)
+    }
+
+    @Test func actionAndWaitDryRunsDescribeTheSimulatorRoute() async throws {
+        let fixture = SimulatorAXFixture()
+        let service = try Self.service(fixture, state: "Shutdown")
+        let press = try Self.json(await service.execute(["simulator", Self.uuid, "press-label", "42", "Reset probe"], dryRun: true))
+        #expect(press["backend"] as? String == "coresimulator-ax" && press["operation"] as? String == "press")
+        #expect(press["pid"] as? Int == 42 && (press["selector"] as? [String: String]) == ["by": "label", "text": "Reset probe"])
+        #expect(press["deviceLease"] as? String == "simulator UUID" && press["identityArguments"] == nil)
+        let wait = try Self.json(await service.execute(["simulator", Self.uuid, "wait-id", "x", "--timeout", "3"], dryRun: true))
+        #expect(wait["backend"] as? String == "coresimulator-ax" && wait["operation"] as? String == "wait" && wait["readOnly"] as? Bool == true)
+        #expect(wait["maximumPolls"] as? Int == 8 && wait["identityArguments"] == nil && wait["platform"] as? String == "simulator")
+        #expect((wait["execution"] as? String)?.contains("frontmost application") == true)
+        #expect(fixture.requests.isEmpty)
     }
 }

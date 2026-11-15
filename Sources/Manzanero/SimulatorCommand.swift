@@ -13,7 +13,7 @@ struct SimulatorInput {
     static let accessibilityOperations = ["tree"] + selectorActions + AccessibilityWait.operations
     static let touchOperations = ["tap", "long-press", "swipe", "drag"]
     static let inputOperations = touchOperations + ["button", "key", "type"]
-    static let operations = ["tree"]
+    static let operations = accessibilityOperations
     /// Operations that exist for physical devices but not yet for simulators.
     static let unimplemented = ["multi-tap", "multi-drag", "pinch", "gesture", "paste", "wake"]
     static let buttons: [String: UInt64] = ["home": 64, "lock": 48]
@@ -57,11 +57,26 @@ struct SimulatorInput {
     func plan() throws -> [String: Any] {
         var plan: [String: Any] = ["platform": "simulator", "device": device, "operation": operation, "liveVerified": false,
                                    "bootRequirement": "Refused unless CoreSimulator reports the simulator Booted; never booted implicitly."]
+        let route = "In-process CoreSimulator: archived AXPTranslatorRequest objects through -[SimDevice sendAccessibilityRequestAsync:], one request at a time, no subscription."
         if operation == "tree" {
             plan["backend"] = AccessibilityPlatform.simulator.backend
             plan["pid"] = operands.first.flatMap(Int.init).map { $0 as Any } ?? NSNull()
             plan["deviceLease"] = "not taken (observation)"
-            plan["execution"] = "In-process CoreSimulator: archived AXPTranslatorRequest objects through -[SimDevice sendAccessibilityRequestAsync:]. Omitted PID selects and rechecks the frontmost application (request type 4); application, snapshot and application identity recheck as on physical devices. No subscription, helper or fallback."
+            plan["execution"] = "\(route) Omitted PID selects and rechecks the frontmost application (request type 4); application, snapshot and application identity recheck as on physical devices. No helper or fallback."
+        } else if Self.selectorActions.contains(operation) {
+            let action = try DirectAccessibilityAction(coreDeviceInput)
+            plan["backend"] = AccessibilityPlatform.simulator.backend
+            plan["operation"] = action.operation
+            plan["selector"] = ["by": action.by, "text": action.text]
+            plan["pid"] = action.pid.map { Int($0) as Any } ?? NSNull()
+            plan["deviceLease"] = "simulator UUID"
+            plan["execution"] = "\(route) Frontmost-application selection, two unique snapshots and live state/frame guards before one action, as on physical devices. Press checks an exact hit (client type 2) at the target centre; scroll follows with fresh visibility/frame/hit and selection checks. No fallback or replay."
+        } else if AccessibilityWait.operations.contains(operation) {
+            let wait = try AccessibilityWait(coreDeviceInput)
+            plan.merge(wait.plan(identityArguments: [])) { _, shared in shared }
+            plan.removeValue(forKey: "identityArguments")
+            plan["backend"] = AccessibilityPlatform.simulator.backend
+            plan["execution"] = "\(route) Omitted PID re-selects the frontmost application on every poll; an explicit PID is observed even in the background. Each poll reads application identity and one bounded snapshot, evaluates the exact selector, and rechecks the selection before reporting a met condition. No input, fallback or reconnection."
         }
         return plan
     }
@@ -71,12 +86,13 @@ struct SimulatorInput {
 /// the bridge; every closure runs on the command service's own thread.
 struct SimulatorEnvironment: Sendable {
     var lookup: @Sendable (String) throws -> SimulatorDeviceInfo
-    var accessibility: @Sendable (String) throws -> any AccessibilityExchange
+    /// Opens an accessibility session whose whole life is bounded by the duration.
+    var accessibility: @Sendable (String, Duration) throws -> any AccessibilityExchange
 
     static let live = SimulatorEnvironment(
         lookup: { try SimulatorDevice.lookup($0) },
-        accessibility: { uuid in
-            try SimulatorAccessibilitySession.bridge(device: uuid, developerDirectory: SimulatorDevice.developerDirectory())
+        accessibility: { uuid, lifetime in
+            try SimulatorAccessibilitySession.bridge(device: uuid, developerDirectory: SimulatorDevice.developerDirectory(), lifetime: lifetime)
         })
 }
 
@@ -90,12 +106,26 @@ enum DirectSimulatorAccessibility {
             try Task.checkCancellation()
             return try SimulatorDevice.requireBooted(input.device, operation: input.operation, lookup: environment.lookup).display
         }
+        let action = SimulatorInput.selectorActions.contains(input.operation) ? try DirectAccessibilityAction(input.coreDeviceInput) : nil
+        let wait = AccessibilityWait.operations.contains(input.operation) ? try AccessibilityWait(input.coreDeviceInput) : nil
         let session: any AccessibilityExchange
-        do { session = try environment.accessibility(input.device) }
+        do { session = try environment.accessibility(input.device, wait?.sessionLimits.lifetime ?? AccessibilitySession.Limits.standard.lifetime) }
         catch let failure as CommandFailure { throw failure.noInputSent() }
-        let pid = input.operands.first.flatMap { Int32($0) }
-        let bytes = try DirectPhysicalAccessibility.capture(device: input.device, resolved: info.uuid, pid: pid,
+        let bytes: Data
+        if let action {
+            // The action classifies its own failures by submission state.
+            bytes = try action.execute(session: session, display: display)
+            if Task.isCancelled {
+                FileHandle.standardError.write(Data("Simulator AX action completed, but cancellation withheld its receipt. Inspect before retrying. No automatic replay.\n".utf8))
+            }
+            try Task.checkCancellation()
+        } else if let wait {
+            bytes = try await wait.execute(device: input.device, resolved: info.uuid, session: session, display: display, clock: ContinuousClock())
+        } else {
+            let pid = input.operands.first.flatMap { Int32($0) }
+            bytes = try DirectPhysicalAccessibility.capture(device: input.device, resolved: info.uuid, pid: pid,
                                                             session: session, display: display)
+        }
         return try annotate(bytes, info: info)
     }
 

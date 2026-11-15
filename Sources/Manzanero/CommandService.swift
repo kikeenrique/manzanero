@@ -340,7 +340,7 @@ actor CommandService {
         }
         defer { lease?.release() }
         let data = try await DirectSimulatorAccessibility.execute(simulator, info: info, environment: self.simulator)
-        return CommandOutput(data: data)
+        return AccessibilityWait.operations.contains(simulator.operation) ? try AccessibilityWait.output(data) : CommandOutput(data: data)
     }
 
     /// Native AX reads: no device lease, and not paused by a pending handoff.

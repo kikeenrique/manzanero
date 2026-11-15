@@ -120,9 +120,9 @@ final class SimulatorAccessibilitySession: AccessibilityExchange {
     }
 
     /// The production carrier: one CoreSimulator request per call.
-    static func bridge(device uuid: String, developerDirectory: String) throws -> SimulatorAccessibilitySession {
+    static func bridge(device uuid: String, developerDirectory: String, lifetime: Duration) throws -> SimulatorAccessibilitySession {
         let owner = try SimulatorBridgeOwner(uuid: uuid, developerDirectory: developerDirectory, accessibility: true)
-        return SimulatorAccessibilitySession(carrier: { request, timeout in
+        let carrier: Carrier = { request, timeout in
             var error = [CChar](repeating: 0, count: 1024)
             var response = Data()
             let seconds = Double(timeout.components.seconds) + Double(timeout.components.attoseconds) / 1e18
@@ -139,7 +139,8 @@ final class SimulatorAccessibilitySession: AccessibilityExchange {
                 throw CommandFailure(.transportFailed, "Simulator accessibility request failed: \(message)", inputSent: .unknown)
             }
             return response
-        })
+        }
+        return SimulatorAccessibilitySession(carrier: carrier, lifetime: lifetime)
     }
 }
 
