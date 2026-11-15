@@ -10,11 +10,14 @@ struct AccessibilityResponse: Sendable {
         case attributes(AccessibilityRequest.Token)
         case hit
         case action
+        /// Simulator route only: the frontmost application translation.
+        case frontmost
 
         var requestType: UInt64 {
             switch self {
             case .application: 1
             case .snapshot: 2
+            case .frontmost: 4
             case .attributes: 5
             case .hit: 6
             case .action: 7
@@ -63,7 +66,7 @@ struct AccessibilityResponse: Sendable {
             guard translation == .null, attribute == 0, Self.booleanResult(result) != nil else {
                 throw Self.invalid("action reply target, attribute or Boolean result shape")
             }
-        case .hit:
+        case .hit, .frontmost:
             _ = try Self.token(result)
             guard attribute == 0 else { throw Self.invalid("hit attribute mismatch") }
         case .application(let pid):

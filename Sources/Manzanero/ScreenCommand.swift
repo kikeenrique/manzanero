@@ -14,9 +14,6 @@ struct ScreenCommand: Sendable {
               args[0] != "simulator" || UUID(uuidString: args[1]) != nil else {
             throw CommandFailure.usage("Usage: <physical|simulator> <device> screen [auto|tree|ocr]. Simulator screen requires an explicit UUID.")
         }
-        guard args[0] != "simulator" || mode != .tree else {
-            throw CommandFailure.unsupported("Simulator accessibility hierarchy is not available yet; use screen auto or ocr.")
-        }
         return Self(platform: args[0], device: args[1], mode: mode)
     }
 
@@ -27,8 +24,8 @@ struct ScreenCommand: Sendable {
         return plan
     }
 
-    /// `hierarchy` reads the physical AX tree; simulators have none yet, so
-    /// their automatic mode records that and goes straight to OCR.
+    /// `hierarchy` reads the AX tree: the display-centre app on a physical
+    /// device, the frontmost application on a simulator.
     func execute(directory: URL, run: (DeviceCommand) throws -> Data,
                  hierarchy: () async throws -> Data,
                  recognize: @Sendable (String) async throws -> ScreenText = { try await ScreenText.recognize(path: $0) },
@@ -42,9 +39,7 @@ struct ScreenCommand: Sendable {
         let geometry = try ScreenImage.inspect(image)
         let capturedAt = Date().ISO8601Format()
         var diagnostics: [String] = []
-        if mode != .ocr, platform == "simulator" {
-            diagnostics.append("Simulator accessibility hierarchy is not available yet.")
-        } else if mode != .ocr {
+        if mode != .ocr {
             do {
                 let data = try await hierarchy()
                 guard try Self.hasUsefulPhysicalHierarchy(data) else {
@@ -85,7 +80,7 @@ struct ScreenCommand: Sendable {
         guard let tree = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               tree["format"] as? String == "accessibility-tree", tree["parsedHierarchy"] as? Bool == true,
               tree["coordinateSpace"] as? String == "device-logical-points",
-              (tree["application"] as? [String: Any])?["selection"] as? String == "centre-hit-test",
+              ["centre-hit-test", "frontmost-application"].contains((tree["application"] as? [String: Any])?["selection"] as? String ?? ""),
               let nodes = tree["nodes"] as? [[String: Any]], tree["nodeCount"] as? Int == nodes.count else { return false }
         return nodes.dropFirst().contains { node in
             node["visible"] as? Bool != false && ["label", "identifier", "value"].contains { !(node[$0] as? String ?? "").isEmpty }

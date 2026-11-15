@@ -6,9 +6,9 @@ struct DeviceCommand {
     var arguments: [String]
     let jsonOutput: Bool
 
-    /// Simulator operations that would need simulator input or an accessibility
-    /// hierarchy, which have no implementation yet.
-    static let unavailableSimulatorOperations = ["tree", "tap", "swipe", "drag", "type", "button"]
+    /// Simulator operations that would need simulator input, which has no
+    /// implementation yet.
+    static let unavailableSimulatorOperations = ["tap", "swipe", "drag", "type", "button"]
 
     static func parse(_ args: [String]) throws -> Self? {
         if args.first == "decode-ax-archive" {
@@ -95,7 +95,7 @@ struct DeviceCommand {
             }
             command = ["io", device, "screenshot", "--type=png", operands[0]]
         case let value where unavailableSimulatorOperations.contains(value):
-            throw CommandFailure.unsupported("Simulator input and accessibility hierarchy are not available yet; '\(operation)' cannot run on a simulator.")
+            throw CommandFailure.unsupported("Simulator input is not available yet; '\(operation)' cannot run on a simulator.")
         default:
             throw CommandFailure.unsupported("Unsupported simulator operation: \(operation).")
         }

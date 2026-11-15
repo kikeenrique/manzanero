@@ -3,6 +3,7 @@
 #import <objc/runtime.h>
 #include <dlfcn.h>
 #include <string.h>
+#include <time.h>
 #include "AppleDeviceBridge.h"
 
 // Simulator counterpart of the physical bridge. Private interfaces:
@@ -133,4 +134,83 @@ int ADCReadSimulatorDevice(void *owner, ADCSimulatorInfo *info, char *error, siz
 
 void ADCCloseSimulatorDevice(void *owner) {
     if (owner) CFBridgingRelease(owner);
+}
+
+// MARK: - Accessibility
+
+@interface ADCSimulatorReply : NSObject
+@property(nonatomic, strong) dispatch_semaphore_t semaphore;
+@property(atomic, strong) id value;
+@property(atomic) BOOL arrived;
+@end
+@implementation ADCSimulatorReply
+- (instancetype)init { if ((self = [super init])) _semaphore = dispatch_semaphore_create(0); return self; }
+@end
+
+static BOOL ADCSimulatorWait(ADCSimulatorReply *reply, double seconds, ADCInputShouldStop shouldCancel) {
+    uint64_t deadline = clock_gettime_nsec_np(CLOCK_MONOTONIC) + (uint64_t)(seconds * NSEC_PER_SEC);
+    while (!(shouldCancel && shouldCancel()) && clock_gettime_nsec_np(CLOCK_MONOTONIC) < deadline) {
+        if (!dispatch_semaphore_wait(reply.semaphore, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_MSEC))) return YES;
+    }
+    return NO;
+}
+
+int ADCSimulatorAXExchange(void *owner, const uint8_t *request, size_t length, double timeoutSeconds,
+                           ADCInputShouldStop shouldCancel, void (^sink)(const uint8_t *, size_t),
+                           char *error, size_t capacity) {
+    @autoreleasepool {
+        if (!owner || !request || !length || length > 16 * 1024 * 1024 || !sink || !(timeoutSeconds > 0 && timeoutSeconds <= 60))
+            return ADCSimulatorFail(error, capacity, @"Invalid simulator accessibility request; nothing was sent.");
+        if (shouldCancel && shouldCancel()) return ADCSimulatorFail(error, capacity, @"Simulator accessibility request cancelled before sending.");
+        if (ADCPrepareCoreSimulator(1, error, capacity)) return 1;
+        ADCSimulatorOwner *lifetime = (__bridge ADCSimulatorOwner *)owner;
+        Class requestClass = objc_lookUpClass("AXPTranslatorRequest"), objectClass = objc_lookUpClass("AXPTranslationObject");
+        NSSet *allowed = [NSSet setWithObjects:requestClass, objectClass, NSDictionary.class, NSArray.class,
+                          NSNumber.class, NSString.class, NSValue.class, NSData.class, NSNull.class, nil];
+        NSError *failure = nil;
+        NSKeyedUnarchiver *decoder = [[NSKeyedUnarchiver alloc] initForReadingFromData:[NSData dataWithBytes:request length:length] error:&failure];
+        decoder.requiresSecureCoding = YES;
+        id object = nil;
+        @try { object = [decoder decodeTopLevelObjectOfClasses:allowed forKey:NSKeyedArchiveRootObjectKey error:&failure]; }
+        @catch (NSException *exception) { object = nil; }
+        [decoder finishDecoding];
+        if (![object isKindOfClass:requestClass])
+            return ADCSimulatorFail(error, capacity, [NSString stringWithFormat:@"The accessibility request did not unarchive as AXPTranslatorRequest (%@); nothing was sent.", failure.localizedDescription ?: @"unexpected class"]);
+        // Hit tests need client type 2: with type 0 a point over an empty area
+        // fails instead of returning its container (docs/simulator-input.md).
+        @try {
+            if ([[object valueForKey:@"requestType"] unsignedLongLongValue] == 6) [object setValue:@2 forKey:@"clientType"];
+        } @catch (NSException *exception) {
+            return ADCSimulatorFail(error, capacity, @"Cannot set the hit-test client type on AXPTranslatorRequest; nothing was sent.");
+        }
+        if (shouldCancel && shouldCancel()) return ADCSimulatorFail(error, capacity, @"Simulator accessibility request cancelled before sending.");
+        ADCSimulatorReply *reply = [ADCSimulatorReply new];
+        void (^completion)(id) = ^(id response) {
+            reply.value = response;
+            reply.arrived = YES;
+            dispatch_semaphore_signal(reply.semaphore);
+        };
+        ((void (*)(id, SEL, id, dispatch_queue_t, id))objc_msgSend)(lifetime.device,
+            NSSelectorFromString(@"sendAccessibilityRequestAsync:completionQueue:completionHandler:"), object, lifetime.queue, completion);
+        if (!ADCSimulatorWait(reply, timeoutSeconds, shouldCancel)) {
+            ADCSimulatorFail(error, capacity, shouldCancel && shouldCancel()
+                ? @"Simulator accessibility request cancelled after sending; its effect is unknown."
+                : [NSString stringWithFormat:@"Simulator accessibility request got no reply within %.1f seconds; its effect is unknown.", timeoutSeconds]);
+            return ADCSimulatorAXSent;
+        }
+        id response = reply.value;
+        if (!response || ![response isKindOfClass:objc_lookUpClass("AXPTranslatorResponse")]) {
+            ADCSimulatorFail(error, capacity, @"CoreSimulator returned no AXPTranslatorResponse for the accessibility request.");
+            return ADCSimulatorAXSent;
+        }
+        NSData *archive = nil;
+        @try { archive = [NSKeyedArchiver archivedDataWithRootObject:response requiringSecureCoding:NO error:&failure]; }
+        @catch (NSException *exception) { archive = nil; }
+        if (!archive.length || archive.length > 16 * 1024 * 1024) {
+            ADCSimulatorFail(error, capacity, @"Cannot archive the simulator's AXPTranslatorResponse within 16 MiB.");
+            return ADCSimulatorAXSent;
+        }
+        sink(archive.bytes, archive.length);
+        return 0;
+    }
 }

@@ -147,7 +147,7 @@ struct CommandFailureTests {
         (["frobnicate"], "Unknown command. Run manzanero --help.", "usage"),
         (["physical", "U", "tap", "2", "0.5"], "Physical input coordinates must be normalized numbers from 0 to 1.", "usage"),
         (["physical", "U", "button", "power"], "Supported physical buttons: home, lock, volume-up, volume-down.", "usage"),
-        (["simulator", "U", "tap", "0.5", "0.5"], "Simulator input and accessibility hierarchy are not available yet; 'tap' cannot run on a simulator.", "unsupported-operation"),
+        (["simulator", "U", "tap", "0.5", "0.5"], "Simulator input is not available yet; 'tap' cannot run on a simulator.", "unsupported-operation"),
         (["physical", "U", "frobnicate"], "Unsupported physical-device operation: frobnicate.", "unsupported-operation"),
         (["--physical-backend", "helper", "physical", "U", "tap", "0.5", "0.5"], "Unsupported physical backend: helper. coredevice is the only physical backend and the default; --physical-backend may be omitted.", "unsupported-operation"),
         (["physical", "U", "wait-id", "sel", "--timeout", "99"], "--timeout must be a number of seconds in 0...60. Native AX wait usage: wait-id|wait-label [positive-pid] <exact-selector> [--until visible|gone|enabled|disabled|value] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>].", "usage"),

@@ -22,14 +22,14 @@ struct DeviceCommandsTests {
         }
     }
 
-    @Test(arguments: [["tree"], ["tap", "10", "10"], ["tap", "--help"],
+    @Test(arguments: [["tap", "10", "10"], ["tap", "--help"],
                       ["swipe", "0", "0", "10", "10", "1"], ["drag", "0", "0", "10", "10", "1"],
                       ["type", "hello"], ["button", "home"]])
     func simulatorInputAndHierarchyFailPlainlyWithoutAPlan(_ operands: [String]) async throws {
         for device in [simulator, "booted"] {
             for dryRun in [false, true] {
                 let message = try #require(await failure(["simulator", device] + operands, dryRun: dryRun))
-                #expect(message.contains("Simulator input and accessibility hierarchy are not available yet"))
+                #expect(message.contains("Simulator input is not available yet"))
                 #expect(!message.lowercased().contains("axe"))
             }
         }

@@ -1,0 +1,298 @@
+import Foundation
+import Testing
+@testable import Manzanero
+
+/// A scripted simulator AX peer behind the CoreSimulator carrier: it reads the
+/// project's request archives and answers with AXPTranslatorResponse archives,
+/// as the bridge does after archiving the framework's reply. No simulator.
+final class SimulatorAXFixture: @unchecked Sendable {
+    typealias Token = AccessibilityWaitTests.Token
+
+    /// As the wait fixture's response, but resultData may be nil.
+    @objc(ADCAXSimulatorTestResponse)
+    final class Response: NSObject, NSSecureCoding {
+        static var supportsSecureCoding: Bool { true }
+        let kind: UInt64
+        let translation: Token?
+        let result: NSObject?
+        init(kind: UInt64, translation: Token? = nil, result: NSObject?) { self.kind = kind; self.translation = translation; self.result = result }
+        required init?(coder: NSCoder) { return nil }
+        func encode(with coder: NSCoder) {
+            coder.encode(Int(kind), forKey: "associatedRequestType"); coder.encode(kind == 2 ? 52 : 0, forKey: "attribute")
+            coder.encode(0, forKey: "error"); coder.encode(0, forKey: "notification")
+            coder.encode(translation, forKey: "associatedTranslationObject"); coder.encode(result, forKey: "resultData")
+        }
+    }
+
+    struct Element {
+        var id = 2
+        var identifier: String? = "fixture.target"
+        var label: String? = "Target"
+        var value: String?
+        var visible: Bool? = true
+        var enabled: Bool? = true
+        var frame = NSRect(x: 100, y: 200, width: 80, height: 40)
+    }
+
+    var pid: Int32 = 42
+    var elements: [Element] = []
+    /// Requests seen, as (type, action).
+    private(set) var requests: [(kind: UInt64, action: UInt64)] = []
+    var timeouts: [Duration] = []
+    /// Answer to a press or scroll; nil throws a carrier failure after sending.
+    var actionResult: Bool? = true
+    var onAction: (() -> Void)?
+    var emptySnapshot = false
+    var frontmostPIDs: [Int32] = []
+    var failKind: UInt64?
+
+    var kinds: [UInt64] { requests.map(\.kind) }
+
+    func carrier() -> SimulatorAccessibilitySession.Carrier {
+        { [self] request, timeout in try answer(request, timeout: timeout) }
+    }
+
+    func session(lifetime: Duration = .seconds(30)) -> SimulatorAccessibilitySession {
+        SimulatorAccessibilitySession(carrier: carrier(), lifetime: lifetime, cancelled: { false })
+    }
+
+    private func answer(_ request: Data, timeout: Duration) throws -> Data {
+        guard case .object("AXPTranslatorRequest", let fields) = try KeyedArchiveInspector.decodeProtocol(request),
+              let kind = fields["requestType"]?.unsignedInteger, let action = fields["actionType"]?.unsignedInteger else {
+            throw CommandFailure(description: "Bad fixture request")
+        }
+        requests.append((kind, action))
+        timeouts.append(timeout)
+        if kind == failKind { throw CommandFailure(.transportFailed, "Simulator accessibility request failed: fixture", inputSent: .unknown) }
+        let response: Response
+        switch kind {
+        case 1:
+            response = Response(kind: 1, result: Token(1, pid: pid, application: true))
+        case 2:
+            let root = Token(1, pid: pid, application: true)
+            response = Response(kind: 2, translation: root, result: emptySnapshot ? nil :
+                record(root, label: "App", identifier: nil, visible: true, frame: NSRect(x: 0, y: 0, width: 390, height: 844),
+                       children: elements.map { record(Token($0.id, pid: pid), label: $0.label, identifier: $0.identifier,
+                                                       value: $0.value, visible: $0.visible, frame: $0.frame) }))
+        case 4:
+            let current = frontmostPIDs.isEmpty ? pid : frontmostPIDs.removeFirst()
+            response = Response(kind: 4, result: Token(1, pid: current, application: true))
+        case 5:
+            let element = elements.first ?? Element()
+            var live: [Int: Any] = [21: NSValue(rect: element.frame)]
+            if let enabled = element.enabled { live[27] = NSNumber(value: enabled) }
+            if let visible = element.visible { live[32] = NSNumber(value: visible) }
+            if let identifier = element.identifier { live[25] = identifier }
+            response = Response(kind: 5, result: live as NSDictionary)
+        case 6:
+            guard case .dictionary(let parameters) = fields["parameters"], case .object(_, let point) = parameters["point"] ?? .null,
+                  case .string(let text) = point["NS.pointval"] ?? .null else { throw CommandFailure(description: "Bad fixture hit") }
+            let hit = elements.first { element in
+                let value = NSPointFromString(text)
+                return NSPointInRect(value, element.frame)
+            }
+            response = Response(kind: 6, result: Token(hit?.id ?? 1, pid: pid, application: hit == nil))
+        case 7:
+            onAction?()
+            guard let actionResult else { throw CommandFailure(.transportFailed, "Simulator accessibility request failed: no reply", inputSent: .unknown) }
+            response = Response(kind: 7, result: NSNumber(value: actionResult))
+        default:
+            throw CommandFailure(description: "Unexpected fixture request type \(kind)")
+        }
+        let coder = NSKeyedArchiver(requiringSecureCoding: true)
+        coder.setClassName("AXPTranslatorResponse", for: Response.self)
+        coder.setClassName("AXPTranslationObject", for: Token.self)
+        coder.encode(response, forKey: NSKeyedArchiveRootObjectKey)
+        coder.finishEncoding()
+        return coder.encodedData
+    }
+
+    private func record(_ token: Token, label: String?, identifier: String?, value: String? = nil, visible: Bool?,
+                        frame: NSRect, children: [NSDictionary] = []) -> NSDictionary {
+        var attributes: [Int: Any] = [3003: "com.example.fixture"]
+        attributes[2001] = label
+        attributes[5019] = identifier
+        attributes[2006] = value
+        attributes[2025] = visible.map { NSNumber(value: $0) }
+        attributes[2003] = NSValue(rect: frame)
+        return ["UIAccessibilitySnapshotKeyElement": token, "UIAccessibilitySnapshotKeyChildren": children,
+                "UIAccessibilitySnapshotKeyChildrenCount": children.count,
+                "UIAccessibilitySnapshotKeyAttributes": attributes as NSDictionary] as NSDictionary
+    }
+}
+
+struct SimulatorAccessibilityTests {
+    static let uuid = SimulatorDeviceTests.uuid
+    static let screen = SimulatorDeviceTests.info()
+
+    /// Responses captured from an iPhone 17e simulator (iOS 27.2) while the
+    /// Home Screen was frontmost: the frontmost request's answer, and the empty
+    /// answer to its full-depth snapshot.
+    static let capturedFrontmost = Data(base64Encoded: "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGmCwwbKSoxVSRudWxs2A0ODxAREhMUFRYXGBYYGBpWJGNsYXNzXxAcYXNzb2NpYXRlZE5vdGlmaWNhdGlvbk9iamVjdFpyZXN1bHREYXRhWWF0dHJpYnV0ZV8QG2Fzc29jaWF0ZWRUcmFuc2xhdGlvbk9iamVjdFxub3RpZmljYXRpb25VZXJyb3JfEBVhc3NvY2lhdGVkUmVxdWVzdFR5cGWABYAAgAIQAIAAEATXDRwdHh8gISIjFiUlFihTcGlkXnJhd0VsZW1lbnREYXRhXxAUaXNBcHBsaWNhdGlvbkVsZW1lbnRfEBNkaWRQb3B1bGRhdGVBcHBJbmZvXxATYnJpZGdlRGVsZWdhdGVUb2tlblhvYmplY3RJRIAEEgABPr+AAAkJgACAAxQAAAAAAAAAAJqw33WR8WuP0issLS5aJGNsYXNzbmFtZVgkY2xhc3Nlc18QFEFYUFRyYW5zbGF0aW9uT2JqZWN0oi8wXxAUQVhQVHJhbnNsYXRpb25PYmplY3RYTlNPYmplY3TSKywyM18QFUFYUFRyYW5zbGF0b3JSZXNwb25zZaI0MF8QFUFYUFRyYW5zbGF0b3JSZXNwb25zZQAIABEAGgAkACkAMgA3AEkATABRAFMAWgBgAHEAeACXAKIArADKANcA3QD1APcA+QD7AP0A/wEBARABFAEjAToBUAFmAW8BcQF2AXgBeQF6AXwBfgGPAZQBnwGoAb8BwgHZAeIB5wH/AgIAAAAAAAACAQAAAAAAAAA1AAAAAAAAAAAAAAAAAAACGg==")!
+    static let capturedEmptySnapshot = Data(base64Encoded: "YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMSAAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGmCwwcKisyVSRudWxs2A0ODxAREhMUFRYWGBkaGhtWJGNsYXNzXxAcYXNzb2NpYXRlZE5vdGlmaWNhdGlvbk9iamVjdFpyZXN1bHREYXRhWWF0dHJpYnV0ZV8QG2Fzc29jaWF0ZWRUcmFuc2xhdGlvbk9iamVjdFxub3RpZmljYXRpb25VZXJyb3JfEBVhc3NvY2lhdGVkUmVxdWVzdFR5cGWABYAAgAAQNIACEAAQAtcNHR4fICEiIyQWJiYWKVNwaWRecmF3RWxlbWVudERhdGFfEBRpc0FwcGxpY2F0aW9uRWxlbWVudF8QE2RpZFBvcHVsZGF0ZUFwcEluZm9fEBNicmlkZ2VEZWxlZ2F0ZVRva2VuWG9iamVjdElEgAQSAAE+v4AACQmAAIADFAAAAAAAAAAAmrDfdZHxa4/SLC0uL1okY2xhc3NuYW1lWCRjbGFzc2VzXxAUQVhQVHJhbnNsYXRpb25PYmplY3SiMDFfEBRBWFBUcmFuc2xhdGlvbk9iamVjdFhOU09iamVjdNIsLTM0XxAVQVhQVHJhbnNsYXRvclJlc3BvbnNlojUxXxAVQVhQVHJhbnNsYXRvclJlc3BvbnNlAAgAEQAaACQAKQAyADcASQBMAFEAUwBaAGAAcQB4AJcAogCsAMoA1wDdAPUA9wD5APsA/QD/AQEBAwESARYBJQE8AVIBaAFxAXMBeAF6AXsBfAF+AYABkQGWAaEBqgHBAcQB2wHkAekCAQIEAAAAAAAAAgEAAAAAAAAANgAAAAAAAAAAAAAAAAAAAhw=")!
+
+    static func environment(_ fixture: SimulatorAXFixture, state: String = "Booted",
+                            sessions: SessionCounter = SessionCounter()) -> SimulatorEnvironment {
+        SimulatorEnvironment(lookup: { _ in SimulatorDeviceTests.info(state) },
+                             accessibility: { _ in sessions.count += 1; return fixture.session() })
+    }
+
+    final class SessionCounter: @unchecked Sendable { var count = 0 }
+
+    /// A registry that cannot create its directory: taking a lease fails, so a
+    /// successful command proves no lease was taken.
+    static func unusableLeases() throws -> DeviceLeaseRegistry {
+        let blocker = URL(fileURLWithPath: "tmp/simulator-lease-blocker-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: blocker.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: blocker)
+        return DeviceLeaseRegistry(directory: blocker.appendingPathComponent("leases"))
+    }
+
+    static func service(_ fixture: SimulatorAXFixture, state: String = "Booted", leases: DeviceLeaseRegistry? = nil,
+                        sessions: SessionCounter = SessionCounter()) throws -> CommandService {
+        CommandService(leases: try leases ?? unusableLeases(), simulator: environment(fixture, state: state, sessions: sessions),
+                       readinessQuery: { _ in Issue.record("Simulator command queried CoreDevice"); return Data() })
+    }
+
+    static func json(_ output: CommandOutput) throws -> [String: Any] {
+        try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
+    }
+
+    // MARK: - Parsing and plans
+
+    @Test func treeParsesWithAnOptionalPIDAndRequiresAUUID() throws {
+        #expect(try SimulatorInput.parse(["simulator", Self.uuid.lowercased(), "tree"])?.device == Self.uuid)
+        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "tree", "0042"])?.operands == ["42"])
+        for invalid in [["simulator", Self.uuid, "tree", "0"], ["simulator", Self.uuid, "tree", "x"], ["simulator", Self.uuid, "tree", "1", "2"]] {
+            #expect(throws: CommandFailure.self) { try SimulatorInput.parse(invalid) }
+        }
+        let alias = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", "booted", "tree"]) }
+        #expect(alias.code == .usage)
+        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "apps"]) == nil)
+        #expect(try SimulatorInput.parse(["physical", Self.uuid, "tree"]) == nil)
+    }
+
+    @Test(arguments: ["multi-tap", "multi-drag", "pinch", "gesture", "paste", "wake"])
+    func multiContactAndPhysicalOnlyOperationsAreRefusedPlainly(operation: String) async throws {
+        let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid, operation, "0.5"]) }
+        #expect(failure.code == .unsupportedOperation && failure.inputSent == .none && failure.retry == .no)
+        #expect(failure.description.contains("not implemented yet"))
+        let fixture = SimulatorAXFixture()
+        for dryRun in [false, true] {
+            await #expect(throws: CommandFailure.self) { _ = try await Self.service(fixture).execute(["simulator", Self.uuid, operation, "0.5"], dryRun: dryRun) }
+        }
+        #expect(fixture.requests.isEmpty)
+    }
+
+    @Test func treeDryRunDescribesTheSimulatorRouteWithoutLookingItUp() async throws {
+        let fixture = SimulatorAXFixture()
+        let service = CommandService(leases: try Self.unusableLeases(), simulator: SimulatorEnvironment(
+            lookup: { _ in Issue.record("Dry run looked the simulator up"); return Self.screen },
+            accessibility: { _ in Issue.record("Dry run opened AX"); return fixture.session() }),
+            readinessQuery: { _ in Issue.record("Dry run queried CoreDevice"); return Data() })
+        let plan = try Self.json(await service.execute(["simulator", Self.uuid, "tree"], dryRun: true))
+        #expect(plan["backend"] as? String == "coresimulator-ax" && plan["platform"] as? String == "simulator")
+        #expect(plan["operation"] as? String == "tree" && plan["pid"] is NSNull && plan["liveVerified"] as? Bool == false)
+        #expect((plan["execution"] as? String)?.contains("frontmost application") == true)
+        #expect((plan["deviceLease"] as? String)?.hasPrefix("not taken") == true)
+    }
+
+    // MARK: - Tree
+
+    @Test func treeSelectsTheFrontmostApplicationAndKeepsThePhysicalShape() async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.elements = [.init(identifier: "probe.touch.summary", label: "Probe summary", value: "{\"v\":1}")]
+        let sessions = SessionCounter()
+        let tree = try Self.json(await Self.service(fixture, sessions: sessions).execute(["simulator", Self.uuid, "tree"]))
+        // frontmost, application, snapshot, application recheck, frontmost recheck.
+        #expect(fixture.kinds == [4, 1, 2, 1, 4] && sessions.count == 1)
+        #expect(tree["format"] as? String == "accessibility-tree" && tree["parsedHierarchy"] as? Bool == true)
+        #expect(tree["backend"] as? String == "coresimulator-ax" && tree["platform"] as? String == "simulator")
+        #expect(tree["transport"] as? String == "coresimulator" && tree["resolvedSimulatorUUID"] as? String == Self.uuid)
+        #expect(tree["resolvedCoreDeviceUUID"] == nil && tree["deviceAPIVersion"] == nil && tree["connectionCleanup"] == nil)
+        #expect((tree["application"] as? [String: Any])?["selection"] as? String == "frontmost-application")
+        #expect((tree["application"] as? [String: Any])?["pid"] as? Int == 42)
+        #expect((tree["cleanup"] as? [String: Any])?["subscriptionStop"] as? String == "not-applicable")
+        #expect((tree["display"] as? [String: Any])?["orientation"] as? String == "portrait-assumed")
+        #expect((tree["screen"] as? [String: Any])?["widthPoints"] as? Int == 390)
+        let nodes = try #require(tree["nodes"] as? [[String: Any]])
+        #expect(nodes.count == 2 && tree["nodeCount"] as? Int == 2)
+        #expect(nodes[1]["identifier"] as? String == "probe.touch.summary" && nodes[1]["value"] as? String == "{\"v\":1}")
+        #expect((nodes[1]["nativeAttributes"] as? [String: String])?["3003"] == "com.example.fixture")
+        #expect((nodes[1]["frame"] as? [String: Any])?["width"] as? Int == 80)
+        #expect(fixture.timeouts.allSatisfy { $0 <= .seconds(5) })
+    }
+
+    @Test func treeWithAPIDSkipsForegroundSelection() async throws {
+        let fixture = SimulatorAXFixture()
+        let tree = try Self.json(await Self.service(fixture).execute(["simulator", Self.uuid, "tree", "42"]))
+        #expect(fixture.kinds == [1, 2, 1])
+        #expect((tree["application"] as? [String: Any])?["selection"] as? String == "explicit-pid" && tree["display"] == nil)
+    }
+
+    @Test func frontmostChangeDuringTheTreeReturnsNoTree() async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.frontmostPIDs = [42, 77]
+        let failure = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(fixture).execute(["simulator", Self.uuid, "tree"])
+        })
+        #expect(failure.code == .preconditionChanged && failure.inputSent == .none)
+        #expect(failure.description.hasPrefix("Simulator tree failed: Frontmost application AX process changed"))
+    }
+
+    @Test(arguments: ["Shutdown", "Booting"])
+    func unbootedSimulatorRefusesTheTreeBeforeOpeningAccessibility(state: String) async throws {
+        let fixture = SimulatorAXFixture()
+        let sessions = SessionCounter()
+        let failure = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(fixture, state: state, sessions: sessions).execute(["simulator", Self.uuid, "tree"])
+        })
+        #expect(failure.code == .deviceNotReady && failure.inputSent == .none && sessions.count == 0 && fixture.requests.isEmpty)
+    }
+
+    @Test func emptySnapshotIsReportedAsTheSimulatorBudgetNotAPartialTree() async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.emptySnapshot = true
+        let failure = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(fixture).execute(["simulator", Self.uuid, "tree"])
+        })
+        #expect(failure.code == .transportFailed && failure.inputSent == .none)
+        #expect(failure.description.contains("no snapshot data"))
+    }
+
+    @Test func capturedSimulatorResponsesDecodeWithThePhysicalDecoder() throws {
+        let frontmost = try AccessibilityResponse(archive: Self.capturedFrontmost)
+        #expect(frontmost.requestType == 4 && frontmost.error == 0 && frontmost.attribute == 0)
+        let token = try AccessibilityResponse.token(#require(try frontmost.matchingResult(for: .frontmost)))
+        #expect(token.pid == 81599 && token.isApplicationElement && token.didPopulateAppInfo && token.bridgeDelegateToken == nil)
+        // The empty Home Screen snapshot through the simulator session.
+        var replies = [Self.capturedFrontmost, Self.capturedEmptySnapshot]
+        let session = SimulatorAccessibilitySession(carrier: { _, _ in replies.removeFirst() }, cancelled: { false })
+        try session.start()
+        let root = try session.frontmost()
+        #expect(throws: CommandFailure.self) { try session.snapshot(root) }
+        // Any failure closes the session.
+        #expect(throws: CommandFailure.self) { try session.frontmost() }
+    }
+
+    @Test func sessionRefusesMismatchedRepliesDeadlinesAndUseAfterClose() throws {
+        let fixture = SimulatorAXFixture()
+        // A frontmost reply to an application request does not satisfy it.
+        let mismatched = SimulatorAccessibilitySession(carrier: { _, _ in Self.capturedFrontmost }, cancelled: { false })
+        try mismatched.start()
+        #expect(throws: CommandFailure.self) { try mismatched.application(pid: 81599) }
+        // The whole-session lifetime bounds every request.
+        let expired = SimulatorAccessibilitySession(carrier: fixture.carrier(), lifetime: .zero, cancelled: { false })
+        try expired.start()
+        #expect(throws: CommandFailure.self) { try expired.frontmost() }
+        #expect(fixture.requests.isEmpty)
+        let session = fixture.session()
+        #expect(throws: CommandFailure.self) { try session.frontmost() }   // not started
+        try session.start()
+        #expect(throws: CommandFailure.self) { try session.start() }
+        #expect(session.close() == .notApplicable && session.close() == .notApplicable)
+        #expect(throws: CommandFailure.self) { try session.frontmost() }
+        let cancelled = SimulatorAccessibilitySession(carrier: fixture.carrier(), cancelled: { true })
+        #expect(throws: CancellationError.self) { try cancelled.start() }
+    }
+}

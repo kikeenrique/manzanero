@@ -205,6 +205,20 @@ int ADCOpenSimulatorDevice(const char *developerDir, const char *uuid, ADCSimula
 /// Re-reads state and geometry of an open device. Returns zero.
 int ADCReadSimulatorDevice(void *owner, ADCSimulatorInfo *info, char *error, size_t errorCapacity);
 void ADCCloseSimulatorDevice(void *owner);
+/// Status of ADCSimulatorAXExchange once the request was handed to
+/// CoreSimulator but no usable reply arrived (timeout, cancellation, nil or an
+/// unarchivable response). Any other non-zero status means nothing was sent.
+#define ADCSimulatorAXSent 2
+/// One AX request: unarchives the project's AXPTranslatorRequest archive into
+/// the framework's own class (secure coding, allow-listed classes), sets
+/// client type 2 on hit tests (type 6), sends it with
+/// -[SimDevice sendAccessibilityRequestAsync:...] and archives the
+/// AXPTranslatorResponse for the data-only Swift decoder. The response bytes
+/// are borrowed only during sink. Waits at most timeoutSeconds, polling
+/// shouldCancel every 10 ms.
+int ADCSimulatorAXExchange(void *owner, const uint8_t *request, size_t length, double timeoutSeconds,
+                           ADCInputShouldStop shouldCancel, void (^sink)(const uint8_t *, size_t),
+                           char *error, size_t errorCapacity);
 
 /// Host-only availability of the dynamically resolved Apple interfaces, grouped
 /// by capability. Loads the listed frameworks with the operations' own flags and

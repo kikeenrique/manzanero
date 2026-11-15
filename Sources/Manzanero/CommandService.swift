@@ -21,8 +21,9 @@ actor CommandService {
     private let uiReadinessQuery: @Sendable (DeviceCommand) throws -> Data
     private var pendingHandoffs: Set<DeviceTarget> = []
     private let leases: DeviceLeaseRegistry
+    private let simulator: SimulatorEnvironment
 
-    init(leases: DeviceLeaseRegistry = .shared, readinessQuery: @escaping @Sendable (String) throws -> Data = { device in
+    init(leases: DeviceLeaseRegistry = .shared, simulator: SimulatorEnvironment = .live, readinessQuery: @escaping @Sendable (String) throws -> Data = { device in
         guard let plan = try DeviceCommand.parse(["physical", device, "details"]) else {
             throw CommandFailure(.internal, "Cannot plan device readiness query.", inputSent: .none)
         }
@@ -31,6 +32,7 @@ actor CommandService {
         try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 15)
     }) {
         self.leases = leases
+        self.simulator = simulator
         self.readinessQuery = readinessQuery
         self.uiReadinessQuery = uiReadinessQuery
     }
@@ -206,6 +208,10 @@ actor CommandService {
             }
             return CommandOutput(data: try DirectPhysicalInput.execute(native, query: query))
         }
+        if let simulator = try SimulatorInput.parse(args) {
+            if dryRun { return try json(simulator.plan()) }
+            return try await executeSimulator(simulator)
+        }
         if let handoff = try HandoffCommand.parse(args) {
             if dryRun { return try json(["platform": handoff.platform, "device": handoff.device, "message": handoff.message, "action": "Request human completion; no device action or prompt is executed by this dry run."]) }
             guard pendingHandoffs.insert(handoff.target).inserted else { throw CommandFailure(.handoffPending, "A handoff is already pending for this device.", inputSent: .none) }
@@ -223,7 +229,7 @@ actor CommandService {
             if dryRun {
                 let plan = try screen.capturePlan(image: directory.appendingPathComponent("screen.png"))
                 return try json(["executable": plan.executable, "arguments": plan.arguments, "analysisMode": screen.mode.rawValue,
-                    "analysis": "Prefer accessibility in auto mode (physical selects the app at primary display centre; simulators have no hierarchy yet); fall back to Vision OCR, then explicitly report image-only if analysis fails."])
+                    "analysis": "Prefer accessibility in auto mode (physical selects the app at primary display centre; simulators the frontmost application); fall back to Vision OCR, then explicitly report image-only if analysis fails."])
             }
             if screen.platform == "physical" { try preflight(screen.device, operation: "capture screen") }
             return CommandOutput(data: try await screen.execute(directory: directory,
@@ -316,6 +322,25 @@ actor CommandService {
         default:
             throw CommandFailure.usage("Unknown command. Run manzanero --help.")
         }
+    }
+
+    /// Simulator input and accessibility. The order mirrors the physical path:
+    /// handoff pause for mutations, then the device lookup (an unbooted
+    /// simulator is refused here), then the lease keyed by the simulator UUID
+    /// for anything that can change the simulator, then the operation.
+    private func executeSimulator(_ simulator: SimulatorInput) async throws -> CommandOutput {
+        try checkHandoffPause(["simulator", simulator.device, simulator.operation])
+        let info: SimulatorDeviceInfo
+        let lease: DeviceLease?
+        do {
+            info = try SimulatorDevice.requireBooted(simulator.device, operation: simulator.operation, lookup: self.simulator.lookup)
+            lease = simulator.isObservation ? nil : try leases.acquire(device: simulator.device, operation: simulator.operation)
+        } catch let failure as CommandFailure {
+            throw failure.noInputSent()
+        }
+        defer { lease?.release() }
+        let data = try await DirectSimulatorAccessibility.execute(simulator, info: info, environment: self.simulator)
+        return CommandOutput(data: data)
     }
 
     /// Native AX reads: no device lease, and not paused by a pending handoff.

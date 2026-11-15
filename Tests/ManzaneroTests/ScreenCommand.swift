@@ -37,25 +37,40 @@ struct ScreenCommandTests {
         for args in [["simulator", "booted", "screen"], ["simulator", device, "screen", "unknown"]] {
             #expect(throws: CommandFailure.self) { try ScreenCommand.parse(args) }
         }
-        do {
-            _ = try ScreenCommand.parse(["simulator", device, "screen", "tree"])
-            Issue.record("Simulator tree mode was accepted")
-        } catch { #expect(String(describing: error).contains("Simulator accessibility hierarchy is not available yet")) }
+        #expect(try ScreenCommand.parse(["simulator", device, "screen", "tree"])?.mode == .tree)
         #expect(try ScreenCommand.parse(["simulator", device, "screen", "ocr"])?.mode == .ocr)
     }
 
-    @Test func simulatorAutoSkipsHierarchyAndUsesOCR() async throws {
+    @Test func simulatorAutoPrefersTheFrontmostApplicationTree() async throws {
+        var hierarchy = try json(physicalTree())
+        hierarchy["application"] = ["selection": "frontmost-application"]
+        hierarchy["cleanup"] = ["subscriptionStop": "not-applicable", "confirmed": true]
+        let data = try JSONSerialization.data(withJSONObject: hierarchy)
         try await fixture { directory in
             let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
             let result = try await screen.execute(directory: directory, run: { plan in
                 #expect(plan.arguments.contains("screenshot"))
                 try png(directory.appendingPathComponent("screen.png")); return Data()
-            }, hierarchy: { Issue.record("Simulator screen requested a hierarchy"); return tree }, recognize: { Self.text($0) })
+            }, hierarchy: { data }, recognize: { _ in Issue.record("Useful simulator tree reached OCR"); return Self.text("unexpected") })
+            let value = try json(result)
+            #expect(value["method"] as? String == "accessibility")
+            #expect(value["coordinateSpace"] as? String == "device-logical-points")
+            #expect(value["diagnostics"] as? [String] == [])
+        }
+    }
+
+    @Test func simulatorAutoFallsBackToOCRWhenTheTreeFails() async throws {
+        try await fixture { directory in
+            let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
+            let result = try await screen.execute(directory: directory, run: { plan in
+                #expect(plan.arguments.contains("screenshot"))
+                try png(directory.appendingPathComponent("screen.png")); return Data()
+            }, hierarchy: { throw CommandFailure(.transportFailed, "Simulator tree failed: fixture.", inputSent: .none) }, recognize: { Self.text($0) })
             let value = try json(result)
             #expect(value["method"] as? String == "ocr")
             #expect(value["coordinateSpace"] as? String == "normalized-top-left")
             #expect((value["image"] as? [String: Any])?["width"] as? Int == 40)
-            #expect(value["diagnostics"] as? [String] == ["Simulator accessibility hierarchy is not available yet."])
+            #expect(value["diagnostics"] as? [String] == ["Accessibility unavailable: Simulator tree failed: fixture."])
         }
     }
 

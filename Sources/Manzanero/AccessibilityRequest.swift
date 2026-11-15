@@ -41,6 +41,13 @@ enum AccessibilityRequest {
             "displayId": 0], token: nil, pointQuery: true)
     }
 
+    /// Read-only query for the frontmost application of display 0, used by the
+    /// simulator route. It carries the same synthetic PID-zero translation as
+    /// a hit test; the physical route never sends it.
+    static func frontmost() throws -> Data {
+        try archive(kind: 4, parameters: ["displayId": 0], token: nil, pointQuery: true)
+    }
+
     static func snapshot(_ token: Token) throws -> Data {
         try archive(kind: 2, parameters: ["parameter": [
             "attributes": [2001, 2002, 2003, 2004, 5019, 2006, 2025, 5003, 5004, 3003],
