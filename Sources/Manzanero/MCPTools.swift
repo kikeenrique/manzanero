@@ -2,7 +2,7 @@ import Foundation
 import MCP
 
 struct MCPField: Sendable {
-    enum Kind: String, Sendable { case string, number, integer, array }
+    enum Kind: String, Sendable { case string, number, integer, boolean, array }
     let name: String
     var kind: Kind = .string
     var description: String = ""
@@ -24,7 +24,7 @@ struct MCPField: Sendable {
         let valid: Bool
         switch (kind, value) {
         case (.string, .string(let text)): valid = !text.isEmpty && (choices.isEmpty || choices.contains(text))
-        case (.number, .int), (.integer, .int): valid = true
+        case (.number, .int), (.integer, .int), (.boolean, .bool): valid = true
         case (.number, .double(let number)): valid = number.isFinite
         case (.array, .array(let values)):
             valid = values.allSatisfy { if case .int = $0 { return true }; if case .double(let n) = $0 { return n.isFinite }; return false }
@@ -139,10 +139,14 @@ enum MCPTools {
         },
         .init(name: "list_reports", description: "List saved physical report metadata without recursion. Optional relative directory, default '.'. Live listing verified; does not read contents.", fields: [device, .init(name: "directory", required: false)], readOnly: true) { $0.deviceCommand(["reports", $0.text("directory", default: ".")], platform: "physical") },
         .init(name: "download_report", description: "Download a selected saved physical report to a host path. May overwrite that destination. Download unverified live; no parsing or symbolication.", fields: [device, .init(name: "remote_path"), .init(name: "local_path")]) { $0.deviceCommand(["report", $0.text("remote_path"), $0.text("local_path")], platform: "physical") },
-        .init(name: "build_run", description: "Build an iOS Xcode project/workspace, install and restart its app. Executes the project's build scripts. Explicit scheme required; configuration defaults Debug. Physical signing/deployment unverified. Requires xcsift. Does not verify UI health.", fields: [platform, device, .init(name: "project"), .init(name: "scheme"), .init(name: "configuration", required: false), .init(name: "app_target", required: false)]) {
+        .init(name: "build_run", description: "Build an iOS Xcode project/workspace, install and restart its app. Executes the project's build scripts. Explicit scheme required; configuration defaults Debug. Physical builds use signing assets already on the Mac unless allow_provisioning_updates is true, which lets Xcode use the developer account signed in to Xcode to create or change certificates, app IDs and profiles on Apple's developer services; allow_device_registration additionally registers the device with the team. Both are physical-only, off by default; ask the user before enabling. Physical signing/deployment unverified. Requires xcsift. Does not verify UI health.", fields: [platform, device, .init(name: "project"), .init(name: "scheme"), .init(name: "configuration", required: false), .init(name: "app_target", required: false),
+            .init(name: "allow_provisioning_updates", kind: .boolean, description: "Physical only. Pass -allowProvisioningUpdates: Xcode contacts Apple's developer services with the user's account and may create or update certificates, app IDs and provisioning profiles.", required: false),
+            .init(name: "allow_device_registration", kind: .boolean, description: "Physical only; requires allow_provisioning_updates. Pass -allowProvisioningDeviceRegistration: Xcode may register this device in the user's developer account.", required: false)]) {
             var args = $0.deviceCommand(["build-run", $0.text("project"), $0.text("scheme")])
             if let config = $0["configuration"]?.stringValue { args += ["--configuration", config] }
             if let target = $0["app_target"]?.stringValue { args += ["--app-target", target] }
+            if $0["allow_provisioning_updates"]?.boolValue == true { args.append(BuildRunCommand.provisioningUpdatesFlag) }
+            if $0["allow_device_registration"]?.boolValue == true { args.append(BuildRunCommand.deviceRegistrationFlag) }
             return args
         },
         .init(name: "simulator_state", description: "Boot or shut down a selected simulator. Shutdown interrupts running apps; no erase or delete operation is exposed.", fields: [device, .init(name: "operation", choices: ["boot", "shutdown"])]) { $0.deviceCommand([$0.text("operation")], platform: "simulator") },

@@ -233,16 +233,15 @@ actor CommandService {
             defer { lease?.release() }
             return CommandOutput(data: try await recording.execute(directory: directory, runner: runner))
         }
-        if let command = try BuildRunCommand.parse(args) {
+        if var command = try BuildRunCommand.parse(args) {
             let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
                 .appendingPathComponent("tmp/build-run-\(UUID().uuidString)")
-            if dryRun {
-                return try json(["executable": "/usr/bin/xcrun",
-                    "buildSettingsArguments": command.xcodeArguments(directory: directory) + ["-showBuildSettings", "-json"],
-                    "buildArguments": command.xcodeArguments(directory: directory) + ["build"],
-                    "deployment": "After a successful build, resolve the application from build settings, install it, and launch its bundle identifier."])
-            }
+            if dryRun { return try json(command.dryRunPlan(directory: directory)) }
             if command.physical { try preflight(command.device, operation: "build and run") }
+            if command.requiresDestinationResolution {
+                let details = try? readinessQuery(command.device)
+                command = try command.resolvingDestination(details: details ?? Data())
+            }
             return CommandOutput(data: try command.execute(directory: directory, run: {
                 try runner.run($0.arguments, executable: $0.executable)
             }, build: { try runner.build($0, log: $1) }))

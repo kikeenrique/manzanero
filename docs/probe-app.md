@@ -66,11 +66,16 @@ PROBE_APP_BUNDLE_ID = <your.bundle.id>
 
 `Config/ProbeApp.xcconfig` includes that file optionally (`#include?`). The manifest sets the app target's bundle identifier to `$(PROBE_APP_BUNDLE_ID)` because Tuist writes its `bundleId` into the target's build settings, which would otherwise override any xcconfig value. Signing is automatic. The task validates the formats, overwrites the file when either variable is set, and leaves it alone when neither is set.
 
-Build & Run builds with the project's existing signing configuration and does not pass `-allowProvisioningUpdates`. A team, a registered device and a usable development provisioning profile for your bundle identifier must already exist on the Mac. One way to create them is a single interactive build from Xcode, or your own `xcodebuild ... -allowProvisioningUpdates`. After that:
+By default Build & Run signs only with profiles already on the Mac. From a clean state (no profile for the bundle identifier, phone not yet registered with the team), let Xcode create what is missing. Xcode must have an account for the team under Xcode > Settings > Accounts, and the phone must be connected, unlocked, trusted and in Developer Mode:
 
 ```sh
-manzanero physical <UDID> build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp
+manzanero --dry-run physical <UDID> build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp \
+  --allow-provisioning-updates --allow-device-registration    # check the plan first
+manzanero physical <UDID> build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp \
+  --allow-provisioning-updates --allow-device-registration
 ```
+
+These options let Xcode use your developer account: it may create a development certificate, register the bundle identifier, create or update a development profile, and add the phone to the team's device list. Leave out `--allow-device-registration` if the phone is already registered, and both options once a profile that includes the phone exists. Use the hardware UDID (`00008…-…`) for `<UDID>`; a CoreDevice UUID also works but costs an extra device query. If signing fails, the error names the likely cause after the raw log path. See [Build & Run](build-run.md#signing-and-provisioning-physical-only).
 
 Physical signing and deployment of this app have not been tried.
 

@@ -49,8 +49,11 @@ Usage:
   manzanero <physical|simulator> <device> record <output.mp4> <seconds: 1...300> [h264|hevc]
   Recording refuses an existing destination; its parent directory must exist.
   manzanero <physical|simulator> <UDID> build-run <project.xcodeproj|workspace.xcworkspace> <scheme>
-      [--configuration <name>] [--app-target <name>]
+      [--configuration <name>] [--app-target <name>] [--allow-provisioning-updates [--allow-device-registration]]
   Build & Run targets iOS, defaults to Debug, and requires xcsift on PATH.
+  Physical builds use signing assets already on the Mac. --allow-provisioning-updates lets Xcode use the
+  account in Xcode's settings to create or change certificates, app IDs and profiles on Apple's developer
+  services; --allow-device-registration also registers the device with the team. Physical only; off by default.
   manzanero physical <UDID> tree [positive-pid]  Native AX; omitted PID selects primary portrait display-centre app
   manzanero physical <UDID> <press-id|press-label> [positive-pid] <exact-selector>
   manzanero physical <UDID> <scroll-id|scroll-label> [positive-pid] <exact-selector>

@@ -48,6 +48,29 @@ struct MCPToolsTests {
         #expect(tapped == ["physical", "phone", "tap", "0.5", "1"])
     }
 
+    @Test func buildRunProvisioningFlagsAreOptionalBooleans() throws {
+        let definition = try #require(MCPTools.definitions.first { $0.name == "build_run" })
+        let schema = try #require(definition.tool.inputSchema.objectValue)
+        let properties = try #require(schema["properties"]?.objectValue)
+        let required = Set((schema["required"]?.arrayValue ?? []).compactMap(\.stringValue))
+        for name in ["allow_provisioning_updates", "allow_device_registration"] {
+            #expect(properties[name]?.objectValue?["type"] == "boolean")
+            #expect(!required.contains(name))
+        }
+        let base: [String: Value] = ["platform": "physical", "device": "00000000-0000000000000000", "project": "A.xcodeproj", "scheme": "A"]
+        let plain = ["physical", "00000000-0000000000000000", "build-run", "A.xcodeproj", "A"]
+        #expect(try definition.command(base) == plain)
+        #expect(try definition.command(base.merging(["allow_provisioning_updates": false]) { $1 }) == plain)
+        let flagged = try definition.command(base.merging(["allow_provisioning_updates": true, "allow_device_registration": true]) { $1 })
+        #expect(flagged == plain + ["--allow-provisioning-updates", "--allow-device-registration"])
+        let parsed = try #require(try BuildRunCommand.parse(flagged))
+        #expect(parsed.allowProvisioningUpdates && parsed.allowDeviceRegistration)
+        #expect(throws: MCPError.self) { try definition.command(base.merging(["allow_provisioning_updates": "yes"]) { $1 }) }
+        let simulator = try definition.command(base.merging(["platform": "simulator", "device": "11111111-2222-3333-4444-555555555555",
+                                                             "allow_provisioning_updates": true]) { $1 })
+        #expect(throws: CommandFailure.self) { try BuildRunCommand.parse(simulator) }
+    }
+
     @Test func helperOnlyToolsAndFieldsAreNotAdvertised() throws {
         let names = Set(MCPTools.definitions.map(\.name))
         for removed in ["tap_element", "capture_logs", "get_accessibility_archive"] { #expect(!names.contains(removed)) }

@@ -2,23 +2,32 @@ import Foundation
 
 /// Build orchestration stays separate from single device-operation planning.
 struct BuildRunCommand {
+    static let usage = "Usage: <physical|simulator> <UDID> build-run <project.xcodeproj|workspace.xcworkspace> <scheme> [--configuration <name>] [--app-target <name>] [--allow-provisioning-updates [--allow-device-registration]]"
+    static let provisioningUpdatesFlag = "--allow-provisioning-updates"
+    static let deviceRegistrationFlag = "--allow-device-registration"
+
     let physical: Bool
     let device: String
     let project: String
     let scheme: String
     let configuration: String
     let appTarget: String?
+    /// Lets xcodebuild sign in to Apple's developer services with the account in Xcode's settings
+    /// and create or update certificates, app IDs and provisioning profiles.
+    var allowProvisioningUpdates = false
+    /// Lets xcodebuild register the destination device with the team; requires provisioning updates.
+    var allowDeviceRegistration = false
+    /// Identifier passed to xcodebuild's `-destination id=`. xcodebuild documents the identifier
+    /// shown in Xcode's Devices window (the hardware UDID for a physical device); a CoreDevice
+    /// UUID is resolved to it before building. devicectl accepts either and keeps `device`.
+    var destinationID: String
 
     static func parse(_ args: [String]) throws -> Self? {
         guard args.count >= 3, ["physical", "simulator"].contains(args[0]), args[2] == "build-run" else { return nil }
-        guard args.count >= 5, (args.count - 5).isMultiple(of: 2) else {
-            throw CommandFailure(description: "Usage: <physical|simulator> <UDID> build-run <project.xcodeproj|workspace.xcworkspace> <scheme> [--configuration <name>] [--app-target <name>]")
-        }
+        guard args.count >= 5 else { throw CommandFailure(description: usage) }
         let physical = args[0] == "physical"
         let device = args[1]
-        let validPhysicalID = device.range(of: "^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}$", options: .regularExpression) != nil
-            || device.range(of: "^[0-9A-Fa-f]{40}$", options: .regularExpression) != nil
-        guard UUID(uuidString: device) != nil || (physical && validPhysicalID) else {
+        guard UUID(uuidString: device) != nil || (physical && isHardwareUDID(device)) else {
             throw CommandFailure(description: "Build & Run requires an explicit device UDID or CoreDevice UUID, not a name or 'booted'.")
         }
         let project = args[3]
@@ -26,27 +35,78 @@ struct BuildRunCommand {
               !project.hasPrefix("-"), !args[4].isEmpty, !args[4].hasPrefix("-") else {
             throw CommandFailure(description: "Provide an Xcode project/workspace path and a nonempty scheme.")
         }
-        var flags: [String: String] = [:]
-        for index in stride(from: 5, to: args.count, by: 2) {
-            let key = args[index], value = args[index + 1]
-            guard ["--configuration", "--app-target"].contains(key), flags[key] == nil,
-                  !value.isEmpty, !value.hasPrefix("-") else {
+        var values: [String: String] = [:]
+        var switches: Set<String> = []
+        var index = 5
+        while index < args.count {
+            let key = args[index]
+            if [provisioningUpdatesFlag, deviceRegistrationFlag].contains(key) {
+                guard switches.insert(key).inserted else {
+                    throw CommandFailure(description: "Repeated Build & Run option: \(key)")
+                }
+                index += 1
+                continue
+            }
+            guard ["--configuration", "--app-target"].contains(key), values[key] == nil, index + 1 < args.count,
+                  !args[index + 1].isEmpty, !args[index + 1].hasPrefix("-") else {
                 throw CommandFailure(description: "Unknown, repeated, or empty Build & Run option: \(key)")
             }
-            flags[key] = value
+            values[key] = args[index + 1]
+            index += 2
+        }
+        if !physical, !switches.isEmpty {
+            throw CommandFailure(description: "Provisioning options (\(switches.sorted().joined(separator: ", "))) apply only to physical devices; simulator builds need no provisioning profile.")
+        }
+        if switches.contains(deviceRegistrationFlag), !switches.contains(provisioningUpdatesFlag) {
+            throw CommandFailure(description: "\(deviceRegistrationFlag) requires \(provisioningUpdatesFlag); xcodebuild ignores device registration without provisioning updates.")
         }
         return Self(physical: physical, device: device, project: project, scheme: args[4],
-                    configuration: flags["--configuration"] ?? "Debug", appTarget: flags["--app-target"])
+                    configuration: values["--configuration"] ?? "Debug", appTarget: values["--app-target"],
+                    allowProvisioningUpdates: switches.contains(provisioningUpdatesFlag),
+                    allowDeviceRegistration: switches.contains(deviceRegistrationFlag),
+                    destinationID: device)
+    }
+
+    static func isHardwareUDID(_ value: String) -> Bool {
+        value.range(of: "^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$", options: .regularExpression) != nil
+    }
+
+    /// True for a physical CoreDevice UUID that must become a hardware UDID before xcodebuild sees it.
+    var requiresDestinationResolution: Bool { physical && destinationID == device && UUID(uuidString: device) != nil }
+
+    /// Resolves the hardware UDID from `devicectl device info details` JSON for the requested CoreDevice UUID.
+    func resolvingDestination(details data: Data) throws -> Self {
+        let failure = CommandFailure(description: "Cannot resolve the hardware UDID for CoreDevice UUID \(device), which xcodebuild's -destination needs. Pass the device's hardware UDID (hardwareProperties.udid in `manzanero physical \(device) details`) instead.")
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              (root["info"] as? [String: Any])?["outcome"] as? String == "success",
+              let result = root["result"] as? [String: Any],
+              let identifier = (result["identifier"] as? String).flatMap(UUID.init(uuidString:)),
+              identifier == UUID(uuidString: device) else { throw failure }
+        let hardware = ((result["properties"] as? [String: Any])?["hardware"] as? [String: Any])
+            ?? (result["hardwareProperties"] as? [String: Any])
+        guard let udid = hardware?["udid"] as? String, Self.isHardwareUDID(udid) else { throw failure }
+        var resolved = self
+        resolved.destinationID = udid
+        return resolved
     }
 
     func xcodeArguments(directory: URL) -> [String] {
         ["xcodebuild", project.hasSuffix(".xcworkspace") ? "-workspace" : "-project", project,
          "-scheme", scheme, "-configuration", configuration,
-         "-destination", "platform=\(physical ? "iOS" : "iOS Simulator"),id=\(device)",
+         "-destination", "platform=\(physical ? "iOS" : "iOS Simulator"),id=\(destinationID)",
          "-derivedDataPath", directory.appendingPathComponent("DerivedData").path,
          "-clonedSourcePackagesDirPath", directory.appendingPathComponent("SourcePackages").path,
          "-packageCachePath", directory.appendingPathComponent("PackageCache").path]
     }
+
+    /// Provisioning flags apply to the build only; the settings query neither signs nor contacts Apple.
+    var provisioningArguments: [String] {
+        (allowProvisioningUpdates ? ["-allowProvisioningUpdates"] : [])
+            + (allowDeviceRegistration ? ["-allowProvisioningDeviceRegistration"] : [])
+    }
+
+    func settingsArguments(directory: URL) -> [String] { xcodeArguments(directory: directory) + ["-showBuildSettings", "-json"] }
+    func buildArguments(directory: URL) -> [String] { xcodeArguments(directory: directory) + provisioningArguments + ["build"] }
 
     struct Product {
         let app: URL
@@ -69,13 +129,92 @@ struct BuildRunCommand {
         return Product(app: URL(fileURLWithPath: directory).appendingPathComponent(name), bundleID: bundleID)
     }
 
+    /// Install and launch plans. Launch terminates a running copy so a rebuild runs the new executable.
+    func deploymentPlan(app: String, bundleID: String) throws -> (install: DeviceCommand, launch: DeviceCommand) {
+        let prefix = [physical ? "physical" : "simulator", device]
+        guard let install = try DeviceCommand.parse(prefix + ["install", app]),
+              var launch = try DeviceCommand.parse(prefix + ["launch", bundleID]) else {
+            throw CommandFailure(description: "Cannot plan app deployment.")
+        }
+        // devicectl: options precede the app operand, which ends devicectl's own options.
+        launch.arguments.insert(physical ? "--terminate-existing" : "--terminate-running-process", at: physical ? 4 : 2)
+        return (install, launch)
+    }
+
+    func dryRunPlan(directory: URL) throws -> [String: Any] {
+        let deployment = try deploymentPlan(app: "<TARGET_BUILD_DIR>/<FULL_PRODUCT_NAME>", bundleID: "<PRODUCT_BUNDLE_IDENTIFIER>")
+        var plan: [String: Any] = ["executable": "/usr/bin/xcrun",
+            "buildSettingsArguments": settingsArguments(directory: directory),
+            "buildArguments": buildArguments(directory: directory),
+            "installArguments": deployment.install.arguments, "launchArguments": deployment.launch.arguments,
+            "deployment": "After a successful build, resolve the application from build settings, install it, and launch its bundle identifier, terminating a running copy first."]
+        if physical {
+            plan["provisioning"] = [
+                "allowProvisioningUpdates": allowProvisioningUpdates, "allowDeviceRegistration": allowDeviceRegistration,
+                "effect": allowProvisioningUpdates
+                    ? "xcodebuild signs in to Apple's developer services with the account in Xcode's settings and may create or update certificates, app IDs and provisioning profiles"
+                        + (allowDeviceRegistration ? ", and register this device with the team." : "; it will not register the device.")
+                    : "Uses only signing assets already on this Mac; Apple's developer services are not contacted."] as [String: Any]
+        }
+        if requiresDestinationResolution {
+            plan["destinationResolution"] = "Before the build, the CoreDevice UUID is resolved to the hardware UDID from devicectl device details and replaces id= in both xcodebuild invocations; devicectl keeps the CoreDevice UUID."
+        }
+        return plan
+    }
+
+    /// Maps xcodebuild log text to likely causes and the next step; empty when nothing is recognised.
+    func failureHints(log text: String) -> [String] {
+        func has(_ needles: String...) -> Bool { needles.contains { text.range(of: $0, options: .caseInsensitive) != nil } }
+        var hints: [String] = []
+        if has("Unable to find a destination matching", "Unable to find a device matching") {
+            hints.append("xcodebuild did not find the destination: check that the device is connected, unlocked and trusted, and pass its hardware UDID.")
+        }
+        guard physical else { return hints }
+        let updates = Self.provisioningUpdatesFlag, register = Self.deviceRegistrationFlag
+        if has("requires a development team") {
+            hints.append("No development team: set DEVELOPMENT_TEAM in the project or an xcconfig. \(updates) cannot choose a team.")
+        }
+        if has("No Accounts", "No account for team", "session has expired") {
+            hints.append("Xcode has no usable account for the team: sign in under Xcode > Settings > Accounts. Provisioning updates use that account.")
+        }
+        if has("No signing certificate", "signing certificate matching team", "No certificate for team") {
+            hints.append(allowProvisioningUpdates
+                ? "No usable development certificate, and Xcode could not create one: check the account's role in the team."
+                : "No usable development certificate on this Mac: rerun with \(updates) to let Xcode create one.")
+        }
+        if has("isn't registered in your developer account", "is not registered in your developer account",
+               "has no devices from which to generate a provisioning profile", "doesn't include the currently selected device") {
+            hints.append(allowDeviceRegistration
+                ? "The device is not in the profile even with registration allowed: check the team's device list and limit."
+                : "The device is not registered with the team or not in the profile: rerun with \(updates) \(register) to register it and regenerate the profile.")
+        }
+        if has("No profiles for", "No matching provisioning profiles found", "requires a provisioning profile",
+               "unable to generate a profile", "Automatic signing is disabled") {
+            hints.append(allowProvisioningUpdates
+                ? "Xcode could not create a provisioning profile for this bundle identifier and team."
+                : "No development provisioning profile for this bundle identifier on this Mac: rerun with \(updates) to let Xcode create it.")
+        }
+        if has("cannot be registered to your development team", "Failed Registering Bundle Identifier") {
+            hints.append("The bundle identifier is taken by another team: choose one your team can register.")
+        }
+        return hints
+    }
+
     func execute(directory: URL, run: (DeviceCommand) throws -> Data,
                  build: ([String], URL) throws -> Void) throws -> Data {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let args = xcodeArguments(directory: directory)
-        let settings = try run(DeviceCommand(arguments: args + ["-showBuildSettings", "-json"], jsonOutput: true))
+        let settings = try run(DeviceCommand(arguments: settingsArguments(directory: directory), jsonOutput: true))
         let product = try product(settings: settings)
-        try build(args + ["build"], directory.appendingPathComponent("build.log"))
+        let log = directory.appendingPathComponent("build.log")
+        do {
+            try build(buildArguments(directory: directory), log)
+        } catch {
+            // Keep the raw failure (including its log path) and add likely causes when the log names them.
+            guard let data = try? Data(contentsOf: log) else { throw error }
+            let hints = failureHints(log: String(decoding: data, as: UTF8.self))
+            guard !hints.isEmpty else { throw error }
+            throw CommandFailure(description: "\(error) Likely cause: \(hints.joined(separator: " "))")
+        }
         // Confirm the build output matches the selected target before changing the device.
         let data = try Data(contentsOf: product.app.appendingPathComponent("Info.plist"))
         let info = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
@@ -85,18 +224,12 @@ struct BuildRunCommand {
               platforms.contains(physical ? "iPhoneOS" : "iPhoneSimulator") else {
             throw CommandFailure(description: "Built application metadata does not match the selected target/platform.")
         }
-        let prefix = [physical ? "physical" : "simulator", device]
-        guard let install = try DeviceCommand.parse(prefix + ["install", product.app.path]),
-              var launch = try DeviceCommand.parse(prefix + ["launch", product.bundleID]) else {
-            throw CommandFailure(description: "Cannot plan app deployment.")
-        }
-        // Rebuilding must run the new executable even if an older copy is open.
-        launch.arguments.insert(physical ? "--terminate-existing" : "--terminate-running-process", at: physical ? 4 : 2)
-        _ = try run(install)
-        let launched = try run(launch)
+        let deployment = try deploymentPlan(app: product.app.path, bundleID: product.bundleID)
+        _ = try run(deployment.install)
+        let launched = try run(deployment.launch)
         let launchResult: Any = physical ? try JSONSerialization.jsonObject(with: launched) : String(decoding: launched, as: UTF8.self)
         return try JSONSerialization.data(withJSONObject: ["status": "launched", "backend": "xcode",
-            "device": device, "bundleIdentifier": product.bundleID, "appPath": product.app.path,
+            "device": device, "buildDestination": destinationID, "bundleIdentifier": product.bundleID, "appPath": product.app.path,
             "buildDirectory": directory.path, "launch": launchResult, "verified": false], options: [.prettyPrinted, .sortedKeys])
     }
 }
