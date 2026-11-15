@@ -22,6 +22,23 @@ Buttons are `home`, `lock`, `volume-up` and `volume-down`. The bridge sends one 
 
 A barrier acknowledges transport progress, not a UI effect. Home has scoped visual verification on iPhone 13 mini. One side-button check saw display power change from off to active, but the next media probe found it off again. `button lock` is a toggle, not an idempotent wake command; do not replay it as an automatic wake strategy. Wake duration and unlock remain unverified.
 
+## Waking a dark display
+
+```sh
+manzanero physical <UDID> wake [--no-dismiss]
+```
+
+`wake` is for a prepared test device (no passcode, Auto-Lock set to Never) whose display was turned off. Because the side button toggles, it presses only when a press can only help:
+
+1. Read Apple's display and passcode state. If the display is on, report `already-awake` and send nothing. If the state is not `on` or `off`, report `unknown-display-state` and send nothing.
+2. Read it a second time. Only if both readings say off, press the side button once.
+3. Read the state again. If the display is not on, report `not-awake`; the button is never pressed a second time.
+4. If no passcode is required, press Home once to leave the lock screen (skipped with `--no-dismiss`), and read the state a last time. If a passcode is required or its state is unknown, report `awake-locked` and leave the lock screen alone. No passcode is ever entered.
+
+The result is JSON with `status`, `displayPowerBefore`, `displayPower`, `sideButtonPressed` and `homePressed`. `already-awake` and `awake` exit 0; the other statuses exit 1 with an `action` explaining what a person should do. Over MCP the tool is `wake_device`, and those statuses are answers rather than errors. `wake` takes the device lease like any other input.
+
+An `awake` status means Apple reported the backlight on. It does not prove the UI is unlocked or which screen is showing, so inspect before acting. Local tests cover every branch; see [verification](verification.md) for what has been observed on hardware.
+
 ## Touch preparation and dispatch
 
 Before touch, the implementation:

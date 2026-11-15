@@ -81,6 +81,7 @@ actor CommandService {
                 if AccessibilityWait.operations.contains(native.operation) {
                     return try json(AccessibilityWait(native).plan(identityArguments: identity.arguments))
                 }
+                if native.operation == DirectPhysicalWake.operation { return try json(DirectPhysicalWake.plan(native)) }
                 if native.operation == "tree" {
                     return try json(["backend": "coredevice-direct", "operation": "tree", "pid": native.operands.first.flatMap(Int.init).map { $0 as Any } ?? NSNull(),
                         "identityArguments": identity.arguments, "liveVerified": false,
@@ -140,6 +141,9 @@ actor CommandService {
                     return try self.readinessQuery(native.device)
                 }
                 return try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40)
+            }
+            if native.operation == DirectPhysicalWake.operation {
+                return try DirectPhysicalWake.output(DirectPhysicalWake.execute(native, query: query))
             }
             if AccessibilityWait.operations.contains(native.operation) {
                 // A wait suspends between polls, so other calls to this

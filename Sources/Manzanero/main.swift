@@ -72,6 +72,9 @@ Usage:
   manzanero physical <UDID> pinch <center-x> <center-y> <start-span> <end-span> <seconds>
   manzanero physical <UDID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
   manzanero physical <UDID> button <home|lock|volume-up|volume-down>
+  manzanero physical <UDID> wake [--no-dismiss]
+  Wake presses the side button once only if the display reads off twice, then Home once to leave the
+  lock screen when no passcode is required. No press when the display is on or unknown; no passcode entry.
   manzanero physical <UDID> key <return|escape|backspace|tab|space|up|down|left|right>
   manzanero physical <UDID> type <text>   Experimental US-layout ASCII, 1...512 characters
   Physical coordinates are normalized 0...1, with the origin at the top left.
