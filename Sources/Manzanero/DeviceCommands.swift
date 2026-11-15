@@ -6,10 +6,6 @@ struct DeviceCommand {
     var arguments: [String]
     let jsonOutput: Bool
 
-    /// Simulator operations that would need simulator input, which has no
-    /// implementation yet.
-    static let unavailableSimulatorOperations = ["type", "button"]
-
     static func parse(_ args: [String]) throws -> Self? {
         if args.first == "decode-ax-archive" {
             guard args.count == 2, !args[1].isEmpty else {
@@ -94,9 +90,9 @@ struct DeviceCommand {
                 throw CommandFailure.usage("Screenshot destination must end in .png.")
             }
             command = ["io", device, "screenshot", "--type=png", operands[0]]
-        case let value where unavailableSimulatorOperations.contains(value):
-            throw CommandFailure.unsupported("Simulator input is not available yet; '\(operation)' cannot run on a simulator.")
         default:
+            // Simulator input and accessibility (SimulatorInput) are routed
+            // before these simctl wrappers.
             throw CommandFailure.unsupported("Unsupported simulator operation: \(operation).")
         }
         return Self(arguments: ["simctl"] + command, jsonOutput: false)

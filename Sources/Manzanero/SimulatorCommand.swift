@@ -14,7 +14,7 @@ struct SimulatorInput {
     static let accessibilityOperations = ["tree"] + selectorActions + AccessibilityWait.operations
     static let touchOperations = ["tap", "long-press", "swipe", "drag"]
     static let inputOperations = touchOperations + ["button", "key", "type"]
-    static let operations = accessibilityOperations + touchOperations
+    static let operations = accessibilityOperations + inputOperations
     /// Operations that exist for physical devices but not yet for simulators.
     static let unimplemented = ["multi-tap", "multi-drag", "pinch", "gesture", "paste", "wake"]
     static let buttons: [String: UInt64] = ["home": 64, "lock": 48]
@@ -55,8 +55,18 @@ struct SimulatorInput {
                 throw CommandFailure.usage("Simulator long-press requires normalized x/y in 0...1 and duration 0.1...10 seconds.")
             }
             operands = [x, y, seconds].map { String($0) }
-        case "tap", "swipe", "drag":
+        case "tap", "swipe", "drag", "key":
             try PhysicalInputOperands.validate(operation, operands, subject: "Simulator")
+        case "button":
+            guard operands.count == 1, buttons[operands[0]] != nil else {
+                throw CommandFailure.usage("Supported simulator buttons: home, lock. Volume buttons are untested on the simulator and refused; no input sent.")
+            }
+        case "type":
+            guard operands.count == 1 else { throw CommandFailure.usage("Simulator typing expects one text operand.") }
+            let bytes = Array(operands[0].utf8)
+            guard (1...512).contains(bytes.count), bytes.allSatisfy({ DirectPhysicalTyping.stroke($0) != nil }) else {
+                throw CommandFailure.usage("Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline. Unicode entry is not implemented on the simulator yet. No input sent.")
+            }
         default:
             throw CommandFailure.unsupported("Unsupported simulator operation: \(operation).")
         }
@@ -96,6 +106,26 @@ struct SimulatorInput {
             plan["contactCount"] = 1
             plan["coordinateSpace"] = "normalized-current-interface (portrait assumed)"
             plan["execution"] = "In-process host XPC to the simulator's dtuhidd (com.apple.coredevice.feature.remote.hid.digitizer): readiness barrier, the physical Indigo digitizer schedule, release on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
+        } else if Self.inputOperations.contains(operation) {
+            plan["backend"] = DirectSimulatorInput.backend
+            plan["operands"] = operands
+            plan["deviceLease"] = "simulator UUID"
+            let service: String
+            switch operation {
+            case "button":
+                service = "com.apple.coredevice.feature.remote.hid.button"
+                plan["usage"] = Self.buttons[operands[0]]
+                plan["holdMilliseconds"] = operands[0] == "lock" ? 400 : 80
+            case "key":
+                service = "com.apple.coredevice.feature.remote.hid.keyboard"
+                plan["usage"] = DirectPhysicalKeyboard.usages[operands[0]]
+            default:
+                service = "com.apple.coredevice.feature.remote.hid.keyboard"
+                plan["layout"] = "US"
+                plan["characterCount"] = operands[0].utf8.count
+                plan["sampleCount"] = try DirectPhysicalTyping.samples(operands[0]).count
+            }
+            plan["execution"] = "In-process host XPC to the simulator's dtuhidd (\(service)): readiness barrier, the physical Indigo \(operation == "button" ? "button press" : "keyboard schedule") with release on stop, completion barrier and a short drain before disconnect. No clipboard, helper executable or automatic replay."
         }
         return plan
     }
@@ -109,6 +139,12 @@ struct SimulatorEnvironment: Sendable {
     var accessibility: @Sendable (String, Duration) throws -> any AccessibilityExchange
     /// Sends one single-contact schedule; throws `CommandFailure.inputDispatch` failures.
     var touch: @Sendable (String, [ADCTouchSample]) throws -> Void = DirectSimulatorInput.touch
+    /// A complete US-layout keyboard schedule (`type`).
+    var keyboard: @Sendable (String, [ADCKeyboardSample]) throws -> Void = DirectSimulatorInput.keyboard
+    /// One named key (`key`).
+    var key: @Sendable (String, UInt64) throws -> Void = DirectSimulatorInput.key
+    /// One button press: usage and hold in microseconds.
+    var button: @Sendable (String, UInt64, UInt32) throws -> Void = DirectSimulatorInput.button
 
     static let live = SimulatorEnvironment(
         lookup: { try SimulatorDevice.lookup($0) },

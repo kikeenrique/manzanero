@@ -22,19 +22,9 @@ struct DeviceCommandsTests {
         }
     }
 
-    @Test(arguments: [["type", "hello"], ["button", "home"]])
-    func simulatorInputAndHierarchyFailPlainlyWithoutAPlan(_ operands: [String]) async throws {
-        for device in [simulator, "booted"] {
-            for dryRun in [false, true] {
-                let message = try #require(await failure(["simulator", device] + operands, dryRun: dryRun))
-                #expect(message.contains("Simulator input is not available yet"))
-                #expect(!message.lowercased().contains("axe"))
-            }
-        }
-    }
-
     @Test(arguments: [["tap", "10", "10"], ["tap", "--help"], ["swipe", "0", "0", "10", "10", "1"],
-                      ["drag", "0", "0", "10", "10", "1"], ["tree", "0"], ["press-id"]])
+                      ["drag", "0", "0", "10", "10", "1"], ["tree", "0"], ["press-id"],
+                      ["type", "mañana"], ["button", "volume-up"], ["key", "f1"]])
     func invalidSimulatorInputFailsAsUsageWithoutAPlan(_ operands: [String]) async throws {
         for dryRun in [false, true] {
             let message = try #require(await failure(["simulator", simulator] + operands, dryRun: dryRun))

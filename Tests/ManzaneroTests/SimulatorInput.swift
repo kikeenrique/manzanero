@@ -27,6 +27,22 @@ struct SimulatorInputTests {
             if let failure = sent.failure { throw failure }
             sent.touches.append(samples)
         }
+        environment.keyboard = { device, samples in
+            #expect(device == uuid)
+            sent.onSend?()
+            if let failure = sent.failure { throw failure }
+            sent.keyboards.append(samples)
+        }
+        environment.key = { _, usage in
+            sent.onSend?()
+            if let failure = sent.failure { throw failure }
+            sent.keys.append(usage)
+        }
+        environment.button = { _, usage, hold in
+            sent.onSend?()
+            if let failure = sent.failure { throw failure }
+            sent.buttons.append((usage, hold))
+        }
         return environment
     }
 
@@ -156,6 +172,73 @@ struct SimulatorInputTests {
         #expect(plan["deviceLease"] as? String == "simulator UUID" && plan["liveVerified"] as? Bool == false)
         #expect((plan["execution"] as? String)?.contains("dtuhidd") == true)
         #expect(sent.lookups == 0 && sent.touches.isEmpty)
+    }
+
+    // MARK: - Buttons, keys and typing
+
+    @Test func buttonsKeysAndTypingAreValidatedForTheSimulator() throws {
+        for args in [["button", "home"], ["button", "lock"], ["key", "backspace"], ["key", "return"], ["type", "Wi-Fi 5\tok\n"]] {
+            #expect(try SimulatorInput.parse(["simulator", Self.uuid] + args)?.operation == args[0])
+        }
+        let invalid: [([String], String)] = [
+            (["button", "volume-up"], "Supported simulator buttons: home, lock. Volume buttons are untested on the simulator and refused; no input sent."),
+            (["button"], "Supported simulator buttons: home, lock. Volume buttons are untested on the simulator and refused; no input sent."),
+            (["key", "f1"], "Unknown simulator keyboard key. See --help."),
+            (["type", "mañana"], "Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline. Unicode entry is not implemented on the simulator yet. No input sent."),
+            (["type", String(repeating: "a", count: 513)], "Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline. Unicode entry is not implemented on the simulator yet. No input sent."),
+            (["type", "a", "b"], "Simulator typing expects one text operand.")
+        ]
+        for (operands, message) in invalid {
+            let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + operands) }
+            #expect(failure.description == message && failure.code == .usage && failure.inputSent == .none)
+        }
+    }
+
+    @Test func buttonsUseThePhysicalUsagesAndHolds() async throws {
+        let sent = Sent()
+        let service = Self.service(sent)
+        let home = try Self.json(await service.execute(["simulator", Self.uuid, "button", "home"]))
+        _ = try await service.execute(["simulator", Self.uuid, "button", "lock"])
+        #expect(sent.buttons.map(\.usage) == [64, 48] && sent.buttons.map(\.hold) == [80_000, 400_000])
+        #expect(home["backend"] as? String == "coresimulator-dtuhid" && home["button"] as? String == "home")
+        #expect(home["status"] as? String == "dispatched" && home["verified"] as? Bool == false && home["releaseVerified"] as? Bool == false)
+    }
+
+    @Test func keysAndTypingUseThePhysicalTable() async throws {
+        let sent = Sent()
+        let service = Self.service(sent)
+        let key = try Self.json(await service.execute(["simulator", Self.uuid, "key", "backspace"]))
+        #expect(sent.keys == [42] && key["key"] as? String == "backspace" && key["usage"] as? Int == 42)
+        let typed = try Self.json(await service.execute(["simulator", Self.uuid, "type", "Wi"]))
+        let schedule = try #require(sent.keyboards.first)
+        // Shift down, W down/up, shift up, i down/up: the physical US-layout table.
+        #expect(schedule.map(\.usage) == [225, 26, 26, 225, 12, 12] && schedule.map(\.state) == [1, 1, 2, 2, 1, 2])
+        #expect(schedule.map(\.nanoseconds) == (0..<6).map { UInt64($0) * 10_000_000 })
+        #expect(typed["insertionVerified"] as? Bool == false && typed["layout"] as? String == "US")
+        #expect(typed["characterCount"] as? Int == 2 && typed["sampleCount"] as? Int == 6)
+    }
+
+    @Test func buttonKeyAndTypeDryRunsNameTheirService() async throws {
+        let sent = Sent()
+        let service = Self.service(sent, state: "Shutdown")
+        let button = try Self.json(await service.execute(["simulator", Self.uuid, "button", "lock"], dryRun: true))
+        #expect(button["usage"] as? Int == 48 && button["holdMilliseconds"] as? Int == 400)
+        #expect((button["execution"] as? String)?.contains("remote.hid.button") == true)
+        let type = try Self.json(await service.execute(["simulator", Self.uuid, "type", "hello"], dryRun: true))
+        #expect(type["sampleCount"] as? Int == 10 && type["layout"] as? String == "US")
+        #expect((type["execution"] as? String)?.contains("remote.hid.keyboard") == true)
+        let key = try Self.json(await service.execute(["simulator", Self.uuid, "key", "return"], dryRun: true))
+        #expect(key["usage"] as? Int == 40 && key["backend"] as? String == "coresimulator-dtuhid")
+        #expect(sent.lookups == 0 && sent.keys.isEmpty && sent.buttons.isEmpty && sent.keyboards.isEmpty)
+    }
+
+    @Test func interruptedTypingIsAnUnknownOutcome() async throws {
+        let sent = Sent()
+        sent.failure = CommandFailure.inputDispatch(status: ADCInputOutcomeUnknown, message: "Input stopped after cancellation or transport failure")
+        let failure = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(sent).execute(["simulator", Self.uuid, "type", "hello"])
+        })
+        #expect(failure.code == .inputOutcomeUnknown && failure.inputSent == .possible && failure.retry == .afterInspection)
     }
 
     @Test func handoffPausesSimulatorInputButNotObservations() async throws {
