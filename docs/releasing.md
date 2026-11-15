@@ -39,7 +39,39 @@ The workflow uses its repository name at runtime rather than assuming a remote U
 
 Source version and tag must agree. Existing releases are refused to preserve immutable tap checksums. `contents: write` is limited to the publishing job.
 
-The workflow selects Xcode 26.6 on `macos-26`, following the [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md). Local checks have passed, but the workflow itself has not yet run. A CI build is not live-device verification.
+The workflow selects Xcode 26.6 on `macos-26`, following the [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md). Each run records the actual Xcode and Swift versions. A CI build is not live-device verification. See the [CI review](ci-review.md) for the original failure and subsequent validation.
+
+## CI and caching
+
+`.github/workflows/ci.yml` builds and tests pushes to `main` and pull requests, validates mise tasks and runs the device-free native sender tests. A newer run for the same ref cancels an older CI run. Release runs for the same ref are serialized without cancellation to avoid interrupting publication.
+
+Both workflows use the same mise tasks and cache these generated paths:
+
+| Cache | Paths | Reuse |
+| --- | --- | --- |
+| SwiftPM dependencies | `tmp/swift-cache` | Shared between ordinary CI and packaging |
+| Debug products/compiler modules | `.build`, `tmp/clang-cache` | Shared between ordinary CI and packaging |
+| Release products/checkouts | `tmp/release-build` | Packaging only |
+
+Keys include the runner OS/architecture, a fingerprint of Xcode and Swift versions, and `Package.swift`/`Package.resolved`. Build-product keys also include the commit, with restore prefixes for incremental reuse. Debug and release products remain separate. The project-level mise environment sets the compiler cache path so nested tasks use the same root cache.
+
+Caches contain disposable generated state. Moving a checkout can invalidate absolute paths inside compiler modules; move affected caches aside under ignored `tmp/` and rebuild rather than changing source to work around stale output.
+
+## Publish a beta
+
+First run the workflow manually to inspect its artifacts without publishing:
+
+```sh
+gh workflow run release.yml --ref main
+```
+
+After validation, update `Sources/Manzanero/Version.swift`, commit and push the version change, then run:
+
+```sh
+mise run release v0.1.0-beta.1
+```
+
+Use the tag matching the committed version. The task rejects a dirty worktree or mismatched version, creates a missing tag, and reuses an existing tag only when it points at HEAD. It pushes that tag to `origin`; this triggers real prerelease publication. It never moves a tag or overwrites release assets. If a published release needs changes, choose a new version.
 
 ## Update the tap
 

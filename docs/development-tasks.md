@@ -19,6 +19,7 @@ mise tasks validate
 | --- | --- |
 | `build`, `test`, `cli` | Main executable and local regression checks |
 | `package`, `test:package`, `release:formula` | [Beta packaging](releasing.md), archive smoke and tap formula generation |
+| `release <version>` | Check version/worktree/tag, then push the tag to publish a beta through CI |
 | `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device |
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*`, `test:ax-*` | Opt-in native transport/media diagnostics |
 | `coredevice:*`, `idevice:*` | Retired helper research/build tests; not runtime setup |
@@ -60,5 +61,7 @@ Run these as `mise run <task> ...`. They use explicit targets and save private e
 `#MISE` headers declare descriptions, templates, dependencies and environment. `#USAGE` headers declare arguments. Scripts run from the repository root, including when invoked from a child directory.
 
 Keep compiler/package caches, temporary tools and downloaded references under visible `tmp/`; build products use `.build/`. Never commit device artifacts or pairing records.
+
+The main-push/pull-request CI runs the same build, Swift tests and device-free native sender tests. It cancels superseded runs. CI and beta packaging share dependency and debug caches; release products have a separate cache. See [release workflows](releasing.md#ci-and-caching) for the paths and invalidation rules.
 
 After editing task definitions, check Bash syntax, task discovery/help and `mise tasks validate`. Run the affected task when its behavior changed. The layout follows [mise file tasks](https://mise.jdx.dev/tasks/file-tasks.html).

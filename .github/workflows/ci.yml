@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - name: Record toolchain
+        id: toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          fingerprint=$( { xcodebuild -version; swift --version; } | shasum -a 256 | cut -d ' ' -f 1)
+          echo "key=$fingerprint" >> "$GITHUB_OUTPUT"
+      - uses: jdx/mise-action@v4
+      - name: Install build output formatter
+        run: brew install xcsift
+      - name: Cache SwiftPM dependencies
+        uses: actions/cache@v6
+        with:
+          path: tmp/swift-cache
+          key: swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-dependencies-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-dependencies-
+      - name: Cache debug builds
+        uses: actions/cache@v6
+        with:
+          path: |
+            .build
+            tmp/clang-cache
+          key: swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-debug-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-debug-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-debug-
+      - run: mise tasks validate
+      - run: mise run build
+      - run: mise run test
+      - run: mise run coredevice:test

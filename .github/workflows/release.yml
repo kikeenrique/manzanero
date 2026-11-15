@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   package:
     runs-on: macos-26
@@ -14,9 +18,40 @@ jobs:
       - uses: actions/checkout@v7
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - name: Record toolchain
+        id: toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          fingerprint=$( { xcodebuild -version; swift --version; } | shasum -a 256 | cut -d ' ' -f 1)
+          echo "key=$fingerprint" >> "$GITHUB_OUTPUT"
       - uses: jdx/mise-action@v4
       - name: Install build output formatter
         run: brew install xcsift
+      - name: Cache SwiftPM dependencies
+        uses: actions/cache@v6
+        with:
+          path: tmp/swift-cache
+          key: swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-dependencies-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-dependencies-
+      - name: Cache debug builds
+        uses: actions/cache@v6
+        with:
+          path: |
+            .build
+            tmp/clang-cache
+          key: swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-debug-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-debug-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-debug-
+      - name: Cache release builds
+        uses: actions/cache@v6
+        with:
+          path: tmp/release-build
+          key: swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-release-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-release-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-release-
       - name: Check version against tag
         if: github.event_name == 'push'
         env:
@@ -24,6 +59,7 @@ jobs:
         run: |
           version=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
           test "$RELEASE_TAG" = "v$version"
+      - run: mise tasks validate
       - run: mise run test
       - run: mise run package
       - run: mise run test:package

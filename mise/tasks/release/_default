@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#MISE dir = "{{ config_root }}"
+#MISE description = "Tag a committed version and push it to trigger the beta release workflow"
+#USAGE arg "<version>" help="Version tag matching Version.swift, e.g. v0.1.0-beta.1"
+set -euo pipefail
+
+tag="$usage_version"
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || { echo "Provide a version tag such as v0.1.0-beta.1" >&2; exit 1; }
+declared=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
+[[ "$tag" = "v$declared" ]] || { echo "Version mismatch: $tag does not match Version.swift ($declared). Commit the version change first." >&2; exit 1; }
+[[ -z "$(git status --porcelain)" ]] || { echo "Commit or set aside working-tree changes before releasing." >&2; exit 1; }
+
+head=$(git rev-parse HEAD)
+if git show-ref --verify --quiet "refs/tags/$tag"; then
+  existing=$(git rev-parse "refs/tags/$tag^{commit}")
+  [[ "$existing" = "$head" ]] || { echo "Tag $tag already points at a different commit; choose another version. No tag was moved." >&2; exit 1; }
+  echo "Tag $tag already points at HEAD; reusing it."
+else
+  git tag "$tag"
+fi
+
+git push origin "refs/tags/$tag"
+echo "Pushed $tag; the beta release workflow will build and publish immutable prerelease assets."

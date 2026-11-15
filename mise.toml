@@ -4,9 +4,11 @@ includes = ["mise/tasks"]
 [vars]
 rust_version = "1.99.1"
 
+[env]
+CLANG_MODULE_CACHE_PATH = "{{ config_root }}/tmp/clang-cache"
+
 [task_templates.swift]
 dir = "{{ config_root }}"
-env = { CLANG_MODULE_CACHE_PATH = "{{ config_root }}/tmp/clang-cache" }
 shell = "bash -e -o pipefail -c"
 
 [task_templates.idevice]
