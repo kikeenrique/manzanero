@@ -26,7 +26,7 @@ These are implementation priorities, not evidence that a feature is complete or 
 | App development | Physical signing/deployment, scheme discovery, progress/cancellation, crash/source integration |
 | Data/diagnostics | Actual app-container coverage, `.xcappdata` workflows, report downloads/parsing/symbolication, direct finite logs |
 | Agents | Durable sessions/activity, live verification of the bounded exact-selector AX wait and assertions beyond it, automatic human-prompt detection and notifications |
-| Interface | Consistent machine-readable CLI errors, later protocol versions where justified, optional HTTP if needed |
+| Interface | Classify the remaining unclassified failure sites and non-`CommandFailure` errors ([errors](errors.md#unclassified-sites)), later protocol versions where justified, optional HTTP if needed |
 
 Readiness now distinguishes CoreDevice prerequisites from UI observations. It still cannot verify the Enable UI Automation switch or prove current UI unlock. A transient side-button wake observation does not establish unattended wake.
 

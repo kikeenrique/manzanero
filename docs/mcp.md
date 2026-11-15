@@ -63,7 +63,7 @@ Tool content includes the CLI output as text. JSON is also returned under `struc
 `screenshot` and `get_screen` append a PNG image block when the saved file is at most 8 MiB. Larger images stay on disk with an omission notice. Other downloads are not embedded, parsed or symbolicated automatically.
 
 - Unknown tools and invalid schema parameters produce JSON-RPC invalid-parameter errors.
-- Backend/domain failures produce `isError: true` and diagnostics.
+- Backend/domain failures produce `isError: true` and diagnostics as text, plus `structuredContent.error` with the failure's `code`, `message`, `inputSent`, `retry` and `action`, the same object the CLI prints with `--error-format json`. See [errors](errors.md) for the categories and what each asks of a caller.
 - A `wait_for_element` timeout is an answer: `status: timed-out` with the last observation and `isError: false` (the CLI exits 124). Session or transport failure sets `isError: true`.
 - Unsuccessful readiness/doctor results preserve structured data and set `isError: true`. For doctor that means an unavailable Xcode, CoreDevice or CoreSimulator tool; a missing private interface is reported in its capability entry without `isError`.
 - Readiness's top-level status describes CoreDevice prerequisites; inspect `ui` separately.
