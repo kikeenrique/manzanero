@@ -39,7 +39,7 @@ The workflow uses its repository name at runtime rather than assuming a remote U
 
 Source version and tag must agree. Existing releases are refused to preserve immutable tap checksums. `contents: write` is limited to the publishing job.
 
-The workflow selects Xcode 26.6 on `macos-26`, following the [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md). Each run records the actual Xcode and Swift versions. A CI build is not live-device verification. See the [CI review](ci-review.md) for the original failure and subsequent validation.
+The workflow selects Xcode 27.2 (`/Applications/Xcode_27.2.app`) on the `xcode-27` image, following its [runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md). The `macos-26` image tops out at Xcode 26.6 (Swift 6.3); `xcode-27` is still a GitHub [preview](https://github.com/actions/runner-images/issues/14404) and defaults to Xcode 27.1, so the path is selected explicitly. Each run records the actual Xcode and Swift versions. A CI build is not live-device verification. See the [CI review](ci-review.md) for the original failure and subsequent validation.
 
 ## CI and caching
 

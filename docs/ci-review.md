@@ -49,3 +49,16 @@ Swift Testing's `.serialized` trait was not used: it only orders tests within on
 Remaining wall-clock checks are about real time: the child-process timeouts and their elapsed bounds in `StreamingToolRunner`, `ToolRunner` and recording tests, the socket transport deadlines (now on dedicated threads), and short "nothing happened yet" pauses that cannot fail because a runner is slow.
 
 Product code still blocks pool threads: `ToolRunner` waits synchronously, and the native input, accessibility and media paths call blocking C functions that poll `Task.isCancelled`, all from `CommandService` on the cooperative pool. A long physical gesture or recording served over MCP therefore holds a pool thread for its whole duration. Moving that work onto dedicated executors is a larger design change and has not been made.
+
+## Toolchain on hosted runners
+
+The earlier workflows selected `/Applications/Xcode_26.6.app` on `macos-26`; hosted logs recorded Xcode 26.6 (17F113) and Apple Swift 6.3.3 on image `macos-26-arm64` 20261102.0473.1. That image's [inventory](https://github.com/actions/runner-images/blob/macos-26-arm64/20261102.0473/images/macos/macos-26-arm64-Readme.md) lists Xcode 26.0.1 through 26.6 only.
+
+Xcode 27.2 (27B52, the local toolchain) is installed at `/Applications/Xcode_27.2.app` on the `xcode-27` image ([inventory](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md), release `xcode-27-arm64/20261104.0337` and the newer prerelease `20261112.0361`). That image is a GitHub [preview](https://github.com/actions/runner-images/issues/14404): its default Xcode is 27.1 and queueing can be slower. Both workflows now run on `xcode-27` and select the 27.2 path explicitly; `xcode-select` fails the job if the path disappears. `.github/actionlint.yaml` declares the label, which actionlint's built-in list does not know yet.
+
+Other observations from the hosted logs, not changed:
+
+- `actions/cache` saves only when the job succeeds, so while CI was red every run started without SwiftPM or build caches.
+- Debug and release build caches are keyed by commit, so every green push stores a new full `.build`; the repository cache quota will evict older entries.
+- `brew install xcsift` is unpinned. A formatter release can change parsing or summaries without a repository change.
+- The build and test tasks report warnings but do not fail on them.
