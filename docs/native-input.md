@@ -37,7 +37,7 @@ manzanero physical <UDID> wake [--no-dismiss]
 
 The result is JSON with `status`, `displayPowerBefore`, `displayPower`, `sideButtonPressed` and `homePressed`. `already-awake` and `awake` exit 0; the other statuses exit 1 with an `action` explaining what a person should do. Over MCP the tool is `wake_device`, and those statuses are answers rather than errors. `wake` takes the device lease like any other input.
 
-An `awake` status means Apple reported the backlight on. It does not prove the UI is unlocked or which screen is showing, so inspect before acting. Local tests cover every branch; see [verification](verification.md) for what has been observed on hardware.
+An `awake` status means Apple reported the backlight on. It does not prove the UI is unlocked or which screen is showing, so inspect before acting. Local tests cover every branch. On hardware it has been observed once, on an iPhone 13 mini without a passcode: a dark display was woken to the Home screen and stayed on, and a second call on the lit display sent nothing. See [verification](verification.md#guarded-wake).
 
 ## Touch preparation and dispatch
 

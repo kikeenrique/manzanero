@@ -45,6 +45,16 @@ At `d58a229`, a fresh Apple display read showed off, one native `button lock` di
 
 This is a transient observed state change, not a durable wake/unlock guarantee. Earlier native Home dispatch while off also left the display off. The side button can turn an awake screen off and is not an idempotent wake command.
 
+### Guarded wake
+
+**2026-11-15 — `physical <UDID> wake` at `dbac428`**, iPhone 13 mini with no passcode and Auto-Lock set to Never, macOS 27.2.1, Xcode 27.2 (27B52).
+
+Readiness first reported `ui.displayPower: off`, `passcodeRequired: false`. One `wake` then returned `status: awake` with `displayPowerBefore: off`, `displayPower: on`, `sideButtonPressed: true` and `homePressed: true`, exit 0. A screenshot taken afterwards showed the Home screen, and three further readiness reads over the next seconds still reported the display on. A second `wake` on the lit display returned `already-awake` with both press fields false: nothing was sent.
+
+This was one run on one phone. It does not establish behaviour with a passcode, on a lock screen with a notification or call, after a restart before first unlock, or on other devices. Unlike the earlier bare side-button press, the display stayed on; whether the Home press is what made the difference was not isolated.
+
+The same run was the first on hardware for the command service's own queue, the per-device lease and the prefetched identity details. One side-button press and one Home press were dispatched through them, and the lease file was left zero-length afterwards. That is a single observation, not a two-process lease check.
+
 ## Direct physical input
 
 **2026-11-12 through 2026-11-14 — project-owned in-process Apple backends.**
