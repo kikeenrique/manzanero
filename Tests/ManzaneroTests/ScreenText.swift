@@ -17,6 +17,54 @@ private actor OCRCleanupGate {
     }
 }
 
+/// A clock that only moves when the test advances it, so deadline expiry is
+/// ordered by the test rather than by how quickly a loaded runner schedules tasks.
+private final class ManualTestClock: Clock, Sendable {
+    struct Instant: InstantProtocol {
+        var offset: Duration
+        func advanced(by duration: Duration) -> Instant { Instant(offset: offset + duration) }
+        func duration(to other: Instant) -> Duration { other.offset - offset }
+        static func < (lhs: Instant, rhs: Instant) -> Bool { lhs.offset < rhs.offset }
+    }
+
+    private struct State {
+        var now = Instant(offset: .zero)
+        var sleepers: [UUID: (deadline: Instant, continuation: CheckedContinuation<Void, any Error>)] = [:]
+    }
+
+    private let state = Mutex(State())
+    var now: Instant { state.withLock { $0.now } }
+    var minimumResolution: Duration { .zero }
+
+    func sleep(until deadline: Instant, tolerance: Duration?) async throws {
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                let immediate: Result<Void, any Error>? = state.withLock { state in
+                    if Task.isCancelled { return .failure(CancellationError()) }
+                    if deadline <= state.now { return .success(()) }
+                    state.sleepers[id] = (deadline, continuation)
+                    return nil
+                }
+                if let immediate { continuation.resume(with: immediate) }
+            }
+        } onCancel: {
+            state.withLock { $0.sleepers.removeValue(forKey: id) }?.continuation.resume(throwing: CancellationError())
+        }
+    }
+
+    func advance(by duration: Duration) {
+        let due = state.withLock { state in
+            state.now = state.now.advanced(by: duration)
+            let now = state.now
+            let ready = state.sleepers.filter { $0.value.deadline <= now }
+            for id in ready.keys { state.sleepers.removeValue(forKey: id) }
+            return ready.values.map(\.continuation)
+        }
+        for continuation in due { continuation.resume() }
+    }
+}
+
 struct ScreenTextTests {
     private func fixture(_ body: (String) async throws -> Void) async throws {
         try await ScreenCommandTests().fixture { directory in
@@ -62,17 +110,20 @@ struct ScreenTextTests {
         else { Issue.record("Pre-cancelled OCR returned success") }
     }
 
-    @Test(arguments: [false, true])
+    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
     func deadlineCancelsAndDrainsEvenIfRecognizerReturnsLate(callerCancelsDuringDrain: Bool) async throws {
         try await fixture { path in
-            let gate = OCRCleanupGate()
+            let gate = OCRCleanupGate(), started = OCRCleanupGate(), cleaningStarted = OCRCleanupGate()
+            let clock = ManualTestClock()
             let cleaning = Mutex(false), completed = Mutex(false), returned = Mutex(false)
             let call = Task { @concurrent in
                 defer { returned.withLock { $0 = true } }
-                return try await ScreenText.recognize(path: path, timeout: .seconds(1), perform: { _ in
+                return try await ScreenText.recognize(path: path, timeout: .seconds(1), clock: clock, perform: { _ in
+                    await started.release()
                     do { try await Task.sleep(for: .seconds(30)) }
                     catch {
                         cleaning.withLock { $0 = true }
+                        await cleaningStarted.release()
                         await gate.wait()
                         completed.withLock { $0 = true }
                         // Simulate an API that returns observations after
@@ -82,8 +133,11 @@ struct ScreenTextTests {
                     return []
                 })
             }
-            let limit = ContinuousClock.now.advanced(by: .seconds(3))
-            while !cleaning.withLock({ $0 }), ContinuousClock.now < limit { try await Task.sleep(for: .milliseconds(2)) }
+            // Expire the deadline only once recognition is running, then wait
+            // for the cancellation it causes to reach the recognizer.
+            await started.wait()
+            clock.advance(by: .seconds(1))
+            await cleaningStarted.wait()
             #expect(cleaning.withLock { $0 })
             #expect(returned.withLock { $0 } == false && completed.withLock { $0 } == false)
             if callerCancelsDuringDrain { call.cancel() }
@@ -97,19 +151,19 @@ struct ScreenTextTests {
         }
     }
 
-    @Test func callerCancellationReachesRecognitionAndDrainsIt() async throws {
+    @Test(.timeLimit(.minutes(1))) func callerCancellationReachesRecognitionAndDrainsIt() async throws {
         try await fixture { path in
-            let started = Mutex(false), finished = Mutex(false)
+            let started = Mutex(false), finished = Mutex(false), running = OCRCleanupGate()
             let call = Task { @concurrent in
-                try await ScreenText.recognize(path: path, perform: { _ in
+                try await ScreenText.recognize(path: path, clock: ManualTestClock(), perform: { _ in
                     defer { finished.withLock { $0 = true } }
                     started.withLock { $0 = true }
+                    await running.release()
                     try await Task.sleep(for: .seconds(30))
                     return []
                 })
             }
-            let limit = ContinuousClock.now.advanced(by: .seconds(3))
-            while !started.withLock({ $0 }), ContinuousClock.now < limit { try await Task.sleep(for: .milliseconds(2)) }
+            await running.wait()
             call.cancel()
             if case .failure(let error) = await call.result { #expect(error is CancellationError) }
             else { Issue.record("Cancelled OCR returned observations") }

@@ -20,8 +20,11 @@ struct ScreenText: Encodable, Sendable {
     let coordinateSpace = "normalized-top-left"
     let regions: [Region]
 
-    static func recognize(path: String, timeout: Duration = .seconds(120),
-                          perform: @Sendable @escaping (URL) async throws -> [Region] = recognizeRegions) async throws -> ScreenText {
+    /// `clock` measures the deadline; tests inject a manual clock so expiry
+    /// does not depend on wall-clock scheduling.
+    static func recognize<C: Clock>(path: String, timeout: Duration = .seconds(120), clock: C = ContinuousClock(),
+                                    perform: @Sendable @escaping (URL) async throws -> [Region] = recognizeRegions)
+        async throws -> ScreenText where C.Duration == Duration {
         try Task.checkCancellation()
         guard timeout > .zero, timeout <= .seconds(300) else {
             throw CommandFailure(description: "OCR recognition deadline must be positive and at most 300 seconds.")
@@ -30,20 +33,20 @@ struct ScreenText: Encodable, Sendable {
         guard FileManager.default.isReadableFile(atPath: url.path) else {
             throw CommandFailure(description: "Image is not readable: \(path)")
         }
-        let deadline = ContinuousClock.now.advanced(by: timeout)
+        let deadline = clock.now.advanced(by: timeout)
         do {
             // Structured scope drains recognition after cancellation. The
             // deadline cannot forcibly stop an unresponsive native request.
             let regions = try await withThrowingTaskGroup(of: [Region].self) { group in
                 group.addTask {
-                    try await ContinuousClock().sleep(until: deadline)
+                    try await clock.sleep(until: deadline, tolerance: nil)
                     throw DeadlineExceeded()
                 }
                 group.addTask {
                     try Task.checkCancellation()
                     let regions = try await perform(url)
                     try Task.checkCancellation()
-                    guard ContinuousClock.now < deadline else { throw DeadlineExceeded() }
+                    guard clock.now < deadline else { throw DeadlineExceeded() }
                     return regions
                 }
                 defer { group.cancelAll() }

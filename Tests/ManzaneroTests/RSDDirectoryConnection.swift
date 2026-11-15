@@ -76,8 +76,7 @@ struct RSDDirectoryConnectionTests {
         var error = [CChar](repeating: 0, count: 512)
         #expect(ADCOpenRSDDirectory(sockets[0], hardware, "11111111-1111-1111-1111-111111111111", 0, 0, { 1 }, &port, &owner, &error, error.count) != 0)
         #expect(owner == nil && port == 0)
-        var byte: UInt8 = 0
-        #expect(recv(sockets[1], &byte, 1, MSG_DONTWAIT) == 0)
+        #expect(SocketPeerClosure.streamReachesEOF(sockets[1]))
         ADCCloseRSDDirectory(nil)
     }
 

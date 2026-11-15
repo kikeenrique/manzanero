@@ -1,7 +1,43 @@
 import Darwin
 import Foundation
+import Synchronization
 import Testing
 @testable import Manzanero
+
+/// Runs blocking socket work on a thread started synchronously by the caller.
+/// The transport polls against real deadlines, so running either peer as a
+/// Swift concurrency task would make its progress depend on a free pool thread,
+/// which a loaded runner with few cores does not guarantee.
+private final class DedicatedThread<Value: Sendable>: Sendable {
+    private struct State {
+        var result: Result<Value, any Error>?
+        var waiter: CheckedContinuation<Value, any Error>?
+    }
+
+    private let state = Mutex(State())
+
+    init(_ body: @escaping @Sendable () throws -> Value) {
+        Thread { [self] in
+            let result = Result { try body() }
+            self.state.withLock { state in
+                state.result = result
+                return state.waiter.take()
+            }?.resume(with: result)
+        }.start()
+    }
+
+    var value: Value {
+        get async throws {
+            try await withCheckedThrowingContinuation { continuation in
+                let finished: Result<Value, any Error>? = state.withLock { state in
+                    if state.result == nil { state.waiter = continuation }
+                    return state.result
+                }
+                if let finished { continuation.resume(with: finished) }
+            }
+        }
+    }
+}
 
 struct AccessibilitySocketTransportTests {
     private func pair(type: Int32 = SOCK_STREAM) throws -> (Int32, Int32) {
@@ -42,10 +78,9 @@ struct AccessibilitySocketTransportTests {
         #expect(count == 48 && received == expected)
         transport.close()
         transport.close()
-        var byte: UInt8 = 0
         // A closed descriptor number may already belong to another parallel
         // test. The still-owned peer observes this socket's actual closure.
-        #expect(transport.isClosed && recv(peer, &byte, 1, MSG_DONTWAIT) == 0)
+        #expect(transport.isClosed && SocketPeerClosure.streamReachesEOF(peer))
     }
 
     @Test func cancellationAndExpiryAtFrameBoundaryKeepCleanupPossible() throws {
@@ -126,6 +161,9 @@ struct AccessibilitySocketTransportTests {
         let (other, closedPeer) = try pair()
         let second = try AccessibilitySocketTransport(taking: other)
         Darwin.close(closedPeer)
+        // Wait until the closure is visible from this end; a child spawned by
+        // a parallel test can hold the peer open for an instant.
+        #expect(SocketPeerClosure.streamReachesEOF(other))
         #expect(throws: (any Error).self) {
             try second.write(acknowledgement(2), until: .now.advanced(by: .seconds(1)), cancelled: { false })
         }
@@ -156,31 +194,39 @@ struct AccessibilitySocketTransportTests {
         let (owned, peer) = try pair(type: SOCK_DGRAM)
         defer { Darwin.close(peer) }
         #expect(throws: CommandFailure.self) { try AccessibilitySocketTransport(taking: owned) }
-        var byte: UInt8 = 0
-        #expect(send(peer, &byte, 1, MSG_NOSIGNAL) == -1)
+        #expect(SocketPeerClosure.datagramSendFails(peer))
         #expect(throws: AccessibilitySocketTransport.Failure.closed) { try AccessibilitySocketTransport(taking: -1) }
     }
 
     @Test func shortReadsAssembleOneCompleteFrame() async throws {
         let (owned, peer) = try pair()
         let bytes = try acknowledgement(13).encoded()
-        let writer = Task.detached {
+        let writer = DedicatedThread {
             defer { Darwin.close(peer) }
             for chunk in [Data(bytes.prefix(5)), Data(bytes[5..<21]), Data(bytes[21...])] {
                 let sent = chunk.withUnsafeBytes { send(peer, $0.baseAddress, $0.count, MSG_NOSIGNAL) }
                 guard sent == chunk.count else { throw POSIXError(.EIO) }
-                try await Task.sleep(for: .milliseconds(3))
+                usleep(3_000)
             }
         }
-        let transport = try AccessibilitySocketTransport(taking: owned)
-        defer { transport.close() }
-        #expect(try transport.read(until: .now.advanced(by: .seconds(2)), cancelled: { false }).identifier == 13)
+        let reader = DedicatedThread {
+            let transport = try AccessibilitySocketTransport(taking: owned)
+            defer { transport.close() }
+            return try transport.read(until: .now.advanced(by: .seconds(2)), cancelled: { false }).identifier
+        }
+        #expect(try await reader.value == 13)
         try await writer.value
     }
 
     @Test func realSocketSessionNegotiatesAndStopsWithoutDeviceOrHelper() async throws {
         let (owned, peer) = try pair()
-        let server = Task.detached {
+        struct ServerObservations: Sendable {
+            var versionIsReply = false
+            var protocolVersion: UInt64?
+            var toggles: [Bool] = []
+        }
+        let server = DedicatedThread { () throws -> ServerObservations in
+            var observed = ServerObservations()
             let transport = try AccessibilitySocketTransport(taking: peer)
             defer { transport.close() }
             let limit = ContinuousClock.now.advanced(by: .seconds(2))
@@ -188,20 +234,29 @@ struct AccessibilitySocketTransportTests {
             let host = try AccessibilityDTX.invocation("hostAPIVersion", argument: nil, identifier: 77)
             try transport.write(host, until: limit, cancelled: { false })
             let version = try transport.read(until: limit, cancelled: { false })
-            #expect(version.isReply(to: host))
-            #expect(try KeyedArchiveInspector.decodeProtocol(version.object).unsignedInteger == 7)
+            observed.versionIsReply = version.isReply(to: host)
+            observed.protocolVersion = try KeyedArchiveInspector.decodeProtocol(version.object).unsignedInteger
             let archive = try NSKeyedArchiver.archivedData(withRootObject: NSNumber(value: 26), requiringSecureCoding: true)
             try transport.write(request.reply(object: archive), until: limit, cancelled: { false })
             for enabled in [true, false] {
                 let toggle = try transport.read(until: limit, cancelled: { false })
-                #expect(try KeyedArchiveInspector.decodeProtocol(toggle.archiveArgument()) == .boolean(enabled))
+                if try KeyedArchiveInspector.decodeProtocol(toggle.archiveArgument()) == .boolean(enabled) {
+                    observed.toggles.append(enabled)
+                }
                 try transport.write(toggle.reply(), until: limit, cancelled: { false })
             }
+            return observed
         }
-        let transport = try AccessibilitySocketTransport(taking: owned)
-        let session = AccessibilitySession(transport: transport)
-        try session.start()
-        #expect(session.close() == .stopAcknowledged && transport.isClosed)
-        try await server.value
+        let client = DedicatedThread {
+            let transport = try AccessibilitySocketTransport(taking: owned)
+            let session = AccessibilitySession(transport: transport)
+            try session.start()
+            return session.close() == .stopAcknowledged && transport.isClosed
+        }
+        #expect(try await client.value)
+        let observed = try await server.value
+        #expect(observed.versionIsReply)
+        #expect(observed.protocolVersion == 7)
+        #expect(observed.toggles == [true, false])
     }
 }
