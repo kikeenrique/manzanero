@@ -13,7 +13,7 @@ manzanero physical <hardware-UDID> tree <positive-PID>
 
 Without PID, the operation selects the process hit at the primary display's logical centre, then rechecks that process and the display geometry after capture. This requires one awake primary display with native/current portrait orientation (`rot0`). An overlay or embedded process can be selected; the result is not a combined system/application tree.
 
-An explicit PID permits background inspection and does not verify foreground selection. PIDs must be positive Int32 values. MCP `get_ui_tree` requires `platform: physical`; optional `backend: coredevice` selects the existing default.
+An explicit PID permits background inspection and does not verify foreground selection. PIDs must be positive Int32 values. MCP `get_ui_tree` defaults to `platform: physical`.
 
 The route resolves fresh CoreDevice hardware identity, retains an Apple tunnel assertion, discovers the current exact-address RSD directory, validates its device/service identity, then opens raw AX DTX. It reads application → snapshot → application and discards the result if the root identity changed.
 

@@ -134,11 +134,12 @@ struct DirectPhysicalAccessibilityTests {
 
     @Test func cliAndMCPDryRunsShareTheOptInRouteWithoutQuerying() async throws {
         let tool = try #require(MCPTools.definitions.first { $0.name == "get_ui_tree" })
-        let args = try tool.command(["platform": "physical", "device": "fixture", "pid": 42, "backend": "coredevice"])
-        #expect(args == ["--physical-backend", "coredevice", "physical", "fixture", "tree", "42"])
+        let args = try tool.command(["platform": "physical", "device": "fixture", "pid": 42])
+        #expect(args == ["physical", "fixture", "tree", "42"])
+        #expect(try tool.command(["device": "fixture"]) == ["physical", "fixture", "tree"])
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried a device"); return Data() })
         let cli = try await service.execute(args, dryRun: true)
-        let mcp = try await MCPTools.call(name: "get_ui_tree", arguments: ["platform": "physical", "device": "fixture", "pid": 42, "backend": "coredevice"]) {
+        let mcp = try await MCPTools.call(name: "get_ui_tree", arguments: ["device": "fixture", "pid": 42]) {
             try await service.execute($0, dryRun: true)
         }
         #expect(mcp.isError == false && mcp.structuredContent?.objectValue?["result"]?.objectValue?["pid"] == 42)

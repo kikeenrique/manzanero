@@ -22,7 +22,7 @@ This page describes current product availability, not historical helper capabili
 | Build & Run | Explicit iOS project/workspace + scheme + target | Simulator project/workspace flows verified; physical signing/deployment and general progress/cancellation incomplete. |
 | Human handoff | Terminal responses, MCP form completion, process-local mutation pause | Synthetic terminal/MCP checks only; no automatic prompt detection or native notifications. |
 | Simulator lifecycle/capture | simctl apps, boot/shutdown, screenshot, recording | Scoped capture/lifecycle/development checks exist. Current simulator input and hierarchy are unavailable. |
-| CLI/MCP interface | Shared command service; 33 stdio tools | No HTTP, durable sessions, coordinated activity view or uniform structured CLI errors. Host controls approvals. |
+| CLI/MCP interface | Shared command service; 30 stdio tools | No HTTP, durable sessions, coordinated activity view or uniform structured CLI errors. Host controls approvals. |
 
 ## Unavailable or missing
 

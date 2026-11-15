@@ -5,7 +5,7 @@ enum AppleMCPServer {
         let handoff = MCPHandoffChannel()
         let operations = MCPToolOperations()
         let server = Server(name: "manzanero", version: manzaneroVersion,
-            instructions: "Apple device CLI operations. Physical input/accessibility are experimental. Inspect fresh state after input. Pair interactively using the CLI before supplying a pairing_file. Paths are relative to the server working directory. No built-in approval policy: the MCP host controls approvals.",
+            instructions: "Apple device CLI operations. Physical input/accessibility are experimental. Inspect fresh state after input. Paths are relative to the server working directory. No built-in approval policy: the MCP host controls approvals.",
             capabilities: .init(tools: .init(listChanged: false)), configuration: .strict)
         await server.withMethodHandler(ListTools.self) { _ in
             .init(tools: MCPTools.definitions.map(\.tool))

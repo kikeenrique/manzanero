@@ -42,7 +42,7 @@ Receipts report dispatch, not application recognition: `verified: false` and `re
 - `multi_drag`: flat `paths` array, four numbers per contact, plus `seconds`.
 - `pinch`: `center_x`, `center_y`, `start_span`, `end_span`, `seconds`.
 
-Use a physical `device`; optional `backend: coredevice` selects the existing default. Pairing files and simulator moving multitouch are unsupported. A pending handoff pauses mutations for that device within the same server process.
+Use a physical `device`; input always uses the in-process CoreDevice route. Simulator moving multitouch is unsupported. A pending handoff pauses mutations for that device within the same server process.
 
 ## What has been verified
 

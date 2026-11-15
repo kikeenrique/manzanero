@@ -76,8 +76,8 @@ struct CoreDeviceInputTests {
         #expect(result["backend"] as? String == "coredevice-ipb")
         #expect(result["verified"] as? Bool == false)
         let tool = try #require(MCPTools.definitions.first { $0.name == "tap" })
-        let args = try tool.command(["platform": "physical", "device": .string(udid), "x": 0.25, "y": 0.75, "backend": "coredevice"])
-        #expect(try CoreDeviceInput.parse(args)?.operands == ["0.25", "0.75"])
+        let args = try tool.command(["platform": "physical", "device": .string(udid), "x": 0.25, "y": 0.75])
+        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args))?.operands == ["0.25", "0.75"])
         let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).execute(args, dryRun: true)
         #expect(String(decoding: dry.data, as: UTF8.self).contains("coredevice-direct"))
     }
@@ -169,7 +169,7 @@ struct CoreDeviceInputTests {
         #expect(result["clipboardArguments"] != nil)
         #expect((result["clipboardEffect"] as? String)?.contains("not restored") == true)
         let key = try #require(MCPTools.definitions.first { $0.name == "press_key" })
-        #expect(try CoreDeviceInput.parse(key.command(["device": .string(udid), "key": "backspace", "backend": "coredevice"]))?.operation == "key")
+        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(key.command(["device": .string(udid), "key": "backspace"])))?.operation == "key")
     }
 
     @Test func subprocessStdinPreservesBinaryAndUnicodeBytesWithoutShellEvaluation() throws {

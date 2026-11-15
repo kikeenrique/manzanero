@@ -727,7 +727,7 @@ struct MCPStdioTests {
         #expect(inventoryResult["isError"] as? Bool == false)
         let structured = try #require(inventoryResult["structuredContent"] as? [String: Any])
         #expect((structured["result"] as? [String: Any])?["devices"] != nil)
-        let tree = try request(5, "tools/call", ["name": "get_ui_tree", "arguments": ["device": simulator]])
+        let tree = try request(5, "tools/call", ["name": "get_ui_tree", "arguments": ["platform": "simulator", "device": simulator]])
         #expect((tree["result"] as? [String: Any])?["isError"] as? Bool == false)
         let screenshot = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "simulator", "device": simulator, "path": directory.appendingPathComponent("screen.png").path]])
         let screenshotResult = try #require(screenshot["result"] as? [String: Any])

@@ -23,7 +23,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 ## Tool catalog
 
-`tools/list` is the exact schema reference: 33 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform/backend combination is available.
+`tools/list` is the exact schema reference: 30 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
 
 | Tools | Current purpose |
 | --- | --- |
@@ -33,23 +33,20 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR |
 | `press_element`, `scroll_to_element` | [Fresh exact physical AX selectors](direct-accessibility.md), guarded native press/scroll |
 | `decode_accessibility_archive` | Offline data-only archive inspection |
-| `get_accessibility_archive` | Legacy live raw callback capture; currently unavailable |
 | `record_screen` | [Finite MP4 recording](recording.md) to a new host path |
 | `tap`, `drag`, `long_press` | Direct physical single-contact input |
 | `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md) |
 | `type_text`, `paste_text`, `press_key`, `press_button` | Physical typing, clipboard-replacing paste, named keys and hardware buttons |
-| `tap_element` | Legacy simulator selector tap; currently unavailable |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report` | Saved physical report listing/download |
-| `capture_logs` | Legacy finite OS trace; currently unavailable |
 | `build_run` | [Xcode build/install/launch](build-run.md) |
 | `request_handoff` | [Explicit human completion request](handoff.md) |
 
-Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked, including their old simulator input, raw callback, pairing and log paths.
+Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked at runtime, and the catalogue no longer lists the tools and parameters that could only reach them: simulator selector taps, live raw callback archives, finite OS traces, `pairing_file` and the input `backend` choice. Physical input and trees always use the in-process CoreDevice route.
 
 ## Choose platform and coordinates explicitly
 
-Some tools retain a simulator default. For physical `get_ui_tree` and `type_text`, supply `platform: "physical"` rather than relying on defaults.
+`get_ui_tree` and `type_text` default to `platform: "physical"`. Other device tools require an explicit `platform` where they accept one.
 
 Physical touch coordinates are normalized `0...1`. Physical AX frames use logical points; screenshots use pixels. OCR text regions are not guaranteed tap targets.
 

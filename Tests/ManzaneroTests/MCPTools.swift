@@ -21,12 +21,13 @@ struct MCPToolsTests {
         #expect(planned.arguments[2] == "multi-drag")
         #expect(planned.arguments[3] == "1000")
         let multi = try #require(MCPTools.definitions.first { $0.name == "multi_drag" })
-        let multiArgs = try multi.command(["device": "fixture", "paths": [0, 0, 1, 1, 1, 1, 0, 0], "seconds": 1, "pairing_file": "tmp/fixture.pairing.plist"])
+        let multiArgs = try multi.command(["device": "fixture", "paths": [0, 0, 1, 1, 1, 1, 0, 0], "seconds": 1])
         let multiPlan = try #require(try DeviceCommand.parse(multiArgs))
-        #expect(multiPlan.arguments == ["manzanero-idevice", "--pairing-file", "tmp/fixture.pairing.plist", "fixture", "multi-drag", "1000", "0", "0", "65535", "65535", "65535", "65535", "0", "0"])
+        #expect(multiPlan.arguments == ["manzanero-idevice", "fixture", "multi-drag", "1000", "0", "0", "65535", "65535", "65535", "65535", "0", "0"])
     }
     @Test func catalogHasUniqueNamesAndClosedObjectSchemas() throws {
         let definitions = MCPTools.definitions
+        #expect(definitions.count == 30)
         #expect(Set(definitions.map(\.name)).count == definitions.count)
         for definition in definitions {
             let schema = try #require(definition.tool.inputSchema.objectValue)
@@ -36,16 +37,38 @@ struct MCPToolsTests {
         }
     }
 
-    @Test func routingPreservesLiteralTextAndPairing() throws {
+    @Test func routingPreservesLiteralText() throws {
         let typing = try #require(MCPTools.definitions.first { $0.name == "type_text" })
         let text = "$(touch sentinel); 'hello'\nworld"
         let args = try typing.command(["device": "11111111-2222-3333-4444-555555555555", "text": .string(text)])
         let plan = try #require(try DeviceCommand.parse(args))
         #expect(plan.arguments.last == text)
         let tap = try #require(MCPTools.definitions.first { $0.name == "tap" })
-        let tapped = try tap.command(["platform": "physical", "device": "phone", "x": 0.5, "y": 1, "pairing_file": "tmp/My Phone.pairing.plist"])
-        let physical = try #require(try DeviceCommand.parse(tapped))
-        #expect(physical.arguments == ["manzanero-idevice", "--pairing-file", "tmp/My Phone.pairing.plist", "phone", "tap", "32768", "65535"])
+        let tapped = try tap.command(["platform": "physical", "device": "phone", "x": 0.5, "y": 1])
+        #expect(tapped == ["physical", "phone", "tap", "0.5", "1"])
+    }
+
+    @Test func helperOnlyToolsAndFieldsAreNotAdvertised() throws {
+        let names = Set(MCPTools.definitions.map(\.name))
+        for removed in ["tap_element", "capture_logs", "get_accessibility_archive"] { #expect(!names.contains(removed)) }
+        for definition in MCPTools.definitions {
+            let properties = try #require(definition.tool.inputSchema.objectValue?["properties"]?.objectValue)
+            #expect(properties["pairing_file"] == nil)
+            #expect(properties["backend"] == nil)
+        }
+        let tap = try #require(MCPTools.definitions.first { $0.name == "tap" })
+        for field in ["pairing_file", "backend"] {
+            #expect(throws: MCPError.self) {
+                try tap.command(["platform": "physical", "device": "phone", "x": 0.5, "y": 0.5, field: "fixture"])
+            }
+        }
+    }
+
+    @Test(arguments: [("type_text", ["device": Value.string("fixture"), "text": "a"], ["physical", "fixture", "type", "a"]),
+                      ("get_ui_tree", ["device": Value.string("fixture")], ["physical", "fixture", "tree"])])
+    func optionalPlatformDefaultsToPhysical(_ name: String, _ arguments: [String: Value], _ expected: [String]) throws {
+        let definition = try #require(MCPTools.definitions.first { $0.name == name })
+        #expect(try definition.command(arguments) == expected)
     }
 
     @Test(arguments: [
@@ -77,9 +100,9 @@ struct MCPToolsTests {
 
     @Test func physicalTypingRoutesThroughTheSharedPlanner() throws {
         let definition = try #require(MCPTools.definitions.first { $0.name == "type_text" })
-        let args = try definition.command(["platform": "physical", "device": "fixture", "text": "Hello!", "pairing_file": "tmp/fixture.pairing.plist"])
-        let command = try #require(try DeviceCommand.parse(args))
-        #expect(command.arguments == ["manzanero-idevice", "--pairing-file", "tmp/fixture.pairing.plist", "fixture", "type", "Hello!"])
+        let args = try definition.command(["platform": "physical", "device": "fixture", "text": "Hello!"])
+        #expect(args == ["physical", "fixture", "type", "Hello!"])
+        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args))?.operands == ["Hello!"])
     }
 
     @Test func unknownToolsCannotInvokeExecutor() async {

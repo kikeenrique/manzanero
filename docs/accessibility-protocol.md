@@ -73,7 +73,7 @@ manzanero decode-ax-archive tmp/accessibility.plist
 
 MCP `decode_accessibility_archive` takes the same local `path`. Known Foundation wrappers are expanded; unknown objects retain `className`/`fields`. The result retains `parsedHierarchy: false`; it does not turn an arbitrary callback into an actionable UI tree.
 
-The old live `ax-snapshot` capture and MCP `get_accessibility_archive` route depend on the disabled idevice executable. Historical capture saved a new mode-0600 file or returned base64, with `parsedHierarchy: false`; it required correlated disable acknowledgement. That is not a currently supported capture command.
+The old live `ax-snapshot` capture depends on the disabled idevice executable; its former MCP `get_accessibility_archive` tool has been removed from the catalogue. Historical capture saved a new mode-0600 file or returned base64, with `parsedHierarchy: false`; it required correlated disable acknowledgement. That is not a currently supported capture command.
 
 ## Cleanup and uncertainty
 

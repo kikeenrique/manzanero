@@ -50,11 +50,12 @@ struct AccessibilityArchiveTests {
         }
     }
 
-    @Test func cliAndMCPPlanArchiveStorageAndOfflineDecoding() async throws {
-        let definition = try #require(MCPTools.definitions.first { $0.name == "get_accessibility_archive" })
-        let args = try definition.command(["device": "fixture", "path": "tmp/fixture.plist", "pairing_file": "tmp/fixture.pairing.plist"])
+    @Test func cliPlansArchiveStorageAndMCPDecodesOffline() async throws {
+        // Live archive capture needs a blocked helper, so MCP exposes only offline decoding.
+        #expect(!MCPTools.definitions.contains { $0.name == "get_accessibility_archive" })
+        let args = ["physical", "fixture", "ax-snapshot", "tmp/fixture.plist"]
         let plan = try #require(try DeviceCommand.parse(args))
-        #expect(plan.arguments == ["manzanero-idevice", "--pairing-file", "tmp/fixture.pairing.plist", "fixture", "ax-snapshot"])
+        #expect(plan.arguments == ["manzanero-idevice", "fixture", "ax-snapshot"])
         let output = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).execute(args, dryRun: true)
         let value = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
         #expect(value["archiveDestination"] as? String == "tmp/fixture.plist")
