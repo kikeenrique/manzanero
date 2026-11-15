@@ -275,7 +275,11 @@ Findings beyond the research:
 - Twelve taps and swipes sent with no drain before disconnect all arrived; the 380 ms drain is kept from IDB's measurement on another model, not from evidence here.
 - The first request after boot was slow (about 3 s for the first tree) only on the first boot.
 
-Not observed: rotation or landscape, iPad or other families, other runtimes or Xcode versions, two contacts or more, Unicode entry, volume buttons, a simulator under Xcode's own UI tests or with Simulator.app open, and any effect on a physical device.
+Not observed: rotation or landscape, iPad or other families, other runtimes or Xcode versions, two contacts or more, Unicode entry, volume buttons, and a simulator under Xcode's own UI tests or with Simulator.app open.
+
+**Second run and physical re-check, 2026-11-15 at `7b1bfbd`.** A separate run on the same simulator repeated the refusal when shut down, `tree` (9 probe nodes), `press-id probe.touch.reset`, a `tap` sent at (0.3, 0.6) and recorded by the probe at (0.3, 0.59992), a 0.4-second `swipe` recorded with exact endpoints and 16 moves, both waits (met, and exit 124), `screen auto` on Settings (accessibility, 141 nodes) and `button home`. The probe's recent-gestures readout was read through the tree here for the first time, about 500 bytes for two gestures.
+
+Because the accessibility code shared with the phone was refactored, the iPhone 13 mini was re-checked with the same build: `tree` (137 nodes, both cleanups acknowledged), `press-label`, `wait-id` met and timed out with exit 124, `scroll-id` with its postcondition verified (a row moved from y 793 to 416), `screen auto`, `swipe`, a 2-second native recording (39 frames) and `button home` all behaved as before. A `scroll-id` for a row that the lazy Settings list had not yet created was refused before sending with "no match", which is the documented limit, not a change.
 
 ## Apps, files, reports and development
 
