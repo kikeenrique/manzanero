@@ -22,6 +22,7 @@ mise tasks validate
 | `release <version>` | Check version/worktree/tag, then push the tag to publish a beta through CI |
 | `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device |
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*`, `test:ax-*` | Opt-in native transport/media diagnostics |
+| `touch-probe:test`, `touch-probe:generate` | [Touch probe](touch-probe.md) core tests on macOS; Tuist workspace generation under `tmp/touch-probe/generated` |
 | `coredevice:*`, `idevice:*` | Retired helper research/build tests; not runtime setup |
 
 Use the installed task's argument help rather than guessing flags:

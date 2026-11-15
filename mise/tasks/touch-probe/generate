@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Generate the touch probe Xcode workspace at tmp/touch-probe/generated with Tuist (never committed)"
+#MISE tools = { tuist = "4.214.0" }
+
+# Tuist always writes the project, workspace and Derived/ next to the manifest
+# and has no output-directory option. To keep generated files out of the
+# tracked tree without a .gitignore entry, this task copies the manifests into
+# tmp/touch-probe/generated/ and generates there, pointing them back at the
+# tracked sources in Fixtures/TouchProbe through TUIST_TOUCH_PROBE_FIXTURE.
+# Local generation only: no Tuist account, server or binary cache.
+#
+# Optional device signing, read from the environment and written only to the
+# untracked tmp/touch-probe/Signing.xcconfig (included by Config/TouchProbe.xcconfig):
+#   TOUCH_PROBE_TEAM       Apple developer team identifier
+#   TOUCH_PROBE_BUNDLE_ID  bundle identifier that team can sign
+# When neither is set, an existing Signing.xcconfig is left as it is.
+
+set -euo pipefail
+
+out=tmp/touch-probe
+generated="$out/generated"
+mkdir -p "$generated"
+
+team="${TOUCH_PROBE_TEAM:-}"
+bundle="${TOUCH_PROBE_BUNDLE_ID:-}"
+if [ -n "$team" ] || [ -n "$bundle" ]; then
+  if [ -n "$team" ] && ! [[ "$team" =~ ^[A-Z0-9]{10}$ ]]; then
+    echo "TOUCH_PROBE_TEAM must be a 10-character team identifier" >&2
+    exit 1
+  fi
+  if [ -n "$bundle" ] && ! [[ "$bundle" =~ ^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$ ]]; then
+    echo "TOUCH_PROBE_BUNDLE_ID must be a reverse-DNS identifier of letters, digits, hyphens and dots" >&2
+    exit 1
+  fi
+  {
+    echo "// Written by mise run touch-probe:generate from the environment. Untracked; do not commit."
+    if [ -n "$team" ]; then echo "DEVELOPMENT_TEAM = $team"; fi
+    if [ -n "$bundle" ]; then echo "TOUCH_PROBE_BUNDLE_ID = $bundle"; fi
+  } > "$out/Signing.xcconfig"
+  echo "Wrote $out/Signing.xcconfig" >&2
+fi
+
+cp Fixtures/TouchProbe/Project.swift Fixtures/TouchProbe/Tuist.swift "$generated/"
+# Fixture directory relative to the copied manifest, read by Project.swift.
+TUIST_TOUCH_PROBE_FIXTURE=../../../Fixtures/TouchProbe \
+  tuist generate --path "$generated" --no-open --cache-profile none
+echo "Generated $generated/TouchProbe.xcworkspace and $generated/TouchProbe.xcodeproj" >&2

@@ -1,0 +1,19 @@
+// Tracked defaults for the touch probe app target. Account values never go here.
+//
+// Simulator builds need nothing else. For a physical device, put your own
+// values in the untracked repository file tmp/touch-probe/Signing.xcconfig
+// (the touch-probe:generate task writes it from TOUCH_PROBE_TEAM and
+// TOUCH_PROBE_BUNDLE_ID):
+//
+//   DEVELOPMENT_TEAM = <your team identifier>
+//   TOUCH_PROBE_BUNDLE_ID = <a bundle identifier your team can sign>
+//
+// The Tuist manifest sets the target's bundle identifier to
+// $(TOUCH_PROBE_BUNDLE_ID), so it resolves from this file and its include.
+
+TOUCH_PROBE_BUNDLE_ID = com.example.manzanero.touchprobe
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+
+// Optional include: a missing file is not an error. The path is relative to this file.
+#include? "../../../tmp/touch-probe/Signing.xcconfig"
