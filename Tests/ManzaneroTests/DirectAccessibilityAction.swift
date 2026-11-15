@@ -46,6 +46,10 @@ struct DirectAccessibilityActionTests {
                 let target = (snapshots == 2 && failure == "identity") || (submitted && failure == "post-identity") ? 3 : 2
                 var children = [record(target)]
                 if failure == "ambiguous" { children.append(record(3)) }
+                // A second element with the same selector: hidden text inside a row,
+                // or one whose visibility the device did not report.
+                if failure == "hidden-twin" { children.append(record(3, visibility: false)) }
+                if failure == "unknown-twin" { children.append(record(3, visibility: .some(nil))) }
                 if failure == "duplicate" { children.append(record(target)) }
                 if failure == "inconsistent" { children.append(record(target, shifted: true)) }
                 response = Response(kind: kind, translation: Token(1), result: record(1, children: children))
@@ -74,12 +78,18 @@ struct DirectAccessibilityActionTests {
             incoming.append(try callback(response))
             incoming.append(try fixture.reply(message.identifier))
         }
-        func record(_ id: Int, children: [NSDictionary] = [], shifted: Bool = false) -> NSDictionary {
-            ["UIAccessibilitySnapshotKeyElement": Token(id), "UIAccessibilitySnapshotKeyChildren": children,
+        /// `visibility` overrides the reported visibility: `false` hides the
+        /// element, `.some(nil)` omits the attribute altogether.
+        func record(_ id: Int, children: [NSDictionary] = [], shifted: Bool = false, visibility: Bool?? = nil) -> NSDictionary {
+            let attributes: NSMutableDictionary = [2001: id == 1 ? "App" : "Fixture", 5019: id == 1 ? "app" : "fixture.control",
+                2003: NSValue(rect: NSRect(x: shifted ? 11 : failure == "offscreen" ? 1000 : 10, y: id == 1 ? 20 : targetY, width: 30, height: 40)),
+                2025: id == 1 ? true : targetVisible]
+            if let visibility {
+                if let visibility { attributes[2025] = visibility } else { attributes.removeObject(forKey: 2025) }
+            }
+            return ["UIAccessibilitySnapshotKeyElement": Token(id), "UIAccessibilitySnapshotKeyChildren": children,
                 "UIAccessibilitySnapshotKeyChildrenCount": children.count,
-                "UIAccessibilitySnapshotKeyAttributes": [2001: id == 1 ? "App" : "Fixture", 5019: id == 1 ? "app" : "fixture.control",
-                    2003: NSValue(rect: NSRect(x: shifted ? 11 : failure == "offscreen" ? 1000 : 10, y: id == 1 ? 20 : targetY, width: 30, height: 40)),
-                    2025: id == 1 ? true : targetVisible] as NSDictionary] as NSDictionary
+                "UIAccessibilitySnapshotKeyAttributes": attributes] as NSDictionary
         }
         func callback(_ response: Response) throws -> AccessibilityDTX {
             let coder = NSKeyedArchiver(requiringSecureCoding: true)
@@ -91,7 +101,7 @@ struct DirectAccessibilityActionTests {
         }
     }
 
-    @Test(arguments: ["none", "duplicate", "ambiguous", "inconsistent", "identity", "disabled", "unknown-state", "hidden", "identifier", "frame", "offscreen", "hit", "root", "foreground", "pid", "display", "refused", "lost", "cleanup", "cancel"])
+    @Test(arguments: ["none", "duplicate", "hidden-twin", "ambiguous", "unknown-twin", "inconsistent", "identity", "disabled", "unknown-state", "hidden", "identifier", "frame", "offscreen", "hit", "root", "foreground", "pid", "display", "refused", "lost", "cleanup", "cancel"])
     func actionGuardsAndUnknownOutcomesNeverReplay(_ failure: String) throws {
         let wire = Wire(failure)
         let press = try DirectAccessibilityAction(.init(device: "fixture", operation: "press-id", operands: ["42", "fixture.control"]))
@@ -102,7 +112,7 @@ struct DirectAccessibilityActionTests {
                 return try AccessibilityDisplay(AccessibilityDisplayTests.data(scale: failure == "display" && displays == 2 ? 2 : 3))
             })
         }
-        if ["none", "duplicate", "cleanup"].contains(failure) {
+        if ["none", "duplicate", "hidden-twin", "cleanup"].contains(failure) {
             let result = try #require(JSONSerialization.jsonObject(with: run()) as? [String: Any])
             #expect(result["nativeAccepted"] as? Bool == true && result["effectVerified"] as? Bool == false)
             #expect((result["cleanup"] as? [String: Any])?["confirmed"] as? Bool == (failure != "cleanup"))
@@ -117,7 +127,7 @@ struct DirectAccessibilityActionTests {
             }
         }
         #expect(wire.closed)
-        #expect(wire.kinds.filter { $0 == 7 }.count == (["none", "duplicate", "cleanup", "refused", "lost", "cancel"].contains(failure) ? 1 : 0))
+        #expect(wire.kinds.filter { $0 == 7 }.count == (["none", "duplicate", "hidden-twin", "cleanup", "refused", "lost", "cancel"].contains(failure) ? 1 : 0))
     }
 
     @Test(arguments: ["none", "native-false", "post-hidden", "post-identity", "post-frame", "post-hit", "post-root", "post-foreground", "post-display", "post-disabled", "post-lost", "post-cancel", "ambiguous", "disabled", "pid", "display", "lost", "cleanup", "cancel"])

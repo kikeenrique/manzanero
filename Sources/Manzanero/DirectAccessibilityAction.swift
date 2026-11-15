@@ -26,17 +26,27 @@ struct DirectAccessibilityAction {
     var selector: AccessibilitySelector { AccessibilitySelector(by: by, text: text) }
 
     func resolve(_ snapshot: AccessibilityArchiveValue, root: AccessibilityRequest.Token) throws -> AccessibilitySnapshot.Node {
-        var found: AccessibilitySelector.Match?
+        // One entry per distinct element; repeated paths must agree.
+        var distinct: [AccessibilitySelector.Match] = []
         for match in try selector.matches(snapshot, root: root, failure: { failure($0, .transportFailed) }) {
             guard match.node.token.pid == root.pid else { throw failure("target belongs to another process", .targetUnresolved) }
-            if let found {
-                guard sameIdentity(found.node.token, match.node.token), found.attributes == match.attributes else {
+            if let first = distinct.first(where: { sameIdentity($0.node.token, match.node.token) }) {
+                guard first.attributes == match.attributes else {
                     throw failure("selector has multiple distinct or inconsistent matches", .targetUnresolved)
                 }
-            } else { found = match }
+            } else { distinct.append(match) }
         }
-        guard let found else { throw failure("selector has no match in the fresh bounded snapshot", .targetUnresolved) }
-        return found.node
+        guard let first = distinct.first else { throw failure("selector has no match in the fresh bounded snapshot", .targetUnresolved) }
+        if distinct.count == 1 { return first.node }
+        // A list row and the text inside it often share one label, with only the
+        // row visible (observed in Settings). When exactly one match is visible
+        // and every other is explicitly hidden, the visible one is the target.
+        // The same rule as a wait; any unknown visibility keeps it ambiguous.
+        let shown = distinct.filter { $0.node.visible == true }
+        guard shown.count == 1, distinct.allSatisfy({ $0.node.visible != nil }) else {
+            throw failure("selector has multiple distinct or inconsistent matches", .targetUnresolved)
+        }
+        return shown[0].node
     }
 
     func execute(session: AccessibilitySession, display: () throws -> AccessibilityDisplay) throws -> Data {
