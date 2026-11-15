@@ -17,17 +17,9 @@ struct ReportCommandTests {
         #expect(command.arguments.contains("systemCrashLogs"))
     }
 
-    @Test func logCaptureUsesBridgeAndExplicitPairing() throws {
-        let command = try #require(try DeviceCommand.parse(["--pairing-file", "tmp/phone.pairing.plist", "physical", "device", "logs", "30", "123"]))
-        #expect(command.executable == "/usr/bin/env")
-        #expect(command.arguments == ["manzanero-idevice", "--pairing-file", "tmp/phone.pairing.plist", "device", "logs", "30", "123"])
-        #expect(command.jsonOutput)
-    }
-
     @Test(arguments: [["reports", "../"], ["reports", "/"], ["report", "../../x", "tmp/x"],
-                      ["reports", "a", "b"], ["report", "x", "-"], ["report", "x"],
-                      ["logs"], ["logs", "0"], ["logs", "31"], ["logs", "1", "-1"], ["logs", "1", "0"], ["logs", "1", "4294967295"]])
-    func rejectsInvalidPathsAndLogLimits(_ args: [String]) {
+                      ["reports", "a", "b"], ["report", "x", "-"], ["report", "x"]])
+    func rejectsInvalidPaths(_ args: [String]) {
         #expect(throws: CommandFailure.self) { try DeviceCommand.parse(["physical", "device"] + args) }
     }
 }

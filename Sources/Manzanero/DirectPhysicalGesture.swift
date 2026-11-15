@@ -12,11 +12,11 @@ enum DirectPhysicalGesture {
         if input.operation == "gesture", input.operands.count == 1 {
             return try NativeGestureSequence(json: input.operands[0], transform: transform)
         }
-        guard ["multi-tap", "multi-drag"].contains(input.operation),
-              try PhysicalInteraction.plan(device: input.device, operation: input.operation, operands: input.operands) != nil else {
+        guard ["multi-tap", "multi-drag"].contains(input.operation) else {
             throw CommandFailure(description: "Direct gesture expects a JSON schedule, multi-tap points, or multi-drag paths; no input sent.")
         }
-        // PhysicalInteraction validated finite coordinates and duration above.
+        try PhysicalInputOperands.validate(input.operation, input.operands)
+        // The validation above guarantees finite coordinates and duration.
         let values = input.operands.compactMap(Double.init)
         typealias Touch = NativeGestureSequence.Touch
         typealias Frame = NativeGestureSequence.Frame

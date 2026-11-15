@@ -14,16 +14,15 @@ struct MCPToolsTests {
             // The SDK owns suppression of the cancelled request's response.
         }
     }
-    @Test func multitouchToolsUseTheSharedPhysicalPlanner() throws {
+    @Test func multitouchToolsUseTheSharedNativeValidation() throws {
         let pinch = try #require(MCPTools.definitions.first { $0.name == "pinch" })
         let args = try pinch.command(["device": "fixture", "center_x": 0.5, "center_y": 0.5, "start_span": 1, "end_span": 0.5, "seconds": 1])
-        let planned = try #require(try DeviceCommand.parse(args))
-        #expect(planned.arguments[2] == "multi-drag")
-        #expect(planned.arguments[3] == "1000")
+        let planned = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args)))
+        #expect(planned.operation == "pinch" && planned.operands == ["0.5", "0.5", "1", "0.5", "1"])
         let multi = try #require(MCPTools.definitions.first { $0.name == "multi_drag" })
         let multiArgs = try multi.command(["device": "fixture", "paths": [0, 0, 1, 1, 1, 1, 0, 0], "seconds": 1])
-        let multiPlan = try #require(try DeviceCommand.parse(multiArgs))
-        #expect(multiPlan.arguments == ["manzanero-idevice", "fixture", "multi-drag", "1000", "0", "0", "65535", "65535", "65535", "65535", "0", "0"])
+        let multiPlan = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(multiArgs)))
+        #expect(multiPlan.operation == "multi-drag" && multiPlan.operands == ["1", "0", "0", "1", "1", "1", "1", "0", "0"])
     }
     @Test func catalogHasUniqueNamesAndClosedObjectSchemas() throws {
         let definitions = MCPTools.definitions
@@ -41,8 +40,8 @@ struct MCPToolsTests {
         let typing = try #require(MCPTools.definitions.first { $0.name == "type_text" })
         let text = "$(touch sentinel); 'hello'\nworld"
         let args = try typing.command(["device": "11111111-2222-3333-4444-555555555555", "text": .string(text)])
-        let plan = try #require(try DeviceCommand.parse(args))
-        #expect(plan.arguments.last == text)
+        let plan = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args)))
+        #expect(plan.operands == [text])
         let tap = try #require(MCPTools.definitions.first { $0.name == "tap" })
         let tapped = try tap.command(["platform": "physical", "device": "phone", "x": 0.5, "y": 1])
         #expect(tapped == ["physical", "phone", "tap", "0.5", "1"])
@@ -145,14 +144,22 @@ struct MCPToolsTests {
         #expect(result.structuredContent?.objectValue?["result"]?.arrayValue?.count == 1)
     }
 
-    @Test func serviceReusesDryRunAndRejectsInteractivePairing() async throws {
+    @Test func serviceReusesDryRun() async throws {
         let service = CommandService()
         let result = try await service.execute(["physical", "phone", "tap", "0.5", "0.5"], dryRun: true)
         let plan = try #require(try JSONSerialization.jsonObject(with: result.data) as? [String: Any])
         #expect(plan["backend"] as? String == "coredevice-direct")
         #expect(plan["operands"] as? [String] == ["0.5", "0.5"])
-        await #expect(throws: CommandFailure.self) {
-            try await service.execute(["pair", "wifi", "example.local", "1234", "tmp/fixture.pairing.plist"])
+    }
+
+    @Test func inspectDeviceOffersOnlyWorkingQueries() throws {
+        let tool = try #require(MCPTools.definitions.first { $0.name == "inspect_device" })
+        let query = try #require(tool.tool.inputSchema.objectValue?["properties"]?.objectValue?["query"]?.objectValue)
+        #expect(query["enum"] == .array(["apps", "details", "processes", "media-status"]))
+        #expect(throws: MCPError.self) { try tool.command(["platform": "physical", "device": "phone", "query": "hid-info"]) }
+        for definition in MCPTools.definitions {
+            #expect(!definition.description.contains("AXe"))
+            #expect(!definition.description.lowercased().contains("legacy"))
         }
     }
 

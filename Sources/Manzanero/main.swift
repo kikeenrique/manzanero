@@ -21,8 +21,7 @@ Usage:
   Gesture schedules, multi-tap and three-to-five-path multi-drag use in-process Universal HID.
   During direct physical input, SIGINT/SIGTERM cancels and attempts release, exiting 130/143.
   A second signal or a 30-second cleanup deadline forces exit; device-side release is unverified.
-  Non-Apple device helper executables are disabled, including AXe, idevice, and ipb helpers.
-  Legacy independent Wi-Fi pairing and pairing-file device operations are unavailable.
+  coredevice is the only physical backend and the default, so --physical-backend coredevice may be omitted.
   manzanero doctor               Check Xcode and device-service access, host versions, and host-only
                                  availability of each private Apple interface by capability (no device contact)
   manzanero ocr <image-path>     Recognize image text and normalized bounds as JSON
@@ -75,14 +74,14 @@ Usage:
   manzanero physical <UDID> button <home|lock|volume-up|volume-down>
   manzanero physical <UDID> key <return|escape|backspace|tab|space|up|down|left|right>
   manzanero physical <UDID> type <text>   Experimental US-layout ASCII, 1...512 characters
-  Legacy hid-info, live raw ax-snapshot and physical logs are unavailable pending direct Apple replacements.
   Physical coordinates are normalized 0...1, with the origin at the top left.
   manzanero simulator <device> <apps|boot|shutdown>
   manzanero simulator <device> <launch|terminate|uninstall> <bundle-id>
   manzanero simulator <device> install <app-path>
   manzanero simulator <device> open-url <url>
   manzanero simulator <device> screenshot <output.png>
-  Simulator input and tree commands are unavailable pending direct Apple replacements.
+  Simulator input (tap, swipe, type, button) and accessibility hierarchy (tree) are not available yet;
+  simulator screen uses OCR.
   Prefix a planned command with --dry-run to print its invocation without executing.
   manzanero --help
   manzanero --version

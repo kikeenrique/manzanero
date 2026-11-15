@@ -14,7 +14,7 @@ struct AppleAccessibilityRelayTests {
         let device = try #require(ProcessInfo.processInfo.environment["MANZANERO_AX_RELAY_DEVICE"])
         let remote = try #require(ProcessInfo.processInfo.environment["MANZANERO_AX_RELAY_REMOTE_UUID"])
         _ = try #require(UUID(uuidString: remote))
-        let native = CoreDeviceInput(device: device, operation: "ax-snapshot", operands: [])
+        let native = CoreDeviceInput(device: device, operation: "tree", operands: [])
         _ = try DirectPhysicalInput.identity(native, query: { plan in
             try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 20)
         })

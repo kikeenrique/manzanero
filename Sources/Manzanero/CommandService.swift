@@ -44,7 +44,7 @@ actor CommandService {
         let report: DeviceReadiness
         do { report = try readiness(device) }
         catch {
-            // Independent idevice pairing can work without a CoreDevice identity.
+            // Not fatal: the Apple tool that runs next enforces its own prerequisites.
             FileHandle.standardError.write(Data("Unable to determine CoreDevice readiness: \(error). The selected backend will enforce its own prerequisites.\n".utf8))
             return
         }
@@ -67,14 +67,6 @@ actor CommandService {
             guard args.count == 2, !args[1].isEmpty else { throw CommandFailure(description: "Usage: decode-ax-archive <local-plist>") }
             if dryRun { return try json(["backend": "foundation", "operation": "decode-ax-archive", "path": args[1], "execution": "In-process structural inspection; no device query or helper executable."]) }
             return CommandOutput(data: try KeyedArchiveInspector.inspectFile(args[1]))
-        }
-        if args.count >= 2, args[0] == "--physical-backend", args[1] == "idevice" {
-            if !dryRun { try DeviceExecutablePolicy.validate("/usr/bin/env", arguments: ["manzanero-idevice"]) }
-            let forwarded = Array(args.dropFirst(2))
-            let target = forwarded.first == "--pairing-file" ? Array(forwarded.dropFirst(2)) : forwarded
-            guard target.count >= 3, target[0] == "physical" else { throw CommandFailure(description: "--physical-backend requires a physical input command.") }
-            return try json(["backend": "idevice", "executionAvailable": false, "arguments": forwarded,
-                "limitation": "The explicitly selected non-Apple executable backend is disabled; no fallback will run."])
         }
         let nativeArguments = CoreDeviceInput.selectDefaultBackend(args)
         if let native = try CoreDeviceInput.parse(nativeArguments) {
@@ -114,22 +106,12 @@ actor CommandService {
                         "sampleCount": try DirectPhysicalTyping.samples(native.operands[0]).count,
                         "execution": "In-process Apple Indigo keyboard at current focus; no clipboard operation or helper executable."])
                 }
-                if (["button", "key"] + DirectPhysicalTouch.operations).contains(native.operation) {
-                    return try json(["backend": "coredevice-direct", "identityArguments": identity.arguments,
-                        "operation": native.operation, "operands": native.operands,
-                        "execution": "In-process Apple CoreDevice/RemoteXPC; fresh display checks for touch; no helper executable."])
+                guard (["button", "key"] + DirectPhysicalTouch.operations).contains(native.operation) else {
+                    throw CommandFailure(description: "Unsupported native physical operation: \(native.operation).")
                 }
-                let action = try native.actionPlan("<resolved CoreDevice UUID>", surface: "<discovered HID surface ID>")
-                var plan: [String: Any] = ["backend": "coredevice-ipb", "executionAvailable": false,
-                    "limitation": "Historical helper plan only; non-Apple executables are disabled pending the direct implementation.", "identityArguments": identity.arguments,
-                    "executable": action.executable, "actionArguments": action.arguments,
-                    "discovery": "Touch/keyboard operations discover exactly one matching HID surface before input; dry run queries nothing."]
-                if native.operation == "paste" {
-                    plan["clipboardArguments"] = native.clipboardPlan("<resolved CoreDevice UUID>").arguments
-                    plan["clipboardEffect"] = "Replace device clipboard; then paste once at the focused caret/selection. Clipboard is not restored."
-                    plan["stdinUTF8Bytes"] = native.operands[0].utf8.count
-                }
-                return try json(plan)
+                return try json(["backend": "coredevice-direct", "identityArguments": identity.arguments,
+                    "operation": native.operation, "operands": native.operands,
+                    "execution": "In-process Apple CoreDevice/RemoteXPC; fresh display checks for touch; no helper executable."])
             }
             try checkHandoffPause(Array(nativeArguments.dropFirst(2)))
             let identity = try native.identityPlan()
@@ -203,7 +185,7 @@ actor CommandService {
             if dryRun {
                 let plan = try screen.capturePlan(image: directory.appendingPathComponent("screen.png"))
                 return try json(["executable": plan.executable, "arguments": plan.arguments, "analysisMode": screen.mode.rawValue,
-                    "analysis": "Prefer accessibility in auto mode (physical selects the app at primary display centre); fall back to Vision OCR, then explicitly report image-only if analysis fails."])
+                    "analysis": "Prefer accessibility in auto mode (physical selects the app at primary display centre; simulators have no hierarchy yet); fall back to Vision OCR, then explicitly report image-only if analysis fails."])
             }
             if screen.platform == "physical" { try preflight(screen.device, operation: "capture screen") }
             return CommandOutput(data: try await screen.execute(directory: directory,
@@ -263,30 +245,12 @@ actor CommandService {
             }, build: { try runner.build($0, log: $1) }))
         }
         if let command = try DeviceCommand.parse(args) {
-            let targetArgs = args.first == "--pairing-file" ? Array(args.dropFirst(2)) : args
-            let archivePath = targetArgs.count == 4 && targetArgs[0] == "physical" && targetArgs[2] == "ax-snapshot" ? targetArgs[3] : nil
-            if dryRun {
-                var plan: [String: Any] = ["executable": command.executable, "arguments": command.arguments]
-                do { try DeviceExecutablePolicy.validate(command.executable, arguments: command.arguments) }
-                catch { plan["executionAvailable"] = false; plan["limitation"] = String(describing: error) }
-                if let archivePath { plan["archiveDestination"] = archivePath }
-                return try json(plan)
+            if dryRun { return try json(["executable": command.executable, "arguments": command.arguments]) }
+            if args[0] == "physical", ["launch", "terminate", "processes", "open-url", "screenshot"].contains(args[2]) {
+                try preflight(args[1], operation: args[2])
             }
-            if let archivePath { try AccessibilityArchive.validateDestination(archivePath) }
-            if targetArgs.count >= 3, targetArgs[0] == "physical",
-               ["tap", "multi-tap", "multi-drag", "pinch", "drag", "swipe", "button", "key", "type", "hid-info", "ax-snapshot", "tree", "press-id", "press-label", "scroll-id", "scroll-label", "launch", "terminate", "processes", "open-url", "screenshot"].contains(targetArgs[2]) {
-                try preflight(targetArgs[1], operation: targetArgs[2])
-            }
-            guard allowInteractive || !command.interactive else {
-                throw CommandFailure(description: "Interactive pairing is CLI-only; pair first, then provide the existing pairing file.")
-            }
-            let data = try runner.run(command.arguments, executable: command.executable, interactive: command.interactive)
+            let data = try runner.run(command.arguments, executable: command.executable)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
-            if let archivePath { return CommandOutput(data: try AccessibilityArchive.save(data, to: archivePath)) }
-            if command.actionReceipt {
-                FileHandle.standardError.write(data)
-                return try json(["status": "dispatched", "backend": "axe", "verified": false])
-            }
             return CommandOutput(data: data)
         }
         guard !dryRun else { throw CommandFailure(description: "--dry-run requires a physical or simulator command.") }
@@ -319,9 +283,8 @@ actor CommandService {
     }
 
     private func checkHandoffPause(_ args: [String]) throws {
-        let args = args.first == "--pairing-file" ? Array(args.dropFirst(2)) : args
         guard args.count >= 3, ["physical", "simulator"].contains(args[0]), pendingHandoffs.contains(where: { $0.platform == args[0] }) else { return }
-        let observations = ["readiness", "details", "apps", "processes", "hid-info", "screen", "screenshot", "files", "pull", "reports", "report", "logs"]
+        let observations = ["readiness", "details", "apps", "processes", "screen", "screenshot", "files", "pull", "reports", "report"]
             + Self.nativeObservations
         guard !observations.contains(args[2]) else { return }
         guard let id = DeviceTarget.identifier(args[1]), args[0] != "physical" || UUID(uuidString: args[1]) == nil else {

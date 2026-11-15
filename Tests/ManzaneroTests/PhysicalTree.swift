@@ -4,12 +4,15 @@ import Testing
 @testable import Manzanero
 
 struct PhysicalTreeTests {
-    @Test func physicalPIDAndPairingAreValidatedBeforeBackendExecution() throws {
-        let plan = try #require(try DeviceCommand.parse(["--pairing-file", "tmp/fixture.pairing.plist", "physical", "fixture", "tree", "123"]))
-        #expect(plan.arguments == ["manzanero-idevice", "--pairing-file", "tmp/fixture.pairing.plist", "fixture", "tree", "123"])
-        #expect(try DeviceCommand.parse(["physical", "fixture", "tree"])?.arguments == ["manzanero-idevice", "fixture", "tree"])
+    func native(_ args: [String]) throws -> CoreDeviceInput? {
+        try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args))
+    }
+
+    @Test func physicalPIDIsValidatedBeforeNativeExecution() throws {
+        #expect(try native(["physical", "fixture", "tree", "123"])?.operands == ["123"])
+        #expect(try native(["physical", "fixture", "tree"])?.operands == [])
         for operands in [["0"], ["-1"], ["2147483648"], ["nan"], ["1", "2"]] {
-            #expect(throws: CommandFailure.self) { try DeviceCommand.parse(["physical", "fixture", "tree"] + operands) }
+            #expect(throws: CommandFailure.self) { try native(["physical", "fixture", "tree"] + operands) }
         }
     }
 
@@ -19,8 +22,9 @@ struct PhysicalTreeTests {
         #expect(try tree.command(["device": "simulator-fixture", "platform": "simulator"]) == ["simulator", "simulator-fixture", "tree"])
         let args = try tree.command(["device": "phone-fixture", "platform": "physical", "pid": 123])
         #expect(args == ["physical", "phone-fixture", "tree", "123"])
-        #expect(try DeviceCommand.parse(args)?.arguments.suffix(2) == ["tree", "123"])
-        #expect(try DeviceCommand.parse(tree.command(["device": "fixture", "platform": "physical"]))?.arguments.last == "tree")
+        #expect(try native(args)?.operands == ["123"])
+        #expect(try native(tree.command(["device": "fixture", "platform": "physical"]))?.operation == "tree")
+        #expect(throws: CommandFailure.self) { try DeviceCommand.parse(tree.command(["device": "fixture", "platform": "simulator"])) }
         #expect(throws: CommandFailure.self) { try DeviceCommand.parse(tree.command(["device": "fixture", "platform": "simulator", "pid": 123])) }
         #expect(throws: MCPError.self) { try tree.command(["device": "fixture", "platform": "physical", "pid": .double(1.5)]) }
         #expect(tree.readOnly)

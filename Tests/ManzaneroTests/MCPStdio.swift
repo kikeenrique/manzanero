@@ -727,8 +727,11 @@ struct MCPStdioTests {
         #expect(inventoryResult["isError"] as? Bool == false)
         let structured = try #require(inventoryResult["structuredContent"] as? [String: Any])
         #expect((structured["result"] as? [String: Any])?["devices"] != nil)
+        // Simulators have no accessibility hierarchy yet; the tool must say so plainly.
         let tree = try request(5, "tools/call", ["name": "get_ui_tree", "arguments": ["platform": "simulator", "device": simulator]])
-        #expect((tree["result"] as? [String: Any])?["isError"] as? Bool == false)
+        let treeResult = try #require(tree["result"] as? [String: Any])
+        #expect(treeResult["isError"] as? Bool == true)
+        #expect(((treeResult["content"] as? [[String: Any]])?.first?["text"] as? String)?.contains("not available yet") == true)
         let screenshot = try request(6, "tools/call", ["name": "screenshot", "arguments": ["platform": "simulator", "device": simulator, "path": directory.appendingPathComponent("screen.png").path]])
         let screenshotResult = try #require(screenshot["result"] as? [String: Any])
         #expect(screenshotResult["isError"] as? Bool == false)
@@ -766,7 +769,8 @@ struct MCPStdioTests {
         #expect(inspectResult["isError"] as? Bool == false)
         let inspectStructured = try #require(inspectResult["structuredContent"] as? [String: Any])
         let screen = try #require(inspectStructured["result"] as? [String: Any])
-        #expect(screen["method"] as? String == "accessibility")
+        #expect(["ocr", "image-only"].contains(screen["method"] as? String ?? ""))
+        #expect((screen["diagnostics"] as? [String])?.contains("Simulator accessibility hierarchy is not available yet.") == true)
         let screenContent = try #require(inspectResult["content"] as? [[String: Any]])
         #expect(screenContent.contains { $0["type"] as? String == "image" })
         // Closing stdin must end the server without a protocol shutdown request.

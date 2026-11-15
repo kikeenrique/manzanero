@@ -80,7 +80,7 @@ enum DirectPhysicalTouch {
 
     private static func validateOperation(_ input: CoreDeviceInput) throws {
         guard operations.contains(input.operation) else {
-            throw CommandFailure(description: "This physical operation is awaiting its direct Apple API implementation. Non-Apple helper executables are disabled.")
+            throw CommandFailure(description: "Unsupported direct touch operation: \(input.operation); no input sent.")
         }
         if input.operation == "multi-drag", input.operands.count != 9 {
             throw CommandFailure(description: "Direct multi-drag currently requires exactly two paths. Three-to-five-contact input awaits its direct implementation; no input sent.")
@@ -88,7 +88,7 @@ enum DirectPhysicalTouch {
     }
 
     private static func pairedPlan(_ input: CoreDeviceInput, display: DirectTouchDisplay) throws -> [Sample] {
-        _ = try PhysicalInteraction.plan(device: input.device, operation: input.operation, operands: input.operands)
+        try PhysicalInputOperands.validate(input.operation, input.operands)
         let values = input.operands.compactMap(Double.init)
         guard values.count == input.operands.count, values.allSatisfy(\.isFinite) else { throw CommandFailure(description: "Invalid two-contact operands.") }
         let duration: Double

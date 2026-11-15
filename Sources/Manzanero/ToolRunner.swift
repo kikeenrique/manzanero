@@ -21,8 +21,8 @@ struct ToolRunner: Sendable {
             throw CommandFailure(description: "Simulator recorder failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))")
         }
     }
-    func run(_ arguments: [String], executable: String = "/usr/bin/xcrun", interactive: Bool = false, timeout: Double? = nil, inputData: Data? = nil) throws -> Data {
-        let result = try capture(arguments, executable: executable, interactive: interactive, inputData: inputData, timeout: timeout)
+    func run(_ arguments: [String], executable: String = "/usr/bin/xcrun", timeout: Double? = nil, inputData: Data? = nil) throws -> Data {
+        let result = try capture(arguments, executable: executable, inputData: inputData, timeout: timeout)
         guard result.status == 0 else {
             throw CommandFailure(description: "\(URL(fileURLWithPath: executable).lastPathComponent) failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))")
         }
@@ -46,7 +46,7 @@ struct ToolRunner: Sendable {
         }
     }
 
-    private func capture(_ arguments: [String], executable: String, interactive: Bool = false,
+    private func capture(_ arguments: [String], executable: String,
                          merged: Bool = false, input: URL? = nil, inputData: Data? = nil,
                          recording: RecordingTiming? = nil, timeout: Double? = nil) throws -> (status: Int32, output: Data, errors: Data) {
         try DeviceExecutablePolicy.validate(executable, arguments: arguments)
@@ -63,7 +63,7 @@ struct ToolRunner: Sendable {
         defer { try? output.close(); try? errors.close() }
         var inputURL = input
         if let inputData {
-            guard input == nil, !interactive else { throw CommandFailure(description: "Process input cannot combine data, a file, and interactive stdin.") }
+            guard input == nil else { throw CommandFailure(description: "Process input cannot combine data and a file.") }
             let url = directory.appendingPathComponent("stdin")
             guard FileManager.default.createFile(atPath: url.path, contents: inputData, attributes: [.posixPermissions: 0o600]) else {
                 throw CommandFailure(description: "Cannot prepare private subprocess stdin.")
@@ -75,9 +75,9 @@ struct ToolRunner: Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
-        process.standardInput = inputHandle ?? (interactive ? FileHandle.standardInput : FileHandle.nullDevice)
+        process.standardInput = inputHandle ?? FileHandle.nullDevice
         process.standardOutput = output
-        process.standardError = merged ? output : (interactive ? FileHandle.standardError : errors)
+        process.standardError = merged ? output : errors
         try process.run()
         if let recording {
             do {

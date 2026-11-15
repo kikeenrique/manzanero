@@ -6,16 +6,13 @@ import Testing
 struct NativeGestureSequenceTests {
     let doubleTap = #"{"frames":[{"ms":0,"touches":[{"id":0,"x":0.25,"y":0.75}]},{"ms":60,"touches":[]},{"ms":180,"touches":[{"id":0,"x":0.25,"y":0.75}]},{"ms":240,"touches":[]}]}"#
 
-    @Test func repeatedContactKeepsCoordinatesAcrossReleaseAndReusesOneNativeSession() throws {
+    @Test func repeatedContactKeepsCoordinatesAcrossRelease() throws {
         let sequence = try NativeGestureSequence(json: doubleTap)
         #expect(sequence.times == [0, 60, 180, 240])
         #expect(sequence.contactCount == 1)
         #expect(sequence.reports.map { $0[3] } == [0xc0, 0, 0xc0, 0])
         #expect(sequence.reports.allSatisfy { Array($0[4..<8]) == [0, 64, 255, 191] })
-        let command = try CoreDeviceInputTests().input(["gesture", doubleTap])
-        let plan = try command.actionPlan("fixture", surface: "257")
-        #expect(plan.arguments.suffix(10) == ["cd_gesture", "257"] + sequence.arguments)
-        #expect(sequence.arguments.count == 8)
+        #expect(try CoreDeviceInputTests().input(["gesture", doubleTap]).operands == [doubleTap])
     }
 
     @Test func independentContactsArriveLiftAndMoveWithStableSlots() throws {
@@ -58,7 +55,7 @@ struct NativeGestureSequenceTests {
         #expect(try NativeGestureSequence(json: five).contactCount == 5)
     }
 
-    @Test func sharedMCPDryRunAndFailureNeverReplay() async throws {
+    @Test func sharedMCPRouteAndDryRunUseTheDirectBackend() async throws {
         let fixture = CoreDeviceInputTests()
         let tool = try #require(MCPTools.definitions.first { $0.name == "perform_gesture" })
         #expect(tool.readOnly == false)
@@ -67,16 +64,5 @@ struct NativeGestureSequenceTests {
         #expect(command.operands == [doubleTap])
         let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).execute(args, dryRun: true)
         #expect(String(decoding: dry.data, as: UTF8.self).contains("coredevice-direct"))
-        var sent = 0
-        do {
-            _ = try command.execute { plan in
-                if plan.arguments.contains("details") { return try fixture.details() }
-                if plan.arguments.contains("cd_connected_descriptors_async_raw") { return Data("connectedDescriptor[0] serviceID:0x101 string:\"CoreDevice touchscreen(nil)\"".utf8) }
-                sent += 1
-                throw CommandFailure(description: "fixture partial dispatch")
-            }
-            Issue.record("Expected gesture failure")
-        } catch { #expect(String(describing: error).contains("contact release are unknown")) }
-        #expect(sent == 1)
     }
 }

@@ -14,6 +14,9 @@ struct ScreenCommand: Sendable {
               args[0] != "simulator" || UUID(uuidString: args[1]) != nil else {
             throw CommandFailure(description: "Usage: <physical|simulator> <device> screen [auto|tree|ocr]. Simulator screen requires an explicit UUID.")
         }
+        guard args[0] != "simulator" || mode != .tree else {
+            throw CommandFailure(description: "Simulator accessibility hierarchy is not available yet; use screen auto or ocr.")
+        }
         return Self(platform: args[0], device: args[1], mode: mode)
     }
 
@@ -24,8 +27,10 @@ struct ScreenCommand: Sendable {
         return plan
     }
 
+    /// `hierarchy` reads the physical AX tree; simulators have none yet, so
+    /// their automatic mode records that and goes straight to OCR.
     func execute(directory: URL, run: (DeviceCommand) throws -> Data,
-                 hierarchy: (() async throws -> Data)? = nil,
+                 hierarchy: () async throws -> Data,
                  recognize: @Sendable (String) async throws -> ScreenText = { try await ScreenText.recognize(path: $0) },
                  isolation: isolated (any Actor)? = #isolation) async throws -> Data {
         try Task.checkCancellation()
@@ -37,18 +42,15 @@ struct ScreenCommand: Sendable {
         let geometry = try ScreenImage.inspect(image)
         let capturedAt = Date().ISO8601Format()
         var diagnostics: [String] = []
-        if mode != .ocr {
+        if mode != .ocr, platform == "simulator" {
+            diagnostics.append("Simulator accessibility hierarchy is not available yet.")
+        } else if mode != .ocr {
             do {
-                let data: Data
-                if let hierarchy { data = try await hierarchy() }
-                else {
-                    guard let tree = try DeviceCommand.parse([platform, device, "tree"]) else { throw CommandFailure(description: "Cannot plan hierarchy query.") }
-                    data = try run(tree)
-                }
-                guard try platform == "physical" ? Self.hasUsefulPhysicalHierarchy(data) : Self.hasUsefulHierarchy(data) else {
+                let data = try await hierarchy()
+                guard try Self.hasUsefulPhysicalHierarchy(data) else {
                     throw CommandFailure(description: "Accessibility returned no labeled or identified non-application nodes.")
                 }
-                if platform == "physical", let tree = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let tree = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     for key in ["cleanup", "connectionCleanup"] {
                         if let cleanup = tree[key] as? [String: Any] {
                             if let warning = cleanup["warning"] as? String { diagnostics.append(warning) }
@@ -79,18 +81,6 @@ struct ScreenCommand: Sendable {
         }
     }
 
-    static func hasUsefulHierarchy(_ data: Data) throws -> Bool {
-        let value = try JSONSerialization.jsonObject(with: data)
-        var nodes = value as? [[String: Any]] ?? (value as? [String: Any]).map { [$0] } ?? []
-        while let node = nodes.popLast() {
-            if let children = node["children"] as? [[String: Any]] { nodes.append(contentsOf: children) }
-            let role = (node["role"] as? String ?? node["type"] as? String ?? "").lowercased()
-            if !role.isEmpty, role != "axapplication", role != "application",
-               ["AXLabel", "AXUniqueId", "AXValue", "title"].contains(where: { !(node[$0] as? String ?? "").isEmpty }) { return true }
-        }
-        return false
-    }
-
     static func hasUsefulPhysicalHierarchy(_ data: Data) throws -> Bool {
         guard let tree = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               tree["format"] as? String == "accessibility-tree", tree["parsedHierarchy"] as? Bool == true,
@@ -108,7 +98,7 @@ struct ScreenCommand: Sendable {
             "status": method == "image-only" ? "partial" : "captured", "imagePath": image.path,
             "image": ["width": geometry.width, "height": geometry.height, "format": "png"],
             "capturedAt": capturedAt, "diagnostics": diagnostics,
-            "coordinateSpace": method == "accessibility" ? (platform == "physical" ? "device-logical-points" : "interface-points") : (method == "ocr" ? "normalized-top-left" : "image-pixels")]
+            "coordinateSpace": method == "accessibility" ? "device-logical-points" : (method == "ocr" ? "normalized-top-left" : "image-pixels")]
         if let hierarchy { result["hierarchy"] = try JSONSerialization.jsonObject(with: hierarchy) }
         if let text { result["textRegions"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(text.regions)) }
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])

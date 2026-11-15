@@ -1,35 +1,8 @@
 import Foundation
 
-/// Project-owned mainTouchscreen report encoder, shared by direct schedules and
-/// historical helper plans. Contact slots retain identity through release.
-struct NativeTouchFrames {
-    let milliseconds: Int
-    let reports: [[UInt8]]
-
-    init(device: String, operation: String, operands: [String]) throws {
-        guard let plan = try PhysicalInteraction.plan(device: device, operation: operation, operands: operands),
-              plan.arguments.count >= 12, plan.arguments[2] == "multi-drag",
-              let duration = Int(plan.arguments[3]) else {
-            throw CommandFailure(description: "Cannot plan native multitouch frames.")
-        }
-        milliseconds = duration
-        let coordinates = try plan.arguments.dropFirst(4).map { value -> Int in
-            guard let value = Int(value) else { throw CommandFailure(description: "Invalid native contact coordinate.") }
-            return value
-        }
-        let count = coordinates.count / 4
-        reports = (0...31).map { frame in
-            let step = min(frame, 30)
-            let positions = (0..<count).map { id in
-                (0..<2).map { axis in
-                    let start = coordinates[id * 4 + axis], end = coordinates[id * 4 + axis + 2]
-                    return start + (end - start) * step / 30
-                }
-            }
-            return Self.report(positions: positions, active: frame == 31 ? [] : Set(0..<count))
-        }
-    }
-
+/// Project-owned mainTouchscreen report encoder for direct digitizer schedules.
+/// Contact slots retain identity through release.
+enum NativeTouchFrames {
     static func report(positions: [[Int]], active: Set<Int>) -> [UInt8] {
         var bytes = [UInt8](repeating: 0, count: 58)
         bytes[0] = 9; bytes[1] = UInt8(positions.count); bytes[2] = 5; bytes[40] = 2
@@ -42,9 +15,5 @@ struct NativeTouchFrames {
             }
         }
         return bytes
-    }
-
-    var arguments: [String] {
-        [String(milliseconds)] + reports.map { $0.map { String(format: "%02x", $0) }.joined() }
     }
 }

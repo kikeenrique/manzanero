@@ -1,26 +1,18 @@
 import Foundation
 
-/// Pure command planning keeps backend selection independent of process execution.
+/// Pure planning of Apple `devicectl`/`simctl` invocations, independent of process execution.
 struct DeviceCommand {
     var executable: String = "/usr/bin/xcrun"
-    var actionReceipt: Bool = false
-    var interactive: Bool = false
     var arguments: [String]
     let jsonOutput: Bool
 
-    static func parse(_ arguments: [String]) throws -> Self? {
-        var args = arguments
-        var pairingFile: String?
-        if args.first == "--pairing-file" {
-            guard args.count >= 5, !args[1].isEmpty, args[2] == "physical" else {
-                throw CommandFailure(description: "--pairing-file <path> requires a physical bridge operation.")
-            }
-            pairingFile = args[1]
-            args.removeFirst(2)
-        }
-        if let pairing = try PairingCommand.plan(args) { return pairing }
+    /// Simulator operations that would need simulator input or an accessibility
+    /// hierarchy, which have no implementation yet.
+    static let unavailableSimulatorOperations = ["tree", "tap", "tap-id", "tap-label", "swipe", "drag", "type", "button"]
+
+    static func parse(_ args: [String]) throws -> Self? {
         if args.first == "decode-ax-archive" {
-            guard pairingFile == nil, args.count == 2, !args[1].isEmpty else {
+            guard args.count == 2, !args[1].isEmpty else {
                 throw CommandFailure(description: "Usage: decode-ax-archive <local-plist>")
             }
             // CommandService handles this in process; it has no external plan.
@@ -41,18 +33,6 @@ struct DeviceCommand {
             guard operands.count == count, operands.allSatisfy({ !$0.isEmpty && !$0.hasPrefix("-") }) else {
                 throw CommandFailure(description: "\(operation) expects \(count) nonempty operand(s), without a leading '-'.")
             }
-        }
-        if !physical, let command = try SimulatorInteraction.plan(device: device, operation: operation, operands: operands) {
-            return command
-        }
-        if physical, var command = try PhysicalInteraction.plan(device: device, operation: operation, operands: operands) {
-            if let pairingFile {
-                command.arguments.insert(contentsOf: ["--pairing-file", pairingFile], at: 1)
-            }
-            return command
-        }
-        guard pairingFile == nil else {
-            throw CommandFailure(description: "--pairing-file applies only to physical bridge operations.")
         }
         let command: [String]
         if physical {
@@ -114,6 +94,8 @@ struct DeviceCommand {
                 throw CommandFailure(description: "Screenshot destination must end in .png.")
             }
             command = ["io", device, "screenshot", "--type=png", operands[0]]
+        case let value where unavailableSimulatorOperations.contains(value):
+            throw CommandFailure(description: "Simulator input and accessibility hierarchy are not available yet; '\(operation)' cannot run on a simulator.")
         default:
             throw CommandFailure(description: "Unsupported simulator operation: \(operation).")
         }

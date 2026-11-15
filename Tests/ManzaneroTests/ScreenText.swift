@@ -130,9 +130,9 @@ struct ScreenTextTests {
             let image = directory.appendingPathComponent("screen.png")
             do {
                 let bytes = try await screen.execute(directory: directory, run: { plan in
-                    if plan.arguments.contains("screenshot") { try ScreenCommandTests().png(image); return Data("{}".utf8) }
-                    throw CommandFailure(description: "Fixture hierarchy unavailable")
-                }, recognize: { path in
+                    #expect(plan.arguments.contains("screenshot"))
+                    try ScreenCommandTests().png(image); return Data("{}".utf8)
+                }, hierarchy: { throw CommandFailure(description: "Fixture hierarchy unavailable") }, recognize: { path in
                     try await ScreenText.recognize(path: path, timeout: .milliseconds(50), perform: { _ in
                         try await Task.sleep(for: .seconds(30)); return []
                     })

@@ -27,7 +27,7 @@ struct AccessibilitySocketTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["MANZANERO_AX_SOCKET_DEVICE"] != nil))
     func liveAppleSocketOpensWithoutStartingAccessibilitySubscription() throws {
         let device = try #require(ProcessInfo.processInfo.environment["MANZANERO_AX_SOCKET_DEVICE"])
-        let input = CoreDeviceInput(device: device, operation: "ax-snapshot", operands: [])
+        let input = CoreDeviceInput(device: device, operation: "tree", operands: [])
         let identity = try DirectPhysicalInput.identity(input, query: { plan in
             try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 40)
         })

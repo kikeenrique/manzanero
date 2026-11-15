@@ -13,7 +13,7 @@ enum DirectPhysicalInput {
                         send: (Button) throws -> Void = dispatch) throws -> Data {
         guard input.operation == "button", let name = input.operands.first,
               let usage = ["home": UInt64(64), "lock": 48, "volume-up": 233, "volume-down": 234][name] else {
-            throw CommandFailure(description: "This physical operation is awaiting its direct Apple API implementation. Non-Apple helper executables are disabled.")
+            throw CommandFailure(description: "Unsupported direct button input: \(input.operation) \(input.operands.joined(separator: " ")); no input sent.")
         }
         let identity = try identity(input, query: query)
         try Task.checkCancellation()

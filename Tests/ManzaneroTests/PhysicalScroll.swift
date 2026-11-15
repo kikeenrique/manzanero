@@ -7,12 +7,13 @@ struct PhysicalScrollTests {
     @Test(arguments: ["scroll-id", "scroll-label"])
     func validatesTargetsAndPreservesLiteralSelectors(operation: String) throws {
         let selector = "--literal $(text); botón"
-        let plan = try #require(try DeviceCommand.parse(["physical", "fixture", operation, selector]))
-        #expect(plan.arguments == ["manzanero-idevice", "fixture", operation, selector])
-        let explicit = try #require(try DeviceCommand.parse(["--pairing-file", "tmp/fixture.pairing.plist", "physical", "fixture", operation, "123", selector]))
-        #expect(explicit.arguments == ["manzanero-idevice", "--pairing-file", "tmp/fixture.pairing.plist", "fixture", operation, "123", selector])
+        func native(_ values: [String]) throws -> CoreDeviceInput? {
+            try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(["physical", "fixture", operation] + values))
+        }
+        #expect(try native([selector])?.operands == [selector])
+        #expect(try native(["123", selector])?.operands == ["123", selector])
         for values in [[], ["0", selector], ["2147483648", selector], [""], ["a\0b"], [String(repeating: "é", count: 2049)], ["1", "2", selector]] {
-            #expect(throws: CommandFailure.self) { try DeviceCommand.parse(["physical", "fixture", operation] + values) }
+            #expect(throws: CommandFailure.self) { try native(values) }
         }
         #expect(throws: CommandFailure.self) { try DeviceCommand.parse(["simulator", "11111111-2222-3333-4444-555555555555", operation, selector]) }
     }

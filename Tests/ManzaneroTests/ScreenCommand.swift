@@ -37,32 +37,36 @@ struct ScreenCommandTests {
         for args in [["simulator", "booted", "screen"], ["simulator", device, "screen", "unknown"]] {
             #expect(throws: CommandFailure.self) { try ScreenCommand.parse(args) }
         }
+        do {
+            _ = try ScreenCommand.parse(["simulator", device, "screen", "tree"])
+            Issue.record("Simulator tree mode was accepted")
+        } catch { #expect(String(describing: error).contains("Simulator accessibility hierarchy is not available yet")) }
+        #expect(try ScreenCommand.parse(["simulator", device, "screen", "ocr"])?.mode == .ocr)
     }
 
-    @Test func autoPrefersUsefulHierarchyWithoutInvokingOCR() async throws {
+    @Test func simulatorAutoSkipsHierarchyAndUsesOCR() async throws {
         try await fixture { directory in
             let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
             let result = try await screen.execute(directory: directory, run: { plan in
-                if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data() }
-                #expect(plan.arguments.contains("describe-ui"))
-                return tree
-            }, recognize: { _ in Issue.record("Useful tree should skip OCR"); throw CommandFailure(description: "unexpected OCR") })
+                #expect(plan.arguments.contains("screenshot"))
+                try png(directory.appendingPathComponent("screen.png")); return Data()
+            }, hierarchy: { Issue.record("Simulator screen requested a hierarchy"); return tree }, recognize: { Self.text($0) })
             let value = try json(result)
-            #expect(value["method"] as? String == "accessibility")
-            #expect(value["coordinateSpace"] as? String == "interface-points")
+            #expect(value["method"] as? String == "ocr")
+            #expect(value["coordinateSpace"] as? String == "normalized-top-left")
             #expect((value["image"] as? [String: Any])?["width"] as? Int == 40)
-            #expect(value["textRegions"] == nil)
+            #expect(value["diagnostics"] as? [String] == ["Simulator accessibility hierarchy is not available yet."])
         }
     }
 
     @Test(arguments: [Data("[]".utf8), Data("{".utf8), Data("{\"role\":\"AXApplication\",\"AXLabel\":\"Only app name\"}".utf8)])
     func autoFallsBackFromEmptyMalformedOrWrapperOnlyTree(_ hierarchy: Data) async throws {
         try await fixture { directory in
-            let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
+            let screen = ScreenCommand(platform: "physical", device: "fixture", mode: .automatic)
             let result = try await screen.execute(directory: directory, run: { plan in
-                if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data() }
-                return hierarchy
-            }, recognize: { Self.text($0) })
+                #expect(plan.arguments.contains("screenshot"))
+                try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8)
+            }, hierarchy: { hierarchy }, recognize: { Self.text($0) })
             let value = try json(result)
             #expect(value["method"] as? String == "ocr")
             #expect(value["coordinateSpace"] as? String == "normalized-top-left")
@@ -71,13 +75,14 @@ struct ScreenCommandTests {
         }
     }
 
-    @Test func autoReturnsImageOnlyWhenBothAnalysisBackendsFail() async throws {
+    @Test(arguments: ["physical", "simulator"]) func autoReturnsImageOnlyWhenBothAnalysisBackendsFail(platform: String) async throws {
         try await fixture { directory in
-            let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
+            let screen = ScreenCommand(platform: platform, device: device, mode: .automatic)
             let result = try await screen.execute(directory: directory, run: { plan in
-                if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data() }
-                throw CommandFailure(description: "fixture AXe unavailable")
-            }, recognize: { _ in throw CommandFailure(description: "fixture OCR unavailable") })
+                #expect(plan.arguments.contains("screenshot"))
+                try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8)
+            }, hierarchy: { throw CommandFailure(description: "fixture AX unavailable") },
+               recognize: { _ in throw CommandFailure(description: "fixture OCR unavailable") })
             let value = try json(result)
             #expect(value["method"] as? String == "image-only")
             #expect(value["status"] as? String == "partial")
@@ -93,7 +98,8 @@ struct ScreenCommandTests {
                 try await screen.execute(directory: directory, run: { plan in
                     #expect(plan.arguments.contains("screenshot"))
                     try png(directory.appendingPathComponent("screen.png")); return Data()
-                }, recognize: { _ in throw CommandFailure(description: "fixture OCR unavailable") })
+                }, hierarchy: { Issue.record("Forced OCR requested a hierarchy"); return tree },
+                   recognize: { _ in throw CommandFailure(description: "fixture OCR unavailable") })
             }
         }
     }
@@ -105,19 +111,20 @@ struct ScreenCommandTests {
                 try await screen.execute(directory: directory, run: { plan in
                     #expect(plan.arguments.contains("screenshot"))
                     try Data("not a PNG".utf8).write(to: directory.appendingPathComponent("screen.png")); return Data()
-                }, recognize: { _ in Issue.record("Invalid capture reached OCR"); return Self.text("invalid") })
+                }, hierarchy: { Issue.record("Invalid capture reached hierarchy"); return tree }, recognize: { _ in Issue.record("Invalid capture reached OCR"); return Self.text("invalid") })
             }
         }
     }
 
-    @Test func cancellationIsNotConvertedIntoImageOnlySuccess() async throws {
+    @Test(arguments: ["physical", "simulator"]) func cancellationIsNotConvertedIntoImageOnlySuccess(platform: String) async throws {
         try await fixture { directory in
-            let screen = ScreenCommand(platform: "simulator", device: device, mode: .automatic)
+            let screen = ScreenCommand(platform: platform, device: device, mode: .automatic)
             await #expect(throws: CancellationError.self) {
                 try await screen.execute(directory: directory, run: { plan in
-                    if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data() }
-                    throw CommandFailure(description: "fixture AXe unavailable")
-                }, recognize: { _ in throw CancellationError() })
+                    #expect(plan.arguments.contains("screenshot"))
+                    try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8)
+                }, hierarchy: { throw CommandFailure(description: "fixture AX unavailable") },
+                   recognize: { _ in throw CancellationError() })
             }
         }
     }
@@ -176,10 +183,9 @@ struct ScreenCommandTests {
         try await fixture { directory in
             let screen = ScreenCommand(platform:"physical",device:"fixture",mode:.automatic)
             let result = try await screen.execute(directory:directory,run:{ plan in
-                if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8) }
-                #expect(plan.arguments == ["manzanero-idevice","fixture","tree"])
-                return data
-            },recognize:{ _ in Issue.record("Useful physical tree reached OCR"); throw CommandFailure(description:"unexpected OCR") })
+                #expect(plan.arguments.contains("screenshot"))
+                try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8)
+            },hierarchy:{ data },recognize:{ _ in Issue.record("Useful physical tree reached OCR"); throw CommandFailure(description:"unexpected OCR") })
             #expect(try json(result)["method"] as? String == "accessibility")
             #expect(try json(result)["coordinateSpace"] as? String == "device-logical-points")
             #expect(try json(result)["diagnostics"] as? [String] == (cleanupWarning ? ["Cleanup unconfirmed."] : []))
@@ -196,9 +202,9 @@ struct ScreenCommandTests {
             try await fixture { directory in
                 let screen = ScreenCommand(platform:"physical",device:"fixture",mode:.automatic)
                 let result = try await screen.execute(directory:directory,run:{ plan in
-                    if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8) }
-                    return data
-                },recognize:{ Self.text($0) })
+                    #expect(plan.arguments.contains("screenshot"))
+                    try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8)
+                },hierarchy:{ data },recognize:{ Self.text($0) })
                 #expect(try json(result)["method"] as? String == "ocr")
             }
         }
@@ -209,9 +215,9 @@ struct ScreenCommandTests {
             let screen = ScreenCommand(platform:"physical",device:"fixture",mode:.tree)
             do {
                 _ = try await screen.execute(directory:directory,run:{ plan in
-                    if plan.arguments.contains("screenshot") { try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8) }
-                    throw CommandFailure(description:"fixture AX unavailable")
-                },recognize:{ _ in Issue.record("Forced tree reached OCR"); return Self.text("unexpected") })
+                    #expect(plan.arguments.contains("screenshot"))
+                    try png(directory.appendingPathComponent("screen.png")); return Data("{}".utf8)
+                },hierarchy:{ throw CommandFailure(description:"fixture AX unavailable") },recognize:{ _ in Issue.record("Forced tree reached OCR"); return Self.text("unexpected") })
                 Issue.record("Forced tree failure was hidden")
             } catch {
                 #expect(String(describing:error).contains("Screenshot saved at"))

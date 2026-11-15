@@ -69,10 +69,4 @@ struct NativeGestureSequence {
             return NativeTouchFrames.report(positions: positions, active: Set(frame.touches.map(\.id)))
         }
     }
-
-    var arguments: [String] {
-        zip(times, reports).flatMap { time, report in
-            [String(time), report.map { String(format: "%02x", $0) }.joined()]
-        }
-    }
 }
