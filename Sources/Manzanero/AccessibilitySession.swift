@@ -87,6 +87,14 @@ final class AccessibilitySession {
         return try AccessibilityResponse.token(result)
     }
 
+    /// The process that owns the display centre. Asked as a container hit, so
+    /// an app whose centre has no accessibility element (a canvas, a game, an
+    /// empty area) is still selected instead of refused.
+    func foregroundProcess(_ display: AccessibilityDisplay) throws -> AccessibilityRequest.Token {
+        let result = try exchange(AccessibilityRequest.hit(x: display.center.x, y: display.center.y, container: true), expected: .hit)
+        return try AccessibilityResponse.token(result)
+    }
+
     func snapshot(_ token: AccessibilityRequest.Token) throws -> AccessibilityArchiveValue {
         try exchange(AccessibilityRequest.snapshot(token), expected: .snapshot(token))
     }

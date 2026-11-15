@@ -35,10 +35,14 @@ enum AccessibilityRequest {
 
     /// Read-only primary-display point lookup. PID zero is confined to this
     /// synthetic query translation; returned/native tokens still require PID > 0.
-    static func hit(x: Double, y: Double) throws -> Data {
+    /// `container` asks with client type 2. With the default client type, a
+    /// point over an area that has no accessibility element is refused
+    /// (error 8); with type 2 the enclosing container answers instead. That
+    /// matters when the only question is which process owns the point.
+    static func hit(x: Double, y: Double, container: Bool = false) throws -> Data {
         guard x.isFinite, y.isFinite else { throw CommandFailure(.internal, "Invalid AX hit point.", inputSent: .unknown) }
         return try archive(kind: 6, parameters: ["point": NSValue(point: NSPoint(x: x, y: y)),
-            "displayId": 0], token: nil, pointQuery: true)
+            "displayId": 0], token: nil, pointQuery: true, clientType: container ? 2 : 0)
     }
 
     /// Read-only query for the frontmost application of display 0, used by the
@@ -69,11 +73,13 @@ enum AccessibilityRequest {
         try archive(kind: 7, parameters: nil, token: token, action: action.rawValue)
     }
 
-    private static func archive(kind: Int, parameters: [String: Any]?, token: Token?, pointQuery: Bool = false, action: Int = 0) throws -> Data {
+    private static func archive(kind: Int, parameters: [String: Any]?, token: Token?, pointQuery: Bool = false, action: Int = 0,
+                                clientType: Int = 0) throws -> Data {
         let coder = NSKeyedArchiver(requiringSecureCoding: true)
         coder.setClassName("AXPTranslatorRequest", for: RequestObject.self)
         coder.setClassName("AXPTranslationObject", for: TranslationObject.self)
-        coder.encode(RequestObject(kind: kind, parameters: parameters as NSDictionary?, token: token, pointQuery: pointQuery, action: action), forKey: NSKeyedArchiveRootObjectKey)
+        coder.encode(RequestObject(kind: kind, parameters: parameters as NSDictionary?, token: token, pointQuery: pointQuery, action: action,
+                                   clientType: clientType), forKey: NSKeyedArchiveRootObjectKey)
         coder.finishEncoding()
         if let error = coder.error { throw error }
         let bytes = coder.encodedData
@@ -91,20 +97,22 @@ enum AccessibilityRequest {
         let token: Token?
         let pointQuery: Bool
         let action: Int
+        let clientType: Int
 
-        init(kind: Int, parameters: NSDictionary?, token: Token?, pointQuery: Bool, action: Int) {
+        init(kind: Int, parameters: NSDictionary?, token: Token?, pointQuery: Bool, action: Int, clientType: Int) {
             self.kind = kind
             self.parameters = parameters
             self.token = token
             self.pointQuery = pointQuery
             self.action = action
+            self.clientType = clientType
         }
 
         required init?(coder: NSCoder) { return nil }
 
         func encode(with coder: NSCoder) {
             coder.encode(kind, forKey: "requestType")
-            coder.encode(0, forKey: "clientType")
+            coder.encode(clientType, forKey: "clientType")
             coder.encode(action, forKey: "actionType")
             coder.encode(kind == 2 ? 52 : 0, forKey: "attributeType")
             coder.encode(parameters, forKey: "parameters")
