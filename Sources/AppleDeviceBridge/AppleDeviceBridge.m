@@ -800,6 +800,9 @@ int ADCInspectMedia(const char *uuid, const char *version, int (^shouldCancel)(v
     }
 }
 
+/// How long an input connection stays open after its completion barrier.
+static const uint64_t ADCInputDrainNanoseconds = 400 * NSEC_PER_MSEC;
+
 static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys,
                    const uint64_t *reportTimes, const uint8_t *reports, uint64_t *resolvedSurface, size_t count,
@@ -928,6 +931,12 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         BOOL failed = status.failed || timedOut || !barrierReply || xpc_get_type(barrierReply) != XPC_TYPE_DICTIONARY;
         if (!failed) failed = xpc_dictionary_get_value(barrierReply, "CoreDevice.error") != NULL ||
             xpc_dictionary_get_value(barrierReply, "error") != NULL;
+        // The barrier reply does not mean the device has finished injecting the
+        // events. Cancelling at once lost whole short gestures on an iPhone
+        // (taps and holds under about 0.2 s), while longer ones always arrived.
+        // Keep the connection open briefly before cancelling it.
+        struct timespec drain = { 0, (long)ADCInputDrainNanoseconds };
+        nanosleep(&drain, NULL);
         cancel(remote);
         xpc_connection_cancel(connection);
         if (scheduleStopped || (shouldCancel && shouldCancel()))

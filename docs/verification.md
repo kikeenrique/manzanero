@@ -111,6 +111,28 @@ Operator errors during this run, recorded because they changed device state: a 6
 
 **Simulator** (iPhone 17e, iOS 27.2, shut down beforehand and afterwards): `boot`, `apps`, `build-run` of the probe app, `screenshot`, `screen ocr` (read the probe's on-screen counters), `screen auto` (fell back to OCR with the "hierarchy is not available yet" diagnostic), a 3-second `record`, `terminate`, `launch`, `open-url`, `uninstall` and `shutdown` all exited 0 with the expected effect where one was checked. `tap` and `tree` were refused with the unsupported-operation error; that was before [simulator input and accessibility](#simulator-input-and-accessibility) existed. The page opened by `open-url` was not checked beyond the foreground change.
 
+### Touch delivery measured with the probe app
+
+**2026-11-15/16**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52). The probe app was signed and installed after the owner registered the phone with the team; `build-run` with `--allow-provisioning-updates` then built, installed and launched it in about 12 seconds.
+
+**Probe readback by hand.** With an explicit PID, `tree` returned the probe's nine nodes, the readouts as JSON values, and attribute 3003 equal to the probe's bundle identifier. A `tap` at (0.5, 0.45) was recorded at (0.50044, 0.44992) with a 0.081 s hold. `press-id probe.touch.reset` started a new session with no touch recorded, so the press activates through accessibility rather than a synthesized tap. `pull` of `Documents/touch-log.jsonl` wrote a single file.
+
+**`tree` without a PID failed on the probe** with `semantic refusal or notification in request response (error 8)`: the display centre of the probe has no accessibility element, and the centre hit test was refused. Process selection now asks with client type 2, which answers with the enclosing container; `tree` then selected the probe's process, and `tree`, `press-label`, waits and `scroll-id` were re-run in Settings with the same results as before. The earlier refusal while a paste prompt was showing may have had the same cause; that was not re-checked.
+
+**Measurement runner, built-in plan** (14 actions: taps, long press, swipe, drag, two-to-five-contact gestures, two timed sequences; evidence from the pulled log, foreground identity matched on every readback):
+
+| Run | Delivered | Notes |
+| --- | --- | --- |
+| 1 round | 14/14, contacts 29/29 | Three, four and five contacts each arrived as that many simultaneous touches |
+| 5 rounds | 66/70 | The four missing actions were all 80 ms taps or multi-taps; nothing was received for them |
+| Tap-versus-hold plan, 10 rounds | 33/80 | Taps 8/50, 0.1 s holds 5/10, 0.2 s and 0.4 s holds 20/20. Delivered actions had exact durations, so loss was all-or-nothing |
+| Same plan after the fix below, 10 rounds | 80/80 | |
+| Built-in plan after the fix, 5 rounds | 70/70, contacts 145/145 | Start error median 0.0004, max 0.0005 of the screen; hold error median +3 ms, max +12 ms |
+
+**Cause of the lost short gestures.** The input connection was cancelled as soon as the completion barrier was acknowledged. That acknowledgement does not mean the device has injected the events: a gesture shorter than about 0.2 s could be discarded whole when the connection closed first, while its receipt still said `dispatched`. The connection now stays open for 400 ms after the barrier. This is the likely explanation of the taps and the Home press that had no visible effect on 2026-11-12/14; the same function sends buttons and keys, which were not separately re-measured. The 400 ms value is a margin, not a measured minimum.
+
+These are results from one phone on one iOS version, with the probe in front and nothing else running. They measure what reached a UIKit view, not behaviour in other apps, near screen edges, during animations or in landscape.
+
 ## Direct physical input
 
 **2026-11-12 through 2026-11-14 — project-owned in-process Apple backends.**

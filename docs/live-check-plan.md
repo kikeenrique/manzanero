@@ -2,64 +2,26 @@
 
 This page lists what still has to be run on a physical iPhone. It is a plan, not a record: results go in [verification](verification.md), and steps are removed from here once they are recorded there.
 
-The first session (2026-11-15) covered the guarded wake, the command service queue, the device lease across two processes, interruption, the accessibility wait and the trimmed bridge. See [the record](verification.md#first-live-run-of-the-queue-lease-wait-and-trimmed-bridge). Two things stopped it: native recording produced no packets, and the probe app could not be signed.
+Done so far on the iPhone 13 mini: the guarded wake, the command service queue, the device lease across two processes, interruption, the accessibility wait, native recording (after a firewall rule), a wide run of the input, app and report commands, and touch delivery measured with the probe app. See [verification](verification.md).
 
-Run from the repository root with the device paired and unlocked. Replace `<UDID>` with the hardware UDID from `mise run cli devices physical`. If the display is off, `mise run cli physical <UDID> wake` turns it on. Inspect the screen after every action; a receipt is not an effect. Do not replay an input automatically.
-
-## Blocked on a person
-
-- **Xcode account.** `build-run` failed with "No Accounts" and a profile that does not include the phone. Sign in under Xcode > Settings > Accounts for the team in `.env.local`, then run step 1.
-
-## Still unverified
-
-| Change | Risk if wrong |
-| --- | --- |
-| `build-run` provisioning flags and install | Probe app cannot be installed on the phone |
-| Probe app on hardware | Readback through `tree`, reset through `press-id`, log `pull` |
-| Touch measurement runner | Wrong matching against a real log |
-
-## Order
-
-1. **Install the probe app.** See [probe app signing](probe-app.md#signing-for-a-physical-device).
-   ```sh
-   mise run probe-app:generate
-   mise run cli physical <UDID> build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp --allow-provisioning-updates --allow-device-registration
-   ```
-   Drop `--allow-device-registration` if the phone is already registered with the team. If the build fails, keep the raw log path it prints.
-2. **Probe readback by hand**, before trusting the runner.
-   ```sh
-   mise run cli physical <UDID> tree                               # expect probe.touch.summary with a JSON value
-   mise run cli physical <UDID> tap 0.5 0.45
-   mise run cli physical <UDID> tree                               # began 1, ended 1, position near 0.5, 0.45
-   mise run cli physical <UDID> press-id probe.touch.reset
-   mise run cli physical <UDID> tree                               # new session; did the reset arrive as a touch?
-   mise run cli physical <UDID> pull <bundle-id> Documents/touch-log.jsonl tmp/live/touch-log.jsonl
-   ```
-3. **Measurement run.** See [the runner](probe-touch-runner.md).
-   ```sh
-   mise run test:probe-touch <UDID> --dry-run
-   mise run test:probe-touch <UDID>
-   ```
-   Read `tmp/probe-touch/<timestamp>/summary.txt`. Repeat with `--repeat 5` only after one clean run.
+Run from the repository root with the device paired and unlocked. Replace `<UDID>` with the hardware UDID from `mise run cli devices physical`. If the display is off, `mise run cli physical <UDID> wake` turns it on. Take a screenshot before choosing where to touch, and inspect the screen after every action; a receipt is not an effect. Do not replay an input automatically.
 
 ## Not yet run on hardware
 
-- `install` and `uninstall` on the phone, `files`, `pull` and `push` against a real app container: all wait on the probe app.
+- `uninstall`, and `files` and `push` against a real app container (`install`, through `build-run`, and `pull` have run).
 - `handoff` with a real prompt, and the `disabled` and `value` wait conditions.
-- `wake_device`, `wait_for_element` and the JSON error object through a live MCP session.
-- Anything on a second device.
+- `wake_device`, `wait_for_element`, the inline image options and the JSON error object through a live MCP session.
+- Buttons and keys measured after the connection-drain fix; only touch was measured.
+- App console output: launch the probe with `devicectl`'s console option once it prints known lines (see [app logs research](app-logs-research.md)).
+- Landscape, an iPad, and anything on a second device.
 
 ## Questions still open
 
-- Can a system prompt (paste permission, and by extension trust or location prompts) be detected reliably? Accessibility refused at process selection with error 8 while one was showing.
-
-- Do the earlier unexplained tap misses reproduce against the probe, and if so are the touches absent from the log or delivered at another position?
-- Does `press-id` activate the reset element through accessibility, or does iOS synthesize a tap that the probe records?
-- Does `pull` read `Documents/` for a development-signed app, and does it write a file or a directory?
-- Do three, four and five injected contacts arrive as that many simultaneous touches, and is any cancelled by system gestures?
-- How close are received hold durations to the requested ones, and is a 0.5 s settle enough before readback?
+- How short can the 400 ms connection drain be before short gestures are lost again? It is a margin, not a measured minimum, and it adds to every input call.
+- Does the container hit test also select the right process when a system prompt is showing?
+- What do apps' gesture recognizers make of three or more contacts?
 - Was the firewall also behind the earlier intermittent recording startup failures?
-- What makes the pairing daemon's browse occasionally fail to select the device? The error now names the cause; it has not recurred since.
+- What makes the pairing daemon's browse occasionally fail to select the device? The error now names the cause; it has not recurred.
 - Why did one wait report its subscription stop as unconfirmed?
 
 ## Stop conditions

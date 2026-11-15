@@ -20,7 +20,7 @@ These are implementation priorities, not evidence that a feature is complete or 
 | Area | Work still needed |
 | --- | --- |
 | Media | Reliable first frame, negotiated feedback/live keyframe recovery, crash/disconnect recovery, rotation, mirroring/audio and broader devices |
-| Input | Broader key/layout/app coverage, three-to-five-contact recognition, precise failure/release evidence and controller coordination |
+| Input | Broader key/layout/app coverage, how apps recognize three-to-five-contact gestures (delivery is now measured), precise failure/release evidence and controller coordination |
 | Accessibility | Overlay/embedded-process and rotated-display handling, broad selectors/actions, stable session semantics and recovery |
 | Screens/OCR | Broader accuracy and targeting evidence; OCR text regions do not establish hittability |
 | App development | Physical signing/deployment, scheme discovery, progress/cancellation, crash/source integration |

@@ -109,7 +109,9 @@ MCP also cancels/drains owned operations on EOF and signals; see [MCP shutdown](
 
 ## Verification and remaining limits
 
-Scoped iPhone 13 mini checks cover Home, Settings tap/drag, long press, two-contact Maps zoom, selected timed gestures, ASCII typing, Unicode paste and Backspace. Some taps and Home dispatches produced no visible effect despite successful receipts; the cause remains unresolved. Inspect after every action.
+Scoped iPhone 13 mini checks cover Home, Settings tap/drag, long press, two-contact Maps zoom, selected timed gestures, ASCII typing, Unicode paste and Backspace. Delivery has since been measured with the [probe app](probe-app.md): after one fix, 150 of 150 actions over fifteen rounds arrived, from single taps to five simultaneous contacts, with start positions within 0.0005 of the screen and holds within 12 ms.
+
+The fix explains the earlier taps and Home presses that had no visible effect. The connection used to be cancelled as soon as the completion barrier was acknowledged, and a gesture shorter than about 0.2 s could be discarded whole by the device while its receipt still said `dispatched`. The connection now stays open for 400 ms after the barrier, so every input call takes at least that long. A receipt is still not an effect: inspect after every action.
 
 Local tests cover encoding, scheduling, rotation, invalid input and attempted cleanup. They do not prove hardware delivery, exact timing or release after failure. Other Apple families, rotations, quarantine after an uncertain release and reliable unattended recovery remain incomplete. [Verification](verification.md) records positive and negative results.
 
