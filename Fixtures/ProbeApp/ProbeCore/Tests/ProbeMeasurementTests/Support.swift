@@ -115,7 +115,7 @@ struct ProbeSimulator {
     func readback() -> ProbeReadback {
         let bytes = lines.reduce(0) { $0 + $1.count + 1 }
         return ProbeReadback(summary: recorder.summary(log: LogStatus(lines: lines.count, bytes: bytes, dropped: 0)),
-                             lastGesture: recorder.lastGesture)
+                             lastGesture: recorder.lastGesture, recentGestures: recorder.recentGestures)
     }
 
     func logData() -> Data {
@@ -123,10 +123,12 @@ struct ProbeSimulator {
     }
 
     /// The probe's accessibility tree as `manzanero physical <UDID> tree` prints it (trimmed).
-    func treeJSON() -> Data {
+    /// `bundleID`, when given, is reported as `nativeAttributes["3003"]` on every node, as
+    /// observed for Settings on one phone; nil leaves the attribute out.
+    func treeJSON(bundleID: String? = nil, includeRecent: Bool = true) -> Data {
         let readback = readback()
-        let nodes: [[String: Any]] = [
-            ["id": "0", "parentId": NSNull(), "depth": 0, "children": ["0.0", "0.1", "0.2"], "attributeSource": "native-snapshot", "label": "Probe"],
+        var nodes: [[String: Any]] = [
+            ["id": "0", "parentId": NSNull(), "depth": 0, "children": ["0.0", "0.1", "0.2", "0.3"], "attributeSource": "native-snapshot", "label": "Probe"],
             ["id": "0.0", "parentId": "0", "depth": 1, "children": [], "attributeSource": "native-snapshot",
              "identifier": "probe.touch.summary", "label": "Probe summary", "value": ProbeJSON.string(readback.summary)],
             ["id": "0.1", "parentId": "0", "depth": 1, "children": [], "attributeSource": "native-snapshot",
@@ -134,6 +136,18 @@ struct ProbeSimulator {
             ["id": "0.2", "parentId": "0", "depth": 1, "children": [], "attributeSource": "native-snapshot",
              "identifier": "probe.touch.reset", "label": "Reset probe", "value": recorder.session, "traits": "button"],
         ]
+        if includeRecent {
+            nodes.append(["id": "0.3", "parentId": "0", "depth": 1, "children": [], "attributeSource": "native-snapshot",
+                          "identifier": "probe.touch.recent-gestures", "label": "Probe recent gestures",
+                          "value": ProbeJSON.string(recorder.recentGestures)])
+        }
+        if let bundleID {
+            nodes = nodes.map { node in
+                var node = node
+                node["nativeAttributes"] = ["3003": bundleID, "5003": "UIAccessibilityElementMockView"]
+                return node
+            }
+        }
         return treeDocument(nodes: nodes)
     }
 }
@@ -196,6 +210,12 @@ final class FakeDevice: ManzaneroInvoking {
     /// Per tree call (1-based): run before answering, for example to relaunch the app.
     var beforeTree: [Int: (inout ProbeSimulator) -> Void] = [:]
     var failingTrees: Set<Int> = []
+    /// Reported as `nativeAttributes["3003"]` on every tree node; nil leaves it out.
+    var treeBundleID: String?
+    /// Per tree call (1-based): a bundle identifier replacing `treeBundleID` for that call.
+    var treeBundleIDOverrides: [Int: String] = [:]
+    /// Leave the recent-gestures element out of the tree, as an older probe build would.
+    var omitRecentGestures = false
     var pullExitCode: Int32 = 0
     var pullCreatesDirectory = false
     /// Replaces the pulled log bytes.
@@ -228,7 +248,9 @@ final class FakeDevice: ManzaneroInvoking {
             if failingTrees.contains(treeCalls) {
                 return InvocationResult(exitCode: 1, stderr: Data("Direct physical tree failed: test.\n".utf8))
             }
-            return InvocationResult(exitCode: 0, stdout: foreground ? simulator.treeJSON() : otherAppTree)
+            let tree = simulator.treeJSON(bundleID: treeBundleIDOverrides[treeCalls] ?? treeBundleID,
+                                          includeRecent: !omitRecentGestures)
+            return InvocationResult(exitCode: 0, stdout: foreground ? tree : otherAppTree)
         case "press-id":
             guard arguments == ["physical", device, "press-id", "probe.touch.reset"] else {
                 return InvocationResult(exitCode: 1, stderr: Data("unexpected press\n".utf8))

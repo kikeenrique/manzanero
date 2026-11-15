@@ -70,6 +70,18 @@ extension LastGestureReadout: Decodable {
     }
 }
 
+extension RecentGesturesReadout: Decodable {
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try requireConstant(c, .v, equals: probeFormatVersion)
+        self.init(session: try c.decode(String.self, forKey: .session),
+                  gestures: try c.decode(Int.self, forKey: .gestures),
+                  dropped: try c.decode(Int.self, forKey: .dropped),
+                  limit: try c.decode(Int.self, forKey: .limit),
+                  recent: try c.decode([RecentGesture].self, forKey: .recent))
+    }
+}
+
 extension SummaryReadout: Decodable {
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Records raw touch callbacks and derives the summary and last-gesture readouts.
+/// Records raw touch callbacks and derives the summary, last-gesture and recent-gestures readouts.
 ///
 /// `Key` identifies a live contact across callbacks (the app uses the UITouch's
 /// object identity). The recorder is a value type with no UIKit dependency; the
@@ -31,17 +31,46 @@ public struct TouchRecorder<Key: Hashable> {
     private var gestureCount = 0
     private var gesture: GestureInProgress?
     public private(set) var lastGesture: LastGestureReadout
+    /// Bounds of the recent-gestures readout (see `RecentGesturesReadout`).
+    public let recentLimit: Int
+    public let recentByteLimit: Int
+    private var recent: [RecentGesture] = []
+    /// Encoded size of each entry of `recent`, in the same order.
+    private var recentSizes: [Int] = []
+    private var recentDropped = 0
 
-    public init(session: String, interface: InterfaceSize) {
+    public init(session: String, interface: InterfaceSize,
+                recentLimit: Int = RecentGesturesReadout.maximumGestures,
+                recentByteLimit: Int = RecentGesturesReadout.maximumEntryBytes) {
         self.session = session
         self.interface = interface
+        self.recentLimit = max(1, recentLimit)
+        self.recentByteLimit = recentByteLimit
         lastGesture = .none(session: session)
     }
 
     /// Discard all state and start a new session. Contacts still down become
     /// unknown: their later callbacks count as `unmatched`.
     public mutating func reset(session: String) {
-        self = Self(session: session, interface: interface)
+        self = Self(session: session, interface: interface, recentLimit: recentLimit, recentByteLimit: recentByteLimit)
+    }
+
+    /// The most recent completed gestures, oldest first, with the count of older ones dropped.
+    public var recentGestures: RecentGesturesReadout {
+        RecentGesturesReadout(session: session, gestures: lastGesture.gesture, dropped: recentDropped,
+                              limit: recentLimit, recent: recent)
+    }
+
+    private mutating func appendRecent(_ completed: RecentGesture) {
+        recent.append(completed)
+        recentSizes.append(ProbeJSON.encode(completed).count)
+        // Entries are joined by one comma each inside the `recent` array.
+        func entryBytes() -> Int { recentSizes.reduce(0, +) + max(0, recentSizes.count - 1) }
+        while recent.count > 1, recent.count > recentLimit || entryBytes() > recentByteLimit {
+            recent.removeFirst()
+            recentSizes.removeFirst()
+            recentDropped += 1
+        }
     }
 
     /// Normalisation uses the size current at each event.
@@ -97,10 +126,12 @@ public struct TouchRecorder<Key: Hashable> {
                 end: phase.rawValue,
                 moves: existing.moves))
             if active.isEmpty, let finished = gesture {
-                lastGesture = LastGestureReadout(
-                    session: session, gesture: finished.number, maxActive: finished.maxActive,
+                let completed = RecentGesture(
+                    gesture: finished.number, maxActive: finished.maxActive,
                     duration: ProbeJSON.round(timestamp - finished.start, 6),
                     contacts: finished.contacts.sorted { $0.c < $1.c })
+                lastGesture = LastGestureReadout(session: session, completed: completed)
+                appendRecent(completed)
                 gesture = nil
             }
         }

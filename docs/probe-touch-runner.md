@@ -2,7 +2,7 @@
 
 The runner sends a known plan of touches through Manzanero's CLI to a physical iPhone running the [probe app](probe-app.md), reads back what the touch probe recorded, and reports delivery rate, coordinate error, contact counts, hold durations and release. It replaces judging delivery from screenshots.
 
-**Status: nothing here has run on hardware.** The comparison and the runner logic pass offline tests against canned `tree` output, receipts and logs built with the probe's own recorder. No live run has produced a measurement.
+**Status: nothing here has run on hardware.** The comparison and the runner logic pass offline tests against canned `tree` output, receipts and logs built with the probe's own recorder. No live run has produced a measurement, and neither the recent-gestures evidence nor the foreground identity check has seen a real phone's tree.
 
 ## Where the code lives
 
@@ -54,9 +54,9 @@ Exit status: 0 when every action was sent; 3 when the run stopped early (the rep
 ## How a run proceeds
 
 1. **Validate the plan** against Manzanero's documented limits ([physical input](native-input.md), [multitouch](multitouch.md), [sequences](gesture-sequences.md)). An invalid plan sends nothing. Points within 0.05 of an edge, or on the probe's reset box, produce warnings.
-2. **Preflight readback:** `manzanero physical <UDID> tree`. The tree must contain exactly one `probe.touch.summary` whose value parses as a v1 summary, the size must be portrait, and no contact may be down. Otherwise the run stops before any input. The tree selects the app at the display centre, so a missing summary means the probe is not the foreground app.
+2. **Preflight readback:** `manzanero physical <UDID> tree`. The tree must contain exactly one `probe.touch.summary` whose value parses as a v1 summary, the [foreground identity](#foreground-identity) must not contradict the expected bundle identifier, the size must be portrait, and no contact may be down. Otherwise the run stops before any input. The tree selects the app at the display centre, so a missing summary means the probe is not the foreground app.
 3. **Reset:** `manzanero physical <UDID> press-id probe.touch.reset`. This is an accessibility activation, not a touch. The receipt must say `accepted`.
-4. **Baseline readback:** the session must have changed and no contact may be down. Events recorded after the reset and before the first action (for example a reset press delivered as a tap) are counted as unattributed and excluded from every window.
+4. **Baseline readback:** the session must have changed, the identity must not be contradicted, and no contact may be down. Events recorded after the reset and before the first action (for example a reset press delivered as a tap) are counted as unattributed and excluded from every window.
 5. **For each action:** send `manzanero physical <UDID> <command ...>`, wait the settle time, then read the tree again (`--readback each`, the default). With `--readback end`, only the settle pause separates actions and one readback follows the last.
 6. **Closing readback:** if the run stopped for a reason other than a failed readback and the last sent action has no readback, one more tree read (no input) bounds its window.
 7. **Pull:** `manzanero physical <UDID> pull <bundle-id> Documents/touch-log.jsonl <run-dir>/touch-log.jsonl`, unless `--no-pull` or nothing was measured. A pull sends no input, so it also runs after an early stop.
@@ -67,11 +67,21 @@ Exit status: 0 when every action was sent; 3 when the run stopped early (the rep
 No input is ever retried or replayed. The runner stops:
 
 - before any input, if the preflight, reset or baseline check fails;
-- after an action, if its readback fails, the probe summary is missing, or a contact is still down (release unverified);
+- after an action, if its readback fails, the probe summary is missing, the summary node reports a different bundle identifier, or a contact is still down (release unverified);
 - after three consecutive dispatch failures;
 - with `--readback end`, at the first dispatch failure, because there is no foreground check before the next input.
 
 A failed dispatch (non-zero exit, a receipt other than `dispatched`, or a timeout) is recorded, and its readback is still taken: a failure after a down event can leave a partial effect. A probe session that changes between readbacks (reset or relaunch) is recorded, and the run continues as long as the probe is still foreground.
+
+### Foreground identity
+
+The probe's accessibility identifiers say which elements to read, not which app owns them. Each node of Manzanero's physical tree may carry `nativeAttributes`; on one phone and iOS version, attribute `3003` held the owning app's bundle identifier (`com.apple.Preferences` for Settings). Every readback (preflight, baseline, after each action, closing) reads `nativeAttributes["3003"]` of the `probe.touch.summary` node and compares it with the bundle identifier the runner pulls from (`--bundle-id`, `PROBE_APP_BUNDLE_ID`, else the tracked default):
+
+- **present and equal:** `matched`;
+- **absent** (no `nativeAttributes`, or no `3003` in it): `not-checked`. The run continues, the runner prints one note, and the report counts it. Because the meaning of `3003` rests on one observation, absence is not treated as failure;
+- **present and different:** treated like a missing probe summary. The readback fails, so the run stops before any input (preflight, baseline) or before further input (after an action), and the mismatched readback is not kept. The stop reason names both identifiers. A likely cause besides another app in the foreground is a probe signed with a different bundle identifier than the one the runner pulls from.
+
+Each readback's observed value is kept as `bundleID` in `run.json`, so `probe-touch compare` recomputes the same identity results.
 
 Per-command deadlines are 90 seconds for `tree` and `press-id`, the action's scheduled duration plus 90 seconds for input, and 180 seconds for `pull`. At a deadline the runner sends SIGINT, which Manzanero turns into cancellation with an attempted release, and SIGTERM 35 seconds later if needed. Interrupting the runner itself (Ctrl-C) also signals the Manzanero child in the same process group; `run.json` is rewritten after every step, so evidence up to the interruption remains, and `probe-touch compare` can rebuild a report from it.
 
@@ -117,8 +127,14 @@ Host and device clocks are never compared. Device timestamps are uptime; only th
 
 1. **Windows.** Each readback gives the summary's `session` and `events` (the last `seq`). The events of an action are those with `before.events < seq <= after.events` in that session. An action without its own readback shares the window that the next readback closes.
 2. **Session change.** If the session differs across a window, its actions are `session-changed`, and the new session's events in it are unattributed.
-3. **Evidence, best first.** *Log*: the pulled log holds the window's session without gaps through the window's end. *Readout*: otherwise, a single action that expects one gesture, where exactly one new gesture completed and the readback's `probe.touch.last-gesture` is that gesture. *Summary*: otherwise, the differences of the summary's phase counters for a single action (counts only, no positions or timing). The log is replaced by any reset or relaunch and stops at its truncation limit, so the per-action readbacks are what keep earlier windows measurable.
-4. **Shared windows.** When several actions share a window, log gestures are assigned to them in order only if the number received equals the number expected; otherwise all of them are `inseparable`. Without log events, a shared window is always `inseparable`.
+3. **Evidence, best first.**
+   1. *Log* (`log`): the pulled log holds the window's session without gaps through the window's end.
+   2. *Recent gestures* (`recent-gestures`): otherwise, the closing readback's `probe.touch.recent-gestures` readout, when it provably lists every gesture of the window. All of these must hold, or it is not used: the readout's session is the window's session (no session change); its `gestures` equals the closing summary's `gestures` (both read in the same snapshot); its entries are numbered `dropped + 1 … gestures` without gaps and `dropped + count == gestures`; no contact was down at either readback, so no gesture straddles a window edge; `dropped` is at most the opening summary's `gestures`, so none of the window's gestures was dropped; and the entries numbered above the opening summary's `gestures` account exactly for the window's counter differences (gestures, `began` = contacts, `ended`, `cancelled`, `moved` = sum of `moves`). The entries then stand in for the log's gestures, with positions, hold durations and `maxActive` per gesture but no per-event detail. When a present readout fails a condition, every action of the window gets a note saying which one.
+   3. *Last gesture* (`readout`): otherwise, a single action that expects one gesture, where exactly one new gesture completed and the readback's `probe.touch.last-gesture` is that gesture.
+   4. *Summary* (`summary`): otherwise, the differences of the summary's phase counters for a single action (counts only, no positions or timing).
+
+   The log is replaced by any reset or relaunch and stops at its truncation limit, so the per-action readbacks are what keep earlier windows measurable. A readback without the recent-gestures element (an older probe build) simply skips step 2.
+4. **Shared windows.** When several actions share a window, log or recent-gestures gestures are assigned to them in order only if the number received equals the number expected (anomaly `assigned-by-order`); otherwise all of them are `inseparable`. Without either, a shared window is always `inseparable`. With `--readback end` and no log, the built-in plan's 15 gestures fit in the readout's 32 entries; `--repeat 3` (45 gestures) does not, and the shared window is `inseparable`.
 5. **Contacts.** Within an action, expected and received gestures are paired in order when their counts agree; otherwise all contacts are pooled and the action is flagged `gesture-count-mismatch`. Contacts are paired greedily by smallest distance between the expected start and the received `began` position.
 6. **Late delivery.** If an action received nothing and the next action, in the adjacent window of the same session, received more gestures than it expects, both are flagged `late-delivery-suspected`. Events are never moved between windows: the pattern also fits a lost touch followed by a stray one. A longer `--settle` separates the two explanations.
 7. **Errors.** Start error is received `began` minus expected start; end error is received `ended`/`cancelled` minus expected end; both as `dx`, `dy` and distance, normalised. Hold error is received minus expected hold, from device timestamps. Received `maxActive` is the probe's highest `active` during the action's gestures.
@@ -139,7 +155,7 @@ Rates use the *measured* actions (`delivered`, `partial`, `missing`) as denomina
 
 ### Anomalies
 
-`dispatch-failed`, `received-despite-dispatch-failure`, `missing-contacts`, `extra-contacts`, `cancelled-contacts`, `unfinished-contacts` (no end in the window), `contact-without-began`, `max-active-short`, `gesture-count-mismatch`, `no-movement` (a moving path produced no `moved` event), `position-out-of-tolerance`, `duration-out-of-tolerance`, `unmatched-callbacks` (the summary's `unmatched` grew), `contacts-still-down`, `session-changed`, `inseparable`, `assigned-by-order`, `log-unusable` (a log was pulled but does not cover the window) `open-window` (closed by the end of the log, not a readback) and `late-delivery-suspected`.
+`dispatch-failed`, `received-despite-dispatch-failure`, `missing-contacts`, `extra-contacts`, `cancelled-contacts`, `unfinished-contacts` (no end in the window), `contact-without-began`, `max-active-short`, `gesture-count-mismatch`, `no-movement` (a moving path produced no `moved` event), `position-out-of-tolerance`, `duration-out-of-tolerance`, `unmatched-callbacks` (the summary's `unmatched` grew), `contacts-still-down`, `session-changed`, `inseparable`, `assigned-by-order`, `log-unusable` (a log was pulled but does not cover the window), `open-window` (closed by the end of the log, not a readback) and `late-delivery-suspected`.
 
 ## Output
 
@@ -156,11 +172,14 @@ Each live run writes a new directory, by default `tmp/probe-touch/<yyyyMMdd-HHmm
 
 `report.json` (format `v: 1`) has:
 
-- `summary`: actions planned, sent and measured; `statusCounts`; `deliveryRate`; `contactsExpected`, `contactsDelivered`, `contactDeliveryRate`; distributions (`count`, `min`, `median`, `mean`, `max`) of `startError`, signed `startDx` and `startDy`, `endError`, signed `holdError` and `holdErrorAbsolute`; `byKind`; `contactCounts` (for each scheduled number of simultaneous contacts, how many actions reached it and the received `maxActive` distribution); `anomalyCounts` (actions showing each anomaly).
-- `actions`: per action, its arguments, status, evidence source, dispatch outcome, window, expected and received gesture and contact counts, `receivedMaxActive`, `contactsDelivered`, per-contact results (expected contact, received contact, start and end error, hold error), extra contacts, anomalies and notes.
+- `summary`: actions planned, sent and measured; `statusCounts`; `deliveryRate`; `contactsExpected`, `contactsDelivered`, `contactDeliveryRate`; distributions (`count`, `min`, `median`, `mean`, `max`) of `startError`, signed `startDx` and `startDy`, `endError`, signed `holdError` and `holdErrorAbsolute`; `byKind`; `contactCounts` (for each scheduled number of simultaneous contacts, how many actions with log, recent-gestures or last-gesture evidence reached it and the received `maxActive` distribution); `anomalyCounts` (actions showing each anomaly); `sourceCounts` (measured actions per evidence source: `log`, `recent-gestures`, `readout`, `summary`).
+- `actions`: per action, its arguments, status, evidence source (`log`, `recent-gestures`, `readout`, `summary` or `none`), dispatch outcome, window, expected and received gesture and contact counts, `receivedMaxActive`, `contactsDelivered`, per-contact results (expected contact, received contact, start and end error, hold error), extra contacts, anomalies, notes, and `identity` (`matched`, `not-checked` or `mismatched`) of the readback taken after the action, omitted when the action has no readback of its own.
 - `log`: whether a log was available, its sessions (reason, events, contiguous `seq` range, truncation), malformed lines, an incomplete final line and sequence breaks.
 - `unattributed`: log events before the run, after the run, after a session change, and in sessions the readbacks never saw.
+- `identity`: `expectedBundleID` and, over the baseline and per-action readbacks, `readbacks`, `matched`, `notChecked` and `mismatched`. `mismatched` is 0 in a run the runner made, because such a readback stops it and is not kept; it can be non-zero only in an edited `run.json`. A note says how many readbacks were not checked.
 - `sessions` seen by the readbacks, `tolerances` and `notes`.
+
+`run.json` keeps each readback's `recentGestures` readout and observed `bundleID` (both omitted when absent). `summary.txt` adds an `Evidence:` line with the source counts and a `Foreground identity` line.
 
 ## What has and has not been verified
 
@@ -170,12 +189,14 @@ Verified on 2026-11-15 on macOS 27.2.1 with Xcode 27.2 (27B52) and Swift 6.4.2, 
 - `mise run test:probe-touch <UDID> --dry-run` printed the full plan, and `manzanero --dry-run` accepted all 17 distinct commands of the built-in plan.
 - The `Process` invoker ran against `/usr/bin/false` in place of Manzanero: the preflight failed, the run stopped with exit 3 before any input, and `run.json` and the raw outputs were written.
 
-Not verified: anything on hardware. In particular, that `tree` returns the probe's readouts on a phone, that `press-id probe.touch.reset` resets it, that the settle time is long enough for UIKit to deliver the last events, the file layout `devicectl device copy from` produces at the destination (the runner accepts a file or a directory holding `touch-log.jsonl`), and every delivery figure.
+The recent-gestures evidence and the identity check were added afterwards and checked the same way, without any device: `mise run probe-app:test` passed 93 tests with zero warnings. The 19 new measurement tests cover the log staying first, a two-gesture action and errors and shortfalls measured from the recent readout, a window whose gestures were partly dropped, gestures dropped before the window, inconsistent numbering, a readout that disagrees with the summary's gesture count or phase counters or session, a contact down at the window's end, an absent readout, a shared window split by order, the built-in plan's readout size, per-readback identity in the report, tree parsing of the attribute and the readout, and the runner end to end with the identity present and equal, absent, and different at preflight, at the baseline and after an action, plus `--readback end` without a log for one and three rounds. `mise run test:probe-touch <UDID> --dry-run` again exited 0 with 17/17 commands accepted.
+
+Not verified: anything on hardware. In particular, that `tree` returns the probe's readouts on a phone (including an 8 KB recent-gestures value), that `nativeAttributes["3003"]` carries the probe's bundle identifier, that `press-id probe.touch.reset` resets it, that the settle time is long enough for UIKit to deliver the last events, the file layout `devicectl device copy from` produces at the destination (the runner accepts a file or a directory holding `touch-log.jsonl`), and every delivery figure.
 
 ## Known limits
 
 - Only taps, long presses, swipes, drags, multi-taps, multi-drags, pinches and gesture sequences are planned. Buttons, keys, typing and accessibility presses are out of scope.
 - The tree readback is a separate CLI process per action, each with its own tunnel and AX session. That costs seconds per action, so per-action windows suit delivery and geometry but not rapid back-to-back timing. `--readback end` removes the gaps but relies on gesture order and has no foreground check between actions.
-- The tree identifies the probe by its accessibility identifiers, not by bundle identifier; the CLI tree output carries a PID but no bundle identifier.
-- The last-gesture readout holds one gesture, so without the log a multi-gesture action falls back to counts.
+- The tree identifies the probe by its accessibility identifiers. The bundle identifier check uses `nativeAttributes["3003"]`, whose meaning rests on one observation of Settings on one phone; where the attribute is absent the identity is not checked.
+- The recent-gestures readout lists at most 32 gestures and about 8 KB. A window with more gestures than it still lists (for example `--readback end` with `--repeat 3`) falls back to the last-gesture readout or counts when there is no usable log. It carries no per-event detail, so the order of events across contacts within a gesture is known only from the log.
 - The probe sees only what reaches its UIKit view. A missing touch cannot be attributed to Manzanero, the transport or iOS.

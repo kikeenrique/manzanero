@@ -11,6 +11,15 @@ import Testing
             log: useLog ? ParsedProbeLog.parse(log ?? run.simulator.logData()) : nil))
     }
 
+    /// The same run as an older probe build without `probe.touch.recent-gestures` would report it.
+    private func withoutRecent(_ run: (baseline: ProbeReadback, attempts: [ActionAttempt], simulator: ProbeSimulator))
+        -> (baseline: ProbeReadback, attempts: [ActionAttempt], simulator: ProbeSimulator) {
+        var copy = run
+        copy.baseline.recentGestures = nil
+        for index in copy.attempts.indices { copy.attempts[index].readback?.recentGestures = nil }
+        return copy
+    }
+
     @Test func perfectDeliveryOfEveryKind() {
         let actions = TouchPlan.builtIn.actions.map(\.action)
         let report = compare(simulatedRun(actions))
@@ -140,10 +149,15 @@ import Testing
             1: { $0.relaunch(session: "eeeeeeeeeeeeeeee"); $0.deliver(.tap(NormalizedPoint(0.5, 0.5))) },
         ])
         let report = compare(run)
-        // The log was replaced at relaunch: action 1 is read from its last-gesture readout.
+        // The log was replaced at relaunch: action 1 is read from its recent-gestures readout.
         #expect(report.actions[0].status == .delivered)
-        #expect(report.actions[0].source == .readout)
+        #expect(report.actions[0].source == .recentGestures)
         #expect(report.actions[0].anomalies == [.logUnusable])
+        // Without that readout (an older probe build), the last-gesture readout stands in as before.
+        let lastOnly = compare(withoutRecent(run))
+        #expect(lastOnly.actions[0].status == .delivered)
+        #expect(lastOnly.actions[0].source == .readout)
+        #expect(lastOnly.actions[0].anomalies == [.logUnusable])
         #expect(report.actions[1].status == .sessionChanged)
         #expect(report.actions[1].source == EvidenceSource.none)
         #expect(report.actions[2].source == .log)
@@ -163,13 +177,24 @@ import Testing
         let data = lines.reduce(into: Data()) { $0.append($1); $0.append(0x0A) }
         let report = compare(run, log: data)
         #expect(report.actions[0].source == .log)
-        #expect(report.actions[1].source == .readout)
+        #expect(report.actions[1].source == .recentGestures)
         #expect(report.actions[1].status == .delivered)
-        // Two gestures in one window: the readout shows only the last, so summary counters are used.
-        #expect(report.actions[2].source == .summary)
+        // Two gestures in one window: the recent readout lists both, so contacts are measured.
+        #expect(report.actions[2].source == .recentGestures)
         #expect(report.actions[2].status == .delivered)
-        #expect(report.actions[2].contacts.isEmpty)
+        #expect(report.actions[2].receivedGestures == 2)
+        #expect(report.actions[2].contacts.count == 2)
+        #expect(report.actions[2].contacts.allSatisfy { $0.startError?.distance == 0 && $0.holdError == 0 })
         #expect(report.log.sessions[0].firstDroppedSeq == 3)
+
+        // Without the recent readout: the last-gesture readout, then summary counters, as before.
+        let lastOnly = compare(withoutRecent(run), log: data)
+        #expect(lastOnly.actions[1].source == .readout)
+        #expect(lastOnly.actions[1].status == .delivered)
+        // The last-gesture readout shows only the second of the two gestures.
+        #expect(lastOnly.actions[2].source == .summary)
+        #expect(lastOnly.actions[2].status == .delivered)
+        #expect(lastOnly.actions[2].contacts.isEmpty)
     }
 
     @Test func sharedWindowsAreSplitByOrderOrDeclaredInseparable() {
@@ -188,10 +213,19 @@ import Testing
         #expect(report.actions[3].status == .inseparable)
         #expect(report.summary.actionsMeasured == 2)
 
-        // Without a log, a shared window cannot be split at all.
+        // Without a log, the recent readout splits a shared window by the same order rule.
         let noLog = compare(run, useLog: false)
-        #expect(noLog.actions.allSatisfy { $0.status == .inseparable })
+        #expect(noLog.actions[0].status == .delivered)
+        #expect(noLog.actions[0].source == .recentGestures)
+        #expect(noLog.actions[0].anomalies == [.assignedByOrder])
+        #expect(noLog.actions[1].status == .delivered)
+        #expect(noLog.actions[2].status == .inseparable)
+        #expect(noLog.actions[3].status == .inseparable)
         #expect(noLog.notes.contains { $0.contains("No log") })
+
+        // Without a log or the recent readout, a shared window cannot be split at all.
+        let countsOnly = compare(withoutRecent(run), useLog: false)
+        #expect(countsOnly.actions.allSatisfy { $0.status == .inseparable })
     }
 
     @Test func openFinalWindowIsClosedByTheLog() {

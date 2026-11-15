@@ -25,6 +25,9 @@ public enum ActionStatus: String, Codable, Sendable, CaseIterable {
 public enum EvidenceSource: String, Codable, Sendable {
     /// Log events in the action's `seq` window: per contact, with positions and timestamps.
     case log
+    /// The `probe.touch.recent-gestures` readout of the closing readback, proven to list every
+    /// gesture of the window: per contact, with positions and timestamps, but no per-event detail.
+    case recentGestures = "recent-gestures"
     /// The `probe.touch.last-gesture` readout taken after the action: one gesture.
     case readout
     /// Only the summary's phase counters before and after: counts, no positions or timing.
@@ -115,6 +118,20 @@ public struct ActionResult: Codable, Sendable, Equatable {
     public var extraContacts: [ReceivedContact]
     public var anomalies: [Anomaly]
     public var notes: [String]
+    /// Foreground identity of the readback taken after this action; nil when the action has no
+    /// readback of its own or no expected bundle identifier was given.
+    public var identity: IdentityStatus? = nil
+}
+
+/// The foreground identity check over all readbacks used by the comparison (baseline and
+/// per-action). `nativeAttributes["3003"]` of the `probe.touch.summary` node is taken to be the
+/// owning app's bundle identifier, which rests on one observation on one phone.
+public struct IdentityFacts: Codable, Sendable, Equatable {
+    public var expectedBundleID: String
+    public var readbacks: Int
+    public var matched: Int
+    public var notChecked: Int
+    public var mismatched: Int
 }
 
 /// Summary statistics of one measured quantity.
@@ -177,6 +194,8 @@ public struct ReportSummary: Codable, Sendable, Equatable {
     public var contactCounts: [ContactCountRow]
     /// Number of actions showing each anomaly.
     public var anomalyCounts: [String: Int]
+    /// Measured actions per evidence source (`log`, `recent-gestures`, `readout`, `summary`).
+    public var sourceCounts: [String: Int]
 }
 
 public struct LogSessionFacts: Codable, Sendable, Equatable {
@@ -218,6 +237,8 @@ public struct TouchReport: Codable, Sendable, Equatable {
     public var actions: [ActionResult]
     public var log: LogFacts
     public var unattributed: UnattributedEvents
+    /// Nil when the comparison was given no expected bundle identifier.
+    public var identity: IdentityFacts?
     public var notes: [String]
 
     public func json() -> Data {
@@ -250,6 +271,14 @@ extension TouchReport {
         lines.append("Hold error (received - expected): \(dist(s.holdError, " s"))")
         for row in s.contactCounts {
             lines.append("Contacts \(row.expected): reached in \(row.reached)/\(row.actions) actions; received maxActive \(dist(row.receivedMaxActive))")
+        }
+        if !s.sourceCounts.isEmpty {
+            lines.append("Evidence: " + ["log", "recent-gestures", "readout", "summary"].compactMap { source in
+                s.sourceCounts[source].map { "\(source) \($0)" }
+            }.joined(separator: ", "))
+        }
+        if let identity {
+            lines.append("Foreground identity (\(identity.expectedBundleID)): matched \(identity.matched), not checked \(identity.notChecked), mismatched \(identity.mismatched) of \(identity.readbacks) readback(s)")
         }
         if !s.anomalyCounts.isEmpty {
             lines.append("Anomalies: " + s.anomalyCounts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "))

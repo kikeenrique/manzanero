@@ -62,17 +62,20 @@ final class ProbeSurfaceView: UIView {
     // Namespaced by probe so later probes can add their own elements.
     static let summaryIdentifier = "probe.touch.summary"
     static let lastGestureIdentifier = "probe.touch.last-gesture"
+    static let recentGesturesIdentifier = "probe.touch.recent-gestures"
     static let resetIdentifier = "probe.touch.reset"
 
     private let model: ProbeModel
     private let summaryElement: ProbeReadoutElement
     private let gestureElement: ProbeReadoutElement
+    private let recentElement: ProbeReadoutElement
     private let resetElement: ProbeResetElement
 
     init(model: ProbeModel) {
         self.model = model
         summaryElement = ProbeReadoutElement(accessibilityContainer: NSObject())
         gestureElement = ProbeReadoutElement(accessibilityContainer: NSObject())
+        recentElement = ProbeReadoutElement(accessibilityContainer: NSObject())
         resetElement = ProbeResetElement(accessibilityContainer: NSObject())
         super.init(frame: .zero)
         backgroundColor = .black
@@ -80,7 +83,7 @@ final class ProbeSurfaceView: UIView {
         isExclusiveTouch = false
         contentMode = .redraw
 
-        for element in [summaryElement, gestureElement, resetElement] as [UIAccessibilityElement] {
+        for element in [summaryElement, gestureElement, recentElement, resetElement] as [UIAccessibilityElement] {
             element.accessibilityContainer = self
         }
         summaryElement.accessibilityIdentifier = Self.summaryIdentifier
@@ -93,6 +96,11 @@ final class ProbeSurfaceView: UIView {
         gestureElement.accessibilityTraits = [.staticText, .updatesFrequently]
         gestureElement.read = { [unowned model] in model.lastGestureJSON }
 
+        recentElement.accessibilityIdentifier = Self.recentGesturesIdentifier
+        recentElement.accessibilityLabel = "Probe recent gestures"
+        recentElement.accessibilityTraits = [.staticText, .updatesFrequently]
+        recentElement.read = { [unowned model] in model.recentGesturesJSON }
+
         resetElement.accessibilityIdentifier = Self.resetIdentifier
         resetElement.accessibilityLabel = "Reset probe"
         resetElement.accessibilityTraits = .button
@@ -100,7 +108,7 @@ final class ProbeSurfaceView: UIView {
         resetElement.reset = { [unowned model] in model.reset() }
 
         isAccessibilityElement = false
-        accessibilityElements = [summaryElement, gestureElement, resetElement]
+        accessibilityElements = [summaryElement, gestureElement, recentElement, resetElement]
         model.onChange = { [weak self] in self?.setNeedsDisplay() }
     }
 
@@ -111,6 +119,7 @@ final class ProbeSurfaceView: UIView {
 
     private var summaryRect: CGRect { CGRect(x: 16, y: 64, width: bounds.width - 32, height: 92) }
     private var gestureRect: CGRect { CGRect(x: 16, y: 164, width: bounds.width - 32, height: 120) }
+    private var recentRect: CGRect { CGRect(x: 16, y: 292, width: bounds.width - 32, height: 92) }
     private var resetRect: CGRect { CGRect(x: bounds.midX - 90, y: bounds.maxY - 132, width: 180, height: 52) }
 
     override func layoutSubviews() {
@@ -119,6 +128,7 @@ final class ProbeSurfaceView: UIView {
         // at the reset element's centre resolves to that element.
         summaryElement.accessibilityFrameInContainerSpace = summaryRect
         gestureElement.accessibilityFrameInContainerSpace = gestureRect
+        recentElement.accessibilityFrameInContainerSpace = recentRect
         resetElement.accessibilityFrameInContainerSpace = resetRect
         if let window {
             model.interfaceDidChange(size: window.bounds.size, scale: window.screen.scale)
@@ -169,6 +179,17 @@ final class ProbeSurfaceView: UIView {
             gestureText.append(NSAttributedString(string: "+\(gesture.contacts.count - 5) more\n", attributes: text))
         }
         gestureText.draw(in: gestureRect)
+
+        let recent = model.recorder.recentGestures
+        let recentText = NSMutableAttributedString(
+            string: "RECENT  \(recent.recent.count) listed  \(recent.dropped) dropped\n", attributes: heading)
+        // Newest first on screen; the readout itself is oldest first.
+        for entry in recent.recent.reversed().prefix(4) {
+            recentText.append(NSAttributedString(string: String(
+                format: "#%d  %d contact(s)  max %d  %.3f s\n", entry.gesture, entry.contacts.count, entry.maxActive,
+                entry.duration), attributes: text))
+        }
+        recentText.draw(in: recentRect)
 
         let reset = UIBezierPath(roundedRect: resetRect, cornerRadius: 10)
         UIColor.darkGray.setStroke()

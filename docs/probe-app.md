@@ -16,7 +16,7 @@ The app is a test fixture. It is not part of the `manzanero` product and has no 
 | --- | --- |
 | `Fixtures/ProbeApp/Project.swift`, `Tuist.swift` | Tuist manifests (local generation only) |
 | `Fixtures/ProbeApp/Config/ProbeApp.xcconfig` | Neutral bundle identifier and signing defaults, with an optional untracked include |
-| `Fixtures/ProbeApp/ProbeCore/` | UIKit-independent Swift package: recorder, readout and log formats (encoding and decoding), log writer, Swift Testing tests; also the host-only [measurement runner](probe-touch-runner.md) targets, which the app does not link |
+| `Fixtures/ProbeApp/ProbeCore/` | UIKit-independent Swift package: recorder, readout formats (summary, last gesture, recent gestures) and log format (encoding and decoding), log writer, Swift Testing tests; also the host-only [measurement runner](probe-touch-runner.md) targets, which the app does not link |
 | `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing |
 | `Fixtures/ProbeApp/UITests/` | XCUITest checks of the recording path in the simulator |
 
@@ -150,21 +150,26 @@ Truncation marker, written once as the final line when the log reaches its limit
 
 ## Readback path 1: accessibility
 
-The surface view is an accessibility container. Its children are three `UIAccessibilityElement` objects, not views, so they cannot intercept touches. Their frames do not overlap.
+The surface view is an accessibility container. Its children are four `UIAccessibilityElement` objects, not views, so they cannot intercept touches. Their frames do not overlap.
 
-| Identifier | Label | Value |
-| --- | --- | --- |
-| `probe.touch.summary` | `Probe summary` | Summary JSON (below) |
-| `probe.touch.last-gesture` | `Probe last gesture` | Last completed gesture JSON (below) |
-| `probe.touch.reset` | `Reset probe` | Current session identifier; button trait; resets when activated |
+| Identifier | Label | Value | Frame (points, container space) |
+| --- | --- | --- | --- |
+| `probe.touch.summary` | `Probe summary` | Summary JSON (below) | x 16, y 64, width − 32, height 92 |
+| `probe.touch.last-gesture` | `Probe last gesture` | Last completed gesture JSON (below) | x 16, y 164, width − 32, height 120 |
+| `probe.touch.recent-gestures` | `Probe recent gestures` | Recent completed gestures JSON (below) | x 16, y 292, width − 32, height 92 |
+| `probe.touch.reset` | `Reset probe` | Current session identifier; button trait; resets when activated | 180×52 box, bottom centre, 132 above the bottom edge |
 
-**Why the value carries the JSON.** Manzanero's physical tree (`AccessibilitySnapshot.normalize`) returns `label`, `hint`, `identifier`, `value`, `frame`, `traits` and `visible` for each node. Each text field is returned verbatim as a string scalar, with no per-string length cap. The bounds are 512 nodes, depth 32, a 16 MiB archive limit and a 40 MiB per-session callback budget, far above these readouts, which are a few hundred bytes to about 1.5 KB. `identifier` is the stable selector. `label` stays a short fixed name, because `press-label` matches on it exactly and VoiceOver speaks it. `accessibilityValue` is the property meant for changing content. Values are computed when they are queried, so every snapshot reads current state.
+The three readouts carry the `staticText` and `updatesFrequently` traits.
+
+**Why the value carries the JSON.** Manzanero's physical tree (`AccessibilitySnapshot.normalize`) returns `label`, `hint`, `identifier`, `value`, `frame`, `traits` and `visible` for each node, plus `nativeAttributes` (string metadata from native attributes `5003`, `5004` and `3003`) when present. Each text field is returned verbatim as a string scalar, with no per-string length cap. The bounds are 512 nodes, depth 32, a 16 MiB archive limit and a 40 MiB per-session callback budget. The summary and last-gesture readouts are a few hundred bytes to about 1.5 KB; the recent-gestures readout is bounded at about 8.2 KB (below). `identifier` is the stable selector. `label` stays a short fixed name, because `press-label` matches on it exactly and VoiceOver speaks it. `accessibilityValue` is the property meant for changing content. Values are computed when they are queried, so every snapshot reads current state.
 
 ```sh
 manzanero physical <UDID> tree
 ```
 
-Find the nodes whose `identifier` is `probe.touch.summary` or `probe.touch.last-gesture` and parse their `value` as JSON. The tree route requires the probe to be the foreground app at the display centre and the device in native portrait orientation (`rot0`). The probe locks portrait.
+Find the nodes whose `identifier` is `probe.touch.summary`, `probe.touch.last-gesture` or `probe.touch.recent-gestures` and parse their `value` as JSON. The tree route requires the probe to be the foreground app at the display centre and the device in native portrait orientation (`rot0`). The probe locks portrait.
+
+The probe's identifiers say which elements to read, not which app owns them. On one phone and iOS version, a node's `nativeAttributes["3003"]` carried the owning app's bundle identifier (`com.apple.Preferences` for Settings). The [measurement runner](probe-touch-runner.md#foreground-identity) compares it with the bundle identifier it pulls from when the attribute is present. That rests on one observation, so its absence is reported as "not checked", not as a failure. The probe app itself does nothing to set it.
 
 Summary (`probe.touch.summary`; illustrative values):
 
@@ -200,6 +205,29 @@ Last completed gesture (`probe.touch.last-gesture`). A gesture runs from a `bega
 | `contacts[].end` | `ended` or `cancelled` |
 | `contacts[].moves` | Number of `moved` events |
 
+Recent completed gestures (`probe.touch.recent-gestures`), oldest first:
+
+```json
+{"dropped":0,"gestures":2,"limit":32,"recent":[{"contacts":[{"began":433560.11,"c":0,"duration":0.08,"end":"ended","from":[0.3,0.5],"moves":0,"to":[0.3,0.5]}],"duration":0.08,"gesture":1,"maxActive":1},{"contacts":[{"began":433566.56084,"c":1,"duration":0.066667,"end":"ended","from":[0.5,0.00592],"moves":0,"to":[0.5,0.00592]},{"began":433566.56084,"c":2,"duration":0.066667,"end":"ended","from":[0.5,0.99408],"moves":0,"to":[0.5,0.99408]}],"duration":0.066667,"gesture":2,"maxActive":2}],"session":"f3cebbed89520c56","v":1}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `gestures` | Completed gestures in this session; equals the summary's `gestures` |
+| `dropped` | Completed gestures of this session no longer listed (always the oldest) |
+| `limit` | Most entries kept (32) |
+| `recent[]` | One entry per completed gesture, oldest first: `gesture`, `maxActive`, `duration` and `contacts`, with the same meaning as in the last-gesture readout (no per-entry `v` or `session`) |
+
+Invariants: `dropped + recent.count == gestures`, and the entries are numbered `dropped + 1 … gestures` without gaps. The last entry is the gesture in `probe.touch.last-gesture`. A gesture still in progress is not listed. A reset or relaunch empties the list and sets `dropped` to 0 in the new session.
+
+**Bound and overflow.** At most 32 entries, and at most 8192 bytes of compact JSON for the entries together (the commas between them included). When a gesture completes and either bound would be exceeded, the oldest entries are removed one at a time until both hold, and each removal adds one to `dropped`. The newest gesture is always kept, even if it alone is larger than 8192 bytes; that needs dozens of contacts in one gesture, and the last-gesture readout has never been bounded either. The fixed fields add at most about 120 bytes. Measured sizes:
+
+- a one-contact tap entry: 150 bytes;
+- a pessimistic five-contact entry (seven-digit uptime, five-decimal positions, moves, cancelled contacts): 706 bytes, so 11 of them fit (7,742 bytes for the whole value);
+- the runner's whole built-in plan (15 gestures, 29 contacts): 3,815 bytes, so one readback after the plan lists every gesture.
+
+The bound comes from the device side, not Manzanero's. Manzanero does not cap string length, and 8 KB is about 0.05 % of its 16 MiB archive limit. How large an accessibility value iOS will carry through the remote snapshot is not documented and has not been measured, and an oversized value could break the whole `tree` read rather than only this element. So the readout is kept within a few times the size of the readouts that already exist (about 1.5 KB), while still covering a multi-gesture action, a run's shared readback window, or the built-in plan with `--readback end`. Whether a value of this size actually crosses on a phone has not been checked.
+
 Compare the `session` with the value read before sending input. If it changed, the app was relaunched or reset, and the readout does not describe that input.
 
 ## Readback path 2: file
@@ -224,7 +252,7 @@ A fresh launch always starts a new session. The model is owned by the applicatio
 
 ## Display
 
-The screen shows the session identifier, the running counts and the last gesture's contacts as text. Each landing is a ring with a cross and its contact index, colour-coded per contact; the last 40 are kept. Contacts that are down show as filled discs. This is for a person reading a screenshot. The JSON readouts are authoritative.
+The screen shows the session identifier, the running counts, the last gesture's contacts and the newest four recent gestures (number, contacts, `maxActive`, duration) with the listed and dropped counts as text. Each landing is a ring with a cross and its contact index, colour-coded per contact; the last 40 are kept. Contacts that are down show as filled discs. This is for a person reading a screenshot. The JSON readouts are authoritative.
 
 ## What the probe can and cannot show
 
@@ -255,4 +283,10 @@ Verified on 2026-11-15 with Xcode 27.2 (27B52), Tuist 4.214.0 and an iPhone 17e 
 
 Later the same day the package gained `Decodable` conformances for these formats (the encoded JSON is unchanged) and the measurement runner; `mise run probe-app:test` then passed 66 tests. See [the runner's verification](probe-touch-runner.md#what-has-and-has-not-been-verified).
 
-Not verified: anything on physical hardware. That includes signing, installation, `tree` readback, `press-id probe.touch.reset`, `pull` of the log, and every delivery measurement. Activating the reset element through accessibility was not exercised in the simulator, because XCUITest has no accessibility-activate action. Manzanero cannot inject touches into a simulator.
+The recent-gestures readout was added afterwards and checked with the same tools (Xcode 27.2, Tuist 4.214.0, iPhone 17e simulator, iOS 27.2):
+
+- `mise run probe-app:test` passed 93 tests with zero warnings, 8 of them for the readout: ordering, consistency with the last gesture, the count bound, the byte bound with five-contact gestures, the newest gesture kept above the byte bound, reset and session change, multi-contact entries, and the JSON shape and decoding.
+- A clean simulator build of the app and the UI-test target (`build-for-testing`) reported zero errors and zero warnings.
+- Five XCUITest tests passed, including a new one: after two taps, `probe.touch.recent-gestures` lists gestures 1 and 2 at their positions with `dropped: 0`, and its newest entry matches `probe.touch.last-gesture`.
+
+Not verified: anything on physical hardware. That includes signing, installation, `tree` readback (and whether an 8 KB accessibility value crosses at all), the meaning of `nativeAttributes["3003"]` for the probe, `press-id probe.touch.reset`, `pull` of the log, and every delivery measurement. Activating the reset element through accessibility was not exercised in the simulator, because XCUITest has no accessibility-activate action. Manzanero cannot inject touches into a simulator.

@@ -144,8 +144,8 @@ import ProbeCore
         #expect(outcome.exitCode == 0)
         let report = try #require(outcome.report)
         #expect(report.actions[2].status == .sessionChanged)
-        #expect(report.actions[0].source == .readout)
-        #expect(report.actions[1].source == .readout)
+        #expect(report.actions[0].source == .recentGestures)
+        #expect(report.actions[1].source == .recentGestures)
         #expect(report.actions.dropFirst(3).allSatisfy { $0.status == .delivered && $0.source == .log })
         #expect(report.sessions == ["bbbbbbbbbbbbbbbb", "ffffffffffffffff"])
         #expect(report.unattributed.afterSessionChange == 2)
@@ -197,7 +197,9 @@ import ProbeCore
         let report = try #require(outcome.report)
         #expect(outcome.exitCode == 0)
         #expect(report.log.available == false)
-        #expect(report.actions[0].source == .readout)
+        // Every per-action window is covered by its recent-gestures readout.
+        #expect(report.actions.allSatisfy { $0.source == .recentGestures && $0.status == .delivered })
+        #expect(report.summary.sourceCounts == ["recent-gestures": TouchPlan.builtIn.actions.count])
         #expect(report.notes.contains { $0.contains("Log pull failed") })
 
         let (second, secondFake, _, _) = setup { $0.outputDirectory = "tmp/probe-touch/dir-pull" }

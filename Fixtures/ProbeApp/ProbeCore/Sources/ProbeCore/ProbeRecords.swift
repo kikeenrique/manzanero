@@ -142,6 +142,80 @@ public struct LastGestureReadout: Encodable, Sendable, Equatable {
     public static func none(session: String) -> Self {
         Self(session: session, gesture: 0, maxActive: 0, duration: 0, contacts: [])
     }
+
+    init(session: String, gesture: Int, maxActive: Int, duration: Double, contacts: [GestureContact]) {
+        self.session = session
+        self.gesture = gesture
+        self.maxActive = maxActive
+        self.duration = duration
+        self.contacts = contacts
+    }
+
+    init(session: String, completed: RecentGesture) {
+        self.init(session: session, gesture: completed.gesture, maxActive: completed.maxActive,
+                  duration: completed.duration, contacts: completed.contacts)
+    }
+}
+
+/// One completed gesture in the recent-gestures readout: the last-gesture fields without
+/// the per-readout `v` and `session`.
+public struct RecentGesture: Codable, Sendable, Equatable {
+    /// 1-based gesture number within the session.
+    public let gesture: Int
+    public let maxActive: Int
+    /// Seconds from the first `began` to the last `ended`/`cancelled`.
+    public let duration: Double
+    /// Ordered by contact index.
+    public let contacts: [GestureContact]
+
+    public init(gesture: Int, maxActive: Int, duration: Double, contacts: [GestureContact]) {
+        self.gesture = gesture
+        self.maxActive = maxActive
+        self.duration = duration
+        self.contacts = contacts
+    }
+}
+
+/// Value of the `probe.touch.recent-gestures` accessibility element: the most recent
+/// completed gestures of the session, oldest first.
+///
+/// Bounded by `RecentGesturesReadout.maximumGestures` entries and by
+/// `RecentGesturesReadout.maximumEntryBytes` of encoded entries. When a new gesture would
+/// exceed either bound, the oldest entries are dropped and counted in `dropped`; the newest
+/// gesture is always kept. Invariants: `dropped + recent.count == gestures`, and the entries
+/// are numbered `dropped + 1 ... gestures` without gaps.
+public struct RecentGesturesReadout: Encodable, Sendable, Equatable {
+    /// Most entries kept.
+    public static let maximumGestures = 32
+    /// Most bytes of compact JSON for the entries of `recent` together (the newest entry is
+    /// kept even if it alone is larger). The whole value adds about 120 bytes of fields.
+    public static let maximumEntryBytes = 8192
+
+    public let v = probeFormatVersion
+    public let session: String
+    /// Completed gestures in this session, equal to the summary's `gestures`.
+    public let gestures: Int
+    /// Completed gestures of this session no longer listed (the oldest ones).
+    public let dropped: Int
+    /// `maximumGestures` when the readout was written, for the reader's information.
+    public let limit: Int
+    /// Oldest first; the last entry is the gesture in `probe.touch.last-gesture`.
+    public let recent: [RecentGesture]
+
+    enum CodingKeys: String, CodingKey { case v, session, gestures, dropped, limit, recent }
+
+    public init(session: String, gestures: Int, dropped: Int, limit: Int = RecentGesturesReadout.maximumGestures,
+                recent: [RecentGesture]) {
+        self.session = session
+        self.gestures = gestures
+        self.dropped = dropped
+        self.limit = limit
+        self.recent = recent
+    }
+
+    public static func none(session: String) -> Self {
+        Self(session: session, gestures: 0, dropped: 0, recent: [])
+    }
 }
 
 /// Log state as seen by the summary.

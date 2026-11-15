@@ -29,14 +29,22 @@ public struct DispatchOutcome: Codable, Sendable, Equatable {
     public var sent: Bool { state != .notSent }
 }
 
-/// One accessibility readback of the probe: the summary and, when present, the last gesture.
+/// One accessibility readback of the probe: the summary and, when present, the last-gesture
+/// and recent-gestures readouts and the bundle identifier the tree reported for the summary node.
 public struct ProbeReadback: Codable, Sendable, Equatable {
     public var summary: SummaryReadout
     public var lastGesture: LastGestureReadout?
+    /// Nil when the element was absent or its value did not decode (for example an older probe build).
+    public var recentGestures: RecentGesturesReadout?
+    /// `nativeAttributes["3003"]` of the `probe.touch.summary` node; nil when the tree did not report it.
+    public var bundleID: String?
 
-    public init(summary: SummaryReadout, lastGesture: LastGestureReadout?) {
+    public init(summary: SummaryReadout, lastGesture: LastGestureReadout?,
+                recentGestures: RecentGesturesReadout? = nil, bundleID: String? = nil) {
         self.summary = summary
         self.lastGesture = lastGesture
+        self.recentGestures = recentGestures
+        self.bundleID = bundleID
     }
 }
 
@@ -69,15 +77,35 @@ public struct ComparisonInput: Sendable {
     /// The pulled log, if the pull succeeded.
     public var log: ParsedProbeLog?
     public var notes: [String]
+    /// The bundle identifier the runner expects the probe to report (the one it pulls from);
+    /// nil leaves the foreground identity out of the report.
+    public var expectedBundleID: String?
 
     public init(planName: String, tolerances: Tolerances, baseline: ProbeReadback, attempts: [ActionAttempt],
-                log: ParsedProbeLog?, notes: [String] = []) {
+                log: ParsedProbeLog?, notes: [String] = [], expectedBundleID: String? = nil) {
         self.planName = planName
         self.tolerances = tolerances
         self.baseline = baseline
         self.attempts = attempts
         self.log = log
         self.notes = notes
+        self.expectedBundleID = expectedBundleID
+    }
+}
+
+/// Whether a readback's `probe.touch.summary` node reported the expected bundle identifier.
+public enum IdentityStatus: String, Codable, Sendable {
+    /// `nativeAttributes["3003"]` was present and equal to the expected bundle identifier.
+    case matched
+    /// The attribute was absent, so the identity was not checked.
+    case notChecked = "not-checked"
+    /// Present and different. The runner stops on this and does not keep such a readback, so
+    /// it appears only in hand-edited or older run records.
+    case mismatched
+
+    public static func of(_ readback: ProbeReadback, expected: String) -> IdentityStatus {
+        guard let observed = readback.bundleID else { return .notChecked }
+        return observed == expected ? .matched : .mismatched
     }
 }
 
@@ -90,10 +118,13 @@ public struct ComparisonInput: Sendable {
 /// 2. Session change. If the session differs across a window, its actions are `session-changed`
 ///    and the new session's events are unattributed.
 /// 3. Evidence. Log events are used when the log holds the window's session contiguously through
-///    the window's end. Otherwise a single action with exactly one new gesture uses the
+///    the window's end. Otherwise the closing readback's recent-gestures readout is used when its
+///    gesture numbers and dropped count prove it lists every gesture of the window (see
+///    `recentCoverage`). Otherwise a single action with exactly one new gesture uses the
 ///    last-gesture readout, and anything else falls back to the summary's phase counters.
-/// 4. Shared windows. When actions share a window, log gestures are assigned in order only if
-///    their number equals the expected number of gestures; otherwise the actions are `inseparable`.
+/// 4. Shared windows. When actions share a window, log or recent-readout gestures are assigned in
+///    order only if their number equals the expected number of gestures; otherwise the actions are
+///    `inseparable`.
 /// 5. Contacts. Within an action, expected and received gestures are paired in order when their
 ///    counts agree, else all contacts are pooled. Contacts are paired greedily by smallest
 ///    start-position distance.
@@ -139,6 +170,18 @@ public enum TouchComparison {
             if log != nil { shared.append(.logUnusable) }
             let counts = Counts(began: s1.began - s0.began, moved: s1.moved - s0.moved, ended: s1.ended - s0.ended,
                                 cancelled: s1.cancelled - s0.cancelled, gestures: s1.gestures - s0.gestures)
+            let firstResult = results.count
+            let coverage = recentCoverage(start: s0, end: end, counts: counts)
+            defer {
+                // Say why a present recent-gestures readout could not stand in for the log.
+                if case .notCovered(let reason?) = coverage {
+                    for index in firstResult..<results.count { results[index].notes.append(reason) }
+                }
+            }
+            if case .covered(let gestures) = coverage {
+                assign(group, gestures: gestures, source: .recentGestures, window: window, shared: shared)
+                return
+            }
             if group.count == 1, let attempt = group.first, attempt.planned.action.expectedGestures.count == 1,
                counts.gestures == 1, let last = end.lastGesture, last.session == s1.session, last.gesture == s1.gestures {
                 results.append(evaluate(attempt, source: .readout, gestures: [ReceivedTouches.gesture(from: last)],
@@ -148,14 +191,15 @@ public enum TouchComparison {
             } else {
                 for attempt in group {
                     results.append(unmeasured(attempt, status: .inseparable, window: window, anomalies: shared + [.inseparable],
-                                              note: "Shared window without usable log events; summary counts cannot be split."))
+                                              note: "Shared window without usable log events or a covering recent-gestures readout; summary counts cannot be split."))
                 }
             }
         }
 
-        func assign(_ group: [ActionAttempt], gestures: [ReceivedGesture], window: EventWindow, shared: [Anomaly]) {
+        func assign(_ group: [ActionAttempt], gestures: [ReceivedGesture], source: EvidenceSource = .log,
+                    window: EventWindow, shared: [Anomaly]) {
             if group.count == 1, let attempt = group.first {
-                results.append(evaluate(attempt, source: .log, gestures: gestures, window: window,
+                results.append(evaluate(attempt, source: source, gestures: gestures, window: window,
                                         anomalies: shared, tolerances: input.tolerances))
                 return
             }
@@ -171,7 +215,7 @@ public enum TouchComparison {
             for (attempt, count) in zip(group, expectedCounts) {
                 let slice = Array(gestures[offset..<(offset + count)])
                 offset += count
-                results.append(evaluate(attempt, source: .log, gestures: slice, window: window,
+                results.append(evaluate(attempt, source: source, gestures: slice, window: window,
                                         anomalies: shared + [.assignedByOrder], tolerances: input.tolerances))
             }
         }
@@ -223,9 +267,16 @@ public enum TouchComparison {
 
         results.sort { $0.sequence < $1.sequence }
         flagLateDelivery(&results, notes: &notes)
+        let identity = identity(input, results: &results)
+        if let identity, identity.notChecked > 0 {
+            notes.append("\(identity.notChecked) of \(identity.readbacks) readback(s) reported no nativeAttributes[\"3003\"] for probe.touch.summary; the foreground bundle identifier was not checked for them.")
+        }
+        if let identity, identity.mismatched > 0 {
+            notes.append("\(identity.mismatched) readback(s) reported a bundle identifier other than \(identity.expectedBundleID); their windows may not describe the probe.")
+        }
         return TouchReport(plan: input.planName, tolerances: input.tolerances, sessions: sessions,
                            summary: summarize(results), actions: results, log: facts(log),
-                           unattributed: unattributed, notes: notes)
+                           unattributed: unattributed, identity: identity, notes: notes)
     }
 
     /// Rule 6: an action with nothing in its window, followed in the adjacent window of the same
@@ -242,6 +293,73 @@ public enum TouchComparison {
             }
             notes.append("Action \(current.sequence) received nothing and action \(next.sequence) received extra gestures: events may have arrived after the readback. Consider a longer --settle.")
         }
+    }
+
+    enum RecentCoverage {
+        /// The readout lists every gesture of the window, in order.
+        case covered([ReceivedGesture])
+        /// Not usable; the reason is nil when there is no readout at all.
+        case notCovered(String?)
+    }
+
+    /// Rule 3, second tier: the recent-gestures readout of the closing readback stands in for the log
+    /// only when its gesture numbers and dropped count prove that it lists every gesture completed in
+    /// the window, no gesture straddles a window edge, and its contacts account exactly for the
+    /// summary's phase-counter differences. Nothing is assumed.
+    static func recentCoverage(start s0: SummaryReadout, end: ProbeReadback, counts: Counts) -> RecentCoverage {
+        guard let recent = end.recentGestures else { return .notCovered(nil) }
+        let s1 = end.summary
+        func no(_ why: String) -> RecentCoverage { .notCovered("Recent-gestures readout not used: \(why).") }
+        guard recent.session == s1.session, s0.session == s1.session else {
+            return no("its session \(recent.session) is not the window's session \(s0.session)")
+        }
+        guard recent.gestures == s1.gestures else {
+            return no("it counts \(recent.gestures) completed gesture(s) and the summary \(s1.gestures)")
+        }
+        let numbersAreConsecutive = recent.recent.enumerated().allSatisfy { $0.element.gesture == recent.dropped + 1 + $0.offset }
+        guard recent.dropped >= 0, recent.dropped + recent.recent.count == recent.gestures, numbersAreConsecutive else {
+            return no("its gesture numbers \(recent.recent.map(\.gesture)) and dropped count \(recent.dropped) are inconsistent with \(recent.gestures) completed gesture(s)")
+        }
+        guard s0.active == 0 else { return no("\(s0.active) contact(s) were down when the window opened") }
+        guard s1.active == 0 else { return no("\(s1.active) contact(s) were still down when the window closed") }
+        guard recent.dropped <= s0.gestures else {
+            return no("the window's gestures \(s0.gestures + 1)...\(s1.gestures) are not all listed; the oldest listed is \(recent.dropped + 1)")
+        }
+        let entries = recent.recent.filter { $0.gesture > s0.gestures }
+        let contacts = entries.flatMap(\.contacts)
+        let ended = contacts.filter { $0.end == TouchPhase.ended.rawValue }.count
+        let cancelled = contacts.filter { $0.end == TouchPhase.cancelled.rawValue }.count
+        let moves = contacts.reduce(0) { $0 + $1.moves }
+        guard entries.count == counts.gestures, contacts.count == counts.began, ended == counts.ended,
+              cancelled == counts.cancelled, moves == counts.moved else {
+            return no("its \(entries.count) gesture(s) hold \(contacts.count) began, \(moves) moved, \(ended) ended, \(cancelled) cancelled, but the summary counted \(counts.gestures) gesture(s), \(counts.began) began, \(counts.moved) moved, \(counts.ended) ended, \(counts.cancelled) cancelled")
+        }
+        return .covered(entries.map(ReceivedTouches.gesture(from:)))
+    }
+
+    /// The identity of each readback against the expected bundle identifier.
+    static func identity(_ input: ComparisonInput, results: inout [ActionResult]) -> IdentityFacts? {
+        guard let expected = input.expectedBundleID else { return nil }
+        var facts = IdentityFacts(expectedBundleID: expected, readbacks: 0, matched: 0, notChecked: 0, mismatched: 0)
+        func count(_ readback: ProbeReadback) -> IdentityStatus {
+            let status = IdentityStatus.of(readback, expected: expected)
+            facts.readbacks += 1
+            switch status {
+            case .matched: facts.matched += 1
+            case .notChecked: facts.notChecked += 1
+            case .mismatched: facts.mismatched += 1
+            }
+            return status
+        }
+        _ = count(input.baseline)
+        for attempt in input.attempts {
+            guard let readback = attempt.readback else { continue }
+            let status = count(readback)
+            for index in results.indices where results[index].sequence == attempt.sequence {
+                results[index].identity = status
+            }
+        }
+        return facts
     }
 
     // MARK: Per action
@@ -389,6 +507,8 @@ public enum TouchComparison {
         let delivered = measured.filter { $0.status == .delivered }.count
         var statusCounts: [String: Int] = [:]
         var anomalyCounts: [String: Int] = [:]
+        var sourceCounts: [String: Int] = [:]
+        for result in measured { sourceCounts[result.source.rawValue, default: 0] += 1 }
         for result in results {
             statusCounts[result.status.rawValue, default: 0] += 1
             for anomaly in result.anomalies { anomalyCounts[anomaly.rawValue, default: 0] += 1 }
@@ -412,7 +532,7 @@ public enum TouchComparison {
         }
 
         var rows: [Int: [Int]] = [:]
-        for result in measured where result.source == .log || result.source == .readout {
+        for result in measured where [.log, .recentGestures, .readout].contains(result.source) {
             rows[result.expectedMaxActive, default: []].append(result.receivedMaxActive ?? 0)
         }
         let contactCounts = rows.keys.sorted().map { expected in
@@ -433,7 +553,7 @@ public enum TouchComparison {
             startDy: Distribution.of(starts.map(\.dy)),
             endError: Distribution.of(contacts.compactMap { $0.endError?.distance }),
             holdError: Distribution.of(holds), holdErrorAbsolute: Distribution.of(holds.map(abs)),
-            byKind: byKind, contactCounts: contactCounts, anomalyCounts: anomalyCounts)
+            byKind: byKind, contactCounts: contactCounts, anomalyCounts: anomalyCounts, sourceCounts: sourceCounts)
     }
 
     static func facts(_ log: ParsedProbeLog?) -> LogFacts {

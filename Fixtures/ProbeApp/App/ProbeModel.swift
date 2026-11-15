@@ -30,6 +30,7 @@ final class ProbeModel {
 
     var summaryJSON: String { ProbeJSON.string(recorder.summary(log: log.status)) }
     var lastGestureJSON: String { ProbeJSON.string(recorder.lastGesture) }
+    var recentGesturesJSON: String { ProbeJSON.string(recorder.recentGestures) }
     var summary: SummaryReadout { recorder.summary(log: log.status) }
 
     /// Called on layout. The log session starts once the interface size is known.

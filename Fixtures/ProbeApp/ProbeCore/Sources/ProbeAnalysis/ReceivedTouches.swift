@@ -1,7 +1,7 @@
 import Foundation
 import ProbeCore
 
-/// One contact as the probe received it, rebuilt from log events or from the last-gesture readout.
+/// One contact as the probe received it, rebuilt from log events or from a gesture readout.
 public struct ReceivedContact: Codable, Sendable, Equatable {
     /// The probe's contact index in its session.
     public var contact: Int
@@ -106,12 +106,21 @@ public enum ReceivedTouches {
 
     /// The `probe.touch.last-gesture` readout as a received gesture.
     public static func gesture(from readout: LastGestureReadout) -> ReceivedGesture {
+        gesture(contacts: readout.contacts, maxActive: readout.maxActive)
+    }
+
+    /// One entry of the `probe.touch.recent-gestures` readout as a received gesture.
+    public static func gesture(from entry: RecentGesture) -> ReceivedGesture {
+        gesture(contacts: entry.contacts, maxActive: entry.maxActive)
+    }
+
+    private static func gesture(contacts: [GestureContact], maxActive: Int) -> ReceivedGesture {
         func point(_ pair: [Double]) -> NormalizedPoint? { pair.count == 2 ? NormalizedPoint(pair[0], pair[1]) : nil }
         return ReceivedGesture(
-            contacts: readout.contacts.map {
+            contacts: contacts.map {
                 ReceivedContact(contact: $0.c, from: point($0.from), to: point($0.to), began: $0.began,
                                 duration: $0.duration, end: $0.end, moves: $0.moves, sawBegan: true)
             },
-            maxActive: readout.maxActive, complete: true, firstSeq: nil, lastSeq: nil)
+            maxActive: maxActive, complete: true, firstSeq: nil, lastSeq: nil)
     }
 }

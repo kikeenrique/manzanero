@@ -160,10 +160,10 @@ public final class TouchRunner {
             lines.append("  \(n). \(text)")
             if let arguments { lines.append("       " + shellQuoted([m] + arguments)) }
         }
-        step("preflight readback: stop unless probe.touch.summary is present, portrait, with no contact down", treeArguments)
+        step("preflight readback: stop unless probe.touch.summary is present, portrait, with no contact down, and owned by \(options.bundleID) when the tree reports nativeAttributes \(ProbeTree.bundleIDAttribute)", treeArguments)
         if options.reset {
             step("reset the probe through accessibility (no touch); stop unless the receipt is accepted", resetArguments)
-            step("baseline readback: stop unless the session changed and no contact is down", treeArguments)
+            step("baseline readback: stop unless the session changed, no contact is down and the identity holds", treeArguments)
         }
         for (index, attempt) in attempts.enumerated() {
             let action = attempt.planned.action
@@ -172,7 +172,7 @@ public final class TouchRunner {
             step("action \(attempt.sequence)/\(attempts.count) round \(attempt.round) \(attempt.planned.id): expect \(expected.count) gesture(s), \(contacts) contact(s), up to \(expected.map(\.maxActive).max() ?? 0) down at once, \(formatCLINumber(action.scheduledSeconds)) s",
                  actionArguments(action))
             if options.readback == .each || index == attempts.count - 1 {
-                step("wait \(formatCLINumber(settle)) s, then readback: stop if the probe is gone or a contact is still down", treeArguments)
+                step("wait \(formatCLINumber(settle)) s, then readback: stop if the probe is gone, another bundle owns it, or a contact is still down", treeArguments)
             } else {
                 lines.append("       then wait \(formatCLINumber(settle)) s")
             }
@@ -184,7 +184,8 @@ public final class TouchRunner {
         lines.append("")
         lines.append("Stop rules: no input is retried or replayed. The run stops before any input if the preflight,")
         lines.append("reset or baseline checks fail; after an action if its readback fails, the probe is not found,")
-        lines.append("or a contact is still down; after \(Self.maximumConsecutiveDispatchFailures) consecutive dispatch failures; and, with --readback end,")
+        lines.append("the summary node reports a bundle identifier other than \(options.bundleID), or a contact is still down;")
+        lines.append("after \(Self.maximumConsecutiveDispatchFailures) consecutive dispatch failures; and, with --readback end,")
         lines.append("at the first dispatch failure. A failed dispatch is recorded and its readback still taken.")
 
         var exitCode: Int32 = 0
@@ -262,6 +263,7 @@ public final class TouchRunner {
             return result
         }
 
+        var reportedUncheckedIdentity = false
         func observe(_ label: String) -> Result<ProbeTree.Observation, RunnerError> {
             guard let result = invoke(label, treeArguments, timeout: 90) else {
                 return .failure(RunnerError("\(label): tree could not be run (\(record.steps.last?.error ?? "unknown"))"))
@@ -271,11 +273,22 @@ public final class TouchRunner {
                 let detail = message.isEmpty ? "." : ": \(message)"
                 return .failure(RunnerError("\(label): tree exited \(result.exitCode)\(result.timedOut ? " after timing out" : "")\(detail)"))
             }
-            do { return .success(try ProbeTree.observe(result.stdout)) } catch let error as RunnerError {
+            let observation: ProbeTree.Observation
+            do { observation = try ProbeTree.observe(result.stdout) } catch let error as RunnerError {
                 return .failure(RunnerError("\(label): \(error.description)"))
             } catch {
                 return .failure(RunnerError("\(label): \(error)"))
             }
+            // Foreground identity: a different bundle identifier is treated like a missing probe.
+            // An absent attribute is "not checked" and recorded through the readback's bundleID.
+            if let problem = ProbeTree.identityProblem(observation.readback, expected: options.bundleID) {
+                return .failure(RunnerError("\(label): \(problem)."))
+            }
+            if observation.readback.bundleID == nil, !reportedUncheckedIdentity {
+                reportedUncheckedIdentity = true
+                progress("note: the tree reports no nativeAttributes[\"\(ProbeTree.bundleIDAttribute)\"] for \(ProbeTree.summaryIdentifier); the foreground bundle identifier is not checked")
+            }
+            return .success(observation)
         }
 
         func stop(_ reason: String) {
@@ -403,7 +416,7 @@ public final class TouchRunner {
         if let baseline = record.baseline {
             let built = TouchComparison.compare(ComparisonInput(
                 planName: plan.name, tolerances: plan.tolerances, baseline: baseline, attempts: attempts, log: log,
-                notes: Self.notes(record)))
+                notes: Self.notes(record), expectedBundleID: options.bundleID))
             report = built
             try? fs.write(built.json(), to: directory + "/report.json")
             try? fs.write(Data(built.text().utf8), to: directory + "/summary.txt")
@@ -470,7 +483,7 @@ public final class TouchRunner {
         let log = (try? fs.read(file)).map(ParsedProbeLog.parse)
         let report = TouchComparison.compare(ComparisonInput(
             planName: record.plan.name, tolerances: record.plan.tolerances, baseline: baseline,
-            attempts: record.attempts, log: log, notes: notes(record)))
+            attempts: record.attempts, log: log, notes: notes(record), expectedBundleID: record.bundleID))
         try? fs.write(report.json(), to: directory + "/report.json")
         try? fs.write(Data(report.text().utf8), to: directory + "/summary.txt")
         return Outcome(exitCode: 0, output: report.text() + "Run directory: \(directory)\n", directory: directory,
