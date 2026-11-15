@@ -27,20 +27,8 @@ struct AccessibilityDTXTests {
         }
     }
 
-    @Test func incrementalPrefixWaitsForExactFrameAndRejectsMalformedHeaderEarly() throws {
-        let frame = try AccessibilityDTX.invocation("fixture:", argument: NSNumber(value: true), identifier: 11).encoded()
-        for cut in 0..<frame.count {
-            #expect(try AccessibilityDTX.decodePrefix(Data(frame.prefix(cut))) == nil)
-        }
-        let decoded = try #require(try AccessibilityDTX.decodePrefix(frame + frame))
-        #expect(decoded.consumed == frame.count && decoded.message.identifier == 11)
-        var invalid = Data(frame.prefix(32))
-        invalid[0] = 0
-        #expect(throws: CommandFailure.self) { try AccessibilityDTX.decodePrefix(invalid) }
-    }
-
     @Test func appleRemoteToolExceptionDoesNotEnableOtherLibexecBinaries() throws {
-        try DeviceExecutablePolicy.validate("/usr/libexec/remotectl", arguments: ["netcat", "fixture", "service"])
+        try DeviceExecutablePolicy.validate("/usr/libexec/remotectl", arguments: ["dumpstate"])
         for executable in ["/usr/libexec/axe", "/usr/libexec/manzanero-idevice", "/usr/libexec/remotectl/helper", "tmp/remotectl"] {
             #expect(throws: CommandFailure.self) { try DeviceExecutablePolicy.validate(executable, arguments: []) }
         }

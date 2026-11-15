@@ -8,7 +8,7 @@ struct DeviceCommand {
 
     /// Simulator operations that would need simulator input or an accessibility
     /// hierarchy, which have no implementation yet.
-    static let unavailableSimulatorOperations = ["tree", "tap", "tap-id", "tap-label", "swipe", "drag", "type", "button"]
+    static let unavailableSimulatorOperations = ["tree", "tap", "swipe", "drag", "type", "button"]
 
     static func parse(_ args: [String]) throws -> Self? {
         if args.first == "decode-ax-archive" {

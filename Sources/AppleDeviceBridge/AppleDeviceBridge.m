@@ -961,11 +961,6 @@ static int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t 
     return 0;
 }
 
-int ADCPerformDigitizerReports(const char *uuid, const char *version, const uint64_t *times,
-                              const uint8_t *reports, size_t count, uint64_t *surface, char *error, size_t capacity) {
-    return ADCPerformCancellableDigitizerReports(uuid, version, times, reports, count, nil, surface, error, capacity);
-}
-
 int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version, const uint64_t *times,
                               const uint8_t *reports, size_t count, ADCInputShouldStop shouldCancel,
                               uint64_t *surface, char *error, size_t capacity) {

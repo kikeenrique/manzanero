@@ -22,7 +22,7 @@ struct DeviceCommandsTests {
         }
     }
 
-    @Test(arguments: [["tree"], ["tap", "10", "10"], ["tap-id", "fixture"], ["tap-label", "--help"],
+    @Test(arguments: [["tree"], ["tap", "10", "10"], ["tap", "--help"],
                       ["swipe", "0", "0", "10", "10", "1"], ["drag", "0", "0", "10", "10", "1"],
                       ["type", "hello"], ["button", "home"]])
     func simulatorInputAndHierarchyFailPlainlyWithoutAPlan(_ operands: [String]) async throws {

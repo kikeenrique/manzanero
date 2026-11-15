@@ -28,7 +28,7 @@ This page describes current product availability, not historical helper capabili
 
 ## Unavailable or missing
 
-- Simulator input (`tap`, `tap-id`, `tap-label`, `swipe`, `drag`, `type`, `button`) and hierarchy (`tree`, `screen tree`): the CLI refuses them with "Simulator input and accessibility hierarchy are not available yet"; simulator `screen` in auto mode goes straight to OCR.
+- Simulator input (`tap`, `swipe`, `drag`, `type`, `button`) and hierarchy (`tree`, `screen tree`): the CLI refuses them with "Simulator input and accessibility hierarchy are not available yet"; simulator `screen` in auto mode goes straight to OCR.
 - Physical `hid-info`, live raw `ax-snapshot` and finite `logs`: no direct Apple replacement yet; they fail as an unsupported physical-device operation. Offline `decode-ax-archive` still works.
 - Independent Wi-Fi pairing (`pair wifi`) and `--pairing-file`: not recognised as commands. Pair through Xcode/CoreDevice.
 

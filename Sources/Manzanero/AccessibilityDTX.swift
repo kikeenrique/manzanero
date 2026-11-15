@@ -76,21 +76,6 @@ struct AccessibilityDTX: Sendable {
             expectsReply: first.expectsReply, kind: kind, auxiliary: Data(body[16..<split]), object: Data(body[split...]))
     }
 
-    /// Incremental consumers can retain an incomplete prefix without treating
-    /// malformed complete headers as incomplete or reading past one message.
-    static func decodePrefix(_ bytes: Data) throws -> (message: Self, consumed: Int)? {
-        enum Incomplete: Error { case prefix }
-        var offset = 0
-        do {
-            let message = try read { count in
-                guard count <= bytes.count - offset else { throw Incomplete.prefix }
-                defer { offset += count }
-                return Data(bytes[offset..<(offset + count)])
-            }
-            return (message, offset)
-        } catch Incomplete.prefix { return nil }
-    }
-
     func encoded() throws -> Data {
         guard auxiliary.count <= Self.maximumBody - 16,
               object.count <= Self.maximumBody - 16 - auxiliary.count,

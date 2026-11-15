@@ -122,11 +122,6 @@ int ADCCopyNextVideoFrame(void *owner, int (^cancelled)(void),
 /// reply-derived RemoteSSRC with stopAll=false. No stop-all fallback.
 int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size_t errorCapacity);
 
-/// Finite complete-state digitizer schedule; reports are count * 58 bytes.
-int ADCPerformDigitizerReports(const char *uuid, const char *version,
-                              const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
-                              uint64_t *surface, char *error, size_t errorCapacity);
-
 typedef int (^ADCInputShouldStop)(void);
 typedef void (^ADCDigitizerSink)(const uint8_t *report);
 /// Shared scheduler, also exercised with a local sink. Returns 0 completed,
@@ -134,6 +129,7 @@ typedef void (^ADCDigitizerSink)(const uint8_t *report);
 /// Callbacks run synchronously on the calling thread and are never retained.
 int ADCRunDigitizerSchedule(const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
                             ADCInputShouldStop shouldStop, ADCDigitizerSink sendReport);
+/// Finite complete-state digitizer schedule; reports are count * 58 bytes.
 int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version,
                               const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
                               ADCInputShouldStop shouldCancel, uint64_t *surface,
