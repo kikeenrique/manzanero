@@ -8,6 +8,42 @@ Prefix shell commands with `rtk`. Use `rtk proxy` when unfiltered output is need
 - Open-source third-party libraries such as `idevice` are permitted. Preserve licenses and attribution. Do not use proprietary device-control binaries as runtime dependencies.
 - Keep platform-specific and private interfaces behind backend boundaries. Distinguish implemented features from verified device behavior.
 
+## Commands
+
+Tasks are Bash scripts under `mise/tasks/` (directory namespaces become `group:task`); see `docs/development-tasks.md`.
+
+```sh
+mise run build                      # swift build through xcsift
+mise run test                       # all Swift tests through xcsift
+mise run coredevice:test            # device-free C tests for the native multitouch/gesture senders
+mise run cli -- --help              # run .build/debug/manzanero; does NOT build first
+mise run cli --dry-run physical <UDID> tap 0.5 0.5   # print the planned invocation, touch nothing
+mise tasks validate                 # after editing task definitions
+```
+
+- The `test` task takes no arguments. Run one suite or test directly, keeping the task's cache path and formatter:
+  `swift test --cache-path tmp/swift-cache --filter ToolRunnerTests 2>&1 | xcsift -f toon --warnings`
+  (`--filter ToolRunnerTests/nonzeroExitIncludesDiagnostic` for one test). Tests use Swift Testing (`@Test`, `#expect`), not XCTest.
+- CI runs exactly `mise tasks validate`, `build`, `test` and `coredevice:test`. Run those before committing.
+- `test:mcp-*`, `test:media-*`, `test:rsd-*`, `test:ax-*`, `test:native-tunnel` and `test:cli-interrupt` need a real device and are opt-in; several send input or record. Read `mise run <task> --help` first and never run one against a device the user has not named.
+- `mise run release <version>` pushes a tag that publishes through CI. Do not run it unless explicitly asked.
+- The toolchain must be Swift 6.4+ (the resolved dependency graph requires it) even though the manifest's tools floor is 6.2.
+
+## Architecture
+
+One SwiftPM package, three targets: the `Manzanero` executable, the Objective-C `AppleDeviceBridge` target linked into it, and `ManzaneroTests`. `docs/dependencies.md` is the authoritative description.
+
+- **One entry point for both front ends.** `main.swift` (CLI) and `MCPServer.swift`/`MCPTools.swift` (stdio MCP) both reduce a request to a `[String]` argument vector and call the `CommandService` actor's `execute`. An MCP tool is a schema plus a mapping to CLI arguments, so a new operation is added once in `CommandService` and then exposed by both adapters. The help text in `main.swift` is the command reference; keep it in step.
+- **`CommandService.execute` is an ordered chain of parsers.** Each `X.parse(args)` returns `nil` when the arguments are not its command, and the first match wins: native media status, `CoreDeviceInput` (in-process physical input and AX), `HandoffCommand`, `ScreenCommand`, readiness, `RecordingCommand`, `BuildRunCommand`, then the generic `DeviceCommand` wrappers around `devicectl`/`simctl`. Order matters when adding a command.
+- **Every branch has a `--dry-run` plan** that returns JSON describing the invocation without querying or touching a device. Add one with each new operation; most unit tests assert on these plans and on parsers/encoders rather than on live devices.
+- **Process execution goes through `ToolRunner` (synchronous) or `StreamingToolRunner` (async, Swift Subprocess).** Both call `DeviceExecutablePolicy.validate`, which rejects anything outside Apple system binary directories (plus `remotectl`, and `xcsift` for build logs). This is the runtime enforcement of the dependency rule below; do not widen it to make a helper work.
+- **In-process native paths** (`DirectPhysical*`, `Native*`, `Accessibility*`, `Media*`, `RSD*`) implement input scheduling, AX DTX encoding/parsing, RSD discovery, and RTP/HEVC assembly and encoding in Swift. Anything that needs private Apple symbols, sockets or owner lifetimes goes through the C functions declared in `Sources/AppleDeviceBridge/include/AppleDeviceBridge.h` (prefix `ADC`); keep private-interface use behind that header.
+- **Cancellation and cleanup are part of the contract.** `CLIInputSignals` turns SIGINT/SIGTERM into cancellation with owned release (exit 130/143); `MCPToolOperations` closes admissions, cancels and drains on EOF with a 30-second forced-exit deadline. A pending handoff pauses non-observation commands for that device via `checkHandoffPause`.
+- **`Backends/IDevice` (Rust) and `Backends/CoreDevice` (C, patches) are retired references**, not runtime code. The product refuses their executables; branches in `CommandService` that mention `idevice`, `ipb` or `axe` exist to report them as unavailable.
+- Temporary process output is written under `./tmp` relative to the current working directory, including by tests.
+
+`docs/feature-status.md` and `docs/verification.md` record what has actually been observed on a device; update them rather than implying coverage from a passing build.
+
 ## Dependencies
 
 - Device operations must communicate with Apple frameworks/APIs from this project's code or use Apple-provided executables. Do not invoke non-Apple device-control executables, including AXe, idevice, or ipb helpers.
