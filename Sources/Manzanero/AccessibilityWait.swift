@@ -336,15 +336,27 @@ struct AccessibilityWait {
             observation.reason = "foreign-process"; observation.detail = "A match is a reference into another process and cannot be evaluated here."
             return observation
         }
-        guard distinct.count == 1 else {
-            observation.reason = "ambiguous"; observation.detail = "\(distinct.count) distinct elements match; the condition needs exactly one."
+        // A list row and the text inside it often share one label, with only the
+        // row visible (observed in Settings). When exactly one match is visible
+        // and every other is explicitly hidden, the visible one is the element.
+        // Any match with unknown visibility keeps the result ambiguous.
+        var candidates = distinct
+        if candidates.count > 1, candidates.allSatisfy({ $0.node.visible != nil }) {
+            let shown = candidates.filter { $0.node.visible == true }
+            if shown.count == 1 {
+                candidates = shown
+                observation.element = try Self.describe(shown[0].node)
+            }
+        }
+        guard candidates.count == 1 else {
+            observation.reason = "ambiguous"; observation.detail = "\(distinct.count) distinct elements match; the condition needs exactly one visible."
             return observation
         }
         guard !inconsistent else {
             observation.reason = "inconsistent-duplicates"; observation.detail = "Repeated paths for one element carry different attributes."
             return observation
         }
-        let node = distinct[0].node
+        let node = candidates[0].node
         guard let visible = node.visible else {
             observation.reason = "visibility-unknown"; observation.detail = "The element has no visibility attribute."
             return observation

@@ -55,6 +55,29 @@ This was one run on one phone. It does not establish behaviour with a passcode, 
 
 The same run was the first on hardware for the command service's own queue, the per-device lease and the prefetched identity details. One side-button press and one Home press were dispatched through them, and the lease file was left zero-length afterwards. That is a single observation, not a two-process lease check.
 
+### First live run of the queue, lease, wait and trimmed bridge
+
+**2026-11-15, after `a59af0c`**, same iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52). The build included the removal of unreachable bridge paths.
+
+| Check | Observed |
+| --- | --- |
+| `tree` on the Home screen | 245 nodes in about 5 s; subscription stop and tunnel release acknowledged |
+| `button home`, `launch` of Settings, `screenshot` | Dispatched; the screenshot showed Settings |
+| Lease across two processes | While one process held an 8 s `long-press`, a second process's `tap` exited 1 at once with `Device is controlled by another manzanero process (pid …, long-press)`. A `tree` from the second process succeeded. After the hold, a `tap` was accepted and the lease file was empty |
+| SIGINT during an 8 s `long-press` | Exit 130 with the interruption message and no receipt; the next `tap` was accepted; the screen was unchanged |
+| `wait-id` for a visible Settings row | `condition-met` on the first poll in about 1 s |
+| `press-id` on that row, then `wait-id … --until gone` | The press was accepted and a screenshot showed the next page; the wait met on its first poll |
+| `wait-label` for text that does not exist, 3 s timeout | Exit 124, `timed-out`, 3 polls, cleanup acknowledged |
+| `wait-label` for a visible Settings row | First attempt timed out as `ambiguous`: the row and a hidden text node inside it share the label. After the change that accepts one visible match among explicitly hidden ones, it met on the first poll and reported the row's identifier |
+
+One `wait-id` reported `subscriptionStop: unconfirmed` while its tunnel release was acknowledged; the others acknowledged both. The cause was not investigated.
+
+**Native recording failed.** Five 3-second `--recording-backend coredevice` attempts in a row ended with `exceeded its twelve-second first-frame budget`, `packets=0`, with owned stop, stream absence and tunnel release acknowledged each time. A build of `276ec6c`, the code as it stood before any of this day's changes, failed the same way twice, so the failure is not attributed to those changes. `media-status` reported no running session and support flags 972. The recordings that succeeded on 2026-11-14 have not been reproduced since; the cause is unknown.
+
+**Probe app not installed.** `build-run` with `--allow-provisioning-updates` resolved the destination and failed at signing: Xcode reported no account, and the existing wildcard profile does not include this phone. The failure hints named both causes. Nothing about the probe or the touch measurement runner has run on hardware.
+
+These are single observations on one phone. The lease check used one pair of processes and one timing; the interrupt check does not show the contact was released on the device.
+
 ## Direct physical input
 
 **2026-11-12 through 2026-11-14 — project-owned in-process Apple backends.**

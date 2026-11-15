@@ -108,7 +108,7 @@ The loop polls, stops if the condition is met, stops if the deadline has passed,
 
 ### Ambiguity
 
-Several distinct matching identities never satisfy `visible`, `enabled`, `disabled` or `value`. The poll reports `reason: ambiguous` with `matchCount`, and polling continues, because transitions often show the old and new screens together. Repeated paths for one identity count as one element when their attributes agree. `matchPaths` gives the raw path count. For `gone`, every match must be hidden, however many there are. A match that is a reference into another process is reported as `foreign-process` and does not satisfy a positive condition.
+Several distinct matching identities do not satisfy `visible`, `enabled`, `disabled` or `value`, with one exception: when exactly one match is visible and every other is explicitly not visible, the visible one is the element. Settings rows need this, because a row and the hidden text inside it share a label. `matchCount` still reports all of them. Otherwise the poll reports `reason: ambiguous` with `matchCount`, and polling continues, because transitions often show the old and new screens together. A match whose visibility is unknown always keeps the result ambiguous. Repeated paths for one identity count as one element when their attributes agree. `matchPaths` gives the raw path count. For `gone`, every match must be hidden, however many there are. A match that is a reference into another process is reported as `foreign-process` and does not satisfy a positive condition.
 
 ### Results and exit codes
 

@@ -293,6 +293,27 @@ struct AccessibilityWaitTests {
         #expect(hidden.json?["status"] as? String == "condition-met" && hidden.observation?["matchCount"] as? Int == 2)
     }
 
+    /// Observed in Settings: a row and the hidden text inside it share a label.
+    @Test func oneVisibleMatchAmongExplicitlyHiddenOnesIsTheElement() async throws {
+        let row = try await run(["fixture.target"]) { _ in
+            Screen(elements: [Element(id: 2), Element(id: 3, visible: false)])
+        }
+        #expect(row.json?["status"] as? String == "condition-met")
+        #expect(row.observation?["matchCount"] as? Int == 2)
+        #expect(!(row.observation?["element"] is NSNull))
+        // A match of unknown visibility could be the real one: still ambiguous.
+        let unknown = try await run(["fixture.target", "--timeout", "1"]) { _ in
+            Screen(elements: [Element(id: 2), Element(id: 3, visible: nil)])
+        }
+        #expect(unknown.json?["status"] as? String == "timed-out")
+        #expect(unknown.observation?["reason"] as? String == "ambiguous")
+        // Two visible matches stay ambiguous whatever else is hidden.
+        let two = try await run(["fixture.target", "--timeout", "1"]) { _ in
+            Screen(elements: [Element(id: 2), Element(id: 3), Element(id: 4, visible: false)])
+        }
+        #expect(two.observation?["reason"] as? String == "ambiguous")
+    }
+
     @Test func labelSelectorAndForeignReferencesAreExact() async throws {
         let label = try await run(["Target"], operation: "wait-label") { _ in Screen(elements: [Element(identifier: nil)]) }
         #expect(label.json?["status"] as? String == "condition-met")
