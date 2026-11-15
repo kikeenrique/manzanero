@@ -20,6 +20,21 @@ Existing destinations are refused, including a path created while capture runs. 
 
 MCP `record_screen` uses `platform: physical`, `recording_backend: coredevice`, `device`, `path`, `seconds` and optional `codec`. It returns saved-path metadata, not inline video. There is no automatic fallback, audio capture or live-mirroring session.
 
+## The macOS firewall can drop the video
+
+Native recording receives the device's video as incoming UDP on the tunnel interface. If the macOS firewall is on and has no rule allowing the `manzanero` executable, those datagrams are dropped silently. The stream starts, cleanup is acknowledged, and the recording fails with `exceeded its twelve-second first-frame budget` and `packets=0`.
+
+Firewall rules are per executable path. A source build (`.build/…/manzanero`), a build in another checkout, and an installed copy each need their own rule, and a rule for an earlier name or location does not carry over. An executable signed by an identified developer may be allowed automatically when the firewall's signed-software option is on; an ad-hoc signed build, such as a source build or the current beta archive, is not.
+
+`manzanero doctor` reports this as a `Firewall` entry with status `off`, `allowed`, `blocked`, `no-rule` or `unknown`, and a recording that receives no packet adds the likely cause to its error. To fix it, allow incoming connections for the path `doctor` prints, under System Settings > Network > Firewall > Options, or as an administrator:
+
+```sh
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add <path-from-doctor>
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp <path-from-doctor>
+```
+
+Manzanero only reads the firewall state. It never changes a rule and does not work around the firewall.
+
 ## Native physical pipeline
 
 The operation retains an Apple tunnel assertion and an in-process reservation for the resolved device UUID. It refuses pre-existing media sessions, negotiates an owned standard-RTP stream and validates endpoints, payload and cipher settings.

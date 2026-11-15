@@ -8,6 +8,7 @@ Run from the repository root with the device paired and unlocked. Replace `<UDID
 
 ## Blocked on a person
 
+- **Firewall rule.** Allow incoming connections for the executable path that `mise run cli doctor` prints in its `Firewall` entry, then run step 4. See [recording](recording.md#the-macos-firewall-can-drop-the-video).
 - **Xcode account.** `build-run` failed with "No Accounts" and a profile that does not include the phone. Sign in under Xcode > Settings > Accounts for the team in `.env.local`, then run step 1.
 
 ## Still unverified
@@ -17,7 +18,7 @@ Run from the repository root with the device paired and unlocked. Replace `<UDID
 | `build-run` provisioning flags and install | Probe app cannot be installed on the phone |
 | Probe app on hardware | Readback through `tree`, reset through `press-id`, log `pull` |
 | Touch measurement runner | Wrong matching against a real log |
-| Native recording | Fails to start: no packets within the first-frame budget, also with the previous day's code |
+| Native recording | Receives no packets. The macOS firewall has no rule for the `manzanero` executable; not yet re-run with one |
 
 ## Order
 
@@ -42,12 +43,12 @@ Run from the repository root with the device paired and unlocked. Replace `<UDID
    mise run test:probe-touch <UDID>
    ```
    Read `tmp/probe-touch/<timestamp>/summary.txt`. Repeat with `--repeat 5` only after one clean run.
-4. **Native recording.** Find out why no packets arrive.
+4. **Native recording**, once the firewall rule exists.
    ```sh
-   mise run cli physical <UDID> media-status
+   mise run cli doctor                                             # Firewall entry should read allowed
    mise run cli --recording-backend coredevice physical <UDID> record tmp/live/check.mp4 3 hevc
    ```
-   Compare a restarted phone, a moving screen against a still one, and the opt-in `test:media-packets` diagnostic. The last successful recordings were on 2026-11-14.
+   If packets still do not arrive with the rule in place, the firewall was not the whole cause: compare the opt-in `test:media-packets` diagnostic, which received packets on 2026-11-15.
 
 ## Questions still open
 
@@ -56,7 +57,7 @@ Run from the repository root with the device paired and unlocked. Replace `<UDID
 - Does `pull` read `Documents/` for a development-signed app, and does it write a file or a directory?
 - Do three, four and five injected contacts arrive as that many simultaneous touches, and is any cancelled by system gestures?
 - How close are received hold durations to the requested ones, and is a 0.5 s settle enough before readback?
-- What changed between the recordings that worked on 2026-11-14 and the ones that receive no packets now?
+- Does native recording work again once the firewall allows the executable, and was the same thing behind the earlier intermittent startup failures?
 - Why did one wait report its subscription stop as unconfirmed?
 
 ## Stop conditions

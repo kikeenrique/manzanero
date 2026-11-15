@@ -223,7 +223,12 @@ struct NativeRecordingReceipt: Sendable {
             let release = assertion.close()
             await encoder.cancel()
             await sessions.end(endpoint.uuid)
-            let detail = "\(error) Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount). Cleanup: owned stop=\(cleanup?.stopAcknowledged ?? false), stream absent=\(cleanup?.ownedStreamAbsent ?? false), tunnel release=\(release.status). \(cleanup?.diagnostic ?? "")"
+            var detail = "\(error) Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount). Cleanup: owned stop=\(cleanup?.stopAcknowledged ?? false), stream absent=\(cleanup?.ownedStreamAbsent ?? false), tunnel release=\(release.status). \(cleanup?.diagnostic ?? "")"
+            // A started stream that delivers nothing is what a firewall
+            // dropping the incoming video looks like.
+            if packetCount == 0, !(error is CancellationError), !Task.isCancelled, let hint = HostFirewall.check().recordingHint {
+                detail += " \(hint)"
+            }
             if error is CancellationError || Task.isCancelled {
                 FileHandle.standardError.write(Data("\(detail)\n".utf8))
                 throw CancellationError()

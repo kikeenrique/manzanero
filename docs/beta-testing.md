@@ -26,6 +26,7 @@ Archives are ad-hoc signed, without Developer ID notarization. They do not provi
 - Full Xcode selected as the active developer directory, license accepted and developer components installed.
 - A paired, trusted device with Developer Mode enabled.
 - For the verified UI flows: awake/unlocked device and **Settings → Developer → Enable UI Automation** enabled.
+- For native recording with the macOS firewall on: a rule allowing incoming connections for the installed `manzanero` executable. The beta archive is ad-hoc signed, so it is not allowed automatically. `manzanero doctor` reports the state and the path; see [recording](recording.md#the-macos-firewall-can-drop-the-video).
 
 ```sh
 manzanero devices physical

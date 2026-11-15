@@ -140,7 +140,8 @@ enum Doctor {
     ]
 
     static func run(_ runTool: ([String]) throws -> Data,
-                    capabilities: () -> [PrivateCapability] = PrivateInterfaces.check) throws -> CommandOutput {
+                    capabilities: () -> [PrivateCapability] = PrivateInterfaces.check,
+                    firewall: () -> HostFirewall? = { HostFirewall.check() }) throws -> CommandOutput {
         var checks: [ToolCheck] = []
         var xcodeOutput: Data?
         for tool in tools {
@@ -152,10 +153,11 @@ enum Doctor {
                 checks.append(ToolCheck(name: tool.name, failure: String(describing: error)))
             }
         }
-        return try report(tools: checks, host: .current(xcodeOutput: xcodeOutput), capabilities: capabilities())
+        return try report(tools: checks, host: .current(xcodeOutput: xcodeOutput), capabilities: capabilities(), firewall: firewall())
     }
 
-    static func report(tools: [ToolCheck], host: DoctorHost, capabilities: [PrivateCapability]) throws -> CommandOutput {
+    static func report(tools: [ToolCheck], host: DoctorHost, capabilities: [PrivateCapability],
+                       firewall: HostFirewall? = nil) throws -> CommandOutput {
         var entries: [[String: Any]] = tools.map { tool in
             var entry: [String: Any] = ["name": tool.name, "kind": "tool", "status": tool.failure == nil ? "available" : "unavailable"]
             if let failure = tool.failure { entry["detail"] = failure }
@@ -167,6 +169,9 @@ enum Doctor {
             if let value { hostEntry[key] = value }
         }
         entries.append(hostEntry)
+        // A firewall finding never changes the exit code: it affects native
+        // recording only, and fixing it is an administrator's decision.
+        if let firewall { entries.append(firewall.doctorEntry) }
         for capability in capabilities {
             let status = capability.status(macOSMajor: host.macOS.majorVersion)
             var entry: [String: Any] = [
