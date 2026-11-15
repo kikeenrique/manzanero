@@ -49,8 +49,9 @@ struct DirectAccessibilityAction {
         return shown[0].node
     }
 
-    func execute(session: AccessibilitySession, display: () throws -> AccessibilityDisplay) throws -> Data {
+    func execute(session: any AccessibilityExchange, display: () throws -> AccessibilityDisplay) throws -> Data {
         defer { session.close() }
+        let platform = session.platform
         var state = "not-sent"
         var stage = "display"
         do {
@@ -58,8 +59,8 @@ struct DirectAccessibilityAction {
             stage = "start"
             try session.start()
             stage = "select-process"
-            let selected = try session.hit(x: geometry.center.x, y: geometry.center.y)
-            if let pid, pid != selected.pid { throw failure("requested PID differs from display-centre process", .targetUnresolved) }
+            let selected = try session.foregroundProcess(geometry)
+            if let pid, pid != selected.pid { throw failure("requested PID differs from \(platform.selectionSubject) process", .targetUnresolved) }
             stage = "application"
             let root = try session.application(pid: selected.pid)
             stage = "first-snapshot"
@@ -77,9 +78,9 @@ struct DirectAccessibilityAction {
             try verifySelection(root, geometry: geometry, session: session, display: display)
             stage = operation
             let native = try session.performAction(target.token, action: action, onSubmission: { state = "submitted" })
-            var result: [String: Any] = ["backend": "coredevice-direct", "operation": operation,
+            var result: [String: Any] = ["backend": platform.backend, "operation": operation,
                 "verified": false, "atomic": false,
-                "application": ["pid": root.pid, "selection": pid == nil ? "centre-hit-test" : "explicit-pid+centre-hit-test"],
+                "application": ["pid": root.pid, "selection": pid == nil ? platform.selection : "explicit-pid+\(platform.selection)"],
                 "selector": ["by": by, "text": text], "coordinateSpace": "device-logical-points",
                 "limitations": ["Sequential guards are not atomic or a complete hittability check.",
                     "Unit attribute/action replies can lack target/sequence identity; one request is outstanding.",
@@ -132,7 +133,7 @@ struct DirectAccessibilityAction {
         }
     }
 
-    private func liveState(_ target: AccessibilitySnapshot.Node, session: AccessibilitySession,
+    private func liveState(_ target: AccessibilitySnapshot.Node, session: any AccessibilityExchange,
                            requireVisible: Bool) throws -> (frame: AccessibilitySnapshot.Frame, json: [String: Any]) {
         let live = try session.attributes([21, 25, 27, 32], of: target.token)
         guard case .dictionary(let fields) = live,
@@ -156,7 +157,7 @@ struct DirectAccessibilityAction {
     }
 
     private func verifyHit(_ target: AccessibilitySnapshot.Node, frame: AccessibilitySnapshot.Frame,
-                           geometry: AccessibilityDisplay, session: AccessibilitySession) throws {
+                           geometry: AccessibilityDisplay, session: any AccessibilityExchange) throws {
         let bounds = geometry.bounds
         guard frame.x >= bounds.x, frame.y >= bounds.y, frame.x + frame.width <= bounds.x + bounds.width,
               frame.y + frame.height <= bounds.y + bounds.height else { throw failure("target is not wholly inside the primary display", .targetUnresolved) }
@@ -165,11 +166,11 @@ struct DirectAccessibilityAction {
     }
 
     private func verifySelection(_ root: AccessibilityRequest.Token, geometry: AccessibilityDisplay,
-                                 session: AccessibilitySession, display: () throws -> AccessibilityDisplay) throws {
+                                 session: any AccessibilityExchange, display: () throws -> AccessibilityDisplay) throws {
         let after = try session.application(pid: root.pid)
         guard sameIdentity(after, root) else { throw failure("application identity changed", .preconditionChanged) }
-        let displayed = try session.hit(x: geometry.center.x, y: geometry.center.y)
-        guard displayed.pid == root.pid else { throw failure("display-centre process changed", .preconditionChanged) }
+        let displayed = try session.foregroundProcess(geometry)
+        guard displayed.pid == root.pid else { throw failure("\(session.platform.selectionSubject) process changed", .preconditionChanged) }
         guard try display() == geometry else { throw failure("display geometry changed", .preconditionChanged) }
     }
 

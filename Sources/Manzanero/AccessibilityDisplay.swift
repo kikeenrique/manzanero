@@ -13,8 +13,17 @@ struct AccessibilityDisplay: Equatable, Encodable {
     let bounds: Bounds
     let displayId: Int64
     let pointScale: Double
-    let orientation = "rot0"
+    /// Always "rot0" from Apple's display JSON; a simulator reports what it assumes.
+    let orientation: String
     var center: (x: Double, y: Double) { (bounds.x + bounds.width / 2, bounds.y + bounds.height / 2) }
+
+    /// A display described by another source, such as CoreSimulator's screen.
+    init(bounds: Bounds, displayId: Int64, pointScale: Double, orientation: String) {
+        self.bounds = bounds
+        self.displayId = displayId
+        self.pointScale = pointScale
+        self.orientation = orientation
+    }
 
     static func plan(device: String) -> DeviceCommand {
         DeviceCommand(arguments: ["devicectl", "device", "info", "displays", "--device", device,
@@ -56,5 +65,6 @@ struct AccessibilityDisplay: Equatable, Encodable {
         bounds = Bounds(x: x, y: y, width: width, height: height)
         pointScale = scale
         displayId = id.int64Value
+        orientation = "rot0"
     }
 }

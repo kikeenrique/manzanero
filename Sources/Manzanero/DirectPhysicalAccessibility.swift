@@ -94,11 +94,12 @@ enum DirectPhysicalAccessibility {
         return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
     }
 
-    static func capture(device: String, resolved: String, pid: Int32?, session: AccessibilitySession,
+    static func capture(device: String, resolved: String, pid: Int32?, session: any AccessibilityExchange,
                         display: () throws -> AccessibilityDisplay = {
                             throw CommandFailure(.internal, "Foreground AX requires an Apple display query.", inputSent: .none)
                         }) throws -> Data {
         defer { session.close() }
+        let platform = session.platform
         do {
             if let pid, pid <= 0 { throw CommandFailure.usage("Application PID must be positive.") }
             // Read Apple display geometry before subscribing, then bracket the
@@ -111,7 +112,7 @@ enum DirectPhysicalAccessibility {
             let selectedPID: Int32
             if let pid { selectedPID = pid }
             else if let selectedDisplay {
-                selectedPID = try session.hit(x: selectedDisplay.center.x, y: selectedDisplay.center.y).pid
+                selectedPID = try session.foregroundProcess(selectedDisplay).pid
             } else { throw CommandFailure(.internal, "Missing AX selection.", inputSent: .none) }
             let root = try session.application(pid: selectedPID)
             let snapshot = try session.snapshot(root)
@@ -121,21 +122,21 @@ enum DirectPhysicalAccessibility {
                 throw CommandFailure(.preconditionChanged, "Application identity changed during AX observation; no tree returned.", inputSent: .none)
             }
             if let selectedDisplay {
-                let selectedAfter = try session.hit(x: selectedDisplay.center.x, y: selectedDisplay.center.y)
-                guard selectedAfter.pid == selectedPID else { throw CommandFailure(.preconditionChanged, "Display-centre AX process changed during observation; no tree returned.", inputSent: .none) }
+                let selectedAfter = try session.foregroundProcess(selectedDisplay)
+                guard selectedAfter.pid == selectedPID else { throw CommandFailure(.preconditionChanged, "\(platform.capitalizedSelectionSubject) AX process changed during observation; no tree returned.", inputSent: .none) }
                 guard try display() == selectedDisplay else { throw CommandFailure(.preconditionChanged, "Display geometry/orientation changed during observation; no tree returned.", inputSent: .none) }
             }
             try Task.checkCancellation()
             let cleanup = Cleanup(session.close())
             try Task.checkCancellation()
-            return try JSONEncoder().encode(Observation(device: device, resolvedCoreDeviceUUID: resolved,
-                application: Application(pid: selectedPID, selection: pid == nil ? "centre-hit-test" : "explicit-pid"),
+            return try JSONEncoder().encode(Observation(platform: platform, device: device, resolvedCoreDeviceUUID: resolved,
+                application: Application(pid: selectedPID, selection: pid == nil ? platform.selection : "explicit-pid"),
                 display: selectedDisplay, nodes: nodes, cleanup: cleanup))
         } catch {
             let cleanup = Cleanup(session.close())
             if error is CancellationError { throw error }
             // A tree only reads, so nothing was sent whatever failed.
-            throw CommandFailure("Direct physical tree failed: \(error). Subscription cleanup: \(cleanup.subscriptionStop); confirmed=\(cleanup.confirmed).", wrapping: error).noInputSent()
+            throw CommandFailure("\(platform.failurePrefix) tree failed: \(error). Subscription cleanup: \(cleanup.subscriptionStop); confirmed=\(cleanup.confirmed).", wrapping: error).noInputSent()
         }
     }
 
@@ -153,21 +154,23 @@ enum DirectPhysicalAccessibility {
             case .notSubscribed: subscriptionStop = "not-subscribed"; confirmed = false
             case .stopAcknowledged: subscriptionStop = "acknowledged"; confirmed = true
             case .unconfirmed(let reason): subscriptionStop = "unconfirmed"; confirmed = false; diagnostic = reason
+            case .notApplicable: subscriptionStop = "not-applicable"; confirmed = true
             }
         }
     }
 
     private struct Observation: Encodable {
+        let platform: AccessibilityPlatform
         let format = "accessibility-tree"
         let schemaVersion = 1
-        let backend = "coredevice-direct"
+        var backend: String { platform.backend }
         let parsedHierarchy = true
         let experimental = true
         let device: String
         let resolvedCoreDeviceUUID: String
         let application: Application
         let display: AccessibilityDisplay?
-        let deviceAPIVersion = 26
+        var deviceAPIVersion: Int? { platform.deviceAPIVersion }
         let snapshotId = UUID().uuidString
         let nodes: [AccessibilitySnapshot.Node]
         let atomic = false
@@ -177,39 +180,42 @@ enum DirectPhysicalAccessibility {
         let cleanup: Cleanup
         var limitations: [String] { [
             display == nil ? "Explicit PID may identify a background app. Foreground/display selection is not checked." :
-                "Primary display-centre selection may identify an overlay or embedded process; this is not a combined display tree.",
+                platform.treeSelectionLimitation,
             "Root identity is checked twice; descendants can change. This is not an atomic snapshot or every UIView.",
             "Snapshot-local path IDs are not reusable action handles. Device caps and offscreen completeness are not independently verified.",
-            "A disable acknowledgement is not independent verification of phone-side subscription teardown."
+            platform.cleanupLimitation
         ] }
         var nodeCount: Int { nodes.count }
 
-        enum CodingKeys: String, CodingKey {
-            case format, schemaVersion, backend, parsedHierarchy, experimental, device, resolvedCoreDeviceUUID
-            case application, display, deviceAPIVersion, snapshotId, nodes, atomic, rootStabilityScope, referenceScope, coordinateSpace, cleanup, limitations, nodeCount
+        struct Key: CodingKey {
+            let stringValue: String
+            var intValue: Int? { nil }
+            init(_ value: String) { stringValue = value }
+            init?(stringValue: String) { self.stringValue = stringValue }
+            init?(intValue: Int) { nil }
         }
 
         func encode(to encoder: any Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(format, forKey: .format)
-            try container.encode(schemaVersion, forKey: .schemaVersion)
-            try container.encode(backend, forKey: .backend)
-            try container.encode(parsedHierarchy, forKey: .parsedHierarchy)
-            try container.encode(experimental, forKey: .experimental)
-            try container.encode(device, forKey: .device)
-            try container.encode(resolvedCoreDeviceUUID, forKey: .resolvedCoreDeviceUUID)
-            try container.encode(application, forKey: .application)
-            try container.encodeIfPresent(display, forKey: .display)
-            try container.encode(deviceAPIVersion, forKey: .deviceAPIVersion)
-            try container.encode(snapshotId, forKey: .snapshotId)
-            try container.encode(nodes, forKey: .nodes)
-            try container.encode(nodeCount, forKey: .nodeCount)
-            try container.encode(atomic, forKey: .atomic)
-            try container.encode(rootStabilityScope, forKey: .rootStabilityScope)
-            try container.encode(referenceScope, forKey: .referenceScope)
-            try container.encode(coordinateSpace, forKey: .coordinateSpace)
-            try container.encode(cleanup, forKey: .cleanup)
-            try container.encode(limitations, forKey: .limitations)
+            var container = encoder.container(keyedBy: Key.self)
+            try container.encode(format, forKey: Key("format"))
+            try container.encode(schemaVersion, forKey: Key("schemaVersion"))
+            try container.encode(backend, forKey: Key("backend"))
+            try container.encode(parsedHierarchy, forKey: Key("parsedHierarchy"))
+            try container.encode(experimental, forKey: Key("experimental"))
+            try container.encode(device, forKey: Key("device"))
+            try container.encode(resolvedCoreDeviceUUID, forKey: Key(platform.resolvedKey))
+            try container.encode(application, forKey: Key("application"))
+            try container.encodeIfPresent(display, forKey: Key("display"))
+            try container.encodeIfPresent(deviceAPIVersion, forKey: Key("deviceAPIVersion"))
+            try container.encode(snapshotId, forKey: Key("snapshotId"))
+            try container.encode(nodes, forKey: Key("nodes"))
+            try container.encode(nodeCount, forKey: Key("nodeCount"))
+            try container.encode(atomic, forKey: Key("atomic"))
+            try container.encode(rootStabilityScope, forKey: Key("rootStabilityScope"))
+            try container.encode(referenceScope, forKey: Key("referenceScope"))
+            try container.encode(coordinateSpace, forKey: Key("coordinateSpace"))
+            try container.encode(cleanup, forKey: Key("cleanup"))
+            try container.encode(limitations, forKey: Key("limitations"))
         }
     }
 }

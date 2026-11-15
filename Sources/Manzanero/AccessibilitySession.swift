@@ -16,6 +16,8 @@ final class AccessibilitySession {
         case notSubscribed
         case stopAcknowledged
         case unconfirmed(String)
+        /// The carrier has no subscription to stop (the simulator route).
+        case notApplicable
     }
 
     /// Whole-session bounds against a slow, chatty or hostile peer. The

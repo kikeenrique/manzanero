@@ -179,10 +179,11 @@ struct AccessibilityWait {
 
     /// Holds the actor/queue only while a poll's blocking requests run; the
     /// interval between polls is a suspension, so other work can interleave.
-    func execute<C: Clock>(device: String, resolved: String, session: AccessibilitySession,
+    func execute<C: Clock>(device: String, resolved: String, session: any AccessibilityExchange,
                            display: () throws -> AccessibilityDisplay, clock: C,
                            isolation: isolated (any Actor)? = #isolation) async throws -> Data where C.Duration == Duration {
         defer { session.close() }
+        let platform = session.platform
         var stage = "display"
         var polls = 0
         var last: Observation?
@@ -228,17 +229,17 @@ struct AccessibilityWait {
             try Task.checkCancellation()
             let cleanup = DirectPhysicalAccessibility.Cleanup(session.close())
             try Task.checkCancellation()
-            var result: [String: Any] = ["backend": "coredevice-direct", "operation": "wait", "readOnly": true, "inputSent": false,
-                "device": device, "resolvedCoreDeviceUUID": resolved,
+            var result: [String: Any] = ["backend": platform.backend, "operation": "wait", "readOnly": true, "inputSent": false,
+                "device": device, platform.resolvedKey: resolved,
                 "status": last.met ? "condition-met" : "timed-out", "conditionMet": last.met,
                 "selector": ["by": selector.by, "text": selector.text], "condition": conditionJSON,
                 "timeoutSeconds": Double(timeoutMilliseconds) / 1000, "intervalSeconds": Double(intervalMilliseconds) / 1000,
                 "elapsedSeconds": Self.seconds(elapsed), "polls": polls,
-                "application": ["pid": Int(last.pid), "selection": pid == nil ? "centre-hit-test-per-poll" : "explicit-pid"],
+                "application": ["pid": Int(last.pid), "selection": pid == nil ? "\(platform.selection)-per-poll" : "explicit-pid"],
                 "processesObserved": history.observed.map(Int.init), "processChanges": history.changes,
                 "observation": last.json, "atomic": false, "coordinateSpace": "device-logical-points",
                 "cleanup": try JSONSerialization.jsonObject(with: JSONEncoder().encode(cleanup)),
-                "limitations": limitations]
+                "limitations": limitations(platform)]
             if let selectedDisplay {
                 result["display"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(selectedDisplay))
             }
@@ -258,24 +259,24 @@ struct AccessibilityWait {
                 throw CancellationError()
             }
             // A wait only reads, so nothing was sent whatever failed.
-            throw CommandFailure("Direct physical wait failed: \(error) \(detail)", wrapping: error).noInputSent()
+            throw CommandFailure("\(platform.failurePrefix) wait failed: \(error) \(detail)", wrapping: error).noInputSent()
         }
     }
 
-    private var limitations: [String] { [
+    private func limitations(_ platform: AccessibilityPlatform) -> [String] { [
         "Each poll is a separate non-atomic snapshot; a state shorter than the interval can be missed, and descendants can change during a poll.",
-        pid == nil ? "Every poll re-selects the primary display-centre process; an overlay or embedded process can be selected. The condition is evaluated in that poll's process."
+        pid == nil ? platform.waitSelectionLimitation
             : "An explicit PID may be a background app. If it exits, the wait ends as a session failure, not as gone.",
         "Visibility is the native snapshot attribute, not hittability or pixel verification; a missing attribute never satisfies a condition.",
         "One AX session serves the whole wait; a transport or session failure ends it without reconnection.",
-        "A disable acknowledgement is not independent verification of phone-side subscription teardown."
+        platform.cleanupLimitation
     ] }
 
-    private func poll(_ session: AccessibilitySession, display: AccessibilityDisplay?, stage: inout String) throws -> Observation {
+    private func poll(_ session: any AccessibilityExchange, display: AccessibilityDisplay?, stage: inout String) throws -> Observation {
         stage = "select-process"
         let selected: Int32
         if let pid { selected = pid }
-        else if let display { selected = try session.hit(x: display.center.x, y: display.center.y).pid }
+        else if let display { selected = try session.foregroundProcess(display).pid }
         else { throw failure("missing process selection", .internal) }
         stage = "application"
         let root = try session.application(pid: selected)
@@ -287,18 +288,18 @@ struct AccessibilityWait {
             stage = "selection-recheck"
             let after = try session.application(pid: selected)
             var stable = after.pid == root.pid && after.objectID == root.objectID
-            if stable, let display { stable = try session.hit(x: display.center.x, y: display.center.y).pid == selected }
+            if stable, let display { stable = try session.foregroundProcess(display).pid == selected }
             if !stable {
                 observation.met = false
                 observation.reason = "selection-changed"
-                observation.detail = "The application identity or display-centre process changed during the poll."
+                observation.detail = "The application identity or \(session.platform.selectionSubject) process changed during the poll."
             }
         }
         return observation
     }
 
     private func evaluate(_ matches: [AccessibilitySelector.Match], root: AccessibilityRequest.Token,
-                          session: AccessibilitySession, stage: inout String) throws -> Observation {
+                          session: any AccessibilityExchange, stage: inout String) throws -> Observation {
         let local = matches.filter { $0.node.token.pid == root.pid }
         var distinct: [AccessibilitySelector.Match] = []
         var inconsistent = false
