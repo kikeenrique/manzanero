@@ -50,7 +50,7 @@ Swift Testing's `.serialized` trait was not used: it only orders tests within on
 
 Remaining wall-clock checks are about real time: the child-process timeouts and their elapsed bounds in `StreamingToolRunner`, `ToolRunner` and recording tests, the socket transport deadlines (now on dedicated threads), and short "nothing happened yet" pauses that cannot fail because a runner is slow.
 
-Product code still blocks pool threads: `ToolRunner` waits synchronously, and the native input, accessibility and media paths call blocking C functions that poll `Task.isCancelled`, all from `CommandService` on the cooperative pool. A long physical gesture or recording served over MCP therefore holds a pool thread for its whole duration. Moving that work onto dedicated executors is a larger design change and has not been made.
+Product code also blocks: `ToolRunner` waits synchronously, and the native input, accessibility and media paths call blocking C functions that poll `Task.isCancelled`. `CommandService` now runs on a serial queue of its own instead of the cooperative pool, so a long physical gesture or device query served over MCP no longer holds a pool thread. Work that an operation hands to other tasks, such as parts of recording, still runs on the pool and has not been audited.
 
 ## Toolchain on hosted runners
 

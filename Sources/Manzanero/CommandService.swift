@@ -8,6 +8,14 @@ struct CommandOutput: Sendable {
 /// CLI and MCP share validation, backend selection, and execution. Synchronous
 /// actions serialize here; asynchronous observations/recording can interleave.
 actor CommandService {
+    // Device operations block: child processes, XPC replies and timed input
+    // schedules. Running them on the shared cooperative pool would hold one of
+    // its few threads for a whole gesture or query and starve unrelated work,
+    // such as the MCP server's request handling. This actor therefore runs on a
+    // thread of its own queue; `Task.isCancelled` still reaches its callbacks.
+    private let queue = DispatchSerialQueue(label: "manzanero.command-service")
+    nonisolated var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
+
     private let runner = ToolRunner()
     private let readinessQuery: @Sendable (String) throws -> Data
     private let uiReadinessQuery: @Sendable (DeviceCommand) throws -> Data

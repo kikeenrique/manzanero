@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import Synchronization
 import Testing
 @testable import Manzanero
 
@@ -201,5 +202,46 @@ struct DeviceLeaseServiceTests {
             #expect(String(describing: error).contains("another manzanero process"))
         }
         #expect(!FileManager.default.fileExists(atPath: destination))
+    }
+}
+
+struct CommandServiceIsolationTests {
+    /// A blocked device query must not occupy a cooperative-pool thread, or a
+    /// long gesture would stall unrelated work such as MCP request handling.
+    @Test(.timeLimit(.minutes(1))) func blockingQueriesRunOffTheCooperativePool() async throws {
+        let entered = TestSignal(), release = DispatchSemaphore(value: 0)
+        let queueLabel = Mutex<String?>(nil)
+        let service = CommandService(readinessQuery: { _ in
+            queueLabel.withLock { $0 = String(cString: __dispatch_queue_get_label(nil)) }
+            entered.signal()
+            release.wait()
+            throw CommandFailure(description: "fixture stop")
+        })
+        let blocked = Task { try await service.execute(["physical", "fixture", "readiness"]) }
+        await entered.wait()
+        // While the service is blocked, far more pool tasks than there are
+        // cores still complete: none of them is waiting behind the query.
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<64 { group.addTask { await Task.yield() } }
+        }
+        #expect(queueLabel.withLock { $0 } == "manzanero.command-service")
+        release.signal()
+        await #expect(throws: CommandFailure.self) { _ = try await blocked.value }
+    }
+
+    @Test(.timeLimit(.minutes(1))) func cancellationStillReachesBlockingWork() async throws {
+        let entered = TestSignal()
+        let sawCancellation = Mutex(false)
+        let service = CommandService(readinessQuery: { _ in
+            entered.signal()
+            while !Task.isCancelled { usleep(1_000) }
+            sawCancellation.withLock { $0 = true }
+            throw CancellationError()
+        })
+        let task = Task { try await service.execute(["physical", "fixture", "readiness"]) }
+        await entered.wait()
+        task.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(sawCancellation.withLock { $0 })
     }
 }
