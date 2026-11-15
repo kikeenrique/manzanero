@@ -105,7 +105,7 @@ Host configuration formats vary. Set a suitable working directory: relative file
 
 - Native input and AX actions are experimental. Successful transport acknowledgements are not UI assertions.
 - Native video has scoped CLI/MCP verification, including one five-minute capture and one recording with AX inspection and Home control. Startup remains intermittent; keyframe, crash and disconnect recovery are unfinished.
-- SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Forced exits, failed transports and multiple independent controllers do not have a release guarantee.
+- SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Forced exits and failed transports do not have a release guarantee. A second `manzanero` process is refused input to a device another one is controlling.
 - Live screen mirroring, stable reusable element handles, broad Apple-family coverage and several simulator/diagnostic paths remain incomplete.
 - Screenshots, app lists, logs, clipboard data and artifacts under `tmp/` can contain private information. Do not commit or share them without review.
 

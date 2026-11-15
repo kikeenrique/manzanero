@@ -15,7 +15,8 @@ This page describes current product availability, not historical helper capabili
 | Screen analysis | PNG capture, Vision OCR, native physical hierarchy with fallback | Spanish Settings OCR and selected OCR-guided navigation verified. OCR regions are not guaranteed hittable; recognition has a cooperative deadline. |
 | Offline archive inspection | Swift/Foundation data-only structural decoding | Saved phone callback decoded locally. This is not fresh capture or a normalized tree. |
 | Physical recording | Explicit native CoreDevice HEVC input, H.264/HEVC MP4 output | Short CLI/MCP, one five-minute capture and one 20-second AX/Home interaction verified with owned cleanup. Startup and recovery remain incomplete. Default devicectl capture failed on this phone. |
-| Input/media cancellation | Cooperative release/stop attempts; MCP cancellation/EOF/signals | Scoped iPhone checks and recording reuse passed. Device-side release after failure, crash/disconnect recovery and cross-process ownership remain incomplete. |
+| Input/media cancellation | Cooperative release/stop attempts; MCP cancellation/EOF/signals | Scoped iPhone checks and recording reuse passed. Device-side release after failure and crash/disconnect recovery remain incomplete. |
+| Cross-process ownership | Per-device lease for physical input, AX actions and native recording; a second process is refused | Local tests only; no live two-process check. Host-side exclusivity does not prove an earlier owner released the device. See [physical input](native-input.md#ownership-across-processes). |
 | App operations | List/install/launch/uninstall, physical PID terminate, URLs | Physical app list and Settings launch verified. Other physical mutations/permissions need live coverage. |
 | Container files | Nonrecursive list, raw pull/push | Command plans and a tool-owned temporary-domain round trip verified. Actual app-container access/round trips and `.xcappdata` export remain incomplete. |
 | Saved reports | List/download | Physical listing verified; download is implemented but hardware-unverified. Parsing, symbolication, filtering and deletion are missing. |
@@ -34,7 +35,7 @@ These named interfaces may have planners/catalog entries but cannot currently ex
 
 Execution policy blocks those non-Apple device binaries. Retained code and earlier successes do not make them supported runtime paths.
 
-User-facing live mirroring, reusable semantic element handles, automatic permission/Face ID handling, crash recovery, cross-process controller leases and a complete assertion system are missing or incomplete.
+User-facing live mirroring, reusable semantic element handles, automatic permission/Face ID handling, crash recovery, quarantine after an uncertain release and a complete assertion system are missing or incomplete.
 
 ## Apple-family coverage
 

@@ -74,6 +74,14 @@ Cancellation or observed transport failure stops future events and attempts rele
 
 Socket setup can wait up to 15 seconds, discovery/readiness barriers up to three seconds each, and the completion barrier up to three seconds. Blocking Apple calls can delay cooperative cancellation.
 
+## Ownership across processes
+
+Physical input, accessibility press/scroll and native recording take a per-device lease before dispatch. A second `manzanero` process that tries to send input to, or natively record, the same device is refused immediately with `Device is controlled by another manzanero process`, naming the holder's process ID and operation; it never waits or queues. Observations (`tree`, `screen`, `screenshot`, `readiness`, app and file commands) take no lease. The `devicectl` recording backend takes none either.
+
+Within one process the lease is shared, so an MCP server can record and send input at the same time. The lease is an advisory lock on a file under `~/Library/Application Support/manzanero/leases/`, keyed by the resolved CoreDevice identifier so every alias of a device maps to one lease. The kernel releases it when the owning process exits for any reason, including a crash or SIGKILL.
+
+The lease establishes host-side exclusivity only. It does not show that an earlier owner released its contacts, keys or stream on the device, and it does not restrain Xcode or other tools. Local tests cover refusal, sharing and release; no live two-process check has been run.
+
 ## CLI signals
 
 During direct physical HID commands, SIGINT/SIGTERM cancel owned work, attempt cleanup and exit 130/143 without a success receipt. A second signal or the 30-second grace deadline forces exit. Force exit, SIGKILL, crashes and disconnects cannot guarantee device-side release.
@@ -84,7 +92,7 @@ MCP also cancels/drains owned operations on EOF and signals; see [MCP shutdown](
 
 Scoped iPhone 13 mini checks cover Home, Settings tap/drag, long press, two-contact Maps zoom, selected timed gestures, ASCII typing, Unicode paste and Backspace. Some taps and Home dispatches produced no visible effect despite successful receipts; the cause remains unresolved. Inspect after every action.
 
-Local tests cover encoding, scheduling, rotation, invalid input and attempted cleanup. They do not prove hardware delivery, exact timing or release after failure. Other Apple families, rotations, cross-process ownership and reliable unattended recovery remain incomplete. [Verification](verification.md) records positive and negative results.
+Local tests cover encoding, scheduling, rotation, invalid input and attempted cleanup. They do not prove hardware delivery, exact timing or release after failure. Other Apple families, rotations, quarantine after an uncertain release and reliable unattended recovery remain incomplete. [Verification](verification.md) records positive and negative results.
 
 ## Historical helper implementation (disabled)
 

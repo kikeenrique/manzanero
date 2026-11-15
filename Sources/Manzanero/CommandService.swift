@@ -12,8 +12,9 @@ actor CommandService {
     private let readinessQuery: @Sendable (String) throws -> Data
     private let uiReadinessQuery: @Sendable (DeviceCommand) throws -> Data
     private var pendingHandoffs: Set<DeviceTarget> = []
+    private let leases: DeviceLeaseRegistry
 
-    init(readinessQuery: @escaping @Sendable (String) throws -> Data = { device in
+    init(leases: DeviceLeaseRegistry = .shared, readinessQuery: @escaping @Sendable (String) throws -> Data = { device in
         guard let plan = try DeviceCommand.parse(["physical", device, "details"]) else {
             throw CommandFailure(description: "Cannot plan device readiness query.")
         }
@@ -21,6 +22,7 @@ actor CommandService {
     }, uiReadinessQuery: @escaping @Sendable (DeviceCommand) throws -> Data = { plan in
         try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 15)
     }) {
+        self.leases = leases
         self.readinessQuery = readinessQuery
         self.uiReadinessQuery = uiReadinessQuery
     }
@@ -120,8 +122,28 @@ actor CommandService {
             }
             try checkHandoffPause(Array(nativeArguments.dropFirst(2)))
             let identity = try native.identityPlan()
+            // Input and AX actions own the device across processes for their
+            // duration; a tree read is an observation and takes no lease.
+            // Readiness and identity are checked first, so preparation errors
+            // keep their meaning and the lease is keyed by the resolved CoreDevice
+            // identifier, whichever alias the caller used. The operation then
+            // reuses these details for its own first identity read instead of
+            // querying the device a second time.
+            var details: Data? = try readinessQuery(native.device)
+            let lease: DeviceLease?
+            if native.operation == "tree" {
+                lease = nil
+            } else {
+                let resolved = try DirectPhysicalInput.identity(native, query: { _ in details ?? Data() })
+                lease = try leases.acquire(device: resolved.uuid, operation: native.operation)
+            }
+            defer { lease?.release() }
             let query: (DeviceCommand) throws -> Data = { plan in
                 if plan.executable == identity.executable, plan.arguments == identity.arguments {
+                    if let prefetched = details {
+                        details = nil
+                        return prefetched
+                    }
                     return try self.readinessQuery(native.device)
                 }
                 return try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40)
@@ -203,6 +225,12 @@ actor CommandService {
                 return try json(output)
             }
             if recording.physical { try preflight(recording.device, operation: "record screen") }
+            // The native stream is owned for the whole capture. This process
+            // may still send input meanwhile; another process may not.
+            let lease = recording.native
+                ? try leases.acquire(device: CoreDeviceInput.resolve(readinessQuery(recording.device), requested: recording.device), operation: "record")
+                : nil
+            defer { lease?.release() }
             return CommandOutput(data: try await recording.execute(directory: directory, runner: runner))
         }
         if let command = try BuildRunCommand.parse(args) {

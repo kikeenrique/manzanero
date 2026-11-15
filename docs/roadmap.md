@@ -7,7 +7,7 @@ iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope. [Feature status
 ## Priorities
 
 1. **Make physical testing dependable.** Improve recording startup/keyframe recovery, input/stream failure handling, useful readiness diagnostics and cleanup uncertainty.
-2. **Coordinate ownership.** Prevent independent processes from competing for contacts, keys or streams; handle uncertain release before admitting later input.
+2. **Coordinate ownership.** A per-device lease now refuses a second process's input or native recording. Still needed: live two-process verification, and handling uncertain release before admitting later input.
 3. **Improve agent targeting.** Expand AX action/overlay/rotation coverage and useful postconditions without turning old snapshot IDs into stale action handles.
 4. **Complete direct replacements.** Restore simulator input/AX and required diagnostics through project-owned Apple APIs or Apple executables.
 5. **Validate other Apple families.** Add family-specific backends and live evidence rather than treating generic identifier acceptance as support.
