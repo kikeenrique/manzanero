@@ -4,3 +4,4 @@ tmp/
 .DS_Store
 *.pairing.plist
 .codex/config.toml
+.env.local

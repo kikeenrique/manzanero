@@ -65,7 +65,7 @@ let project = Project(
             name: "TouchProbeUITests",
             destinations: [.iPhone],
             product: .uiTests,
-            bundleId: "com.example.manzanero.touchprobe.uitests",
+            bundleId: "com.lemambo.manzanero.probeapp.uitests",
             deploymentTargets: .iOS("18.0"),
             infoPlist: .default,
             sources: [.glob(.relativeToManifest("\(fixture)/UITests/**/*.swift"))],

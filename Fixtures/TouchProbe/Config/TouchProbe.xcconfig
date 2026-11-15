@@ -2,16 +2,16 @@
 //
 // Simulator builds need nothing else. For a physical device, put your own
 // values in the untracked repository file tmp/touch-probe/Signing.xcconfig
-// (the touch-probe:generate task writes it from TOUCH_PROBE_TEAM and
-// TOUCH_PROBE_BUNDLE_ID):
+// (the touch-probe:generate task writes it from DEVELOPMENT_TEAM and, when
+// set, TOUCH_PROBE_BUNDLE_ID; both can live in the untracked .env.local):
 //
 //   DEVELOPMENT_TEAM = <your team identifier>
-//   TOUCH_PROBE_BUNDLE_ID = <a bundle identifier your team can sign>
+//   TOUCH_PROBE_BUNDLE_ID = <only if your team cannot sign the default below>
 //
 // The Tuist manifest sets the target's bundle identifier to
 // $(TOUCH_PROBE_BUNDLE_ID), so it resolves from this file and its include.
 
-TOUCH_PROBE_BUNDLE_ID = com.example.manzanero.touchprobe
+TOUCH_PROBE_BUNDLE_ID = com.lemambo.manzanero.probeapp
 DEVELOPMENT_TEAM =
 CODE_SIGN_STYLE = Automatic
 

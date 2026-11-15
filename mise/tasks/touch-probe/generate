@@ -10,10 +10,11 @@
 # tracked sources in Fixtures/TouchProbe through TUIST_TOUCH_PROBE_FIXTURE.
 # Local generation only: no Tuist account, server or binary cache.
 #
-# Optional device signing, read from the environment and written only to the
-# untracked tmp/touch-probe/Signing.xcconfig (included by Config/TouchProbe.xcconfig):
-#   TOUCH_PROBE_TEAM       Apple developer team identifier
-#   TOUCH_PROBE_BUNDLE_ID  bundle identifier that team can sign
+# Optional device signing, read from the environment (mise loads the untracked
+# .env.local) and written only to the untracked tmp/touch-probe/Signing.xcconfig
+# (included by Config/TouchProbe.xcconfig):
+#   DEVELOPMENT_TEAM       Apple developer team identifier
+#   TOUCH_PROBE_BUNDLE_ID  replaces the tracked default bundle identifier
 # When neither is set, an existing Signing.xcconfig is left as it is.
 
 set -euo pipefail
@@ -22,11 +23,11 @@ out=tmp/touch-probe
 generated="$out/generated"
 mkdir -p "$generated"
 
-team="${TOUCH_PROBE_TEAM:-}"
+team="${DEVELOPMENT_TEAM:-}"
 bundle="${TOUCH_PROBE_BUNDLE_ID:-}"
 if [ -n "$team" ] || [ -n "$bundle" ]; then
   if [ -n "$team" ] && ! [[ "$team" =~ ^[A-Z0-9]{10}$ ]]; then
-    echo "TOUCH_PROBE_TEAM must be a 10-character team identifier" >&2
+    echo "DEVELOPMENT_TEAM must be a 10-character team identifier" >&2
     exit 1
   fi
   if [ -n "$bundle" ] && ! [[ "$bundle" =~ ^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$ ]]; then

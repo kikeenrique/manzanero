@@ -5,6 +5,8 @@ includes = ["mise/tasks"]
 rust_version = "1.99.1"
 
 [env]
+# Optional, untracked machine-local values (DEVELOPER_DIR, DEVELOPMENT_TEAM); see docs/development-tasks.md.
+_.file = ".env.local"
 CLANG_MODULE_CACHE_PATH = "{{ config_root }}/tmp/clang-cache"
 
 [task_templates.swift]

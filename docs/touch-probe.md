@@ -35,7 +35,7 @@ xcodebuild -workspace tmp/touch-probe/generated/TouchProbe.xcworkspace -scheme T
   -derivedDataPath tmp/touch-probe/DerivedData build 2>&1 | xcsift -f toon --warnings
 ```
 
-Replace `build` with `test` to run the XCUITest target on a booted simulator. Then install and launch with `xcrun simctl install <simulator-UUID> <path>/TouchProbe.app` and `xcrun simctl launch <simulator-UUID> com.example.manzanero.touchprobe`. Or use Manzanero's Build & Run, which takes the generated workspace:
+Replace `build` with `test` to run the XCUITest target on a booted simulator. Then install and launch with `xcrun simctl install <simulator-UUID> <path>/TouchProbe.app` and `xcrun simctl launch <simulator-UUID> com.lemambo.manzanero.probeapp`. Or use Manzanero's Build & Run, which takes the generated workspace:
 
 ```sh
 manzanero simulator <simulator-UUID> build-run tmp/touch-probe/generated/TouchProbe.xcworkspace TouchProbe
@@ -45,13 +45,15 @@ Xcode's package resolution can create an ignored `Fixtures/TouchProbe/ProbeCore/
 
 ## Signing for a physical device
 
-The tracked files hold no account values. The default bundle identifier is the neutral `com.example.manzanero.touchprobe`, which a real team cannot sign. Supply your own team and bundle identifier outside version control in one of two ways:
+The tracked files hold no team identifier. The default bundle identifier is the project's `com.lemambo.manzanero.probeapp`; another team must replace it with one it can sign. Put your values in the untracked `.env.local` at the repository root, which mise loads for every task:
 
 ```sh
-TOUCH_PROBE_TEAM=<team-id> TOUCH_PROBE_BUNDLE_ID=<your.bundle.id> mise run touch-probe:generate
+DEVELOPMENT_TEAM=<team-id>
+DEVELOPER_DIR=/path/to/Xcode-27.2.app/Contents/Developer
+# TOUCH_PROBE_BUNDLE_ID=<your.bundle.id>   only if you cannot sign the default
 ```
 
-or write the untracked `tmp/touch-probe/Signing.xcconfig` yourself:
+`DEVELOPER_DIR` selects Xcode 27.2 for the tasks without changing the system-wide `xcode-select` choice; `Tuist.swift` refuses to generate with any other Xcode version. Then run `mise run touch-probe:generate`. Alternatively, pass the variables on the command line, or write the untracked `tmp/touch-probe/Signing.xcconfig` yourself:
 
 ```
 DEVELOPMENT_TEAM = <team-id>
