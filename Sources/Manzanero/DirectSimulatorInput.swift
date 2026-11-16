@@ -35,6 +35,7 @@ enum DirectSimulatorInput {
     static func execute(_ input: SimulatorInput, info: SimulatorDeviceInfo, environment: SimulatorEnvironment) throws -> Data {
         try Task.checkCancellation()
         try AppleTVRemote.checkFamily(input, info: info)
+        try DigitalCrown.checkFamily(input, info: info)
         var result: [String: Any] = ["backend": backend, "operation": input.operation, "status": "dispatched",
             "verified": false, "releaseVerified": false, "platform": "simulator", "device": input.device,
             "resolvedSimulatorUUID": info.uuid, "screen": info.screenJSON]
@@ -77,6 +78,11 @@ enum DirectSimulatorInput {
             result["contactCount"] = second.isEmpty ? 1 : 2
             result["coordinateSpace"] = "normalized-current-interface"
             if operation == "long-press" { result["holdSeconds"] = Double(input.operands[2]) }
+        case "button" where DigitalCrown.watchButtons[input.operands.first ?? ""] != nil:
+            let name = input.operands[0]
+            try Task.checkCancellation()
+            try environment.remoteButton(input.device, DigitalCrown.watchButtons[name]!, 80_000)
+            result["button"] = name
         case "button":
             guard let name = input.operands.first, let usage = SimulatorInput.buttons[name] else {
                 throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down; no input sent.")
@@ -104,6 +110,14 @@ enum DirectSimulatorInput {
             }
             result["remote"] = name
             result["route"] = AppleTVRemote.describe(route)
+        case "crown":
+            guard input.operands.count == 2, let units = Int(input.operands[0]), DigitalCrown.range.contains(abs(units)) else {
+                throw CommandFailure.usage(DigitalCrown.usage)
+            }
+            let events = try DigitalCrown.events(input.operands[1], units: units)
+            try Task.checkCancellation()
+            try environment.crown(input.device, DigitalCrown.steps(units, events: events), DigitalCrown.intervalMilliseconds * 1_000_000)
+            result["crown"] = DigitalCrown.describe(units, events: events)
         case "type":
             let (text, layout) = try DirectPhysicalTyping.request(input.operands, subject: "Simulator")
             let schedule = try layout.samples(text)

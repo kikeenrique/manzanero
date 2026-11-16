@@ -105,11 +105,11 @@ extension ManzaneroCLI {
 
     struct Button: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "button", abstract: "Press a hardware button.",
-                                                        discussion: "lock toggles the display. \(receiptCaveat)")
+                                                        discussion: "lock toggles the display. side is the Apple Watch side button (watch simulators only). \(receiptCaveat)")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        @Argument(help: ArgumentHelp("home, lock, volume-up or volume-down.", valueName: "button"),
-                  completion: .list(["home", "lock", "volume-up", "volume-down"])) var name: String
+        @Argument(help: ArgumentHelp("home, lock, volume-up, volume-down, or side (Apple Watch simulator).", valueName: "button"),
+                  completion: .list(["home", "lock", "volume-up", "volume-down", "side"])) var name: String
         func request(_ target: Target) throws -> CommandRequest { try .input(target, "button", [name]) }
     }
 
@@ -125,6 +125,21 @@ extension ManzaneroCLI {
                 throw CommandFailure.unsupported("remote is implemented for Apple TV simulators only; no device was contacted.")
             }
             return try .input(target, "remote", [name])
+        }
+    }
+
+    struct Crown: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "crown", abstract: "Turn the Digital Crown (Apple Watch simulators).",
+            discussion: "Units are the simulator's integer scroll deltas; positive scrolls toward later content. They are sent as events 1 s apart, slow enough that watchOS does not accelerate them: 200 units moved a SwiftUI digitalCrownRotation value by 1 at low sensitivity. Lists move by rows per event (Watch Settings: one row for each event of 100 units or more, none below 100), so use --events to scroll several rows. \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: ArgumentHelp("Non-zero integer units, -10000...10000; put -- before a negative amount.", valueName: "units")) var units: String
+        @Option(help: ArgumentHelp("Split the units evenly over 1...20 events (default: the fewest of at most 1000 units).", valueName: "n")) var events: String?
+        func request(_ target: Target) throws -> CommandRequest {
+            guard target.platform == .simulator else {
+                throw CommandFailure.unsupported("crown is implemented for Apple Watch simulators only; no device was contacted.")
+            }
+            return try .input(target, "crown", [units] + (events.map { [$0] } ?? []))
         }
     }
 

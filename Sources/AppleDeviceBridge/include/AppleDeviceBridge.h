@@ -254,12 +254,20 @@ int ADCSimulatorDisplayInfo(void *owner, void (^sink)(const uint8_t *, size_t), 
 /// Home (64), lock/side (48), volume up (233) and volume down (234).
 int ADCSimulatorPressButton(void *owner, uint64_t usage, unsigned holdMicroseconds,
                             ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
-/// One Apple TV remote button on the simulator's button service, consumer
-/// page: 0x40 (TV/Home), 0x46 (Menu/Back) or 0xCD (Play/Pause); hold
+/// One Apple TV remote or Apple Watch button on the simulator's button
+/// service, consumer page: 0x40 (TV/Home), 0x46 (Menu/Back), 0xCD
+/// (Play/Pause) or 0x95 (the watch's side button); hold
 /// 1...400000 microseconds. Down, hold, up (sent even when stopped). Same
 /// status contract as ADCSimulatorPressButton.
 int ADCSimulatorPressRemoteButton(void *owner, uint64_t usage, unsigned holdMicroseconds,
                                   ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
+/// Digital Crown rotation on a watchOS simulator: one IndigoScrollEvent on
+/// hid.scroll per step ({point: {x: 0, y: delta, z: 0}, phase 0, momentum 0,
+/// target 0}), steps `intervalNanoseconds` apart (1...1000 ms). 1...1000 steps,
+/// each a non-zero integer of at most 1000 units (the daemon drops fractions).
+/// Same status contract as ADCSimulatorPressButton.
+int ADCSimulatorRotateCrown(void *owner, const double *deltas, size_t count, uint64_t intervalNanoseconds,
+                            ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 
 /// Host-only availability of the dynamically resolved Apple interfaces, grouped
 /// by capability. Loads the listed frameworks with the operations' own flags and

@@ -413,8 +413,9 @@ static BOOL ADCSimulatorWaitUntil(uint64_t start, uint64_t offset, ADCInputShoul
 
 int ADCSimulatorPressRemoteButton(void *owner, uint64_t usage, unsigned hold, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     // Consumer page: Menu (0x40, the TV/Home button), Menu Escape (0x46,
-    // Back/Menu) and Play/Pause (0xCD); docs/other-families.md.
-    if ((usage != 0x40 && usage != 0x46 && usage != 0xCD) || hold == 0 || hold > 400000)
+    // Back/Menu), Play/Pause (0xCD) and the watch's side button (0x95, as
+    // DeviceKit's watch chrome names it); docs/other-families.md.
+    if ((usage != 0x40 && usage != 0x46 && usage != 0xCD && usage != 0x95) || hold == 0 || hold > 400000)
         return ADCSimulatorFail(error, capacity, @"Invalid simulator remote button request; no input sent.");
     return ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.hid.button", shouldCancel, NULL,
         ^int(xpc_connection_t connection, ADCInputShouldStop stop) {
@@ -424,6 +425,43 @@ int ADCSimulatorPressRemoteButton(void *owner, uint64_t usage, unsigned hold, AD
             // Release is sent even when stopped, as the shared press does.
             xpc_connection_send_message(connection, ADCButtonEvent(usage, 2, NO));
             return held ? 0 : 1;
+        }, error, capacity);
+}
+
+static xpc_object_t ADCScrollEvent(double delta) {
+    xpc_object_t event = xpc_dictionary_create_empty();
+    xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.scroll");
+    xpc_dictionary_set_string(event, "messageType", "IndigoScrollEvent");
+    xpc_dictionary_set_bool(event, "isBarrier", false);
+    xpc_object_t payload = xpc_dictionary_create_empty(), point = xpc_dictionary_create_empty();
+    xpc_dictionary_set_double(point, "x", 0);
+    xpc_dictionary_set_double(point, "y", delta);
+    xpc_dictionary_set_double(point, "z", 0);
+    xpc_dictionary_set_value(payload, "point", point);
+    // Phase and momentum 0: each event is one discrete rotation. Target 0 is
+    // the Digital Crown (1 is refused: "No dial service found").
+    xpc_dictionary_set_uint64(payload, "phase", 0);
+    xpc_dictionary_set_uint64(payload, "momentum", 0);
+    xpc_dictionary_set_uint64(payload, "target", 0);
+    xpc_dictionary_set_value(event, "payload", payload);
+    return event;
+}
+
+int ADCSimulatorRotateCrown(void *owner, const double *deltas, size_t count, uint64_t intervalNanoseconds,
+                            ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    if (!deltas || count < 1 || count > 1000 || intervalNanoseconds < NSEC_PER_MSEC || intervalNanoseconds > 1000 * NSEC_PER_MSEC)
+        return ADCSimulatorFail(error, capacity, @"Invalid Digital Crown schedule; no input sent.");
+    for (size_t i = 0; i < count; i++)
+        if (!isfinite(deltas[i]) || deltas[i] != floor(deltas[i]) || deltas[i] == 0 || fabs(deltas[i]) > 1000)
+            return ADCSimulatorFail(error, capacity, @"Invalid Digital Crown step; no input sent.");
+    return ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.hid.scroll", shouldCancel, NULL,
+        ^int(xpc_connection_t connection, ADCInputShouldStop stop) {
+            uint64_t start = clock_gettime_nsec_np(CLOCK_MONOTONIC);
+            for (size_t i = 0; i < count; i++) {
+                if (!ADCSimulatorWaitUntil(start, (uint64_t)i * intervalNanoseconds, stop)) return 1;
+                xpc_connection_send_message(connection, ADCScrollEvent(deltas[i]));
+            }
+            return 0;
         }, error, capacity);
 }
 

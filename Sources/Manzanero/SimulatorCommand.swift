@@ -20,7 +20,7 @@ struct SimulatorInput: Sendable, Equatable {
     static let gestureOperations = ["multi-tap", "gesture"]
     static let inputOperations = touchOperations + gestureOperations + ["button", "key", "type"] + familyOperations
     /// Apple TV and Apple Watch controls (docs/other-families.md).
-    static let familyOperations = ["remote"]
+    static let familyOperations = ["remote", "crown"]
     static let operations = accessibilityOperations + inputOperations
     /// Operations that exist for physical devices but not yet for simulators.
     static let unimplemented = ["paste", "wake"]
@@ -92,11 +92,15 @@ struct SimulatorInput: Sendable, Equatable {
             guard operands.count == 1 else { throw CommandFailure.usage("Simulator gesture requires one JSON sequence argument.") }
             _ = try NativeGestureSequence(json: operands[0])
         case "button":
-            guard operands.count == 1, Self.buttons[operands[0]] != nil else {
+            guard operands.count == 1, Self.buttons[operands[0]] ?? DigitalCrown.watchButtons[operands[0]] != nil else {
                 throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down; no input sent.")
             }
         case "remote":
             guard operands.count == 1, AppleTVRemote.routes[operands[0]] != nil else { throw CommandFailure.usage(AppleTVRemote.usage) }
+        case "crown":
+            guard (1...2).contains(operands.count) else { throw CommandFailure.usage(DigitalCrown.usage) }
+            let units = try DigitalCrown.units(operands[0])
+            operands = [String(units), String(try DigitalCrown.events(operands.count == 2 ? operands[1] : nil, units: units))]
         case "type":
             operands = try DirectPhysicalTyping.operands(operands, subject: "Simulator")
         default:
@@ -165,6 +169,10 @@ struct SimulatorInput: Sendable, Equatable {
             plan["deviceLease"] = "simulator UUID"
             let service: String
             switch operation {
+            case "crown":
+                plan.merge(DigitalCrown.describe(Int(operands[0]) ?? 0, events: Int(operands[1]))) { $1 }
+                plan["family"] = "Refused unless CoreSimulator reports the Apple Watch product family."
+                service = "com.apple.coredevice.feature.remote.hid.scroll"
             case "remote":
                 let route = AppleTVRemote.routes[operands[0]]!
                 plan.merge(AppleTVRemote.describe(route)) { $1 }
@@ -173,7 +181,7 @@ struct SimulatorInput: Sendable, Equatable {
                 service = AppleTVRemote.describe(route)["service"] as! String
             case "button":
                 service = "com.apple.coredevice.feature.remote.hid.button"
-                plan["usage"] = Self.buttons[operands[0]]
+                plan["usage"] = Self.buttons[operands[0]] ?? DigitalCrown.watchButtons[operands[0]]
                 plan["holdMilliseconds"] = operands[0] == "lock" ? 400 : 80
             case "key":
                 service = "com.apple.coredevice.feature.remote.hid.keyboard"
@@ -184,7 +192,7 @@ struct SimulatorInput: Sendable, Equatable {
                 plan.merge(DirectPhysicalTyping.fields(text, layout: layout, samples: try layout.samples(text))) { _, new in new }
                 plan["deviceLayoutCheck"] = DeviceKeyboardLayout.simulatorPlan(layout)
             }
-            plan["execution"] = "In-process host XPC to the simulator's dtuhidd (\(service)): readiness barrier, the physical Indigo \(service.hasSuffix(".button") ? "button press" : "keyboard schedule") with release on stop, completion barrier and a short drain before disconnect. No clipboard, helper executable or automatic replay."
+            plan["execution"] = "In-process host XPC to the simulator's dtuhidd (\(service)): readiness barrier, the physical Indigo \(service.hasSuffix(".button") ? "button press" : service.hasSuffix(".scroll") ? "scroll events" : "keyboard schedule") with release on stop, completion barrier and a short drain before disconnect. No clipboard, helper executable or automatic replay."
         }
         return plan
     }
@@ -219,6 +227,8 @@ struct SimulatorEnvironment: Sendable {
     var button: @Sendable (String, UInt64, UInt32) throws -> Void = DirectSimulatorInput.button
     /// One Apple TV remote consumer button: usage and hold in microseconds.
     var remoteButton: @Sendable (String, UInt64, UInt32) throws -> Void = DirectSimulatorInput.remoteButton
+    /// Digital Crown steps: per-event deltas and the interval in nanoseconds.
+    var crown: @Sendable (String, [Double], UInt64) throws -> Void = DigitalCrown.rotate
 
     static let live = SimulatorEnvironment(
         lookup: { try SimulatorDevice.lookup($0) },

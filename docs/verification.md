@@ -568,6 +568,24 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `tap 0.5 0.5` on the TV | Refused, `unsupported-operation`: Apple TV has no touch screen, pointing to `remote` |
 | `remote down` on the Duo; `remote menu --device x` | Refused before input (`this simulator is an iPhone`), and before device contact |
 
+### Digital Crown and side button
+
+**2026-11-16**, `manzanero-research-watch`. Apps: Watch Settings and a throwaway SwiftUI probe (built for the watchOS 27.2 simulator SDK with `swiftc`, installed with `simctl install`; a `digitalCrownRotation` binding at low sensitivity and a change counter, read through the tree). Raw events were first sent with a copy of the research probe, then through `crown`.
+
+| Experiment | Observed |
+| --- | --- |
+| Single raw events `y` 10, 100, −100 ×2, 1000, 1, 3, 1.5, 0.5 | Value +0.05, +0.5, −1.0, +5.0, +0.005, +0.015, +0.005, 0: 0.005 per integer unit, fractions dropped |
+| Five 20-unit events 16 / 100 / 300 ms apart | +4.835 / +2.636 / +0.500: fast events are accelerated |
+| Two 100-unit events 200 and 300 ms apart | +1.0 each time |
+| Phase 1, 2, 4 alone (10 units) | +0.05 each; began–changed–changed–ended (30 units) +0.20, twice |
+| Momentum 1, 2 (10 units) | +0.05 each |
+| Settings list, single events of 100 / 300 / 1000 (after 1.5 s pauses) | One row each (General y 242 → 218 → 158 → 98), back the same way with negative units; 20 and 50 units: nothing |
+| Settings, two 100-unit events 250 / 500 / 800 / 1200 ms apart | General y 242 → −22, −22, 158, 158 |
+| `crown 200`, `crown 1000 --events 5`, `crown -- -2400` on the probe | +1.000, +5.000, −12.000 |
+| `crown 300 --events 3`, `crown 200 --events 2` on Settings (from the top) | General y 242 → 98 (three rows), 242 → 158 (two rows) |
+| `button side` on the watch face, twice | Control Center opened (screenshot and tree), then closed |
+| `crown 100` on the Apple TV, `button side` on the Duo | Refused before input, `unsupported-operation` |
+
 ## Retired implementations
 
 These results are preserved as history, not current runtime availability:
