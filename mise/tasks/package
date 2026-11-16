@@ -53,7 +53,7 @@ done
 
 cp ThirdParty/* "$work/payload/ThirdParty/"
 cp Package.resolved "$work/payload/ThirdParty/Package.resolved"
-for dependency in eventsource swift-atomics swift-collections swift-log swift-nio swift-sdk swift-subprocess swift-system; do
+for dependency in eventsource swift-argument-parser swift-atomics swift-collections swift-log swift-nio swift-sdk swift-subprocess swift-system; do
   # SPM's resolved sources are the authoritative notices for the linked graph.
   mkdir -p "$work/payload/ThirdParty/packages/$dependency"
   notices=0

@@ -32,16 +32,19 @@ Build products live under `.build/`; task caches and investigation artifacts use
 
 ## Linked packages
 
-[Package.swift](../Package.swift) declares two direct packages; [Package.resolved](../Package.resolved) records the complete resolved graph.
+[Package.swift](../Package.swift) declares three direct packages; [Package.resolved](../Package.resolved) records the complete resolved graph.
 
 | Package | Pin | Purpose |
 | --- | --- | --- |
+| [Swift Argument Parser](https://github.com/apple/swift-argument-parser) | 1.8.2, `6a52f3251125d74daf04fcbd5e6f08a75d074382` | Command-line parsing, generated help and shell completion |
 | [Swift MCP SDK](https://github.com/modelcontextprotocol/swift-sdk) | 0.12.1, `a0ae212ebf6eab5f754c3129608bc5557637e605` | Optional MCP mode in the standard executable |
 | [Swift Subprocess](https://github.com/swiftlang/swift-subprocess) | 1.0.2, `dbe21bd7dfd4ffef8c32588918542a8abfa1b54c` | Scoped asynchronous process output, cancellation and reaping |
 
 The MCP SDK also resolves packages used by its other products; resolution alone does not prove every package is compiled into this executable. Swift Subprocess does not implement device protocols. Existing synchronous paths still use `ToolRunner`; streaming paths use `StreamingToolRunner`.
 
-Preserve the [MCP license/transition notice](../ThirdParty/swift-mcp-sdk-LICENSE.txt), [Subprocess license](../ThirdParty/swift-subprocess-LICENSE.txt) and applicable transitive notices when distributing binaries. Packaging gathers notices from the resolved source graph.
+Swift Argument Parser parses the CLI's arguments only; it runs no command itself, and the CLI keeps its own exit path, error format and signal handling.
+
+Preserve the [Argument Parser license](../ThirdParty/swift-argument-parser-LICENSE.txt), [MCP license/transition notice](../ThirdParty/swift-mcp-sdk-LICENSE.txt), [Subprocess license](../ThirdParty/swift-subprocess-LICENSE.txt) and applicable transitive notices when distributing binaries. Packaging gathers notices from the resolved source graph.
 
 ## Apple interfaces
 

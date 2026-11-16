@@ -14,6 +14,8 @@ xcrun lipo "$payload/manzanero" -verify_arch arm64
 xcrun lipo "$payload/manzanero" -verify_arch x86_64
 test -f "$payload/ThirdParty/Package.resolved"
 test -f "$payload/ThirdParty/packages/swift-nio/CNIOLLHTTP/LICENSE"
+test -f "$payload/ThirdParty/packages/swift-argument-parser/LICENSE.txt"
+test -f "$payload/ThirdParty/swift-argument-parser-LICENSE.txt"
 test -f "$payload/beta-testing.md"
 cmp license "$payload/license"
 ln -s "../Cellar/manzanero/$version/libexec/manzanero" "$work/bin/manzanero"
