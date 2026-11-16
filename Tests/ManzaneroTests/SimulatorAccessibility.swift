@@ -253,7 +253,7 @@ struct SimulatorAccessibilityTests {
     func multiContactAndPhysicalOnlyOperationsAreRefusedPlainly(operation: String) async throws {
         let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid, operation, "0.5"]) }
         #expect(failure.code == .unsupportedOperation && failure.inputSent == .none && failure.retry == .no)
-        #expect(failure.description.contains(operation == "paste" ? "set-value-id or set-value-label" : "not implemented yet"))
+        #expect(failure.description.contains(operation == "paste" ? "set-value with --id or --label" : "not implemented yet"))
         let fixture = SimulatorAXFixture()
         for dryRun in [false, true] {
             await #expect(throws: CommandFailure.self) { _ = try await Self.service(fixture).execute(["simulator", Self.uuid, operation, "0.5"], dryRun: dryRun) }

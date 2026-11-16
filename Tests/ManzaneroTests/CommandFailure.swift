@@ -98,27 +98,26 @@ struct CommandFailureTests {
         #expect(try json(ErrorFormat.json.render(CancellationError()))["code"] as? String == "cancelled")
     }
 
-    @Test func formatSelectionLeavesOrdinaryArgumentsUntouched() throws {
-        var args = ["physical", "U", "tap", "0.5", "0.5"]
-        #expect(try ErrorFormat.select(&args, environment: [:]) == .text)
-        #expect(args == ["physical", "U", "tap", "0.5", "0.5"])
-        args = ["--error-format", "json", "physical", "U", "tap"]
-        #expect(try ErrorFormat.select(&args, environment: [:]) == .json && args == ["physical", "U", "tap"])
-        args = ["--dry-run", "--error-format", "json", "doctor"]
-        #expect(try ErrorFormat.select(&args, environment: [:]) == .json && args == ["--dry-run", "doctor"])
-        args = ["doctor"]
-        #expect(try ErrorFormat.select(&args, environment: ["MANZANERO_ERROR_FORMAT": "json"]) == .json)
-        #expect(try ErrorFormat.select(&args, environment: ["MANZANERO_ERROR_FORMAT": ""]) == .text)
-        args = ["--error-format", "text", "doctor"]
-        #expect(try ErrorFormat.select(&args, environment: ["MANZANERO_ERROR_FORMAT": "json"]) == .text && args == ["doctor"])
-        for (arguments, environment) in [(["--error-format"], [String: String]()), (["--error-format", "xml", "doctor"], [:]),
+    @Test func formatSelectionPrefersTheOptionOverTheEnvironment() throws {
+        #expect(try ErrorFormat.select(nil, environment: [:]) == .text)
+        #expect(try ErrorFormat.select(.json, environment: [:]) == .json)
+        #expect(try ErrorFormat.select(nil, environment: ["MANZANERO_ERROR_FORMAT": "json"]) == .json)
+        #expect(try ErrorFormat.select(nil, environment: ["MANZANERO_ERROR_FORMAT": ""]) == .text)
+        #expect(try ErrorFormat.select(.text, environment: ["MANZANERO_ERROR_FORMAT": "json"]) == .text)
+        #expect(throws: CommandFailure.self) { try ErrorFormat.select(nil, environment: ["MANZANERO_ERROR_FORMAT": "yaml"]) }
+    }
+
+    /// A parse failure leaves no parsed option, so the raw arguments are scanned.
+    @Test func formatScanFindsTheOptionAnywhereBeforeTheTerminator() throws {
+        #expect(try ErrorFormat.scan(["tap", "0.5", "0.5", "--device", "U"], environment: [:]) == .text)
+        #expect(try ErrorFormat.scan(["--error-format", "json", "tap", "--device", "U"], environment: [:]) == .json)
+        #expect(try ErrorFormat.scan(["tap", "--device", "U", "--error-format=json"], environment: [:]) == .json)
+        #expect(try ErrorFormat.scan(["doctor", "--error-format", "text"], environment: ["MANZANERO_ERROR_FORMAT": "json"]) == .text)
+        #expect(try ErrorFormat.scan(["type", "--device", "U", "--", "--error-format", "json"], environment: [:]) == .text)
+        for (arguments, environment) in [(["--error-format"], [String: String]()), (["doctor", "--error-format", "xml"], [:]),
                                          (["doctor"], ["MANZANERO_ERROR_FORMAT": "yaml"])] {
-            var copy = arguments
-            #expect(throws: CommandFailure.self) { try ErrorFormat.select(&copy, environment: environment) }
+            #expect(throws: CommandFailure.self) { try ErrorFormat.scan(arguments, environment: environment) }
         }
-        // An option later in the command is an operand, not the global option.
-        args = ["physical", "U", "type", "--error-format"]
-        #expect(try ErrorFormat.select(&args, environment: [:]) == .text && args.count == 4)
     }
 
     // MARK: MCP
@@ -147,11 +146,11 @@ struct CommandFailureTests {
         (["frobnicate"], "Unknown command. Run manzanero --help.", "usage"),
         (["physical", "U", "tap", "2", "0.5"], "Physical input coordinates must be normalized numbers from 0 to 1.", "usage"),
         (["physical", "U", "button", "power"], "Supported physical buttons: home, lock, volume-up, volume-down.", "usage"),
-        (["simulator", "U", "tap", "0.5", "0.5"], "Simulator tap requires the simulator's UUID (see devices simulators); names and 'booted' are not accepted.", "usage"),
+        (["simulator", "U", "tap", "0.5", "0.5"], "Simulator tap requires the simulator's UUID (see devices --simulators); names and 'booted' are not accepted.", "usage"),
         (["simulator", "11111111-2222-3333-4444-555555555555", "wake"], "Simulator wake is not implemented yet; simulator input covers touch with one to five contacts, gesture sequences, button, key and type. Wake remains physical-only. No input sent.", "unsupported-operation"),
         (["physical", "U", "frobnicate"], "Unsupported physical-device operation: frobnicate.", "unsupported-operation"),
         (["--physical-backend", "helper", "physical", "U", "tap", "0.5", "0.5"], "Unsupported physical backend: helper. coredevice is the only physical backend and the default; --physical-backend may be omitted.", "unsupported-operation"),
-        (["physical", "U", "wait-id", "sel", "--timeout", "99"], "--timeout must be a number of seconds in 0...60. Native AX wait usage: wait-id|wait-label [positive-pid] <exact-selector> [--until visible|gone|enabled|disabled|value] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>].", "usage"),
+        (["physical", "U", "wait-id", "sel", "--timeout", "99"], "--timeout must be a number of seconds in 0...60. Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--until visible|gone|enabled|disabled|value] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>].", "usage"),
         (["physical", "U", "gesture", #"{"frames":[{"ms":0,"touches":[]}]}"#], "Gesture requires 2...512 frames, starting at ms=0 with a touch and ending with touches:[].", "usage"),
     ])
     func parseFailuresKeepTheirTextAndSayNothingWasSent(_ args: [String], _ message: String, _ code: String) async throws {

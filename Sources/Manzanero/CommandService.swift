@@ -53,6 +53,16 @@ actor CommandService {
         try report.requireDeveloperMode(operation: operation)
     }
 
+    /// A command line in the CLI's grammar, parsed by the CLI's parser: how MCP
+    /// tools run. `dryRun` adds to a parsed `--dry-run`. The environment never
+    /// supplies the target.
+    func run(_ arguments: [String], dryRun: Bool = false, allowInteractive: Bool = false,
+             handoffConfirmation: (@Sendable (HandoffCommand) async throws -> HandoffStatus)? = nil) async throws -> CommandOutput {
+        let invocation = try CLI.invocation(arguments)
+        return try await execute(invocation.arguments, dryRun: dryRun || invocation.dryRun, allowInteractive: allowInteractive,
+                                 handoffConfirmation: handoffConfirmation)
+    }
+
     func execute(_ args: [String], dryRun: Bool = false, allowInteractive: Bool = false,
                  handoffConfirmation: (@Sendable (HandoffCommand) async throws -> HandoffStatus)? = nil) async throws -> CommandOutput {
         do {
@@ -209,7 +219,7 @@ actor CommandService {
             return CommandOutput(data: try DirectPhysicalInput.execute(native, query: query))
         }
         if args.count >= 3, args[0] == "physical", DirectAccessibilitySetValue.operations.contains(args[2]) {
-            throw CommandFailure.unsupported("Physical \(args[2]) is not enabled: the accessibility set-value request has been verified only on simulators. For Unicode text on a physical device use paste. No input sent.")
+            throw CommandFailure.unsupported("Physical set-value is not enabled: the accessibility set-value request has been verified only on simulators. For Unicode text on a physical device use paste. No input sent.")
         }
         if let simulator = try SimulatorInput.parse(args) {
             if dryRun { return try json(simulator.plan()) }

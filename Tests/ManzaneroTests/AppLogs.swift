@@ -668,17 +668,19 @@ struct AppDiagnosticsMCPTests {
         #expect(readOnly == [true, true, false])
         let logArgs = try tool("capture_logs").command(["device": .string(uuid), "seconds": 10, "bundle_id": "com.example.app", "level": "debug",
                                                         "subsystem": "com.example.app", "category": "probe", "max_entries": 3])
-        #expect(logArgs == ["simulator", uuid, "logs", "--seconds", "10", "--max-entries", "3", "--bundle", "com.example.app",
-                            "--subsystem", "com.example.app", "--category", "probe", "--level", "debug"])
-        guard case .logs(let parsed) = try AppDiagnosticsCommand.parse(logArgs) else { Issue.record("not logs"); return }
+        #expect(logArgs == ["logs", "--simulator=\(uuid)", "--seconds=10", "--max-entries=3", "--bundle=com.example.app",
+                            "--subsystem=com.example.app", "--category=probe", "--level=debug"])
+        guard case .logs(let parsed) = try AppDiagnosticsCommand.parse(legacy(logArgs)) else { Issue.record("not logs"); return }
         #expect(parsed.maxEntries == 3 && parsed.level == .debug)
         let consoleArgs = try tool("capture_console").command(["platform": "simulator", "device": .string(uuid), "bundle_id": "a.b", "seconds": 5,
                                                                "os_log": true, "terminate": false, "app_arguments": ["-probeLogToken", "T1"]])
-        #expect(consoleArgs == ["simulator", uuid, "console", "a.b", "--seconds", "5", "--os-log", "--", "-probeLogToken", "T1"])
-        guard case .console(let consoleParsed) = try AppDiagnosticsCommand.parse(consoleArgs) else { Issue.record("not console"); return }
+        #expect(consoleArgs == ["console", "--simulator=\(uuid)", "--seconds=5", "--os-log", "a.b", "--", "-probeLogToken", "T1"])
+        #expect(try legacy(consoleArgs) == ["simulator", uuid, "console", "a.b", "--seconds", "5", "--os-log", "--", "-probeLogToken", "T1"])
+        guard case .console(let consoleParsed) = try AppDiagnosticsCommand.parse(legacy(consoleArgs)) else { Issue.record("not console"); return }
         #expect(consoleParsed.appArguments == ["-probeLogToken", "T1"])
         let crashArgs = try tool("latest_crash").command(["platform": "physical", "device": "phone", "process": "Example", "since": "2026-01-01T00:00:00Z"])
-        #expect(crashArgs == ["physical", "phone", "last-crash", "--process", "Example", "--since", "2026-01-01T00:00:00Z"])
+        #expect(crashArgs == ["last-crash", "--device=phone", "--process=Example", "--since=2026-01-01T00:00:00Z"])
+        #expect(try legacy(crashArgs) == ["physical", "phone", "last-crash", "--process", "Example", "--since", "2026-01-01T00:00:00Z"])
     }
 
     @Test func schemasRejectWrongTypes() throws {

@@ -113,7 +113,7 @@ struct KeyedArchiveInspectorTests {
         let expected = try KeyedArchiveInspector.inspect(bytes)
         #expect(cli.data == expected)
         let mcp = try await MCPTools.call(name: "decode_accessibility_archive", arguments: ["path": .string(path)]) {
-            try await service.execute($0)
+            try await service.run($0)
         }
         #expect(mcp.isError == false)
     }

@@ -30,11 +30,11 @@ struct NativeTouchFramesTests {
         let arguments: [String: MCP.Value] = ["device": .string(fixture.udid),
             "center_x": .double(0.5), "center_y": .double(0.5), "start_span": .double(0.2), "end_span": .double(0.6), "seconds": .double(0.5)]
         let pinchArgs = try tool.command(arguments)
-        #expect(Array(pinchArgs.prefix(3)) == ["physical", fixture.udid, "pinch"])
-        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(pinchArgs))?.operation == "pinch")
+        #expect(Array(pinchArgs.prefix(2)) == ["pinch", "--device=\(fixture.udid)"])
+        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(pinchArgs)))?.operation == "pinch")
         let multi = try #require(MCPTools.definitions.first { $0.name == "multi_drag" })
         let multiArgs = try multi.command(["device": .string(fixture.udid), "seconds": 0.5,
             "paths": .array([0.2, 0.3, 0.4, 0.3, 0.8, 0.3, 0.6, 0.3])])
-        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(multiArgs))?.operation == "multi-drag")
+        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(multiArgs)))?.operation == "multi-drag")
     }
 }

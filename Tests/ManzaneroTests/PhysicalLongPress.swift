@@ -21,9 +21,9 @@ struct PhysicalLongPressTests {
         let tool = try #require(MCPTools.definitions.first { $0.name == "long_press" })
         #expect(tool.readOnly == false)
         let args = try tool.command(["device": .string(fixture.udid), "x": 0.25, "y": 0.75, "seconds": 0.8])
-        #expect(try CoreDeviceInput.parse(args)?.operation == "long-press")
+        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(args)))?.operation == "long-press")
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() })
-        let result = try await service.execute(args, dryRun: true)
+        let result = try await service.run(args, dryRun: true)
         #expect(String(decoding: result.data, as: UTF8.self).contains("coredevice-direct"))
     }
 }

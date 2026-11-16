@@ -77,7 +77,7 @@ struct NativeMediaInspectionTests {
         #expect(value["readOnly"] as? Bool == true && value["operation"] as? String == "media-status")
         let tool = try #require(MCPTools.definitions.first { $0.name == "inspect_device" })
         #expect(tool.readOnly)
-        #expect(try tool.command(["platform": "physical", "device": "fixture", "query": "media-status"]) == ["physical", "fixture", "media-status"])
+        #expect(try tool.command(["platform": "physical", "device": "fixture", "query": "media-status"]) == ["media-status", "--device=fixture"])
         #expect(throws: CommandFailure.self) { try NativeMediaInspection.parse(["physical", "fixture", "media-status", "stop"]) }
         let disabled = try DeviceReadinessTests().fixture(mode: "disabled")
         #expect(throws: CommandFailure.self) { try NativeMediaInspection.execute(device: "fixture", query: { _ in disabled }) }

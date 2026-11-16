@@ -63,10 +63,11 @@ struct NativeVideoTests {
     @Test func nativeRecordingRoutingIsExplicitAndDryRunDoesNotQueryDevice() async throws {
         let tool = try #require(MCPTools.definitions.first { $0.name == "record_screen" })
         let args = try tool.command(["platform": "physical", "device": "phone", "path": "tmp/native.mp4", "seconds": 2, "recording_backend": "coredevice"])
-        let command = try #require(try RecordingCommand.parse(args))
+        #expect(args == ["record", "--device=phone", "--backend=coredevice", "--", "tmp/native.mp4", "2", "h264"])
+        let command = try #require(try RecordingCommand.parse(legacy(args)))
         #expect(command.native)
         #expect(throws: CommandFailure.self) { try command.command(staging: URL(fileURLWithPath: "tmp/unused")) }
-        let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).execute(args, dryRun: true)
+        let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).run(args, dryRun: true)
         #expect(String(decoding: dry.data, as: UTF8.self).contains("AVFoundation"))
         #expect(throws: CommandFailure.self) { try RecordingCommand.parse(["--recording-backend", "coredevice", "simulator", RecordingCommandTests().simulator, "record", "tmp/no.mp4", "2"]) }
     }

@@ -410,8 +410,8 @@ struct SimulatorInputTests {
             (["button", "side"], "Supported simulator buttons: home, lock, volume-up, volume-down; no input sent."),
             (["button"], "Supported simulator buttons: home, lock, volume-up, volume-down; no input sent."),
             (["key", "f1"], "Unknown simulator keyboard key. See --help."),
-            (["type", "mañana"], "Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value-id or set-value-label, which replace a named element's whole value. No input sent."),
-            (["type", String(repeating: "a", count: 513)], "Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value-id or set-value-label, which replace a named element's whole value. No input sent."),
+            (["type", "mañana"], "Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value with --id or --label, which replaces a named element's whole value. No input sent."),
+            (["type", String(repeating: "a", count: 513)], "Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value with --id or --label, which replaces a named element's whole value. No input sent."),
             (["type", "a", "b"], "Simulator typing expects one text operand.")
         ]
         for (operands, message) in invalid {

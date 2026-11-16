@@ -22,9 +22,10 @@ struct PhysicalScrollTests {
         let tool = try #require(MCPTools.definitions.first { $0.name == "scroll_to_element" })
         #expect(tool.readOnly == false)
         let args = try tool.command(["device": "fixture", "by": "label", "text": "Exact row"])
-        #expect(args == ["physical", "fixture", "scroll-label", "Exact row"])
+        #expect(args == ["scroll", "--device=fixture", "--label=Exact row"])
+        #expect(try legacy(args) == ["physical", "fixture", "scroll-label", "Exact row"])
         let explicit = try tool.command(["device": "fixture", "by": "identifier", "text": "fixture.row", "pid": 123])
-        #expect(explicit == ["physical", "fixture", "scroll-id", "123", "fixture.row"])
+        #expect(try legacy(explicit) == ["physical", "fixture", "scroll-id", "123", "fixture.row"])
     }
 
     @Test func disabledModePreventsScrollAndDryRunQueriesNothing() async throws {

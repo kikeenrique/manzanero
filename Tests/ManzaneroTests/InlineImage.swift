@@ -200,7 +200,7 @@ struct InlineImageTests {
             arguments.merge(extra) { $1 }
             return try await MCPTools.call(name: "screenshot", arguments: arguments, execute: { command in
                 // The image options shape the result only; they never reach the CLI.
-                #expect(command == ["physical", "fixture", "screenshot", url.path])
+                #expect(command == ["screenshot", "--device=fixture", "--", url.path])
                 return CommandOutput(data: Data("{\"ok\":true}".utf8))
             })
         }

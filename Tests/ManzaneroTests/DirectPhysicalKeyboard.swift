@@ -49,7 +49,7 @@ struct DirectPhysicalKeyboardTests {
         let tool = try #require(MCPTools.definitions.first { $0.name == "press_key" })
         let args = try tool.command(["device": .string(CoreDeviceInputTests().udid), "key": "backspace"])
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() })
-        let output = try await service.execute(args, dryRun: true)
+        let output = try await service.run(args, dryRun: true)
         let plan = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
         #expect(plan["backend"] as? String == "coredevice-direct")
         #expect(plan["operation"] as? String == "key")

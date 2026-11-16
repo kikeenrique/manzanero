@@ -1,0 +1,534 @@
+import ArgumentParser
+
+// One type per operation. Each declares its operands and options, and says in
+// `legacyOperation` (or `legacyArguments`) what the command service runs.
+// Operands stay text here: the operations' own validators convert and check
+// them, so their messages do not depend on the parser.
+
+private let receiptCaveat = "A receipt reports what was sent, not what the app did; inspect the screen afterward."
+private let coordinateNote = "Coordinates are normalized 0...1 from the top left of the current interface."
+
+extension ManzaneroCLI {
+    // MARK: Touch and keys
+
+    struct Tap: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "tap", abstract: "Tap one point.",
+                                                        discussion: "\(coordinateNote) \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Normalized x, 0...1.") var x: String
+        @Argument(help: "Normalized y, 0...1.") var y: String
+        var legacyOperation: [String] { ["tap", x, y] }
+    }
+
+    struct LongPress: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "long-press", abstract: "Hold one touch, then release.",
+                                                        discussion: "\(coordinateNote) \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Normalized x, 0...1.") var x: String
+        @Argument(help: "Normalized y, 0...1.") var y: String
+        @Argument(help: "Hold duration, 0.1...10 seconds.") var seconds: String
+        var legacyOperation: [String] { ["long-press", x, y, seconds] }
+    }
+
+    /// The operands of `swipe` and `drag`, which are one movement.
+    struct PathOperands: ParsableArguments {
+        @Argument(help: "Normalized start x.") var x1: String
+        @Argument(help: "Normalized start y.") var y1: String
+        @Argument(help: "Normalized end x.") var x2: String
+        @Argument(help: "Normalized end y.") var y2: String
+        @Argument(help: "Duration, 0.03...10 seconds.") var seconds: String
+        var values: [String] { [x1, y1, x2, y2, seconds] }
+    }
+
+    struct Swipe: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "swipe", abstract: "Move one contact in a straight line (same as drag).",
+                                                        discussion: "\(coordinateNote) \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @OptionGroup var path: PathOperands
+        var legacyOperation: [String] { ["swipe"] + path.values }
+    }
+
+    struct Drag: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "drag", abstract: "Move one contact in a straight line (same as swipe).",
+                                                        discussion: "\(coordinateNote) \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @OptionGroup var path: PathOperands
+        var legacyOperation: [String] { ["drag"] + path.values }
+    }
+
+    struct Pinch: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "pinch", abstract: "Pinch or spread two horizontal contacts.",
+            discussion: "Spans are fractions of the screen width and must differ; a smaller end span pinches in. \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Normalized centre x.") var centerX: String
+        @Argument(help: "Normalized centre y.") var centerY: String
+        @Argument(help: "Start span, a positive fraction of the width.") var startSpan: String
+        @Argument(help: "End span, a positive fraction of the width.") var endSpan: String
+        @Argument(help: "Duration, 0.03...10 seconds.") var seconds: String
+        var legacyOperation: [String] { ["pinch", centerX, centerY, startSpan, endSpan, seconds] }
+    }
+
+    struct MultiTap: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "multi-tap", abstract: "Touch two to five points at once, then release after 80 ms.",
+                                                        discussion: "\(coordinateNote) \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: ArgumentHelp("Two to five x y pairs.", valueName: "x y")) var coordinates: [String]
+        var legacyOperation: [String] { ["multi-tap"] + coordinates }
+    }
+
+    struct MultiDrag: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "multi-drag", abstract: "Move two to five contacts along straight paths.",
+            discussion: "Each path is start-x start-y end-x end-y. Two crossing or overlapping paths are refused. \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Duration, 0.03...10 seconds.") var seconds: String
+        @Argument(help: ArgumentHelp("Two to five paths of four normalized numbers.", valueName: "path")) var paths: [String]
+        var legacyOperation: [String] { ["multi-drag", seconds] + paths }
+    }
+
+    struct Gesture: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "gesture", abstract: "Send one touch sequence of up to five contacts.",
+            discussion: "The sequence is JSON: {\"frames\":[{\"ms\":0,\"touches\":[{\"id\":0,\"x\":0.5,\"y\":0.5}]},…]}. See docs/gesture-sequences.md. \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "The JSON sequence.") var sequence: String
+        var legacyOperation: [String] { ["gesture", sequence] }
+    }
+
+    struct Button: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "button", abstract: "Press a hardware button.",
+                                                        discussion: "lock toggles the display. \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: ArgumentHelp("home, lock, volume-up or volume-down.", valueName: "button"),
+                  completion: .list(["home", "lock", "volume-up", "volume-down"])) var name: String
+        var legacyOperation: [String] { ["button", name] }
+    }
+
+    struct Key: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "key", abstract: "Press one named key at the current focus.", discussion: receiptCaveat)
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: ArgumentHelp("return, escape, backspace, tab, space, up, down, left or right.", valueName: "key"),
+                  completion: .list(["return", "escape", "backspace", "tab", "space", "up", "down", "left", "right"])) var name: String
+        var legacyOperation: [String] { ["key", name] }
+    }
+
+    struct TypeText: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "type", abstract: "Type US-layout ASCII text at the current focus.",
+            discussion: "1...512 printable ASCII characters, tab or newline, as keyboard events; the clipboard is untouched. For other text use paste (physical) or set-value (simulator). \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "The text; put -- before text that begins with '-'.") var text: String
+        var legacyOperation: [String] { ["type", text] }
+    }
+
+    struct Paste: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "paste", abstract: "Paste Unicode text at the focused field (physical devices).",
+            discussion: "Replaces the device clipboard with the text and does not restore it, then pastes once at the focused caret or selection. \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "1...65536 UTF-8 bytes without NUL.") var text: String
+        var legacyOperation: [String] { ["paste", text] }
+    }
+
+    struct Wake: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "wake", abstract: "Wake a physical device whose display is off.",
+            discussion: "Presses the side button once, only if the display reads off twice, then Home once to leave the lock screen when no passcode is required. No press when the display is on or unknown; never enters a passcode.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Flag(help: "Do not press Home to leave the lock screen.") var noDismiss = false
+        var legacyOperation: [String] { ["wake"] + (noDismiss ? ["--no-dismiss"] : []) }
+    }
+
+    // MARK: Accessibility
+
+    struct Tree: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "tree", abstract: "Read the accessibility tree of one application.",
+            discussion: "Without --pid: on a device the application at the primary display's centre, on a simulator the frontmost application.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Option(help: ArgumentHelp("Positive PID of the application to read.", valueName: "pid")) var pid: String?
+        var legacyOperation: [String] { ["tree"] + (pid.map { [$0] } ?? []) }
+    }
+
+    struct Press: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "press", abstract: "Press one element by exact identifier or label.",
+            discussion: "Two fresh unique snapshots and live state, frame and hit checks precede one accessibility press. \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @OptionGroup var selector: SelectorOptions
+        var legacyOperation: [String] { selector.legacy("press") }
+    }
+
+    struct Scroll: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "scroll", abstract: "Scroll one element into view by exact identifier or label.",
+            discussion: "The element must already be in the snapshot. Visibility is observed afterward and reported separately.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @OptionGroup var selector: SelectorOptions
+        var legacyOperation: [String] { selector.legacy("scroll") }
+    }
+
+    struct Wait: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "wait", abstract: "Wait, read-only, until an element meets a condition.",
+            discussion: "visible (default) needs exactly one visible match; gone means no match or none visible; value needs --value. Exits 0 when met and 124 on timeout, with JSON on stdout either way. Sends no input.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @OptionGroup var selector: SelectorOptions
+        @Option(help: ArgumentHelp("visible, gone, enabled, disabled or value.", valueName: "condition"),
+                completion: .list(AccessibilityWait.conditionNames)) var until: String?
+        @Option(parsing: .unconditional, help: ArgumentHelp("Exact expected value, for --until value.", valueName: "text")) var value: String?
+        @Option(help: ArgumentHelp("Seconds, 0...60 (default 10).", valueName: "seconds")) var timeout: String?
+        @Option(help: ArgumentHelp("Seconds between polls, 0.25...5 (default 0.5).", valueName: "seconds")) var interval: String?
+        var legacyOperation: [String] {
+            selector.legacy("wait") + [("--until", until), ("--value", value), ("--timeout", timeout), ("--interval", interval)]
+                .flatMap { name, value in value.map { [name, $0] } ?? [] }
+        }
+    }
+
+    struct SetValue: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "set-value", abstract: "Replace an element's whole value with Unicode text (simulators).",
+            discussion: "Selection and guards are those of press; the element must report its value settable. No keyboard or clipboard is used; the value is read back once.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @OptionGroup var selector: SelectorOptions
+        @Argument(help: "The new value, 1...65536 UTF-8 bytes without NUL.") var text: String
+        var legacyOperation: [String] { selector.legacy("set-value") + [text] }
+    }
+
+    // MARK: Screen
+
+    struct Screenshot: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "screenshot", abstract: "Save a PNG screenshot.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Output path ending in .png.", completion: .file(extensions: ["png"])) var output: String
+        var legacyOperation: [String] { ["screenshot", output] }
+    }
+
+    struct Screen: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "screen", abstract: "Capture the screen and describe it through accessibility or OCR.",
+            discussion: "auto prefers a useful accessibility tree, then Vision OCR, and reports image-only when both fail.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "auto (default), tree or ocr.", completion: .list(["auto", "tree", "ocr"])) var mode: String?
+        var legacyOperation: [String] { ["screen"] + (mode.map { [$0] } ?? []) }
+    }
+
+    struct Record: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "record", abstract: "Record the screen to a new MP4 file.",
+            discussion: "The destination must not exist and its parent directory must. --backend coredevice records a physical device in process (macOS 26+).")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "New output path ending in .mp4.", completion: .file(extensions: ["mp4"])) var output: String
+        @Argument(help: "Duration, 1...300 seconds.") var seconds: String
+        @Argument(help: "h264 (default) or hevc.", completion: .list(["h264", "hevc"])) var codec: String?
+        @Option(help: ArgumentHelp("Physical recording backend: devicectl (default) or coredevice.", valueName: "backend"),
+                completion: .list(["devicectl", "coredevice"])) var backend: String?
+        var legacyOperation: [String] { ["record", output, seconds] + (codec.map { [$0] } ?? []) }
+        func legacyArguments(environment: [String: String]) throws -> [String] {
+            let target = try target.resolve(environment)
+            return (backend.map { ["--recording-backend", $0] } ?? []) + [target.platform.rawValue, target.identifier] + legacyOperation
+        }
+    }
+
+    // MARK: Apps and files
+
+    struct Apps: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "apps", abstract: "List installed apps.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        var legacyOperation: [String] { ["apps"] }
+    }
+
+    struct Launch: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "launch", abstract: "Launch an app.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Bundle identifier.") var bundleID: String
+        var legacyOperation: [String] { ["launch", bundleID] }
+    }
+
+    struct Terminate: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "terminate", abstract: "Terminate an app.",
+                                                        discussion: "A device takes a PID (see processes); a simulator a bundle identifier.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: ArgumentHelp("PID (device) or bundle identifier (simulator).", valueName: "pid-or-bundle-id")) var app: String
+        var legacyOperation: [String] { ["terminate", app] }
+    }
+
+    struct Install: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "install", abstract: "Install an app bundle.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Path of the .app.", completion: .directory) var appPath: String
+        var legacyOperation: [String] { ["install", appPath] }
+    }
+
+    struct Uninstall: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "uninstall", abstract: "Uninstall an app and delete its data.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Bundle identifier.") var bundleID: String
+        var legacyOperation: [String] { ["uninstall", bundleID] }
+    }
+
+    struct OpenURL: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "open-url", abstract: "Open a URL.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "An absolute URL with a scheme.") var url: String
+        var legacyOperation: [String] { ["open-url", url] }
+    }
+
+    struct Files: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "files", abstract: "List or copy files in an app's data container (physical devices).",
+            discussion: "Remote paths are relative to the container; '.' is its root. Copies may overwrite the destination.",
+            subcommands: [List.self, Pull.self, Push.self])
+
+        struct List: TargetedCommand {
+            static let configuration = CommandConfiguration(commandName: "list", abstract: "List one directory, without recursion.")
+            @OptionGroup var target: TargetOptions
+            @OptionGroup var common: CommonOptions
+            @Argument(help: "Bundle identifier.") var bundleID: String
+            @Argument(help: "Relative directory; '.' for the root.") var remotePath: String
+            var legacyOperation: [String] { ["files", bundleID, remotePath] }
+        }
+
+        struct Pull: TargetedCommand {
+            static let configuration = CommandConfiguration(commandName: "pull", abstract: "Copy a file from the container to the Mac.")
+            @OptionGroup var target: TargetOptions
+            @OptionGroup var common: CommonOptions
+            @Argument(help: "Bundle identifier.") var bundleID: String
+            @Argument(help: "Relative path in the container.") var remotePath: String
+            @Argument(help: "Destination on the Mac.", completion: .file()) var localPath: String
+            var legacyOperation: [String] { ["pull", bundleID, remotePath, localPath] }
+        }
+
+        struct Push: TargetedCommand {
+            static let configuration = CommandConfiguration(commandName: "push", abstract: "Copy a file from the Mac into the container.")
+            @OptionGroup var target: TargetOptions
+            @OptionGroup var common: CommonOptions
+            @Argument(help: "Bundle identifier.") var bundleID: String
+            @Argument(help: "Source on the Mac.", completion: .file()) var localPath: String
+            @Argument(help: "Relative path in the container.") var remotePath: String
+            var legacyOperation: [String] { ["push", bundleID, localPath, remotePath] }
+        }
+    }
+
+    struct Reports: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "reports", abstract: "List or download saved crash and diagnostic reports (physical devices).",
+            discussion: "Paths are relative to the device's crash logs; '.' is their root.",
+            subcommands: [List.self, Get.self])
+
+        struct List: TargetedCommand {
+            static let configuration = CommandConfiguration(commandName: "list", abstract: "List one directory of reports, without recursion.")
+            @OptionGroup var target: TargetOptions
+            @OptionGroup var common: CommonOptions
+            @Argument(help: "Relative directory (default '.').") var directory: String?
+            var legacyOperation: [String] { ["reports"] + (directory.map { [$0] } ?? []) }
+        }
+
+        struct Get: TargetedCommand {
+            static let configuration = CommandConfiguration(commandName: "get", abstract: "Download one report to the Mac.",
+                                                            discussion: "May overwrite the destination.")
+            @OptionGroup var target: TargetOptions
+            @OptionGroup var common: CommonOptions
+            @Argument(help: "Relative report path.") var remotePath: String
+            @Argument(help: "Destination on the Mac.", completion: .file()) var localPath: String
+            var legacyOperation: [String] { ["report", remotePath, localPath] }
+        }
+    }
+
+    struct BuildRun: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "build-run", abstract: "Build an iOS project or workspace, then install and launch its app.",
+            discussion: """
+            Runs the project's build scripts and requires xcsift on PATH. Physical builds use the signing assets \
+            already on the Mac. --allow-provisioning-updates lets Xcode use the account in its settings to create \
+            or change certificates, app IDs and profiles on Apple's developer services; \
+            --allow-device-registration also registers the device with the team. Both are physical-only and off by default.
+            """)
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "An .xcodeproj or .xcworkspace.", completion: .file(extensions: ["xcodeproj", "xcworkspace"])) var project: String
+        @Argument(help: "The scheme to build.") var scheme: String
+        @Option(help: "Build configuration (default Debug).") var configuration: String?
+        @Option(help: ArgumentHelp("The application target, when the scheme builds several.", valueName: "name")) var appTarget: String?
+        @Flag(help: "Let Xcode create or update signing assets on Apple's developer services (physical).") var allowProvisioningUpdates = false
+        @Flag(help: "Also let Xcode register this device with the team; needs --allow-provisioning-updates.") var allowDeviceRegistration = false
+        var legacyOperation: [String] {
+            ["build-run", project, scheme] + (configuration.map { ["--configuration", $0] } ?? []) + (appTarget.map { ["--app-target", $0] } ?? [])
+                + (allowProvisioningUpdates ? [BuildRunCommand.provisioningUpdatesFlag] : [])
+                + (allowDeviceRegistration ? [BuildRunCommand.deviceRegistrationFlag] : [])
+        }
+    }
+
+    // MARK: Diagnostics
+
+    struct Logs: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "logs", abstract: "Capture one app's unified-log entries (simulators).",
+            discussion: """
+            Give one time selection (--seconds, --last, or --start with optional --end) and one target (--bundle, \
+            --pid or --process). Apple's log tool runs in the simulator with a predicate built from these fields; \
+            --last and --start read persisted entries, which exclude debug. Messages can contain private data.
+            """)
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Option(help: ArgumentHelp("Stream from now for 1...60 seconds.", valueName: "seconds")) var seconds: String?
+        @Option(help: ArgumentHelp("Read the last 1...3600 seconds of persisted entries.", valueName: "seconds")) var last: String?
+        @Option(help: ArgumentHelp("ISO-8601 start of a persisted window.", valueName: "date")) var start: String?
+        @Option(help: ArgumentHelp("ISO-8601 end of the window; needs --start.", valueName: "date")) var end: String?
+        @Option(help: ArgumentHelp("Bundle identifier of the app.", valueName: "bundle-id")) var bundle: String?
+        @Option(help: ArgumentHelp("PID of the app.", valueName: "pid")) var pid: String?
+        @Option(help: ArgumentHelp("Process name of the app.", valueName: "name")) var process: String?
+        @Option(help: ArgumentHelp("Only this subsystem.", valueName: "subsystem")) var subsystem: String?
+        @Option(help: ArgumentHelp("Only this category; needs --subsystem.", valueName: "category")) var category: String?
+        @Option(help: ArgumentHelp("default (default), info or debug.", valueName: "level"),
+                completion: .list(LogCapture.Level.allCases.map(\.rawValue))) var level: String?
+        @Option(help: ArgumentHelp("At most this many entries (default 2000, at most 10000).", valueName: "n")) var maxEntries: String?
+        @Option(help: ArgumentHelp("At most this many bytes (default 1 MiB, at most 8 MiB).", valueName: "n")) var maxBytes: String?
+        @Option(help: ArgumentHelp("Write every kept entry as NDJSON to this new file.", valueName: "path"), completion: .file()) var output: String?
+        var legacyOperation: [String] {
+            ["logs"] + [("--seconds", seconds), ("--last", last), ("--start", start), ("--end", end), ("--bundle", bundle),
+                        ("--pid", pid), ("--process", process), ("--subsystem", subsystem), ("--category", category),
+                        ("--level", level), ("--max-entries", maxEntries), ("--max-bytes", maxBytes), ("--output", output)]
+                .flatMap { name, value in value.map { [name, $0] } ?? [] }
+        }
+    }
+
+    struct Console: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "console", abstract: "Relaunch an app and return the tails of its stdout and stderr.",
+            discussion: """
+            Arguments after -- are passed to the app. --os-log mirrors its os_log lines (info and above) to \
+            stderr. Simulator: output goes to files under tmp/ and the app keeps running unless --terminate. \
+            Physical: the app is ended by SIGINT at the duration. Launches an app, so it is not read-only.
+            """)
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Bundle identifier.") var bundleID: String
+        @Option(help: ArgumentHelp("Capture duration, 1...60 seconds.", valueName: "seconds")) var seconds: String
+        @Option(help: ArgumentHelp("Bytes kept per stream, 1024...1048576 (default 65536).", valueName: "n")) var maxBytes: String?
+        @Flag(help: "Mirror the app's os_log lines to its stderr.") var osLog = false
+        @Flag(help: "Simulator: terminate the app at the end.") var terminate = false
+        @Argument(parsing: .postTerminator, help: ArgumentHelp("Arguments for the app, after --.", valueName: "app-argument")) var appArguments: [String] = []
+        var legacyOperation: [String] {
+            ["console", bundleID, "--seconds", seconds] + (maxBytes.map { ["--max-bytes", $0] } ?? [])
+                + (osLog ? ["--os-log"] : []) + (terminate ? ["--terminate"] : []) + (appArguments.isEmpty ? [] : ["--"] + appArguments)
+        }
+    }
+
+    struct LastCrash: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "last-crash", abstract: "Summarise the newest crash report for one app.",
+            discussion: "Give exactly one of --bundle or --process. Simulator reports are read from the Mac; device reports are listed and downloaded through reports.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Option(help: ArgumentHelp("Bundle identifier of the app.", valueName: "bundle-id")) var bundle: String?
+        @Option(help: ArgumentHelp("Process name of the app.", valueName: "name")) var process: String?
+        @Option(help: ArgumentHelp("Ignore reports older than this ISO-8601 date.", valueName: "date")) var since: String?
+        @Option(help: ArgumentHelp("Copy the report into this existing directory.", valueName: "dir"), completion: .directory) var download: String?
+        var legacyOperation: [String] {
+            ["last-crash"] + [("--bundle", bundle), ("--process", process), ("--since", since), ("--download", download)]
+                .flatMap { name, value in value.map { [name, $0] } ?? [] }
+        }
+    }
+
+    // MARK: Device state
+
+    struct Devices: CLICommand {
+        static let configuration = CommandConfiguration(commandName: "devices", abstract: "List physical devices, or simulators, as JSON.")
+        @OptionGroup var common: CommonOptions
+        @Flag(help: "List available simulators instead of physical devices.") var simulators = false
+        func legacyArguments(environment: [String: String]) throws -> [String] { ["devices", simulators ? "simulators" : "physical"] }
+    }
+
+    struct Details: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "details", abstract: "Show CoreDevice details (physical devices).")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        var legacyOperation: [String] { ["details"] }
+    }
+
+    struct Processes: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "processes", abstract: "List running processes (physical devices).")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        var legacyOperation: [String] { ["processes"] }
+    }
+
+    struct Readiness: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "readiness", abstract: "Check CoreDevice prerequisites and observe display and passcode state (physical devices).",
+            discussion: "Exits 1 unless the prerequisites are present. Does not verify UI Automation or prove that the UI is unlocked.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        var legacyOperation: [String] { ["readiness"] }
+    }
+
+    struct MediaStatus: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "media-status", abstract: "Read native media support and status (physical devices).",
+                                                        discussion: "Never starts or stops a stream.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        var legacyOperation: [String] { ["media-status"] }
+    }
+
+    struct Boot: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "boot", abstract: "Boot a simulator.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        var legacyOperation: [String] { ["boot"] }
+    }
+
+    struct Shutdown: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "shutdown", abstract: "Shut down a simulator; running apps are interrupted.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        var legacyOperation: [String] { ["shutdown"] }
+    }
+
+    struct Handoff: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "handoff", abstract: "Ask a person to do a step on the device, then wait for their answer.",
+            discussion: "Automation of this device pauses until the person answers in the terminal. The answer is not verified on the device. Do not put secrets in the message.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "What the person should do, 1...2048 UTF-8 bytes.") var message: String
+        @Argument(help: "Seconds to wait for the answer, 1...3600 (default 300).") var timeout: String?
+        var legacyOperation: [String] { ["handoff", message] + (timeout.map { [$0] } ?? []) }
+    }
+
+    // MARK: Host
+
+    struct Doctor: CLICommand {
+        static let configuration = CommandConfiguration(commandName: "doctor", abstract: "Check Xcode, device services and private interfaces on this Mac.",
+                                                        discussion: "Contacts no device.")
+        @OptionGroup var common: CommonOptions
+        func legacyArguments(environment: [String: String]) throws -> [String] { ["doctor"] }
+    }
+
+    struct OCR: CLICommand {
+        static let configuration = CommandConfiguration(commandName: "ocr", abstract: "Recognize text in an image, with normalized bounds.")
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Image path.", completion: .file()) var imagePath: String
+        func legacyArguments(environment: [String: String]) throws -> [String] { ["ocr", imagePath] }
+    }
+
+    struct DecodeAXArchive: CLICommand {
+        static let configuration = CommandConfiguration(commandName: "decode-ax-archive", abstract: "Inspect a saved accessibility keyed archive offline.")
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Local plist path.", completion: .file()) var path: String
+        func legacyArguments(environment: [String: String]) throws -> [String] { ["decode-ax-archive", path] }
+    }
+
+    struct MCPServe: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "mcp", abstract: "Serve the MCP tools over stdio.",
+            discussion: "End of input, SIGINT or SIGTERM cancels running tools and waits for their cleanup; a forced exit cannot guarantee release.")
+        @OptionGroup var common: CommonOptions
+    }
+}

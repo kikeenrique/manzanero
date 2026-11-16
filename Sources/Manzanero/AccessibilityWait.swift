@@ -55,7 +55,7 @@ struct AccessibilityWait {
               callbackBytes: max(40 * 1024 * 1024, 4 * 1024 * 1024 * maximumPolls))
     }
 
-    private static let usage = "Native AX wait usage: wait-id|wait-label [positive-pid] <exact-selector> [--until visible|gone|enabled|disabled|value] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>]."
+    private static let usage = "Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--until visible|gone|enabled|disabled|value] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>]."
 
     init(_ input: CoreDeviceInput) throws {
         guard Self.operations.contains(input.operation), !input.operands.isEmpty else { throw Self.invalid("") }

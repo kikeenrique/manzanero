@@ -515,11 +515,12 @@ struct AccessibilityWaitTests {
         let schema = try #require(tool.tool.inputSchema.objectValue)
         #expect(Set((schema["required"]?.arrayValue ?? []).compactMap(\.stringValue)) == ["device", "by", "text"])
         #expect(try tool.command(["device": "fixture", "by": "identifier", "text": "fixture.target"])
-            == ["physical", "fixture", "wait-id", "fixture.target"])
+            == ["wait", "--device=fixture", "--id=fixture.target"])
         let full = try tool.command(["device": "fixture", "by": "label", "text": "Done", "pid": 42, "until": "value", "value": "Ready",
                                      "timeout_seconds": 2.5, "interval_seconds": 1])
-        #expect(full == ["physical", "fixture", "wait-label", "42", "Done", "--until", "value", "--value", "Ready", "--timeout", "2.5", "--interval", "1"])
-        let parsed = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(full)))
+        #expect(full == ["wait", "--device=fixture", "--label=Done", "--pid=42", "--until=value", "--value=Ready", "--timeout=2.5", "--interval=1"])
+        #expect(try legacy(full) == ["physical", "fixture", "wait-label", "42", "Done", "--until", "value", "--value", "Ready", "--timeout", "2.5", "--interval", "1"])
+        let parsed = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(full))))
         let wait = try AccessibilityWait(parsed)
         #expect(wait.pid == 42 && wait.condition == .value("Ready") && wait.timeoutMilliseconds == 2500 && wait.intervalMilliseconds == 1000)
         for invalid: [String: Value] in [["device": "fixture", "by": "name", "text": "x"], ["device": "fixture", "by": "label"],
@@ -529,7 +530,7 @@ struct AccessibilityWaitTests {
         }
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried a device"); return Data() })
         let result = try await MCPTools.call(name: "wait_for_element", arguments: ["device": "fixture", "by": "label", "text": "Done", "until": "gone"]) {
-            try await service.execute($0, dryRun: true)
+            try await service.run($0, dryRun: true)
         }
         #expect(result.isError == false)
         #expect(result.structuredContent?.objectValue?["result"]?.objectValue?["operation"] == "wait")

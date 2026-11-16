@@ -68,7 +68,7 @@ struct CommandFailure: Error, CustomStringConvertible {
 
     /// What has to happen before a retry, for `Retry.afterAction`.
     enum Action: String, Sendable, CaseIterable {
-        /// Wake the display (`physical <UDID> wake`) and unlock the device.
+        /// Wake the display (`wake --device <UDID>`) and unlock the device.
         case wake
         /// Wait for the other owner or the person to finish.
         case wait
@@ -83,6 +83,9 @@ struct CommandFailure: Error, CustomStringConvertible {
     let inputSent: InputSent
     let retry: Retry
     let action: Action?
+    /// What the CLI prints instead of `description` in the text format: the
+    /// argument parser's message with the command's usage line.
+    var text: String? = nil
 
     /// An unclassified failure with honest defaults.
     init(description: String) {
@@ -101,7 +104,11 @@ struct CommandFailure: Error, CustomStringConvertible {
     }
 
     /// Wrong arguments; nothing was sent.
-    static func usage(_ description: String) -> Self { Self(.usage, description, inputSent: .none) }
+    static func usage(_ description: String, text: String? = nil) -> Self {
+        var failure = Self(.usage, description, inputSent: .none)
+        failure.text = text
+        return failure
+    }
 
     /// An operation that does not exist here; nothing was sent.
     static func unsupported(_ description: String) -> Self { Self(.unsupportedOperation, description, inputSent: .none) }
@@ -166,6 +173,12 @@ struct CommandFailure: Error, CustomStringConvertible {
         return Self(description: "\(error)")
     }
 
+    /// The CLI's exit status for a failure: 64 (EX_USAGE) when the call was
+    /// wrong, 1 otherwise.
+    static func exitCode(for error: any Error) -> Int32 {
+        classify(error).code == .usage ? 64 : 1
+    }
+
     /// The `error` object shared by the CLI's JSON format and MCP's structured content.
     var fields: [String: String?] {
         ["code": code.rawValue, "message": description, "inputSent": inputSent.rawValue,
@@ -181,18 +194,10 @@ enum ErrorFormat: String, Sendable, CaseIterable {
     static let option = "--error-format"
     static let environmentVariable = "MANZANERO_ERROR_FORMAT"
 
-    /// Removes a leading `--error-format <text|json>` (first, or right after
-    /// `--dry-run`) from `arguments`. The option wins over the environment
-    /// variable; without either the format is text and `arguments` is untouched.
-    static func select(_ arguments: inout [String], environment: [String: String]) throws -> ErrorFormat {
-        let index = arguments.first == "--dry-run" ? 1 : 0
-        if arguments.count > index, arguments[index] == option {
-            guard arguments.count > index + 1, let chosen = ErrorFormat(rawValue: arguments[index + 1]) else {
-                throw CommandFailure.usage("\(option) requires text or json.")
-            }
-            arguments.removeSubrange(index...(index + 1))
-            return chosen
-        }
+    /// The parsed `--error-format`, which wins over the environment variable;
+    /// without either the format is text.
+    static func select(_ chosen: ErrorFormat?, environment: [String: String]) throws -> ErrorFormat {
+        if let chosen { return chosen }
         guard let value = environment[environmentVariable], !value.isEmpty else { return .text }
         guard let chosen = ErrorFormat(rawValue: value) else {
             throw CommandFailure.usage("\(environmentVariable) must be text or json.")
@@ -200,11 +205,29 @@ enum ErrorFormat: String, Sendable, CaseIterable {
         return chosen
     }
 
+    /// The format for a failure to parse the arguments, which leaves no parsed
+    /// option to read: the first `--error-format <value>` or
+    /// `--error-format=<value>` before `--`, else the environment variable.
+    static func scan(_ arguments: [String], environment: [String: String]) throws -> ErrorFormat {
+        for (index, argument) in arguments.enumerated() {
+            if argument == "--" { break }
+            let value: String?
+            if argument == option { value = index + 1 < arguments.count ? arguments[index + 1] : nil }
+            else if argument.hasPrefix(option + "=") { value = String(argument.dropFirst(option.count + 1)) }
+            else { continue }
+            guard let value, let chosen = ErrorFormat(rawValue: value) else {
+                throw CommandFailure.usage("\(option) requires text or json.")
+            }
+            return chosen
+        }
+        return try select(nil, environment: environment)
+    }
+
     /// The stderr bytes for a failure. Text is `"\(error)\n"`, unchanged.
     func render(_ error: any Error) -> Data {
         switch self {
         case .text:
-            return Data("\(error)\n".utf8)
+            return Data("\((error as? CommandFailure)?.text ?? "\(error)")\n".utf8)
         case .json:
             let fields = CommandFailure.classify(error).fields.mapValues { $0.map { $0 as Any } ?? NSNull() }
             let data = (try? JSONSerialization.data(withJSONObject: ["error": fields], options: [.sortedKeys, .withoutEscapingSlashes]))

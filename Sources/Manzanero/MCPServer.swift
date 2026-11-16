@@ -14,7 +14,8 @@ enum AppleMCPServer {
             guard let server else { throw MCPError.internalError("Server unavailable") }
             return try await operations.perform {
                 try await MCPTools.call(name: params.name, arguments: params.arguments ?? [:]) {
-                    try await service.execute($0, handoffConfirmation: { command in
+                    // The tool's command line goes through the CLI's parser.
+                    try await service.run($0, handoffConfirmation: { command in
                         try await handoff.confirm(command, server: server)
                     })
                 }

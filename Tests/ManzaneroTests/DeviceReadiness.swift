@@ -97,7 +97,7 @@ struct DeviceReadinessTests {
         let data = try fixture(mode: ["disabled": [:]])
         let service = CommandService(readinessQuery: { _ in data })
         let output = try await MCPTools.call(name: "device_readiness", arguments: ["device": "fixture"]) {
-            try await service.execute($0)
+            try await service.run($0)
         }
         #expect(output.isError == true)
         let report = try #require(output.structuredContent?.objectValue?["result"]?.objectValue)

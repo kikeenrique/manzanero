@@ -16,7 +16,7 @@ struct HandoffCommand: Sendable {
               !args[3].isEmpty, args[3].utf8.count <= 2048,
               args[3].unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) || $0.value == 9 || $0.value == 10 }),
               let timeout = Int(args.count == 5 ? args[4] : "300"), (1...3600).contains(timeout) else {
-            throw CommandFailure.usage("Usage: <physical|simulator> <UDID> handoff <message> [terminal-timeout-seconds: 1...3600]. Message must be 1...2048 UTF-8 bytes without terminal control codes.")
+            throw CommandFailure.usage("Usage: handoff <message> [terminal-timeout-seconds: 1...3600] (--device <UDID> | --simulator <UUID>). Message must be 1...2048 UTF-8 bytes without terminal control codes.")
         }
         return Self(platform: args[0], device: args[1], message: args[3], timeoutSeconds: timeout, target: DeviceTarget(platform: args[0], identifier: identifier))
     }

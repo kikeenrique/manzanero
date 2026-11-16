@@ -279,13 +279,13 @@ struct MCPStdioTests {
                     // Query and record from this separate process, after the
                     // owned MCP child has exited and released its resources.
                     let service = CommandService()
-                    let status = try await service.execute(["physical", physical, "media-status"])
+                    let status = try await service.run(["media-status", "--device", physical])
                     let after = try #require(try JSONSerialization.jsonObject(with: status.data) as? [String: Any])
                     try #require(after["running"] as? Bool == false && after["sessionCount"] as? Int == 0)
                     verification["postShutdownSessionCount"] = after["sessionCount"]
                     try save()
                     let retryPath = directory.appendingPathComponent("retry-hevc.mp4")
-                    let retry = try await service.execute(["--recording-backend", "coredevice", "physical", physical, "record", retryPath.path, "2", "hevc"])
+                    let retry = try await service.run(["record", "--device", physical, "--backend", "coredevice", retryPath.path, "2", "hevc"])
                     let receipt = try #require(try JSONSerialization.jsonObject(with: retry.data) as? [String: Any])
                     try #require(receipt["status"] as? String == "recorded")
                     try #require((receipt["cleanup"] as? [String: Any])?["deviceStopConfirmed"] as? Bool == true)
@@ -343,7 +343,7 @@ struct MCPStdioTests {
                     name = "perform_gesture"; arguments = ["device": physical, "sequence": json]
                 } else {
                     let operands = try #require(cancelHold).split(separator: ",").map(String.init)
-                    _ = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical, "long-press"] + operands))
+                    _ = try #require(try physicalInput(["long-press", "--device", physical, "--"] + operands))
                     let numbers = try operands.map { try #require(Double($0)) }
                     milliseconds = Int((numbers[2] * 1000).rounded())
                     name = "long_press"; arguments = ["device": physical, "x": numbers[0], "y": numbers[1], "seconds": numbers[2]]
@@ -400,7 +400,7 @@ struct MCPStdioTests {
                         "pendingOutputBytes": buffer.count, "forcedExitDiagnostic": diagnostic.contains("forcing exit"),
                         "deviceSideReleaseVerified": false], options: [.prettyPrinted, .sortedKeys])
                         .write(to: directory.appendingPathComponent("shutdown-result.json"))
-                    let screenshot = try await CommandService().execute(["physical", physical, "screenshot",
+                    let screenshot = try await CommandService().run(["screenshot", "--device", physical,
                         directory.appendingPathComponent("shutdown-after.png").path])
                     #expect(screenshot.exitCode == 0)
                     return
@@ -429,7 +429,7 @@ struct MCPStdioTests {
             if let text = ProcessInfo.processInfo.environment["MANZANERO_MCP_TEST_PASTE"] ?? ProcessInfo.processInfo.environment["MANZANERO_MCP_TEST_TYPE"] {
                 let paste = ProcessInfo.processInfo.environment["MANZANERO_MCP_TEST_PASTE"] != nil
                 let operation = paste ? "paste" : "type"
-                _ = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical, operation, text]))
+                _ = try #require(try physicalInput([operation, "--device", physical, "--", text]))
                 let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-\(operation)-before.png").path]])
                 try #require((before["result"] as? [String: Any])?["isError"] as? Bool == false)
                 let response = try request(5, "tools/call", ["name": paste ? "paste_text" : "type_text", "arguments": ["platform": "physical", "device": physical, "text": text].filter { paste ? $0.key != "platform" : true }])
@@ -497,7 +497,7 @@ struct MCPStdioTests {
                 return
             }
             if let key = ProcessInfo.processInfo.environment["MANZANERO_MCP_TEST_KEY"] {
-                _ = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical, "key", key]))
+                _ = try #require(try physicalInput(["key", "--device", physical, key]))
                 let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-key-before.png").path]])
                 #expect((before["result"] as? [String: Any])?["isError"] as? Bool == false)
                 let response = try request(5, "tools/call", ["name": "press_key", "arguments": ["device": physical, "key": key]])
@@ -572,7 +572,7 @@ struct MCPStdioTests {
                     let operands = multitouch.split(separator: ",").map(String.init)
                     operation = try #require(operands.first)
                     try #require(["multi-tap", "multi-drag"].contains(operation))
-                    let input = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical] + operands))
+                    let input = try #require(try physicalInput([operation, "--device", physical, "--"] + operands.dropFirst()))
                     _ = try DirectPhysicalGesture.sequence(for: input)
                     let values = try input.operands.map { try #require(Double($0)) }
                     name = operation == "multi-tap" ? "multi_tap" : "multi_drag"
@@ -586,14 +586,13 @@ struct MCPStdioTests {
                     arguments = ["device": physical, "sequence": json]
                 } else if let pinch {
                     let operands = pinch.split(separator: ",").map(String.init)
-                    _ = try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", physical, "pinch"] + operands))
+                    _ = try #require(try physicalInput(["pinch", "--device", physical, "--"] + operands))
                     let values = try operands.map { try #require(Double($0)) }
                     operation = "pinch"; name = "pinch"
                     arguments = ["device": physical, "center_x": values[0], "center_y": values[1], "start_span": values[2], "end_span": values[3], "seconds": values[4]]
                 } else {
                     let operands = try #require(hold).split(separator: ",").map(String.init)
-                    let command = ["--physical-backend", "coredevice", "physical", physical, "long-press"] + operands
-                    _ = try #require(try CoreDeviceInput.parse(command))
+                    _ = try #require(try physicalInput(["long-press", "--device", physical, "--"] + operands))
                     operation = "long-press"; name = "long_press"
                     arguments = ["device": physical, "x": try #require(Double(operands[0])), "y": try #require(Double(operands[1])), "seconds": try #require(Double(operands[2]))]
                 }

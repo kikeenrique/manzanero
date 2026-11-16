@@ -12,7 +12,7 @@ struct ScreenCommand: Sendable {
         guard (3...4).contains(args.count), !args[1].isEmpty, !args[1].hasPrefix("-"),
               let mode = Mode(rawValue: args.count == 4 ? args[3] : "auto"),
               args[0] != "simulator" || UUID(uuidString: args[1]) != nil else {
-            throw CommandFailure.usage("Usage: <physical|simulator> <device> screen [auto|tree|ocr]. Simulator screen requires an explicit UUID.")
+            throw CommandFailure.usage("Usage: screen [auto|tree|ocr] (--device <UDID> | --simulator <UUID>). Simulator screen requires an explicit UUID.")
         }
         return Self(platform: args[0], device: args[1], mode: mode)
     }

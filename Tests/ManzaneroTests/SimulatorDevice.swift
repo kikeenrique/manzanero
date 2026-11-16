@@ -60,7 +60,7 @@ struct SimulatorDeviceTests {
             try SimulatorDevice.requireBooted(Self.uuid, operation: "tap", lookup: { _ in Self.info(state) })
         }
         #expect(failure.code == .deviceNotReady && failure.inputSent == .none)
-        #expect(failure.description.contains("not Booted") && failure.description.contains("simulator \(Self.uuid) boot"))
+        #expect(failure.description.contains("not Booted") && failure.description.contains("boot --simulator \(Self.uuid)"))
         #expect(failure.retry == .afterAction)
     }
 

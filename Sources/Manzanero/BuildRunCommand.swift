@@ -76,7 +76,7 @@ struct BuildRunCommand {
 
     /// Resolves the hardware UDID from `devicectl device info details` JSON for the requested CoreDevice UUID.
     func resolvingDestination(details data: Data) throws -> Self {
-        let failure = CommandFailure(.targetUnresolved, "Cannot resolve the hardware UDID for CoreDevice UUID \(device), which xcodebuild's -destination needs. Pass the device's hardware UDID (hardwareProperties.udid in `manzanero physical \(device) details`) instead.", inputSent: .none)
+        let failure = CommandFailure(.targetUnresolved, "Cannot resolve the hardware UDID for CoreDevice UUID \(device), which xcodebuild's -destination needs. Pass the device's hardware UDID (hardwareProperties.udid in `manzanero details --device \(device)`) instead.", inputSent: .none)
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               (root["info"] as? [String: Any])?["outcome"] as? String == "success",
               let result = root["result"] as? [String: Any],

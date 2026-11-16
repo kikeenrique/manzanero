@@ -29,7 +29,7 @@ enum SimulatorDevice {
 
     static func requireUUID(_ device: String, operation: String) throws -> String {
         guard let uuid = UUID(uuidString: device) else {
-            throw CommandFailure.usage("Simulator \(operation) requires the simulator's UUID (see devices simulators); names and 'booted' are not accepted.")
+            throw CommandFailure.usage("Simulator \(operation) requires the simulator's UUID (see devices --simulators); names and 'booted' are not accepted.")
         }
         return uuid.uuidString
     }
@@ -56,7 +56,7 @@ enum SimulatorDevice {
         defer { ADCCloseSimulatorDevice(owner) }
         let message = String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         if status == ADCSimulatorNotFound {
-            throw CommandFailure(.targetUnresolved, "\(message) Use the UUID from devices simulators; nothing was sent.", inputSent: .none)
+            throw CommandFailure(.targetUnresolved, "\(message) Use the UUID from devices --simulators; nothing was sent.", inputSent: .none)
         }
         guard status == 0 else { throw CommandFailure(.hostRequirement, message, inputSent: .none) }
         return info.swift(uuid: uuid)
@@ -68,7 +68,7 @@ enum SimulatorDevice {
                               lookup: (String) throws -> SimulatorDeviceInfo = lookup) throws -> SimulatorDeviceInfo {
         let info = try lookup(uuid)
         guard info.booted else {
-            throw CommandFailure(.deviceNotReady, "Simulator \(uuid) is \(info.state.isEmpty ? "not booted" : info.state), not Booted; \(operation) needs a booted simulator. Boot it first (manzanero simulator \(uuid) boot); nothing was sent.", inputSent: .none)
+            throw CommandFailure(.deviceNotReady, "Simulator \(uuid) is \(info.state.isEmpty ? "not booted" : info.state), not Booted; \(operation) needs a booted simulator. Boot it first (manzanero boot --simulator \(uuid)); nothing was sent.", inputSent: .none)
         }
         return info
     }

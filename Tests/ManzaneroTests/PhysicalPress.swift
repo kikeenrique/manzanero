@@ -12,10 +12,11 @@ struct PhysicalPressTests {
         #expect(try native(["physical", "fixture", "press-label", "123", selector])?.operands == ["123", selector])
         let tool = try #require(MCPTools.definitions.first { $0.name == "press_element" })
         let args = try tool.command(["device": "fixture", "pid": 123, "by": "identifier", "text": "fixture.button"])
-        #expect(args == ["physical", "fixture", "press-id", "123", "fixture.button"])
+        #expect(args == ["press", "--device=fixture", "--id=fixture.button", "--pid=123"])
+        #expect(try legacy(args) == ["physical", "fixture", "press-id", "123", "fixture.button"])
         let foreground = try tool.command(["device": "fixture", "by": "label", "text": "Back"])
-        #expect(foreground == ["physical", "fixture", "press-label", "Back"])
-        #expect(try native(foreground)?.operation == "press-label")
+        #expect(try legacy(foreground) == ["physical", "fixture", "press-label", "Back"])
+        #expect(try native(legacy(foreground))?.operation == "press-label")
         #expect(!tool.readOnly)
         for values in [["0","button"], ["-1","button"], ["2147483648","button"], ["123",""], ["123", "a\0b"], ["123",String(repeating:"é",count:2049)]] {
             #expect(throws: CommandFailure.self) { try native(["physical", "fixture", "press-id"] + values) }

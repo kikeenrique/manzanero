@@ -34,8 +34,8 @@ struct CoreDeviceInputTests {
     @Test func mcpTapRoutesToTheDirectBackend() async throws {
         let tool = try #require(MCPTools.definitions.first { $0.name == "tap" })
         let args = try tool.command(["platform": "physical", "device": .string(udid), "x": 0.25, "y": 0.75])
-        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args))?.operands == ["0.25", "0.75"])
-        let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).execute(args, dryRun: true)
+        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(args)))?.operands == ["0.25", "0.75"])
+        let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).run(args, dryRun: true)
         #expect(String(decoding: dry.data, as: UTF8.self).contains("coredevice-direct"))
     }
 
@@ -62,14 +62,14 @@ struct CoreDeviceInputTests {
         let tool = try #require(MCPTools.definitions.first { $0.name == "paste_text" })
         let text = "ñ🙂"
         let args = try tool.command(["device": .string(udid), "text": .string(text)])
-        #expect(try CoreDeviceInput.parse(args)?.operands == [text])
-        let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).execute(args, dryRun: true)
+        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(args)))?.operands == [text])
+        let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).run(args, dryRun: true)
         let result = try #require(try JSONSerialization.jsonObject(with: dry.data) as? [String: Any])
         #expect(result["stdinUTF8Bytes"] as? Int == text.utf8.count)
         #expect(result["clipboardArguments"] != nil)
         #expect((result["clipboardEffect"] as? String)?.contains("not restored") == true)
         let key = try #require(MCPTools.definitions.first { $0.name == "press_key" })
-        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(key.command(["device": .string(udid), "key": "backspace"])))?.operation == "key")
+        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(key.command(["device": .string(udid), "key": "backspace"]))))?.operation == "key")
     }
 
     @Test(.dedicatedThread) func subprocessStdinPreservesBinaryAndUnicodeBytesWithoutShellEvaluation() throws {

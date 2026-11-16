@@ -14,7 +14,7 @@ struct RecordingCommand {
         var native = false
         if args.first == "--recording-backend" {
             guard args.count >= 3, ["devicectl", "coredevice"].contains(args[1]), args[2] == "physical" else {
-                throw CommandFailure.usage("--recording-backend <devicectl|coredevice> requires a physical recording command.")
+                throw CommandFailure.usage("--backend <devicectl|coredevice> requires a physical recording command.")
             }
             native = args[1] == "coredevice"
             args = Array(args.dropFirst(2))
@@ -24,7 +24,7 @@ struct RecordingCommand {
               !args[3].hasPrefix("-"), args[3].lowercased().hasSuffix(".mp4"),
               let seconds = Double(args[4]), seconds.isFinite, (1...300).contains(seconds),
               ["h264", "hevc"].contains(args.count == 6 ? args[5] : "h264") else {
-            throw CommandFailure.usage("Usage: <physical|simulator> <device> record <output.mp4> <seconds: 1...300> [h264|hevc]")
+            throw CommandFailure.usage("Usage: record <output.mp4> <seconds: 1...300> [h264|hevc] [--backend devicectl|coredevice] (--device <UDID> | --simulator <UUID>)")
         }
         guard args[0] == "physical" || UUID(uuidString: args[1]) != nil else {
             throw CommandFailure.usage("Simulator recording requires an explicit simulator UUID.")

@@ -18,14 +18,14 @@ struct PhysicalTreeTests {
 
     @Test func mcpTreeDefaultsToPhysicalAndAllowsForegroundSelection() throws {
         let tree = try #require(MCPTools.definitions.first { $0.name == "get_ui_tree" })
-        #expect(try tree.command(["device": "phone-fixture"]) == ["physical", "phone-fixture", "tree"])
-        #expect(try tree.command(["device": "simulator-fixture", "platform": "simulator"]) == ["simulator", "simulator-fixture", "tree"])
+        #expect(try tree.command(["device": "phone-fixture"]) == ["tree", "--device=phone-fixture"])
+        #expect(try tree.command(["device": "simulator-fixture", "platform": "simulator"]) == ["tree", "--simulator=simulator-fixture"])
         let args = try tree.command(["device": "phone-fixture", "platform": "physical", "pid": 123])
-        #expect(args == ["physical", "phone-fixture", "tree", "123"])
-        #expect(try native(args)?.operands == ["123"])
-        #expect(try native(tree.command(["device": "fixture", "platform": "physical"]))?.operation == "tree")
-        #expect(throws: CommandFailure.self) { try DeviceCommand.parse(tree.command(["device": "fixture", "platform": "simulator"])) }
-        #expect(throws: CommandFailure.self) { try DeviceCommand.parse(tree.command(["device": "fixture", "platform": "simulator", "pid": 123])) }
+        #expect(try legacy(args) == ["physical", "phone-fixture", "tree", "123"])
+        #expect(try native(legacy(args))?.operands == ["123"])
+        #expect(try native(legacy(tree.command(["device": "fixture", "platform": "physical"])))?.operation == "tree")
+        #expect(throws: CommandFailure.self) { try DeviceCommand.parse(legacy(tree.command(["device": "fixture", "platform": "simulator"]))) }
+        #expect(throws: CommandFailure.self) { try DeviceCommand.parse(legacy(tree.command(["device": "fixture", "platform": "simulator", "pid": 123]))) }
         #expect(throws: MCPError.self) { try tree.command(["device": "fixture", "platform": "physical", "pid": .double(1.5)]) }
         #expect(tree.readOnly)
     }

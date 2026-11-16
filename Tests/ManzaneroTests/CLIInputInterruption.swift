@@ -11,8 +11,8 @@ struct CLIInputInterruptionTests {
         let operands = try #require(environment["MANZANERO_CLI_INTERRUPT_HOLD"]).split(separator: ",").map(String.init)
         let signalName = try #require(environment["MANZANERO_CLI_INTERRUPT_SIGNAL"])
         let signal = try #require(["SIGINT": SIGINT, "SIGTERM": SIGTERM][signalName])
-        let args = ["physical", device, "long-press"] + operands
-        let native = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args)))
+        let args = ["long-press", "--device", device, "--"] + operands
+        let native = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(args))))
         try #require((8...10).contains(try #require(Double(native.operands[2]))))
         _ = try DirectPhysicalInput.identity(native, query: { plan in
             try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 20)

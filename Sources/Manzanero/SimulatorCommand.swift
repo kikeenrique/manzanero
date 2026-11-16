@@ -43,7 +43,7 @@ struct SimulatorInput {
             // simctl pbcopy did not reach the pasteboard the simulator pastes
             // from (docs/simulator-input.md), so Command+V could insert text
             // the caller never supplied.
-            throw CommandFailure.unsupported("Simulator paste is refused: simctl pbcopy did not change the simulator's pasteboard in testing, so a paste could insert other text. For Unicode text use set-value-id or set-value-label, which replace a named element's value without the clipboard. No input sent.")
+            throw CommandFailure.unsupported("Simulator paste is refused: simctl pbcopy did not change the simulator's pasteboard in testing, so a paste could insert other text. For Unicode text use set-value with --id or --label, which replaces a named element's value without the clipboard. No input sent.")
         }
         if unimplemented.contains(operation) {
             throw CommandFailure.unsupported("Simulator \(operation) is not implemented yet; simulator input covers touch with one to five contacts, gesture sequences, button, key and type. Wake remains physical-only. No input sent.")
@@ -94,7 +94,7 @@ struct SimulatorInput {
             guard operands.count == 1 else { throw CommandFailure.usage("Simulator typing expects one text operand.") }
             let bytes = Array(operands[0].utf8)
             guard (1...512).contains(bytes.count), bytes.allSatisfy({ DirectPhysicalTyping.stroke($0) != nil }) else {
-                throw CommandFailure.usage("Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value-id or set-value-label, which replace a named element's whole value. No input sent.")
+                throw CommandFailure.usage("Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value with --id or --label, which replaces a named element's whole value. No input sent.")
             }
         default:
             throw CommandFailure.unsupported("Unsupported simulator operation: \(operation).")

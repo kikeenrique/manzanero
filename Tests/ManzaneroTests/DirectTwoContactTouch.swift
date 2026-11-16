@@ -46,7 +46,7 @@ struct DirectTwoContactTouchTests {
         let tool = try #require(MCPTools.definitions.first { $0.name == "pinch" })
         let args = try tool.command(["device": .string(CoreDeviceInputTests().udid), "center_x": 0.5, "center_y": 0.4, "start_span": 0.2, "end_span": 0.6, "seconds": 0.5])
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() })
-        let result = try await service.execute(args, dryRun: true)
+        let result = try await service.run(args, dryRun: true)
         #expect(String(decoding: result.data, as: UTF8.self).contains("coredevice-direct"))
     }
 

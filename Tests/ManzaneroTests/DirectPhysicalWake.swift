@@ -180,8 +180,9 @@ struct DirectPhysicalWakeTests {
             #expect(String(describing: error).contains("another manzanero process"))
         }
         let tool = try #require(MCPTools.definitions.first { $0.name == "wake_device" })
-        #expect(try tool.command(["device": .string(Self.uuid)]) == ["physical", Self.uuid, "wake"])
-        #expect(try tool.command(["device": .string(Self.uuid), "dismiss_lock_screen": .bool(false)]) == ["physical", Self.uuid, "wake", "--no-dismiss"])
+        #expect(try tool.command(["device": .string(Self.uuid)]) == ["wake", "--device=\(Self.uuid)"])
+        #expect(try tool.command(["device": .string(Self.uuid), "dismiss_lock_screen": .bool(false)]) == ["wake", "--device=\(Self.uuid)", "--no-dismiss"])
+        #expect(try legacy(["wake", "--device=\(Self.uuid)", "--no-dismiss"]) == ["physical", Self.uuid, "wake", "--no-dismiss"])
         #expect(!tool.readOnly && tool.answerExitCodes == [0, 1])
         let unwrapped = try DirectPhysicalWake.output(JSONSerialization.data(withJSONObject: ["status": "not-awake", "exitCode": 1]))
         #expect(unwrapped.exitCode == 1)

@@ -73,7 +73,7 @@ struct DeviceReadiness: Encodable, Sendable {
             throw CommandFailure(.deviceNotReady, "Cannot \(operation): Developer Mode is disabled. \(issues.first(where: { $0.code == "developerModeDisabled" })?.action ?? "Enable Developer Mode on the device.")", inputSent: .none)
         }
         if developerMode == "unknown" || developerDiskImageServices != "available" {
-            FileHandle.standardError.write(Data("Device readiness: Developer Mode \(developerMode); developer-image services \(developerDiskImageServices). Run physical <device> readiness for preparation guidance.\n".utf8))
+            FileHandle.standardError.write(Data("Device readiness: Developer Mode \(developerMode); developer-image services \(developerDiskImageServices). Run readiness --device <UDID> for preparation guidance.\n".utf8))
         }
     }
 
