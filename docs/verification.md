@@ -133,6 +133,38 @@ Operator errors during this run, recorded because they changed device state: a 6
 
 These are results from one phone on one iOS version, with the probe in front and nothing else running. They measure what reached a UIKit view, not behaviour in other apps, near screen edges, during animations or in landscape.
 
+### Remaining phone checks: keys, files, waits, prompts and a live MCP session
+
+**2026-11-16**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52), with the 200 ms input drain.
+
+| Check | Observed |
+| --- | --- |
+| Separate key presses | Twelve typed letters were removed by twelve separate `key backspace` calls, and two separate `key space` calls arrived (iOS turned them into ". ", its double-space shortcut) |
+| Taps in Settings | Opening and closing Settings search by coordinate tap worked 30 times out of 30, checked through the tree, and the first tap after switching apps worked 6 times out of 6. One earlier tap on the search field had no effect; it did not recur and is unexplained |
+| `wait … --until disabled` / `enabled` | On the greyed-out Personal Hotspot row, by identifier: `disabled` met with `enabled: false`; `enabled` timed out as `not-enabled` |
+| `wait … --value` | On the Airplane Mode switch: met for its current value `0`, timed out as `value-differs` for another |
+| A label wait on a row whose label includes its value | Matched only the hidden inner text and reported `not-visible`. Use the identifier for such rows |
+| `files`, `push`, `pull` | In the probe app's container: listed `Documents`, pushed a small file, listed it, and pulled it back byte-identical |
+| `uninstall`, then `build-run` without the provisioning flag | The app left the app list, then was reinstalled and launched using the existing profile |
+| `tree` and `press-label` with a system prompt showing | With the paste-permission prompt up, `tree` returned 158 nodes selected by the container hit test, 156 of them owned by SpringBoard, including the prompt's title and both buttons. `press-label` on the decline button was accepted and a wait confirmed the prompt was gone. So the earlier refusal with error 8 was the empty-centre hit test, not a protected prompt |
+
+**Live MCP session** (one `manzanero mcp` process over stdio, eleven requests):
+
+| Tool call | Result |
+| --- | --- |
+| `wake_device` | `already-awake`, not an error |
+| `press_button` home | `dispatched` |
+| `screenshot`, default options, Home screen | Inline image 724×1568 JPEG, 155 kB, scale 1.554; the saved PNG is 1125×2436 and 9.1 MB. `auto` chose JPEG because the PNG at that size exceeded 1 MiB |
+| `screenshot` with `image_format: jpeg`, `image_quality: 0.6` | 95 kB |
+| `screenshot` with `image_max_edge: 800` | 369×800, 47 kB |
+| `screenshot` asking for the saved resolution as PNG with a 16 MiB cap | The 9.1 MB PNG itself; the response was 12.2 MB |
+| `get_screen` with `image_include: false` | Tree result, `inlineImage.included: false`, no image block |
+| `wait_for_element` for a missing label, 2 s | `timed-out` with `isError: false` |
+| `tap` with x = 2 | `isError: true` with `structuredContent.error.code: usage` |
+| `screenshot` with `image_max_edge: 1` | JSON-RPC invalid-params error before any capture |
+
+Not covered: `handoff` with a real prompt, `set_element_value` on a phone (refused there by design), and anything on a second device.
+
 ### App console and last crash on the phone
 
 **2026-11-16**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52), with the probe app's log probe.
