@@ -5,6 +5,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     /// One recording model per process, created at launch: a fresh launch always
     /// starts a new session, and a scene reconnect within the process does not.
     let model = ProbeModel()
+    /// The log probe (docs/probe-app.md#log-probe), independent of the touch probe.
+    let logProbe = LogProbeEmitter()
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        logProbe.launched()
+        return true
+    }
 
     func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession,
                      options: UIScene.ConnectionOptions) -> UISceneConfiguration {
@@ -25,6 +32,9 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = ProbeViewController(model: model)
         window.makeKeyAndVisible()
         self.window = window
+        if let surface = window.rootViewController?.view {
+            (UIApplication.shared.delegate as? AppDelegate)?.logProbe.attach(to: surface)
+        }
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
