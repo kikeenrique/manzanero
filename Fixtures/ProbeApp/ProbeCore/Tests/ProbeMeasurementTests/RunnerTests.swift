@@ -20,20 +20,21 @@ import ProbeCore
         return (TouchRunner(options: options, invoker: fake, fileSystem: fs, clock: clock), fake, fs, clock)
     }
 
-    private func operations(_ fake: FakeDevice) -> [String] { fake.invocations.map { $0.count > 2 ? $0[2] : "?" } }
+    private func operations(_ fake: FakeDevice) -> [String] { fake.invocations.map { $0.first == "files" ? $0[1] : ($0.first ?? "?") } }
 
     @Test func fullRunWithPerfectDelivery() throws {
         let (runner, fake, fs, clock) = setup()
         let outcome = runner.execute()
         #expect(outcome.exitCode == 0)
         let count = TouchPlan.builtIn.actions.count
-        var expected = ["tree", "press-id", "tree"]
+        var expected = ["tree", "press", "tree"]
         for action in TouchPlan.builtIn.actions { expected += [action.action.kind, "tree"] }
         expected.append("pull")
         #expect(operations(fake) == expected)
-        #expect(fake.invocations.allSatisfy { $0.first == "physical" && $0[1] == device })
-        #expect(fake.invocations.last == ["physical", device, "pull", RunOptions.defaultBundleID,
-                                          "Documents/touch-log.jsonl", "tmp/probe-touch/test-run/touch-log.jsonl"])
+        #expect(fake.invocations.allSatisfy { Array($0.suffix(2)) == ["--device", device] })
+        #expect(fake.invocations[1] == ["press", "--id", "probe.touch.reset", "--device", device])
+        #expect(fake.invocations.last == ["files", "pull", RunOptions.defaultBundleID,
+                                          "Documents/touch-log.jsonl", "tmp/probe-touch/test-run/touch-log.jsonl", "--device", device])
         #expect(clock.sleeps == Array(repeating: TouchPlan.defaultSettleSeconds, count: count))
 
         let report = try #require(outcome.report)
@@ -74,7 +75,7 @@ import ProbeCore
         fake.resetTakesEffect = false
         let outcome = runner.execute()
         #expect(outcome.exitCode == TouchRunner.exitStopped)
-        #expect(operations(fake) == ["tree", "press-id", "tree"])
+        #expect(operations(fake) == ["tree", "press", "tree"])
         #expect(outcome.record?.stop?.reason.contains("reset was not observed") == true)
     }
 
@@ -95,7 +96,7 @@ import ProbeCore
         let outcome = runner.execute()
         #expect(outcome.exitCode == TouchRunner.exitStopped)
         // Each action is invoked at most once; the readback still follows each failure.
-        let actionCalls = fake.invocations.filter { $0[2] == "tap" }
+        let actionCalls = fake.invocations.filter { $0.first == "tap" }
         #expect(actionCalls.count == 5)
         #expect(Set(actionCalls.map { $0 }).count == 5)
         #expect(outcome.record?.stop?.reason.contains("3 consecutive dispatch failures") == true)
@@ -119,7 +120,7 @@ import ProbeCore
         #expect(report.actions[1].anomalies.contains(.contactsStillDown))
         #expect(report.actions.dropFirst(2).allSatisfy { $0.status == .notSent })
         // The log is still pulled: reading it sends no input.
-        #expect(fake.invocations.last?[2] == "pull")
+        #expect(fake.invocations.last?.prefix(2) == ["files", "pull"])
     }
 
     @Test func stopsWhenAReadbackFailsAndKeepsTheEvidence() throws {
@@ -231,8 +232,8 @@ import ProbeCore
         #expect(fake.invocations.isEmpty)
         #expect(fs.files.isEmpty)
         #expect(outcome.output.contains("28 sent action(s)"))
-        #expect(outcome.output.contains(".build/debug/manzanero physical \(device) tap 0.5 0.45"))
-        #expect(outcome.output.contains("press-id probe.touch.reset"))
+        #expect(outcome.output.contains(".build/debug/manzanero tap 0.5 0.45 --device \(device)"))
+        #expect(outcome.output.contains("press --id probe.touch.reset --device \(device)"))
         #expect(outcome.output.contains("CLI check skipped"))
 
         // With it, every distinct command is checked through `--dry-run` only.
@@ -247,7 +248,7 @@ import ProbeCore
         fake.rejectDryRun = { $0.contains("multi-tap") }
         outcome = runner.execute()
         #expect(outcome.exitCode == TouchRunner.exitUsage)
-        #expect(outcome.output.contains("rejected: physical \(device) multi-tap"))
+        #expect(outcome.output.contains("rejected: multi-tap"))
     }
 
     @Test func simulatorPlatformAddressesTheSimulatorAndSkipsThePull() throws {
@@ -270,7 +271,7 @@ import ProbeCore
         fake.platform = "simulator"
         let outcome = TouchRunner(options: options, invoker: fake, fileSystem: fs, clock: FakeClock()).execute()
         #expect(outcome.exitCode == 0)
-        #expect(fake.invocations.allSatisfy { $0.first == "simulator" && $0[1] == simulator })
+        #expect(fake.invocations.allSatisfy { Array($0.suffix(2)) == ["--simulator", simulator] })
         #expect(!operations(fake).contains("pull") && fs.files["tmp/probe-touch/simulator-run/touch-log.jsonl"] == nil)
         let report = try #require(outcome.report)
         #expect(report.summary.deliveryRate == 1)
@@ -279,7 +280,7 @@ import ProbeCore
         options.dryRun = true
         let dry = TouchRunner(options: options, invoker: fake, fileSystem: MemoryFileSystem(), clock: FakeClock()).execute()
         #expect(dry.output.contains("Platform: simulator; no log pull"))
-        #expect(dry.output.contains(".build/debug/manzanero simulator \(simulator) tap 0.5 0.45"))
+        #expect(dry.output.contains(".build/debug/manzanero tap 0.5 0.45 --simulator \(simulator)"))
         #expect(!dry.output.contains(" pull "))
     }
 

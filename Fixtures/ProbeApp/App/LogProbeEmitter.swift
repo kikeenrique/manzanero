@@ -4,7 +4,7 @@ import ProbeCore
 import UIKit
 
 /// `probe.log.emit`: emits one set when activated through accessibility
-/// (Manzanero `press-id probe.log.emit`).
+/// (Manzanero `press --id probe.log.emit`).
 final class LogProbeEmitElement: UIAccessibilityElement {
     var activate: (@MainActor () -> Void)?
     var read: (@MainActor () -> String)?

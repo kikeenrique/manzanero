@@ -19,14 +19,14 @@ You need macOS 15+, a full selected Xcode installation, Swift 6.4+, [mise](https
 ```sh
 mise run build
 mise run cli -- --help
-mise run cli devices physical
-mise run cli devices simulators
+mise run cli devices
+mise run cli devices --simulators
 mise run cli doctor
 ```
 
-`mise run cli` runs the built executable; it does not build it. In the guides below, substitute `mise run cli` for bare `manzanero` when working from this checkout, or run `.build/debug/manzanero` directly. A source build does not install a global command.
+`mise run cli` runs the built executable; it does not build it. In the guides below, substitute `mise run cli` for bare `manzanero` when working from this checkout, or run `.build/debug/manzanero` directly. A source build does not install a global command. `manzanero <command> --help` describes one command; `mise run completions` writes shell completion scripts under `tmp/completions`.
 
-Replace angle-bracket placeholders with your values. For physical commands, choose the hardware UDID from the physical inventory, rather than a simulator UUID. Create output parent directories before capturing or copying files.
+Commands name the operation first and the target as an option: `--device <UDID>` for a physical device or `--simulator <UUID>` for a simulator. Set `MANZANERO_DEVICE` or `MANZANERO_SIMULATOR` to use one target for a whole session; an explicit option always wins. Replace angle-bracket placeholders with your values. For physical commands, choose the hardware UDID from the physical inventory, rather than a simulator UUID. Create output parent directories before capturing or copying files.
 
 There is no published beta release or Homebrew formula yet. See [beta installation](docs/beta-testing.md), [release preparation](docs/releasing.md) and the [public-readiness review](docs/public-readiness.md).
 
@@ -35,7 +35,7 @@ There is no published beta release or Homebrew formula yet. See [beta installati
 Pair and trust the Mac using Apple's normal setup. Enable Developer Mode and **Settings → Developer → Enable UI Automation** on the device. Keep it awake and unlocked for the verified UI flows.
 
 ```sh
-mise run cli physical <hardware-UDID> readiness
+mise run cli readiness --device <hardware-UDID>
 ```
 
 The top-level readiness status covers CoreDevice prerequisites. Inspect its separate `ui` report for display power and passcode observations. Neither report verifies UI Automation permission or proves that the current UI is unlocked. [Readiness guidance](docs/readiness.md) explains the fields and preparation steps.
@@ -43,10 +43,10 @@ The top-level readiness status covers CoreDevice prerequisites. Inspect its sepa
 ## Observe, act, inspect again
 
 ```sh
-mise run cli physical <UDID> screenshot tmp/before.png
-mise run cli physical <UDID> tree
-mise run cli physical <UDID> tap 0.5 0.5
-mise run cli physical <UDID> screen auto
+mise run cli screenshot tmp/before.png --device <UDID>
+mise run cli tree --device <UDID>
+mise run cli tap 0.5 0.5 --device <UDID>
+mise run cli screen auto --device <UDID>
 ```
 
 Physical touch coordinates are normalized `0...1`, with the origin at the top left. Accessibility frames use logical points; screenshot dimensions use pixels. A dispatch receipt does not verify an action's effect. Inspect fresh state after every action, especially after an error or interruption.
@@ -71,20 +71,20 @@ Physical input, accessibility and native video need no separate device helper. T
 These commands use the selected Xcode's `devicectl`:
 
 ```sh
-mise run cli physical <device> apps
-mise run cli physical <device> processes
-mise run cli physical <device> launch com.example.app
-mise run cli physical <device> terminate <positive-PID>
-mise run cli physical <device> install 'tmp/My App.app'
-mise run cli physical <device> files com.example.app Documents
-mise run cli physical <device> pull com.example.app Documents/data.json tmp/data.json
-mise run cli physical <device> reports
-mise run cli physical <device> report 'My App.ips' 'tmp/My App.ips'
+mise run cli apps --device <device>
+mise run cli processes --device <device>
+mise run cli launch com.example.app --device <device>
+mise run cli terminate <positive-PID> --device <device>
+mise run cli install 'tmp/My App.app' --device <device>
+mise run cli files list com.example.app Documents --device <device>
+mise run cli files pull com.example.app Documents/data.json tmp/data.json --device <device>
+mise run cli reports list --device <device>
+mise run cli reports get 'My App.ips' 'tmp/My App.ips' --device <device>
 ```
 
 Container paths are relative; `.` means the selected domain's root. Listings are nonrecursive. Access depends on the app/device's authorization. Copies can overwrite destinations; these commands do not provide `.xcappdata` export, symbolication or whole-container replacement. Physical termination takes a PID; simulator termination takes a bundle identifier.
 
-Use `--dry-run` before a planned command to inspect its arguments without executing it. Most physical wrappers preserve `devicectl` JSON; some simulator commands return plain text. A failure prints its message on stderr and exits 1; with `--error-format json` (or `MANZANERO_ERROR_FORMAT=json`) it prints one JSON object instead, with a category, whether input may have reached the device, and whether a retry is safe. See [errors](docs/errors.md).
+Add `--dry-run` to a planned command to inspect its arguments without executing it. Most physical wrappers preserve `devicectl` JSON; some simulator commands return plain text. A failure prints its message on stderr and exits 1, or 64 when the call itself is wrong; with `--error-format json` (or `MANZANERO_ERROR_FORMAT=json`) it prints one JSON object instead, with a category, whether input may have reached the device, and whether a retry is safe. See [errors](docs/errors.md).
 
 ## MCP
 

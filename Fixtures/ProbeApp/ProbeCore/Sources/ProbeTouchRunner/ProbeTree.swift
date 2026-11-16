@@ -2,7 +2,7 @@ import Foundation
 import ProbeAnalysis
 import ProbeCore
 
-/// Reads the probe's accessibility readouts out of `manzanero physical <UDID> tree` output.
+/// Reads the probe's accessibility readouts out of `manzanero tree --device <UDID>` output.
 ///
 /// The tree is a JSON object with a `nodes` array; each node may carry `identifier` and
 /// `value` scalars (Sources/Manzanero/AccessibilitySnapshot.swift). The probe puts its

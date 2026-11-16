@@ -15,7 +15,8 @@ public struct RunOptions: Sendable, Equatable {
     public static let maximumRepeat = 50
 
     public var device: String
-    /// `physical` (default) or `simulator`; the first word of every Manzanero command.
+    /// `physical` (default) or `simulator`: every Manzanero command names the
+    /// target as `--device <UDID>` or `--simulator <UUID>`.
     public var platform = "physical"
     public var planPath: String?
     public var repeatCount = 1

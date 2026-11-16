@@ -4,16 +4,16 @@ Use `gesture` when a linear drag or simultaneous multi-tap is insufficient: samp
 
 ## Current direct implementation
 
-CLI `physical <device> gesture <JSON>` and MCP `perform_gesture` use Apple's Universal HID service in process. No helper is required.
+CLI `gesture <JSON> --device <UDID>` and MCP `perform_gesture` use Apple's Universal HID service in process. No helper is required.
 
 ```sh
 # Two taps at one point; inspect the target before sending this sequence.
-manzanero physical <UDID> gesture '{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]},{"ms":180,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":240,"touches":[]}]}'
+manzanero gesture '{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]},{"ms":180,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":240,"touches":[]}]}' --device <UDID>
 ```
 
 MCP takes `device` and `sequence`, where `sequence` is the same JSON string, and an optional `platform` (default physical).
 
-A booted simulator takes the same sequence: `manzanero simulator <UUID> gesture '<JSON>'`, or `perform_gesture` with `platform: simulator`. The frames, validation and 58-byte reports are the physical ones; they go to the simulator's `dtuhidd` Universal HID service and its primary display's touchscreen ([simulator input](simulator-input.md)). On one iPhone 17e simulator, a one-finger double tap and a two-contact sequence with staggered arrival and lift arrived as scheduled in 10 of 10 runs ([runner results](probe-touch-runner.md#simulator-runs)).
+A booted simulator takes the same sequence: `manzanero gesture '<JSON>' --simulator <UUID>`, or `perform_gesture` with `platform: simulator`. The frames, validation and 58-byte reports are the physical ones; they go to the simulator's `dtuhidd` Universal HID service and its primary display's touchscreen ([simulator input](simulator-input.md)). On one iPhone 17e simulator, a one-finger double tap and a two-contact sequence with staggered arrival and lift arrived as scheduled in 10 of 10 runs ([runner results](probe-touch-runner.md#simulator-runs)).
 
 ## Input contract
 

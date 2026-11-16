@@ -3,10 +3,10 @@
 `screen` captures a PNG, then analyzes it with accessibility or Vision OCR. It gives an agent a saved image and explicit information about how the screen was interpreted.
 
 ```sh
-manzanero physical <UDID> screen auto
-manzanero physical <UDID> screen tree
-manzanero physical <UDID> screen ocr
-manzanero simulator <UUID> screen auto
+manzanero screen auto --device <UDID>
+manzanero screen tree --device <UDID>
+manzanero screen ocr --device <UDID>
+manzanero screen auto --simulator <UUID>
 manzanero ocr tmp/existing.png
 ```
 

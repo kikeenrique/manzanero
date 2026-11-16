@@ -205,7 +205,7 @@ private typealias Run = (baseline: ProbeReadback, attempts: [ActionAttempt], sim
         return (TouchRunner(options: options, invoker: fake, fileSystem: fs, clock: FakeClock()), fake, fs)
     }
 
-    private func operations(_ fake: FakeDevice) -> [String] { fake.invocations.map { $0.count > 2 ? $0[2] : "?" } }
+    private func operations(_ fake: FakeDevice) -> [String] { fake.invocations.map { $0.first == "files" ? $0[1] : ($0.first ?? "?") } }
 
     @Test func treeParsingReadsTheBundleAttributeAndTheRecentReadout() throws {
         var simulator = ProbeSimulator()
@@ -285,7 +285,7 @@ private typealias Run = (baseline: ProbeReadback, attempts: [ActionAttempt], sim
         fake.treeBundleIDOverrides = [2: "com.example.other"]
         let outcome = runner.execute()
         #expect(outcome.exitCode == TouchRunner.exitStopped)
-        #expect(operations(fake) == ["tree", "press-id", "tree"])
+        #expect(operations(fake) == ["tree", "press", "tree"])
         #expect(outcome.record?.stop?.reason.hasPrefix("baseline: probe.touch.summary belongs to com.example.other") == true)
     }
 

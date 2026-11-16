@@ -39,7 +39,7 @@ final class ProbeReadoutElement: UIAccessibilityElement {
 }
 
 /// Element that resets the probe when activated through accessibility (a
-/// Manzanero `press-id`). It is not a view, so it never receives touches.
+/// Manzanero `press --id`). It is not a view, so it never receives touches.
 final class ProbeResetElement: UIAccessibilityElement {
     var reset: (@MainActor () -> Void)?
     var read: (@MainActor () -> String)?

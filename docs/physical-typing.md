@@ -5,9 +5,9 @@ Use `type` for clipboard-free US-layout ASCII keyboard events. Use [paste](nativ
 ## Current direct implementation
 
 ```sh
-manzanero physical <UDID> type 'Ab9!z'
-manzanero physical <UDID> key backspace
-manzanero physical <UDID> paste 'mañana 🚀 中'
+manzanero type 'Ab9!z' --device <UDID>
+manzanero key backspace --device <UDID>
+manzanero paste 'mañana 🚀 中' --device <UDID>
 ```
 
 `type` and MCP `type_text` with `platform: physical` use the in-process CoreDevice/Indigo keyboard route. No virtual keyboard registration, helper executable or clipboard write is used.

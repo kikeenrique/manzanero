@@ -2,6 +2,8 @@
 
 `manzanero mcp` exposes the CLI's operations over local stdio using the official Swift MCP SDK. It shares validation, backends and verification limits with the CLI. There is no HTTP listener.
 
+The tool schemas are written by hand for models; they are not generated from the CLI. Each tool turns its arguments into a CLI command line (for example `tap --device=<UDID> -- 0.5 0.45`) and runs it through the CLI's own parser, so a tool and its command cannot drift apart. A command line the parser rejects is a tool error with `code: usage`; the target never comes from `MANZANERO_DEVICE` or `MANZANERO_SIMULATOR`.
+
 ## Configure a host
 
 Use the executable's absolute path and `args: ["mcp"]`. A common configuration shape is:

@@ -4,13 +4,15 @@ Every failure carries a message for people and, alongside it, a small set of mac
 
 ## Output formats
 
-**CLI, default.** A failure prints its message on stderr followed by a newline and exits 1. Nothing else changes; existing scripts see the same bytes.
+**CLI, default.** A failure prints its message on stderr followed by a newline and exits 1, or 64 when its `code` is `usage` (see [exit codes](#exit-codes)). A call the argument parser rejects (a missing operand, an unknown option, a value of the wrong type) prints the parser's message prefixed with `Error:`, followed by the command's usage line.
 
-**CLI, JSON.** Pass `--error-format json` before the command (it may follow `--dry-run`), or set `MANZANERO_ERROR_FORMAT=json` in the environment. The option wins over the variable; `text` selects the default explicitly, and any other value is a usage error printed as text. A failure then prints one JSON object on one line on stderr and still exits 1:
+**CLI, JSON.** Pass `--error-format json` anywhere in the command (before `--`), or set `MANZANERO_ERROR_FORMAT=json` in the environment. The option wins over the variable; `text` selects the default explicitly, and any other value is a usage error printed as text. A failure then prints one JSON object on one line on stderr, with the same exit code. For a parser error, `message` is the parser's message without the usage line:
 
 ```sh
-$ manzanero --error-format json physical <UDID> tap 2 0.5
+$ manzanero tap 2 0.5 --device <UDID> --error-format json
 {"error":{"action":null,"code":"usage","inputSent":"none","message":"Physical input coordinates must be normalized numbers from 0 to 1.","retry":"no"}}
+$ echo $?
+64
 ```
 
 Both mechanisms exist because they suit different callers: an agent harness sets the variable once for every invocation, including those made by scripts it does not control, while the option keeps a single invocation self-describing in logs. Diagnostics printed while a command runs (readiness warnings, cleanup notes, the signal message) stay text on stderr; the failure object is always the last line. `action` is `null` when there is none.
@@ -29,12 +31,13 @@ Tools declare no output schema, so the MCP specification places no constraint on
 
 | Exit | Meaning |
 | --- | --- |
-| 0 | Success, or an answer that reports its own status (see below) |
+| 0 | Success, or an answer that reports its own status (see below); also `--help` and `--version` |
 | 1 | Failure; the category is in the JSON, not in the exit code |
-| 124 | `wait-id`/`wait-label` timed out (an answer, JSON on stdout) |
+| 64 | Usage error (`code: usage`, BSD `EX_USAGE`): the call itself is wrong, whether the argument parser or the operation's own validation said so |
+| 124 | `wait` timed out (an answer, JSON on stdout) |
 | 130 / 143 | Interrupted by SIGINT / SIGTERM; release was attempted and is unverified |
 
-Exit codes per category were considered and rejected: the JSON already carries the category, distinct codes would collide with the conventions above and with shells' own values, and a caller that branches on the reaction needs `inputSent` and `retry`, which an exit code cannot carry.
+64 lets a script tell "called wrong" from "failed" without reading stderr. Exit codes for the other categories were considered and rejected: the JSON already carries the category, distinct codes would collide with the conventions above and with shells' own values, and a caller that branches on the reaction needs `inputSent` and `retry`, which an exit code cannot carry.
 
 ### Answers are not errors
 
@@ -50,7 +53,7 @@ Some commands report an unsuccessful outcome as a JSON answer on stdout with its
 | `possible` | Something was sent or attempted; its effect is unknown |
 | `unknown` | The failure site cannot tell (every unclassified failure, and an Apple tool that may or may not have acted) |
 
-A read-only command (`tree`, `wait-id`/`wait-label`, `screen`, `screenshot`, `details`, `apps`, `processes`, `files`, `pull`, `reports`, `report`, `logs`, `last-crash`, `readiness`, `media-status`, `devices`, `doctor`, `ocr`, `decode-ax-archive`) and every `--dry-run` report `none` for any failure, because they send nothing whatever stage failed. Recording sends no input either. `console` launches an app: a failed `simctl`/`devicectl` launch reports `unknown`, and a failure after the launch `possible` ([app logs](app-logs.md)).
+A read-only command (`tree`, `wait`, `screen`, `screenshot`, `details`, `apps`, `processes`, `files list`, `files pull`, `reports list`, `reports get`, `logs`, `last-crash`, `readiness`, `media-status`, `devices`, `doctor`, `ocr`, `decode-ax-archive`) and every `--dry-run` report `none` for any failure, because they send nothing whatever stage failed. Recording sends no input either. `console` launches an app: a failed `simctl`/`devicectl` launch reports `unknown`, and a failure after the launch `possible` ([app logs](app-logs.md)).
 
 **`retry`**
 
@@ -67,7 +70,7 @@ A read-only command (`tree`, `wait-id`/`wait-label`, `screen`, `screenshot`, `de
 
 | Value | What has to happen |
 | --- | --- |
-| `wake` | Wake the display (`physical <UDID> wake`) and unlock the device |
+| `wake` | Wake the display (`wake --device <UDID>`) and unlock the device |
 | `wait` | Wait for the other owner of the device, or for the person answering a handoff |
 | `human` | A person must act: enable Developer Mode, connect or trust the device, sign in or fix signing, change the Mac |
 | `allow-firewall` | Allow incoming connections for this executable in the macOS firewall (see [recording](recording.md)) |
@@ -76,7 +79,7 @@ A read-only command (`tree`, `wait-id`/`wait-label`, `screen`, `screenshot`, `de
 
 | `code` | Meaning | Typical cause | What a caller should do | Input may have been sent? |
 | --- | --- | --- | --- | --- |
-| `usage` | The arguments are wrong | Bad coordinates, missing operand, unknown option or command, recording destination exists | Fix the call (`retry: no`) | No |
+| `usage` | The arguments are wrong (exit 64) | Bad coordinates, missing operand, unknown option or command, no or two targets, recording destination exists | Fix the call (`retry: no`) | No |
 | `unsupported-operation` | The operation does not exist here | Simulator paste or wake, physical set-value, unknown device operation, retired backend or helper executable | Use another operation (`retry: no`) | No |
 | `device-not-ready` | Device prerequisites block the operation | Developer Mode disabled, device not connected or paired, no tunnel; a simulator that is not booted (the message names the `boot` command, which a caller may run itself) | Stop and ask a person (`action: human`) | No |
 | `display-off` | The primary display is off or its state is unknown | Screen locked and dark before touch, capture or AX centre selection | Run `wake`, then retry (`action: wake`) | No |

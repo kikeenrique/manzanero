@@ -5,16 +5,16 @@ Physical buttons, keyboard, touch and gestures use Apple interfaces in the `manz
 ## Basic commands
 
 ```sh
-manzanero physical <UDID> button home
-manzanero physical <UDID> tap 0.5 0.5
-manzanero physical <UDID> swipe 0.5 0.8 0.5 0.2 0.6
-manzanero physical <UDID> long-press 0.5 0.5 0.8
-manzanero physical <UDID> key backspace
+manzanero button home --device <UDID>
+manzanero tap 0.5 0.5 --device <UDID>
+manzanero swipe 0.5 0.8 0.5 0.2 0.6 --device <UDID>
+manzanero long-press 0.5 0.5 0.8 --device <UDID>
+manzanero key backspace --device <UDID>
 ```
 
-`drag` and `swipe` use the same point-to-point movement. Coordinates are normalized `0...1` in the current interface, origin at the top left. Movement duration is `0.03...10` seconds; a stationary long press accepts `0.1...10` seconds.
+`drag` and `swipe` use the same point-to-point movement. Coordinates are normalized `0...1` in the current interface, origin at the top left. Movement duration is `0.03...10` seconds; a stationary long press accepts `0.1...10` seconds. Put `--` before operands that begin with `-` (`tap --device <UDID> -- -0.1 0.5` reaches the coordinate check instead of being read as an option).
 
-The direct backend is the only physical backend and the default. `--physical-backend coredevice` selects it explicitly and is kept for existing scripts; any other value fails as an unsupported physical backend. Pairing files are not accepted. A failed action is not replayed through another backend.
+The direct backend is the only physical backend; there is no backend option. Pairing files are not accepted. A failed action is not replayed through another backend.
 
 ## Direct buttons
 
@@ -25,7 +25,7 @@ A barrier acknowledges transport progress, not a UI effect. Home has scoped visu
 ## Waking a dark display
 
 ```sh
-manzanero physical <UDID> wake [--no-dismiss]
+manzanero wake [--no-dismiss] --device <UDID>
 ```
 
 `wake` is for a prepared test device (no passcode, Auto-Lock set to Never) whose display was turned off. Because the side button toggles, it presses only when a press can only help:
@@ -66,7 +66,7 @@ For a string, use [US-layout ASCII typing](physical-typing.md). Unicode entry us
 ## Direct Unicode paste
 
 ```sh
-manzanero physical <UDID> paste 'mañana 🚀 中'
+manzanero paste 'mañana 🚀 中' --device <UDID>
 ```
 
 Paste accepts `1...65536` UTF-8 bytes without NUL. It uses Apple's `devicectl device pasteboard copy`, then sends one native Command+V sequence at the current caret/selection.

@@ -74,11 +74,11 @@ Shared groups:
 | `physical-input` | `button`, `key`, `type`, `paste`, `tap`, `long-press`, `drag`, `swipe`, `pinch`, two-contact `multi-drag` (Indigo HID) | CoreDevice preparation, descriptor control, `xpc_remote_connection_send_message`, `xpc_remote_connection_send_message_with_reply` | — |
 | `multi-contact-input` | `gesture`, `multi-tap`, three-to-five-path `multi-drag` (Universal HID) | Same as `physical-input` | — |
 | `tunnel-assertion` | Native AX and native recording | Nothing dynamic: public XPC to the pairing daemon, which doctor does not contact | — |
-| `rsd-accessibility` | `tree`, `press-id`/`-label`, `scroll-id`/`-label` | CoreDevice preparation, `xpc_remote_connection_create_with_nw_connection`, `_setup_nw_parameters`, `_get_failsafe_version_flags`, `_cancel`, `_set_event_handler`, `_activate`, `_send_message` | — |
+| `rsd-accessibility` | `tree`, `press`, `scroll`, `wait` | CoreDevice preparation, `xpc_remote_connection_create_with_nw_connection`, `_setup_nw_parameters`, `_get_failsafe_version_flags`, `_cancel`, `_set_event_handler`, `_activate`, `_send_message` | — |
 | `media-inspection` | `media-status` | Media control | — |
-| `native-recording` (macOS 26+) | `record-screen --recording-backend coredevice` (packet mode) | Media control, AVConference negotiation | `-[AVCMediaStreamNegotiator mediaNegotiator]`, `VCMediaNegotiatorBase` and `-negotiatedScreenSettings`, `VCMediaNegotiatorResultsVideo` and `-isRTCPFBEnabled` (RTCP feedback stays unknown without them) |
+| `native-recording` (macOS 26+) | `record --backend coredevice` (packet mode) | Media control, AVConference negotiation | `-[AVCMediaStreamNegotiator mediaNegotiator]`, `VCMediaNegotiatorBase` and `-negotiatedScreenSettings`, `VCMediaNegotiatorResultsVideo` and `-isRTCPFBEnabled` (RTCP feedback stays unknown without them) |
 | `simulator-input` | Simulator `tap`, `long-press`, `swipe`, `drag`, `button`, `key`, `type` | CoreSimulator device lookup, `xpc_endpoint_create_mach_port_4sim`, `xpc_connection_create_from_endpoint`, `xpc_connection_enable_sim2host_4sim`, and the existence of CoreSimulator's `Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtuhidd.plist` | `-[SimDevice name]` |
-| `simulator-accessibility` | Simulator `tree`, `press-id`/`-label`, `scroll-id`/`-label`, `wait-id`/`-label` | CoreSimulator device lookup, `-[SimDevice sendAccessibilityRequestAsync:completionQueue:completionHandler:]`, framework `/System/Library/PrivateFrameworks/AccessibilityPlatformTranslation.framework/AccessibilityPlatformTranslation` (`RTLD_NOW | RTLD_LOCAL`), classes `AXPTranslatorRequest`, `AXPTranslatorResponse`, `AXPTranslationObject`, each with `+supportsSecureCoding` | `-[SimDevice name]` |
+| `simulator-accessibility` | Simulator `tree`, `press`, `scroll`, `wait`, `set-value` | CoreSimulator device lookup, `-[SimDevice sendAccessibilityRequestAsync:completionQueue:completionHandler:]`, framework `/System/Library/PrivateFrameworks/AccessibilityPlatformTranslation.framework/AccessibilityPlatformTranslation` (`RTLD_NOW | RTLD_LOCAL`), classes `AXPTranslatorRequest`, `AXPTranslatorResponse`, `AXPTranslationObject`, each with `+supportsSecureCoding` | `-[SimDevice name]` |
 | `keyed-archive-uid` | AX archives, `decode-ax-archive` | `_CFKeyedArchiverUIDGetTypeID`, `_CFKeyedArchiverUIDGetValue` (linked CoreFoundation) | — |
 | `native-recording-jpeg` (macOS 26+) | none (`ADCCreateVideoSession`) | Media control, AVConference negotiation, `AVCVideoStream` (`-initWithNetworkSockets:options:error:`, `-configure:error:`, `-setDelegate:`, `-start`, `-stop`, `-streamToken`), `AVCStreamOutput` (`-initWithStreamToken:delegate:queue:error:`, `-setDelegate:`, `-validateAccess`) | — |
 
@@ -116,7 +116,7 @@ No proprietary device-control binary is linked or packaged. Required open-source
 The AXe, Rust idevice and ipb helper backends have been removed: first their CLI and MCP routes, planners, dry-run plans and tests, then their sources, patches and build tasks. Git history keeps them. What went with them:
 
 - independent `pair wifi` and `--pairing-file` device operations (no longer recognised as commands);
-- `--physical-backend idevice` (now an unsupported backend; `coredevice` is the only physical backend and the default);
+- `--physical-backend idevice` (the backend option itself is gone: `coredevice` is the only physical backend);
 - `hid-info`, raw live `ax-snapshot` with its archive saving, and finite physical `logs` (now unsupported physical-device operations);
 - AXe-backed simulator input and hierarchy (replaced by the in-process [simulator route](simulator-input.md));
 - the old ipb input helper plans (`coredevice-ipb` dry runs) and its video helper with the ADV1 JPEG pipe.

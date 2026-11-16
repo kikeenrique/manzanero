@@ -11,16 +11,16 @@ An agent that sees a wrong screen needs to know why. Three commands read what th
 ## Commands
 
 ```sh
-manzanero simulator <UUID> logs (--seconds N | --last N | --start <ISO-8601> [--end <ISO-8601>])
+manzanero logs (--seconds N | --last N | --start <ISO-8601> [--end <ISO-8601>])
     (--bundle <id> | --pid N | --process <name>) [--subsystem S [--category C]]
-    [--level default|info|debug] [--max-entries N] [--max-bytes N] [--output <new.ndjson>]
-manzanero <physical|simulator> <device> console <bundle-id> --seconds N
-    [--max-bytes N] [--os-log] [--terminate] [-- app-args…]
-manzanero <physical|simulator> <device> last-crash (--bundle <id> | --process <name>)
-    [--since <ISO-8601>] [--download <existing-dir>]
+    [--level default|info|debug] [--max-entries N] [--max-bytes N] [--output <new.ndjson>] --simulator <UUID>
+manzanero console <bundle-id> --seconds N [--max-bytes N] [--os-log] [--terminate]
+    (--device <UDID> | --simulator <UUID>) [-- app-args…]
+manzanero last-crash (--bundle <id> | --process <name>) [--since <ISO-8601>] [--download <existing-dir>]
+    (--device <UDID> | --simulator <UUID>)
 ```
 
-Options follow the operands, as in `wait-id`. Each option may appear once. Every command has a `--dry-run` plan that prints the planned argv, the derived predicate and the bounds without querying anything. A simulator is addressed by its UUID only.
+Options may come in any order; the target and every option go before `--`, after which everything is passed to the app. Every command has a `--dry-run` plan that prints the planned argv, the derived predicate and the bounds without querying anything. A simulator is addressed by its UUID only.
 
 MCP exposes them as `capture_logs` (simulator only, `readOnly`), `capture_console` (a mutation: it launches an app) and `latest_crash` (`readOnly`); see [MCP](mcp.md).
 

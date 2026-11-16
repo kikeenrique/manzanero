@@ -7,7 +7,7 @@ import Foundation
 /// Triggers, none of which needs a touch:
 /// - every launch emits one set (token from `-probeLogToken <token>`, else `launch`);
 /// - activating the accessibility element `probe.log.emit` (Manzanero
-///   `press-id probe.log.emit`) emits another set with the token `emit`;
+///   `press --id probe.log.emit`) emits another set with the token `emit`;
 /// - `-probeCrash abort|trap` crashes deliberately after one set and an
 ///   `about to crash` line. Only that launch argument crashes the app.
 ///

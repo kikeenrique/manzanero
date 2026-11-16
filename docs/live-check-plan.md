@@ -4,7 +4,7 @@ This page lists what still has to be run on a physical device. It is a plan, not
 
 Done on the iPhone 13 mini so far: wake, the command service queue, the device lease, interruption, the accessibility tree, press, scroll and every wait condition, touch delivery measured with the probe app, keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, app console output and the last crash, system-prompt handling through the tree, and a live MCP session. See [verification](verification.md).
 
-Run from the repository root with the device paired and unlocked. Replace `<UDID>` with the hardware UDID from `mise run cli devices`. If the display is off, `mise run cli physical <UDID> wake` turns it on. Take a screenshot before choosing where to touch, and inspect the screen after every action; a receipt is not an effect. Do not replay an input automatically.
+Run from the repository root with the device paired and unlocked. Replace `<UDID>` with the hardware UDID from `mise run cli devices`. If the display is off, `mise run cli wake --device <UDID>` turns it on. Take a screenshot before choosing where to touch, and inspect the screen after every action; a receipt is not an effect. Do not replay an input automatically.
 
 If every query to a connected device times out, capture the state of Apple's device services before restarting them: a wide `log stream` or `log show` window for `CoreDeviceService` and `remotepairingd`, and a `sample` of each process. On 2026-11-16 restarting them fixed the hang, but nothing was captured first and the cause is unknown.
 

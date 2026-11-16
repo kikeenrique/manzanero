@@ -3,9 +3,9 @@
 Handoff asks a person to perform a step on the selected device. It does not detect prompts, perform the step or verify its effect.
 
 ```sh
-manzanero physical <hardware-UDID> handoff 'Complete Face ID on the phone'
-manzanero simulator <UUID> handoff 'Finish the permission step' 120
-manzanero --dry-run physical <hardware-UDID> handoff 'Enable Developer Mode and restart'
+manzanero handoff 'Complete Face ID on the phone' --device <hardware-UDID>
+manzanero handoff 'Finish the permission step' 120 --simulator <UUID>
+manzanero handoff 'Enable Developer Mode and restart' --device <hardware-UDID> --dry-run
 ```
 
 Use a hardware UDID for physical devices or UUID for simulators. Names, `booted` and physical CoreDevice UUID aliases are rejected. Format validation does not establish device presence; discover the target first.

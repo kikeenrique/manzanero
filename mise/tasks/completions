@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#MISE description = "Write zsh, bash and fish completion scripts for the built CLI under tmp/completions"
+#MISE depends = ["build"]
+
+# The scripts come from Swift Argument Parser's --generate-completion-script.
+# Install one by copying it, for example tmp/completions/_manzanero into a
+# directory on zsh's $fpath.
+
+set -e -o pipefail
+
+mkdir -p tmp/completions
+.build/debug/manzanero --generate-completion-script zsh > tmp/completions/_manzanero
+.build/debug/manzanero --generate-completion-script bash > tmp/completions/manzanero.bash
+.build/debug/manzanero --generate-completion-script fish > tmp/completions/manzanero.fish
+echo "Wrote tmp/completions/_manzanero, manzanero.bash and manzanero.fish"

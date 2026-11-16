@@ -29,11 +29,11 @@ Archives are ad-hoc signed, without Developer ID notarization. They do not provi
 - For native recording with the macOS firewall on: a rule allowing incoming connections for the installed `manzanero` executable. The beta archive is ad-hoc signed, so it is not allowed automatically. `manzanero doctor` reports the state and the path; see [recording](recording.md#the-macos-firewall-can-drop-the-video).
 
 ```sh
-manzanero devices physical
-manzanero physical <hardware-UDID> readiness
-manzanero physical <hardware-UDID> screenshot tmp/screen.png
-manzanero physical <hardware-UDID> tree
-manzanero physical <hardware-UDID> button home
+manzanero devices
+manzanero readiness --device <hardware-UDID>
+manzanero screenshot tmp/screen.png --device <hardware-UDID>
+manzanero tree --device <hardware-UDID>
+manzanero button home --device <hardware-UDID>
 ```
 
 Ensure the output parent directory exists. Readiness reports CoreDevice prerequisites and separate display/passcode observations; it does not verify UI Automation or prove current UI unlock.

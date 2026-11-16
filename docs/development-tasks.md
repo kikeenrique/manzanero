@@ -6,18 +6,19 @@ Executable Bash tasks live under `mise/tasks/`. `mise.toml` selects that directo
 mise run build
 mise run test
 mise run cli -- --help
-mise run cli --dry-run physical fixture key backspace
+mise run cli key backspace --device fixture --dry-run
+mise run completions
 mise tasks
 mise tasks validate
 ```
 
-`cli` forwards literal arguments to the built executable and does not build it. Swift build/test tasks use xcsift and pipefail, so a formatter's success cannot hide a failed compiler command.
+`cli` forwards literal arguments to the built executable and does not build it (put `--` before `--help`, which mise would otherwise take). `completions` builds and writes zsh, bash and fish completion scripts under `tmp/completions`. Swift build/test tasks use xcsift and pipefail, so a formatter's success cannot hide a failed compiler command.
 
 ## Task groups
 
 | Task | Purpose |
 | --- | --- |
-| `build`, `test`, `cli` | Main executable and local regression checks |
+| `build`, `test`, `cli`, `completions` | Main executable, local regression checks and shell completion scripts |
 | `package`, `test:package`, `release:formula` | [Beta packaging](releasing.md), archive smoke and tap formula generation |
 | `release <version>` | Check version/worktree/tag, then push the tag to publish a beta through CI |
 | `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device |

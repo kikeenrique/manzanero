@@ -37,7 +37,7 @@ mise run test:probe-touch <UDID> --readback end       # readback only before and
 
 Other flags: `--settle <seconds>` (pause before each readback, default 0.5), `--out <dir>`, `--no-reset`, `--no-pull`, `--platform physical|simulator` (default physical), `--any-orientation` (accept a landscape probe at preflight; launch the probe with `-ProbeAllowRotation YES` and turn the device first).
 
-With `--platform simulator` the device argument must be the simulator's UUID, and every command vector starts with `simulator <UUID>` instead of `physical <UDID>`. Manzanero has no simulator app-data pull, so the pull is skipped and the recent-gestures and last-gesture readouts are the evidence. Every action kind of the built-in plan, including the two-to-five-contact ones, runs on a simulator ([results](#simulator-runs)). The pull uses `PROBE_APP_BUNDLE_ID` when it is set (for example in `.env.local`), else the tracked default. The UDID is required; there is no default device.
+Every Manzanero command the runner builds names the operation first and ends with the target: `--device <UDID>`, or with `--platform simulator` (where the device argument must be the simulator's UUID) `--simulator <UUID>`. Manzanero has no simulator app-data pull, so the pull is skipped and the recent-gestures and last-gesture readouts are the evidence. Every action kind of the built-in plan, including the two-to-five-contact ones, runs on a simulator ([results](#simulator-runs)). The pull uses `PROBE_APP_BUNDLE_ID` when it is set (for example in `.env.local`), else the tracked default. The UDID is required; there is no default device.
 
 The executable can also be run directly after `swift build --package-path Fixtures/ProbeApp/ProbeCore --scratch-path tmp/probe-app/core-build --product probe-touch`:
 
@@ -56,12 +56,12 @@ Exit status: 0 when every action was sent; 3 when the run stopped early (the rep
 ## How a run proceeds
 
 1. **Validate the plan** against Manzanero's documented limits ([physical input](native-input.md), [multitouch](multitouch.md), [sequences](gesture-sequences.md)). An invalid plan sends nothing. Points within 0.05 of an edge, or on the probe's reset box, produce warnings.
-2. **Preflight readback:** `manzanero physical <UDID> tree`. The tree must contain exactly one `probe.touch.summary` whose value parses as a v1 summary, the [foreground identity](#foreground-identity) must not contradict the expected bundle identifier, the size must be portrait (unless `--any-orientation`), and no contact may be down. Otherwise the run stops before any input. The tree selects the app at the display centre, so a missing summary means the probe is not the foreground app.
-3. **Reset:** `manzanero physical <UDID> press-id probe.touch.reset`. This is an accessibility activation, not a touch. The receipt must say `accepted`.
+2. **Preflight readback:** `manzanero tree --device <UDID>`. The tree must contain exactly one `probe.touch.summary` whose value parses as a v1 summary, the [foreground identity](#foreground-identity) must not contradict the expected bundle identifier, the size must be portrait (unless `--any-orientation`), and no contact may be down. Otherwise the run stops before any input. The tree selects the app at the display centre, so a missing summary means the probe is not the foreground app.
+3. **Reset:** `manzanero press --id probe.touch.reset --device <UDID>`. This is an accessibility activation, not a touch. The receipt must say `accepted`.
 4. **Baseline readback:** the session must have changed, the identity must not be contradicted, and no contact may be down. Events recorded after the reset and before the first action (for example a reset press delivered as a tap) are counted as unattributed and excluded from every window.
-5. **For each action:** send `manzanero physical <UDID> <command ...>`, wait the settle time, then read the tree again (`--readback each`, the default). With `--readback end`, only the settle pause separates actions and one readback follows the last.
+5. **For each action:** send `manzanero <command ...> --device <UDID>`, wait the settle time, then read the tree again (`--readback each`, the default). With `--readback end`, only the settle pause separates actions and one readback follows the last.
 6. **Closing readback:** if the run stopped for a reason other than a failed readback and the last sent action has no readback, one more tree read (no input) bounds its window.
-7. **Pull:** `manzanero physical <UDID> pull <bundle-id> Documents/touch-log.jsonl <run-dir>/touch-log.jsonl`, unless `--no-pull` or nothing was measured. A pull sends no input, so it also runs after an early stop.
+7. **Pull:** `manzanero files pull <bundle-id> Documents/touch-log.jsonl <run-dir>/touch-log.jsonl --device <UDID>`, unless `--no-pull` or nothing was measured. A pull sends no input, so it also runs after an early stop.
 8. **Compare** and write the report.
 
 ### Stop rules
@@ -85,7 +85,7 @@ The probe's accessibility identifiers say which elements to read, not which app 
 
 Each readback's observed value is kept as `bundleID` in `run.json`, so `probe-touch compare` recomputes the same identity results.
 
-Per-command deadlines are 90 seconds for `tree` and `press-id`, the action's scheduled duration plus 90 seconds for input, and 180 seconds for `pull`. At a deadline the runner sends SIGINT, which Manzanero turns into cancellation with an attempted release, and SIGTERM 35 seconds later if needed. Interrupting the runner itself (Ctrl-C) also signals the Manzanero child in the same process group; `run.json` is rewritten after every step, so evidence up to the interruption remains, and `probe-touch compare` can rebuild a report from it.
+Per-command deadlines are 90 seconds for `tree` and `press`, the action's scheduled duration plus 90 seconds for input, and 180 seconds for `pull`. At a deadline the runner sends SIGINT, which Manzanero turns into cancellation with an attempted release, and SIGTERM 35 seconds later if needed. Interrupting the runner itself (Ctrl-C) also signals the Manzanero child in the same process group; `run.json` is rewritten after every step, so evidence up to the interruption remains, and `probe-touch compare` can rebuild a report from it.
 
 ### Device state left
 
@@ -115,7 +115,7 @@ The runner launches, terminates and relaunches nothing and presses no button. Un
 }
 ```
 
-Coordinates are normalised `0...1`, origin top left, the space of both Manzanero's commands and the probe's `nx`/`ny`. Each `kind` maps to one Manzanero command; `gesture` takes the same frames as `manzanero physical <UDID> gesture`. `id` is 1...64 ASCII letters, digits, `-`, `_` or `.`, unique in the plan. `settleSeconds` (0...5) and the tolerances are optional. Tolerances only flag a result; they never change whether an action counts as delivered.
+Coordinates are normalised `0...1`, origin top left, the space of both Manzanero's commands and the probe's `nx`/`ny`. Each `kind` maps to one Manzanero command; `gesture` takes the same frames as `manzanero gesture <json> --device <UDID>`. `id` is 1...64 ASCII letters, digits, `-`, `_` or `.`, unique in the plan. `settleSeconds` (0...5) and the tolerances are optional. Tolerances only flag a result; they never change whether an action counts as delivered.
 
 The **built-in plan** has 14 actions, about 5 seconds of scheduled contact time: three taps, a 0.8-second long press, a swipe, a drag, two-contact multi-tap and pinch, three-contact multi-tap and multi-drag, four- and five-contact multi-taps, a one-finger double tap as a gesture sequence, and a two-contact sequence with staggered arrival and lift. Every point stays within x 0.25...0.75 and y 0.3...0.65, away from the edges where system gestures start and from the reset box. No action is a three-finger double tap, the iOS Zoom shortcut. `probe-touch plan` prints it.
 

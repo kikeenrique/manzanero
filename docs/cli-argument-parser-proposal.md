@@ -1,6 +1,6 @@
 # Proposal: adopt Swift Argument Parser and settle the command grammar
 
-Status: accepted by the owner on 2026-11-16, with the choices recorded under [Decisions](#decisions). Nothing here is implemented yet; it is scheduled after the pending phone checks, with no other command work in flight.
+Status: accepted by the owner on 2026-11-16, with the choices recorded under [Decisions](#decisions), and implemented the same day (see [Implementation notes](#implementation-notes)). The command examples below that show today's or the earlier grammar are kept as written for the record; `manzanero --help` and the guides show the current commands.
 
 ## Recommendation
 
@@ -119,3 +119,14 @@ Decided by the owner on 2026-11-16:
 4. **Grouping:** `files list|pull|push` and `reports list|get`.
 5. **`devices`:** one command with a flag (`devices` for physical devices, `devices --simulators` for simulators).
 6. **When:** later, after the pending phone checks, with nothing else in flight.
+
+## Implementation notes
+
+Implemented on 2026-11-16 as proposed, with these details:
+
+- Every operation is a `ParsableCommand` (`Sources/Manzanero/CLICommands.swift`); the root, the shared option groups and target resolution are in `CLI.swift`. `main.swift` calls `parseAsRoot` and keeps its own exit path. Every failure with `code: usage` exits 64, whether the parser or the operation found it; help, version and `--generate-completion-script` exit 0.
+- Operands and option values stay text in the command types. The operations' own validators convert and check them, so their messages are unchanged; only arity, unknown-option and type messages are the library's.
+- Every device command accepts `--device` and `--simulator`. A target the operation does not support is refused by the operation with its existing `unsupported-operation` message (simulator `paste`, physical `set-value`, physical `logs`, simulator `details`), so error categories stay as they were.
+- `--dry-run` and `--error-format` are declared on the root and on every command, so they work before or after the operation. The library reads the root's options first: a value that spells one of them (`--label --dry-run`) must be attached with `=` (`--label=--dry-run`). MCP always attaches values with `=` and puts operands after `--`.
+- A repeated single-value option takes its last value (the library's rule); the earlier hand-written parsers refused repeats in `wait`, `logs`, `console`, `last-crash` and `build-run`.
+- Messages that quoted an old spelling now quote the new one (the `wait` usage suffix, `screen`, `record` and `handoff` usage, `devices --simulators`, `boot --simulator`, `set-value` pointers).

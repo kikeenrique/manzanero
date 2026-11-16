@@ -115,11 +115,13 @@ public final class TouchRunner {
 
     func settle(_ plan: TouchPlan) -> Double { options.settleOverride ?? plan.settle }
 
-    var treeArguments: [String] { [options.platform, options.device, "tree"] }
-    var resetArguments: [String] { [options.platform, options.device, "press-id", ProbeTree.resetIdentifier] }
-    func actionArguments(_ action: TouchAction) -> [String] { [options.platform, options.device] + action.cliArguments }
+    /// `--device <UDID>` or `--simulator <UUID>`, after the operation and its operands.
+    var targetArguments: [String] { [options.platform == "simulator" ? "--simulator" : "--device", options.device] }
+    var treeArguments: [String] { ["tree"] + targetArguments }
+    var resetArguments: [String] { ["press", "--id", ProbeTree.resetIdentifier] + targetArguments }
+    func actionArguments(_ action: TouchAction) -> [String] { action.cliArguments + targetArguments }
     func pullArguments(destination: String) -> [String] {
-        ["physical", options.device, "pull", options.bundleID, Self.logRemotePath, destination]
+        ["files", "pull", options.bundleID, Self.logRemotePath, destination, "--device", options.device]
     }
 
     public func execute() -> Outcome {
@@ -320,7 +322,7 @@ public final class TouchRunner {
                 let result = invoke("reset", resetArguments, timeout: 90)
                 let status = result.flatMap { ProbeTree.receiptStatus($0.stdout) }
                 if result?.exitCode != 0 || status != "accepted" {
-                    stop("reset: press-id was not accepted (exit \(result.map { String($0.exitCode) } ?? "none"), status \(status ?? "none")). No touch input was sent.")
+                    stop("reset: press --id was not accepted (exit \(result.map { String($0.exitCode) } ?? "none"), status \(status ?? "none")). No touch input was sent.")
                 } else {
                     switch observe("baseline") {
                     case .failure(let error): stop(error.description + " No touch input was sent.")

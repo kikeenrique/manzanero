@@ -5,22 +5,24 @@ Simulator trees, element actions, waits, touch with one to five contacts and tim
 ## Commands
 
 ```sh
-manzanero simulator <UUID> tree [pid]
-manzanero simulator <UUID> press-id|press-label [pid] <exact-selector>
-manzanero simulator <UUID> scroll-id|scroll-label [pid] <exact-selector>
-manzanero simulator <UUID> set-value-id|set-value-label [pid] <exact-selector> <text>
-manzanero simulator <UUID> wait-id|wait-label [pid] <exact-selector> [--until …] [--value …] [--timeout …] [--interval …]
-manzanero simulator <UUID> tap <x> <y>
-manzanero simulator <UUID> long-press <x> <y> <seconds>
-manzanero simulator <UUID> swipe|drag <x1> <y1> <x2> <y2> <seconds>
-manzanero simulator <UUID> pinch <center-x> <center-y> <start-span> <end-span> <seconds>
-manzanero simulator <UUID> multi-drag <seconds> <x1> <y1> <x2> <y2> ...   # two to five paths
-manzanero simulator <UUID> multi-tap <x1> <y1> <x2> <y2> ...                # two to five contacts
-manzanero simulator <UUID> gesture '<JSON frames>'
-manzanero simulator <UUID> button home|lock|volume-up|volume-down
-manzanero simulator <UUID> key return|escape|backspace|tab|space|up|down|left|right
-manzanero simulator <UUID> type <text>
+manzanero tree [--pid <pid>] --simulator <UUID>
+manzanero press (--id <identifier> | --label <label>) [--pid <pid>] --simulator <UUID>
+manzanero scroll (--id <identifier> | --label <label>) [--pid <pid>] --simulator <UUID>
+manzanero set-value (--id <identifier> | --label <label>) [--pid <pid>] <text> --simulator <UUID>
+manzanero wait (--id <identifier> | --label <label>) [--pid <pid>] [--until …] [--value …] [--timeout …] [--interval …] --simulator <UUID>
+manzanero tap <x> <y> --simulator <UUID>
+manzanero long-press <x> <y> <seconds> --simulator <UUID>
+manzanero swipe|drag <x1> <y1> <x2> <y2> <seconds> --simulator <UUID>
+manzanero pinch <center-x> <center-y> <start-span> <end-span> <seconds> --simulator <UUID>
+manzanero multi-drag <seconds> <x1> <y1> <x2> <y2> ... --simulator <UUID>   # two to five paths
+manzanero multi-tap <x1> <y1> <x2> <y2> ... --simulator <UUID>                # two to five contacts
+manzanero gesture '<JSON frames>' --simulator <UUID>
+manzanero button home|lock|volume-up|volume-down --simulator <UUID>
+manzanero key return|escape|backspace|tab|space|up|down|left|right --simulator <UUID>
+manzanero type <text> --simulator <UUID>
 ```
+
+`MANZANERO_SIMULATOR=<UUID>` in the environment stands in for `--simulator` when no target option is given.
 
 Arguments, ranges, coordinate space (normalized `0...1`, origin top left), receipts, dry-run plans, exit codes and error categories are those of the physical commands in [physical input](native-input.md), [physical typing](physical-typing.md) and [native accessibility](direct-accessibility.md). The selectors, the press and scroll guards, the wait conditions and the tree JSON are the same code. Every command has a `--dry-run` plan that does not look the simulator up.
 
@@ -28,7 +30,7 @@ MCP tools take `platform: simulator` for the same operations: `get_ui_tree`, `pr
 
 ## Unicode text: set-value
 
-`set-value-id` and `set-value-label` replace one element's whole value with any Unicode text (1...65536 UTF-8 bytes, no NUL) through the accessibility set-value request (request type 8, attribute 53, parameter `value`). No key event, keyboard layout or clipboard is involved. Selection and guards are those of `press-id`/`press-label`: foreground selection, two fresh unique snapshots, live enabled and visible state and frame, an exact centre hit and application/display rechecks. Before the request the element must answer the settable query (type 3, attribute 53) with true; otherwise the command fails as `ambiguous-or-missing-target` and sends nothing, so select the text field itself, not its label. Afterwards the value is read back once: the receipt has `status: acknowledged`, `valueMatches` (true, false, or null with `readBackFailure`) and the requested and read-back byte counts. An app may transform the value, so a mismatch is reported rather than treated as failure. The command takes the device lease like a press. A failure after the request was sent is `input-outcome-unknown`.
+`set-value` replaces one element's whole value with any Unicode text (1...65536 UTF-8 bytes, no NUL) through the accessibility set-value request (request type 8, attribute 53, parameter `value`). No key event, keyboard layout or clipboard is involved. Selection and guards are those of `press`: foreground selection, two fresh unique snapshots, live enabled and visible state and frame, an exact centre hit and application/display rechecks. Before the request the element must answer the settable query (type 3, attribute 53) with true; otherwise the command fails as `ambiguous-or-missing-target` and sends nothing, so select the text field itself, not its label. Afterwards the value is read back once: the receipt has `status: acknowledged`, `valueMatches` (true, false, or null with `readBackFailure`) and the requested and read-back byte counts. An app may transform the value, so a mismatch is reported rather than treated as failure. The command takes the device lease like a press. A failure after the request was sent is `input-outcome-unknown`.
 
 Observed on the probe's text field: the field becomes first responder, as after a tap. With an on-screen keyboard that can cover a field low on the screen, and a covered field reports itself not visible, so a second set-value is refused by the visibility guard until the keyboard is dismissed.
 
@@ -40,7 +42,7 @@ Observed on the probe's text field: the field becomes first responder, as after 
 
 ## Requirements
 
-- A booted simulator, addressed by its UUID (`manzanero devices simulators`). Names and `booted` are refused, because several simulators can match them. A simulator that is not `Booted` is refused with `device-not-ready` before any connection; `manzanero` never boots one implicitly.
+- A booted simulator, addressed by its UUID (`manzanero devices --simulators`). Names and `booted` are refused, because several simulators can match them. A simulator that is not `Booted` is refused with `device-not-ready` before any connection; `manzanero` never boots one implicitly.
 - An Xcode whose CoreSimulator injects the `dtuhidd` HID daemon into the runtime (Xcode 27 on the tested machine). `doctor` reports `simulator-input` and `simulator-accessibility`; the launchd plists of `dtuhidd` and `dtdeviceinfod` (display information) are checked by existence only.
 - The developer directory comes from `DEVELOPER_DIR`, else `xcode-select -p`.
 

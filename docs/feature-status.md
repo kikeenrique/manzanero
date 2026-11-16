@@ -12,7 +12,7 @@ This page describes current product availability, not historical helper capabili
 | Coordinated contacts | Two-to-five-contact multi-tap/multi-drag, pinch, timed complete-state schedules | Two-contact Maps zoom and selected timed sequences verified. The probe app received two, three, four and five simultaneous contacts as sent on iPhone 13 mini. What apps' gesture recognizers make of three or more contacts is not established. |
 | Physical AX reads | Explicit-PID and portrait display-centre selected trees | Settings CLI/MCP trees and screenshot/tree workflow verified. Non-atomic, snapshot-local IDs; overlay, rotation and other-family coverage limited. |
 | Physical AX actions | Exact identifier/label press; scroll-to-visible | Settings navigation and row movement verified. Target must resolve freshly; scroll requires materialized nodes and separate postcondition inspection. |
-| Physical AX waits | Read-only bounded wait (`wait-id`/`wait-label`, MCP `wait_for_element`) for visible, gone, enabled, disabled or exact value, in one session | Implemented and tested locally with fake sessions and virtual time; not verified on hardware. Snapshot cost, idle-subscription callbacks and exited-PID behavior are unobserved. |
+| Physical AX waits | Read-only bounded wait (`wait`, MCP `wait_for_element`) for visible, gone, enabled, disabled or exact value, in one session | Implemented and tested locally with fake sessions and virtual time; not verified on hardware. Snapshot cost, idle-subscription callbacks and exited-PID behavior are unobserved. |
 | Screen analysis | PNG capture, Vision OCR, native physical hierarchy with fallback | Spanish Settings OCR and selected OCR-guided navigation verified. OCR regions are not guaranteed hittable; recognition has a cooperative deadline. |
 | Offline archive inspection | Swift/Foundation data-only structural decoding | Saved phone callback decoded locally. This is not fresh capture or a normalized tree. |
 | Physical recording | Explicit native CoreDevice HEVC input, H.264/HEVC MP4 output | Short CLI/MCP, one five-minute capture and one 20-second AX/Home interaction verified with owned cleanup. Startup and recovery remain incomplete. Default devicectl capture failed on this phone. |
@@ -31,7 +31,7 @@ This page describes current product availability, not historical helper capabili
 ## Unavailable or missing
 
 - Simulator `wake`: refused as not implemented (`unsupported-operation`). Simulator `paste` is refused because `simctl pbcopy` did not reach the pasteboard; non-ASCII `type` is refused in favour of set-value.
-- Physical `set-value-id`/`set-value-label`: refused (`unsupported-operation`) until the request has been tried on a phone.
+- Physical `set-value`: refused (`unsupported-operation`) until the request has been tried on a phone.
 - Physical `hid-info` and live raw `ax-snapshot`: no direct Apple replacement yet; they fail as an unsupported physical-device operation. Physical `logs` is refused as `unsupported-operation` until the native `os_trace_relay` route exists ([app logs](app-logs.md)). Offline `decode-ax-archive` still works.
 - Independent Wi-Fi pairing (`pair wifi`) and `--pairing-file`: not recognised as commands. Pair through Xcode/CoreDevice.
 

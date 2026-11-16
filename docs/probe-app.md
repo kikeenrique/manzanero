@@ -42,7 +42,7 @@ xcodebuild -workspace tmp/probe-app/generated/ProbeApp.xcworkspace -scheme Probe
 Replace `build` with `test` to run the XCUITest target on a booted simulator. Then install and launch with `xcrun simctl install <simulator-UUID> <path>/ProbeApp.app` and `xcrun simctl launch <simulator-UUID> com.lemambo.manzanero.probeapp`. Or use Manzanero's Build & Run, which takes the generated workspace:
 
 ```sh
-manzanero simulator <simulator-UUID> build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp
+manzanero build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp --simulator <simulator-UUID>
 ```
 
 Xcode's package resolution can create an ignored `Fixtures/ProbeApp/ProbeCore/.swiftpm/`.
@@ -69,9 +69,9 @@ PROBE_APP_BUNDLE_ID = <your.bundle.id>
 By default Build & Run signs only with profiles already on the Mac. From a clean state (no profile for the bundle identifier, phone not yet registered with the team), let Xcode create what is missing. Xcode must have an account for the team under Xcode > Settings > Accounts, and the phone must be connected, unlocked, trusted and in Developer Mode:
 
 ```sh
-manzanero --dry-run physical <UDID> build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp \
-  --allow-provisioning-updates --allow-device-registration    # check the plan first
-manzanero physical <UDID> build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp \
+manzanero build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp --device <UDID> \
+  --allow-provisioning-updates --allow-device-registration --dry-run    # check the plan first
+manzanero build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp --device <UDID> \
   --allow-provisioning-updates --allow-device-registration
 ```
 
@@ -161,10 +161,10 @@ The surface view is an accessibility container. Its children are four `UIAccessi
 
 The three readouts carry the `staticText` and `updatesFrequently` traits.
 
-**Why the value carries the JSON.** Manzanero's physical tree (`AccessibilitySnapshot.normalize`) returns `label`, `hint`, `identifier`, `value`, `frame`, `traits` and `visible` for each node, plus `nativeAttributes` (string metadata from native attributes `5003`, `5004` and `3003`) when present. Each text field is returned verbatim as a string scalar, with no per-string length cap. The bounds are 512 nodes, depth 32, a 16 MiB archive limit and a 40 MiB per-session callback budget. The summary and last-gesture readouts are a few hundred bytes to about 1.5 KB; the recent-gestures readout is bounded at about 8.2 KB (below). `identifier` is the stable selector. `label` stays a short fixed name, because `press-label` matches on it exactly and VoiceOver speaks it. `accessibilityValue` is the property meant for changing content. Values are computed when they are queried, so every snapshot reads current state.
+**Why the value carries the JSON.** Manzanero's physical tree (`AccessibilitySnapshot.normalize`) returns `label`, `hint`, `identifier`, `value`, `frame`, `traits` and `visible` for each node, plus `nativeAttributes` (string metadata from native attributes `5003`, `5004` and `3003`) when present. Each text field is returned verbatim as a string scalar, with no per-string length cap. The bounds are 512 nodes, depth 32, a 16 MiB archive limit and a 40 MiB per-session callback budget. The summary and last-gesture readouts are a few hundred bytes to about 1.5 KB; the recent-gestures readout is bounded at about 8.2 KB (below). `identifier` is the stable selector. `label` stays a short fixed name, because `press --label` matches on it exactly and VoiceOver speaks it. `accessibilityValue` is the property meant for changing content. Values are computed when they are queried, so every snapshot reads current state.
 
 ```sh
-manzanero physical <UDID> tree
+manzanero tree --device <UDID>
 ```
 
 Find the nodes whose `identifier` is `probe.touch.summary`, `probe.touch.last-gesture` or `probe.touch.recent-gestures` and parse their `value` as JSON. The tree route requires the probe to be the foreground app at the display centre and the device in native portrait orientation (`rot0`). The probe locks portrait.
@@ -232,7 +232,7 @@ Compare the `session` with the value read before sending input. If it changed, t
 
 ## Text probe
 
-One editable `UITextField` and a readout of exactly what it holds, to check text entry (HID `type`, `key`, and the simulator's `set-value-id`/`-label`) code point for code point. Source: `Fixtures/ProbeApp/App/ProbeTextProbe.swift`.
+One editable `UITextField` and a readout of exactly what it holds, to check text entry (HID `type`, `key`, and the simulator's `set-value`) code point for code point. Source: `Fixtures/ProbeApp/App/ProbeTextProbe.swift`.
 
 | Identifier | Label | Value | Frame |
 | --- | --- | --- | --- |
@@ -244,7 +244,7 @@ The field has an empty input view, so no on-screen keyboard appears and covers i
 ## Readback path 2: file
 
 ```sh
-manzanero physical <UDID> pull <bundle-id> Documents/touch-log.jsonl tmp/touch-log.jsonl
+manzanero files pull <bundle-id> Documents/touch-log.jsonl tmp/touch-log.jsonl --device <UDID>
 ```
 
 `<bundle-id>` is the identifier the app was signed with. This uses Apple's `devicectl device copy from` on the app data container. The app also sets `UIFileSharingEnabled`. In the simulator the same file is at `$(xcrun simctl get_app_container <simulator-UUID> <bundle-id> data)/Documents/touch-log.jsonl`.
@@ -254,10 +254,10 @@ manzanero physical <UDID> pull <bundle-id> Documents/touch-log.jsonl tmp/touch-l
 Activating `probe.touch.reset` through accessibility clears the counters, the marks and the log, and starts a new session whose header has `reason: reset`. Manzanero does this with an exact-identifier press:
 
 ```sh
-manzanero physical <UDID> press-id probe.touch.reset
+manzanero press --id probe.touch.reset --device <UDID>
 ```
 
-The element meets `press-id`'s guards by construction. It has a fixed unique identifier, a positive frame wholly inside the display (a 180×52-point box near the bottom centre, outlined on screen), enabled and visible state, and no overlapping element, so an AX hit test at its centre should resolve to it. `accessibilityActivate()` performs the reset and returns `true`, which tells UIKit not to fall back to a synthesized tap. If a press were ever delivered as a tap instead, it would show as a `began`/`ended` pair at the reset box in the new session. A touch on the reset box is recorded like any other touch and does not reset.
+The element meets `press`'s guards by construction. It has a fixed unique identifier, a positive frame wholly inside the display (a 180×52-point box near the bottom centre, outlined on screen), enabled and visible state, and no overlapping element, so an AX hit test at its centre should resolve to it. `accessibilityActivate()` performs the reset and returns `true`, which tells UIKit not to fall back to a synthesized tap. If a press were ever delivered as a tap instead, it would show as a `began`/`ended` pair at the reset box in the new session. A touch on the reset box is recorded like any other touch and does not reset.
 
 A fresh launch always starts a new session. The model is owned by the application delegate, so a scene reconnect within one process does not.
 
@@ -299,14 +299,14 @@ The log probe writes known lines so that [`logs`, `console` and `last-crash`](ap
 **Triggers**, none of which needs a touch:
 
 - Every launch writes one set. The token is the value after the launch argument `-probeLogToken` (1...64 ASCII letters, digits, `.`, `_`, `-`), else `launch`.
-- Activating the accessibility element `probe.log.emit` writes another set with the token `emit`: `manzanero <platform> <device> press-id probe.log.emit`. The element is a button-trait `UIAccessibilityElement` (label `Emit probe logs`, value `{"sets":N}`), added to the touch surface's accessibility elements at x 16, y 400, 180×52 points, clear of the touch probe's elements. It is not a view, so it never receives touches. A custom URL scheme was tried first and dropped: iOS asks "Open in “Probe”?" before delivering it, which needs a touch.
+- Activating the accessibility element `probe.log.emit` writes another set with the token `emit`: `manzanero press --id probe.log.emit (--device <UDID> | --simulator <UUID>)`. The element is a button-trait `UIAccessibilityElement` (label `Emit probe logs`, value `{"sets":N}`), added to the touch surface's accessibility elements at x 16, y 400, 180×52 points, clear of the touch probe's elements. It is not a view, so it never receives touches. A custom URL scheme was tried first and dropped: iOS asks "Open in “Probe”?" before delivering it, which needs a touch.
 - `-probeCrash abort|trap` crashes deliberately one second after the launch set, after logging `probe.log <token> about to crash mode=<mode>` at error and printing it to stdout with a flush (which also flushes the unflushed line). `abort` calls `abort()` (SIGABRT); `trap` calls `fatalError` (SIGTRAP). Only that launch argument crashes the app; nothing in the measurement runner or the UI passes it.
 
 ```sh
-manzanero simulator <UUID> console com.lemambo.manzanero.probeapp --seconds 5 --os-log -- -probeLogToken T1
-manzanero simulator <UUID> logs --seconds 10 --bundle com.lemambo.manzanero.probeapp --level debug   # press-id probe.log.emit meanwhile
-manzanero simulator <UUID> console com.lemambo.manzanero.probeapp --seconds 6 -- -probeLogToken K1 -probeCrash abort
-manzanero simulator <UUID> last-crash --bundle com.lemambo.manzanero.probeapp --since <ISO-8601 before the launch>
+manzanero console com.lemambo.manzanero.probeapp --seconds 5 --os-log --simulator <UUID> -- -probeLogToken T1
+manzanero logs --seconds 10 --bundle com.lemambo.manzanero.probeapp --level debug --simulator <UUID>   # press --id probe.log.emit meanwhile
+manzanero console com.lemambo.manzanero.probeapp --seconds 6 --simulator <UUID> -- -probeLogToken K1 -probeCrash abort
+manzanero last-crash --bundle com.lemambo.manzanero.probeapp --since <ISO-8601 before the launch> --simulator <UUID>
 ```
 
 Results on one iPhone Air simulator are in [verification](verification.md#app-logs-console-and-crashes).

@@ -2,6 +2,8 @@
 
 This is the evidence summary for the current implementation and the material failures that shaped it. It is organized by capability so readers do not have to reconstruct the latest state from an append-only development log.
 
+**Commands recorded before 2026-11-16 use the earlier grammar**, with the platform and device first (`physical <UDID> tap 0.5 0.5`, `simulator <UUID> press-id <id>`). From that date the CLI names the operation first and the target as an option (`tap 0.5 0.5 --device <UDID>`, `press --id <id> --simulator <UUID>`); see the [argument parser proposal](cli-argument-parser-proposal.md). The records below are kept as they were run.
+
 **A build, fixture or dispatch receipt is not a hardware assertion.** Each result below applies to its stated backend/device/environment. Retired helper results are labeled separately. [Feature status](feature-status.md) describes current availability; [development tasks](development-tasks.md) explains repeatable checks.
 
 ## Environment and evidence handling

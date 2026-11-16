@@ -7,8 +7,8 @@ The same trees, selector actions and waits run on a booted simulator through Cor
 ## Current native tree route
 
 ```sh
-manzanero physical <hardware-UDID> tree
-manzanero physical <hardware-UDID> tree <positive-PID>
+manzanero tree --device <hardware-UDID>
+manzanero tree --pid <positive-PID> --device <hardware-UDID>
 ```
 
 Without PID, the operation selects the process hit at the primary display's logical centre, then rechecks that process and the display geometry after capture. This requires one awake primary display with native/current portrait orientation (`rot0`). An overlay or embedded process can be selected; the result is not a combined system/application tree.
@@ -30,13 +30,13 @@ The normalizer caps output at 512 nodes/depth 32, validates declared children an
 ## Current guarded native press
 
 ```sh
-manzanero physical <UDID> press-id com.example.control
-manzanero physical <UDID> press-label 'Exact label'
+manzanero press --id com.example.control --device <UDID>
+manzanero press --label 'Exact label' --device <UDID>
 # Optional PID must agree with the selected display-centre process:
-manzanero physical <UDID> press-id <pid> com.example.control
+manzanero press --id com.example.control --pid <pid> --device <UDID>
 ```
 
-MCP `press_element` takes `device`, `by: identifier|label`, `text` and optional positive `pid`. Selector text is exact/case-sensitive, `1...4096` UTF-8 bytes without NUL. Pairing files are unsupported.
+Give exactly one of `--id` or `--label`. MCP `press_element` takes `device`, `by: identifier|label`, `text` and optional positive `pid`. Selector text is exact/case-sensitive, `1...4096` UTF-8 bytes without NUL; it may begin with `-`, and text that spells one of the global options (`--dry-run`, `--error-format`, `--help`, `--version`) is attached with `=` (`--label=--help`). Pairing files are unsupported.
 
 Before one native press, the operation requires:
 
@@ -55,8 +55,8 @@ Native true returns `status: accepted`, `nativeAccepted: true` and `effectVerifi
 ## Current native scroll-to-visible
 
 ```sh
-manzanero physical <UDID> scroll-id com.example.row
-manzanero physical <UDID> scroll-label 'Exact row label'
+manzanero scroll --id com.example.row --device <UDID>
+manzanero scroll --label 'Exact row label' --device <UDID>
 ```
 
 Optional PID and selection rules match press. MCP `scroll_to_element` uses `device`, `by`, `text` and optional `pid`.
@@ -73,9 +73,9 @@ The latter is a structured result with exit zero: callers must inspect the statu
 ## Bounded wait for a selector condition
 
 ```sh
-manzanero physical <UDID> wait-id com.example.button
-manzanero physical <UDID> wait-label 'Loading' --until gone --timeout 20
-manzanero physical <UDID> wait-id <pid> com.example.field --until value --value 'Done' --interval 1
+manzanero wait --id com.example.button --device <UDID>
+manzanero wait --label 'Loading' --until gone --timeout 20 --device <UDID>
+manzanero wait --id com.example.field --pid <pid> --until value --value 'Done' --interval 1 --device <UDID>
 ```
 
 MCP `wait_for_element` takes `device`, `by: identifier|label`, `text` and optional `pid`, `until`, `value`, `timeout_seconds` and `interval_seconds`. It is annotated read-only. This route is implemented and covered by local fake-session tests only; it has not been run on hardware.
@@ -91,7 +91,7 @@ The wait polls inside one AX session until a condition holds or the timeout expi
 
 Visibility is the native snapshot attribute, not hittability or pixel evidence. A missing visibility or enabled attribute never satisfies a condition, including `gone`. Non-string values never match `--value`.
 
-Options follow the selector. The first operand is always positional, so a selector can begin with `--`. With a PID, the selector cannot be one of the option names.
+Options may come in any order. `--id`, `--label` and `--value` take the next argument as their value even when it begins with `-`; attach a value that spells a global option with `=`, as for press.
 
 | Option | Range | Default |
 | --- | --- | --- |

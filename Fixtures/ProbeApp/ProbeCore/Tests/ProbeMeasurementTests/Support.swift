@@ -122,7 +122,7 @@ struct ProbeSimulator {
         lines.reduce(into: Data()) { $0.append($1); $0.append(0x0A) }
     }
 
-    /// The probe's accessibility tree as `manzanero physical <UDID> tree` prints it (trimmed).
+    /// The probe's accessibility tree as `manzanero tree --device <UDID>` prints it (trimmed).
     /// `bundleID`, when given, is reported as `nativeAttributes["3003"]` on every node, as
     /// observed for Settings on one phone; nil leaves the attribute out.
     func treeJSON(bundleID: String? = nil, includeRecent: Bool = true) -> Data {
@@ -221,7 +221,7 @@ final class FakeDevice: ManzaneroInvoking {
     /// Replaces the pulled log bytes.
     var pulledLog: ((ProbeSimulator) -> Data)?
     var rejectDryRun: (([String]) -> Bool)?
-    /// The first word every command must carry.
+    /// `physical` (commands end with `--device <UDID>`) or `simulator` (`--simulator <UUID>`).
     var platform = "physical"
     private(set) var treeCalls = 0
     private(set) var sentActions = 0
@@ -240,11 +240,16 @@ final class FakeDevice: ManzaneroInvoking {
             let stderr = rejected ? "Physical input coordinates must be normalized numbers from 0 to 1.\n" : ""
             return InvocationResult(exitCode: rejected ? 1 : 0, stdout: Data(stdout.utf8), stderr: Data(stderr.utf8))
         }
-        guard arguments.count >= 3, arguments[0] == platform, arguments[1] == device else {
+        // `<operation> [operands] --device <UDID>` (or `--simulator <UUID>`);
+        // the log pull is physical-only.
+        let flag = arguments.first == "files" ? "--device" : (platform == "simulator" ? "--simulator" : "--device")
+        guard arguments.count >= 3, Array(arguments.suffix(2)) == [flag, device] else {
             return InvocationResult(exitCode: 1, stderr: Data("Unsupported command\n".utf8))
         }
-        switch arguments[2] {
+        let command = Array(arguments.dropLast(2))
+        switch command[0] {
         case "tree":
+            guard command == ["tree"] else { return InvocationResult(exitCode: 1, stderr: Data("unexpected tree\n".utf8)) }
             treeCalls += 1
             beforeTree[treeCalls]?(&simulator)
             if failingTrees.contains(treeCalls) {
@@ -253,29 +258,28 @@ final class FakeDevice: ManzaneroInvoking {
             let tree = simulator.treeJSON(bundleID: treeBundleIDOverrides[treeCalls] ?? treeBundleID,
                                           includeRecent: !omitRecentGestures)
             return InvocationResult(exitCode: 0, stdout: foreground ? tree : otherAppTree)
-        case "press-id":
-            guard arguments == [platform, device, "press-id", "probe.touch.reset"] else {
+        case "press":
+            guard command == ["press", "--id", "probe.touch.reset"] else {
                 return InvocationResult(exitCode: 1, stderr: Data("unexpected press\n".utf8))
             }
             if resetTakesEffect { simulator.reset(session: sessions.removeFirst()) }
             return InvocationResult(exitCode: 0, stdout: Data(#"{"operation":"press","status":"accepted","verified":false}"#.utf8))
-        case "pull":
-            guard arguments.count == 6, arguments[4] == "Documents/touch-log.jsonl" else {
+        case "files":
+            guard command.count == 5, command[1] == "pull", command[3] == "Documents/touch-log.jsonl" else {
                 return InvocationResult(exitCode: 1, stderr: Data("bad pull\n".utf8))
             }
             if pullExitCode != 0 { return InvocationResult(exitCode: pullExitCode, stderr: Data("devicectl failed\n".utf8)) }
             let data = pulledLog?(simulator) ?? simulator.logData()
             if pullCreatesDirectory {
-                try fileSystem.createDirectory(arguments[5])
-                try fileSystem.write(data, to: arguments[5] + "/touch-log.jsonl")
+                try fileSystem.createDirectory(command[4])
+                try fileSystem.write(data, to: command[4] + "/touch-log.jsonl")
             } else {
-                try fileSystem.write(data, to: arguments[5])
+                try fileSystem.write(data, to: command[4])
             }
             return InvocationResult(exitCode: 0, stdout: Data(#"{"info":{"outcome":"success"}}"#.utf8))
         default:
-            let tail = Array(arguments.dropFirst(2))
-            guard let action = actions.first(where: { $0.cliArguments == tail }) else {
-                return InvocationResult(exitCode: 1, stderr: Data("unknown action \(tail)\n".utf8))
+            guard let action = actions.first(where: { $0.cliArguments == command }) else {
+                return InvocationResult(exitCode: 1, stderr: Data("unknown action \(command)\n".utf8))
             }
             let index = sentActions
             sentActions += 1

@@ -6,14 +6,14 @@
 
 ```sh
 # Two simultaneous taps:
-manzanero physical <UDID> multi-tap 0.25 0.5 0.75 0.5
+manzanero multi-tap 0.25 0.5 0.75 0.5 --device <UDID>
 
 # Two paths moving apart over half a second:
-manzanero physical <UDID> multi-drag 0.5 0.25 0.5 0.1 0.5 0.75 0.5 0.9 0.5
+manzanero multi-drag 0.5 0.25 0.5 0.1 0.5 0.75 0.5 0.9 0.5 --device <UDID>
 
 # Horizontal spread, then inward pinch:
-manzanero physical <UDID> pinch 0.5 0.5 0.5 0.8 0.5
-manzanero physical <UDID> pinch 0.5 0.5 0.8 0.5 0.5
+manzanero pinch 0.5 0.5 0.5 0.8 0.5 --device <UDID>
+manzanero pinch 0.5 0.5 0.8 0.5 0.5 --device <UDID>
 ```
 
 All coordinates are normalized `0...1`, origin at the top left. Inspect fresh state before selecting them.
@@ -42,7 +42,7 @@ Receipts report dispatch, not application recognition: `verified: false` and `re
 - `multi_drag`: flat `paths` array, four numbers per contact, plus `seconds`.
 - `pinch`: `center_x`, `center_y`, `start_span`, `end_span`, `seconds`.
 
-`platform` is optional and defaults to physical, which uses the in-process CoreDevice route. With `platform: simulator` and a booted simulator's UUID, the same schedules go to the simulator's `dtuhidd`: `pinch` and two-path `multi_drag` to its digitizer service, `multi_tap` and three-to-five-path `multi_drag` to its Universal HID service ([simulator input](simulator-input.md)). The CLI form is `manzanero simulator <UUID> multi-tap|multi-drag|pinch …`. A pending handoff pauses mutations for that device within the same server process.
+`platform` is optional and defaults to physical, which uses the in-process CoreDevice route. With `platform: simulator` and a booted simulator's UUID, the same schedules go to the simulator's `dtuhidd`: `pinch` and two-path `multi_drag` to its digitizer service, `multi_tap` and three-to-five-path `multi_drag` to its Universal HID service ([simulator input](simulator-input.md)). The CLI form is `manzanero multi-tap|multi-drag|pinch … --simulator <UUID>`. A pending handoff pauses mutations for that device within the same server process.
 
 ## What has been verified
 

@@ -368,7 +368,8 @@ extension TouchAction {
 // MARK: - Commands
 
 extension TouchAction {
-    /// Arguments after `physical <UDID>` for Manzanero, as an argument array (no shell).
+    /// The Manzanero operation and its operands, as an argument array (no shell);
+    /// the runner appends the target (`--device <UDID>` or `--simulator <UUID>`).
     public var cliArguments: [String] {
         let n = formatCLINumber
         switch self {
