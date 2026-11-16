@@ -77,3 +77,85 @@ struct StreamingToolRunnerTests {
         #expect(ContinuousClock.now - start < .seconds(3))
     }
 }
+
+private actor CaptureCollector {
+    var output = Data(), errors = Data()
+    func append(_ stream: StreamingToolRunner.CaptureStream, _ bytes: Data) {
+        if stream == .output { output.append(bytes) } else { errors.append(bytes) }
+    }
+}
+
+@Suite(.timeLimit(.minutes(1)))
+struct StreamingCaptureTests {
+    @Test func capturesBothStreamsAndEnvironmentOverlay() async throws {
+        let collector = CaptureCollector()
+        let end = try await StreamingToolRunner().capture(executable: "/bin/sh",
+            arguments: ["-c", "printf \"out-$CAPTURE_FIXTURE\"; printf err >&2"],
+            environment: ["CAPTURE_FIXTURE": "x y"], hardDeadline: 5, clock: ManualTestClock()) {
+            await collector.append($0, $1); return true
+        }
+        #expect(end == .exited(.exited(0)))
+        #expect(await collector.output == Data("out-x y".utf8))
+        #expect(await collector.errors == Data("err".utf8))
+    }
+
+    @Test func nonzeroExitIsReturnedForTheCallerToJudge() async throws {
+        let end = try await StreamingToolRunner().capture(executable: "/bin/sh", arguments: ["-c", "exit 64"],
+                                                          hardDeadline: 5, clock: ManualTestClock()) { _, _ in true }
+        #expect(end == .exited(.exited(64)))
+    }
+
+    // The consumer stops `yes` after its first chunk; the child must be torn
+    // down rather than run until the (stopped) clock's deadline.
+    @Test func consumerStopEndsAndReapsTheChild() async throws {
+        let start = ContinuousClock.now
+        let end = try await StreamingToolRunner().capture(executable: "/usr/bin/yes", arguments: [],
+                                                          hardDeadline: 5, clock: ManualTestClock()) { _, _ in false }
+        #expect(end == .consumerStopped)
+        #expect(ContinuousClock.now - start < .seconds(3))
+    }
+
+    // The soft deadline fires once the child is running (its first output
+    // advances the manual clock); the child traps SIGINT, reports it and exits.
+    @Test func softDeadlineSendsTheStopSignalAndKeepsReading() async throws {
+        let clock = ManualTestClock(), collector = CaptureCollector()
+        let end = try await StreamingToolRunner().capture(executable: "/bin/sh",
+            arguments: ["-c", "trap 'echo stopped; exit 3' INT; echo running; while :; do /bin/sleep 0.05; done"],
+            softDeadline: 1, hardDeadline: 30, clock: clock) { stream, data in
+            await collector.append(stream, data)
+            clock.advance(by: .seconds(2))
+            return true
+        }
+        #expect(end == .softDeadline(.exited(3)))
+        #expect(String(decoding: await collector.output, as: UTF8.self).contains("stopped"))
+    }
+
+    @Test func hardDeadlineStopsAndReapsTheChild() async throws {
+        let clock = ManualTestClock(), start = ContinuousClock.now
+        do {
+            _ = try await StreamingToolRunner().capture(executable: "/bin/sh", arguments: ["-c", "echo running; exec /bin/sleep 10"],
+                                                        hardDeadline: 0.05, clock: clock) { _, _ in
+                clock.advance(by: .seconds(1)); return true
+            }
+            Issue.record("Expected hard deadline")
+        } catch let failure as CommandFailure {
+            #expect(failure.code == .timeout)
+        }
+        #expect(ContinuousClock.now - start < .seconds(3))
+    }
+
+    @Test func refusesNonAppleExecutables() async {
+        await #expect(throws: CommandFailure.self) {
+            _ = try await StreamingToolRunner().capture(executable: "/opt/homebrew/bin/idevicesyslog", arguments: [],
+                                                        hardDeadline: 1) { _, _ in true }
+        }
+    }
+}
+
+struct ToolRunnerEnvironmentTests {
+    @Test func overlaysEnvironmentWithoutShellEvaluation() throws {
+        let output = try ToolRunner().run(["-c", "printf %s \"$RUNNER_FIXTURE\""], executable: "/bin/sh",
+                                          environment: ["RUNNER_FIXTURE": "$(touch sentinel)"])
+        #expect(String(decoding: output, as: UTF8.self) == "$(touch sentinel)")
+    }
+}

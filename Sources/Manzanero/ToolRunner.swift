@@ -17,8 +17,11 @@ struct ToolRunner: Sendable {
             throw CommandFailure(.toolFailed, "Simulator recorder failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))", inputSent: .none)
         }
     }
-    func run(_ arguments: [String], executable: String = "/usr/bin/xcrun", timeout: Double? = nil, inputData: Data? = nil) throws -> Data {
-        let result = try capture(arguments, executable: executable, inputData: inputData, timeout: timeout)
+    /// `environment` overlays the inherited environment, for example the
+    /// `SIMCTL_CHILD_`/`DEVICECTL_CHILD_` variables Apple's tools pass to an app.
+    func run(_ arguments: [String], executable: String = "/usr/bin/xcrun", timeout: Double? = nil, inputData: Data? = nil,
+             environment: [String: String] = [:]) throws -> Data {
+        let result = try capture(arguments, executable: executable, inputData: inputData, timeout: timeout, environment: environment)
         guard result.status == 0 else {
             // The tool ran; whether it changed the device depends on the
             // invocation, which only the caller knows.
@@ -47,7 +50,8 @@ struct ToolRunner: Sendable {
 
     private func capture(_ arguments: [String], executable: String,
                          merged: Bool = false, input: URL? = nil, inputData: Data? = nil,
-                         recording: RecordingTiming? = nil, timeout: Double? = nil) throws -> (status: Int32, output: Data, errors: Data) {
+                         recording: RecordingTiming? = nil, timeout: Double? = nil,
+                         environment: [String: String] = [:]) throws -> (status: Int32, output: Data, errors: Data) {
         try DeviceExecutablePolicy.validate(executable, arguments: arguments)
         let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("tmp/process-\(UUID().uuidString)")
@@ -74,6 +78,9 @@ struct ToolRunner: Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
+        if !environment.isEmpty {
+            process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, overlay in overlay }
+        }
         process.standardInput = inputHandle ?? FileHandle.nullDevice
         process.standardOutput = output
         process.standardError = merged ? output : errors
