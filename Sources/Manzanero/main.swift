@@ -115,8 +115,8 @@ Usage:
   manzanero simulator <UUID> type <text>   US-layout ASCII, 1...512 characters
   Simulator input and AX run in process (dtuhidd HID and CoreSimulator AX requests) on a booted
   simulator, addressed by UUID; they never boot it. Coordinates are normalized 0...1, top left, in the
-  current interface, in any orientation. Wake is physical-only for now; paste is refused (use set-value), and set-value is
-  simulator-only.
+  current interface, in any orientation. Wake is physical-only for now; paste is refused (use
+  set-value), and set-value is simulator-only.
   Prefix a planned command with --dry-run to print its invocation without executing.
   manzanero [--dry-run] --error-format <text|json> <command> ...
   A failure exits 1 and prints its message on stderr; json prints one object instead:
