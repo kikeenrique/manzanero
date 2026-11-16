@@ -120,7 +120,7 @@ struct SimulatorInput: Sendable, Equatable {
             plan["backend"] = AccessibilityPlatform.simulator.backend
             plan["pid"] = operands.first.flatMap(Int.init).map { $0 as Any } ?? NSNull()
             plan["deviceLease"] = "not taken (observation)"
-            plan["execution"] = "\(route) Omitted PID selects and rechecks the foreground application: the frontmost application (request type 4), or the element under the screen centre (client type 2) when the simulator reports none; application, snapshot and application identity recheck as on physical devices. No helper or fallback."
+            plan["execution"] = "\(route) Omitted PID selects and rechecks the foreground application: the frontmost application (request type 4), or the element under the screen centre (client type 2) when the simulator reports none; application, snapshot and application identity recheck as on physical devices. On an Apple TV simulator one more read-only request (attribute 19, the application's focused element) marks that node focused. No helper or fallback."
         } else if Self.selectorActions.contains(operation) {
             let action = try DirectAccessibilityAction(coreDeviceInput)
             plan["backend"] = AccessibilityPlatform.simulator.backend
@@ -283,13 +283,26 @@ enum DirectSimulatorAccessibility {
         } else {
             let pid = input.operands.first.flatMap { Int32($0) }
             bytes = try DirectPhysicalAccessibility.capture(device: input.device, resolved: info.uuid, pid: pid,
-                                                            session: session, display: display)
+                                                            session: session, display: display, readFocus: info.isAppleTV)
         }
         let screen = (try? SimulatorDisplay.read(input.device, environment: environment))?.screenJSON(info)
         let simulatorSession = session as? SimulatorAccessibilitySession
-        return try annotate(bytes, info: info, screen: screen, selections: simulatorSession?.selections ?? [],
-                            shallowPIDs: simulatorSession?.shallowPIDs ?? [], shallowWait: simulatorSession?.shallowWait ?? .zero,
-                            truncatedRecords: simulatorSession?.truncatedRecords ?? 0)
+        let annotated = try annotate(bytes, info: info, screen: screen, selections: simulatorSession?.selections ?? [],
+                                     shallowPIDs: simulatorSession?.shallowPIDs ?? [], shallowWait: simulatorSession?.shallowWait ?? .zero,
+                                     truncatedRecords: simulatorSession?.truncatedRecords ?? 0)
+        return input.operation == "tree" && info.isAppleTV ? try annotateFocus(annotated) : annotated
+    }
+
+    /// `focus` on an Apple TV tree: the snapshot node marked `focused`, or
+    /// null when the focused element is not among the snapshot's nodes.
+    static func annotateFocus(_ bytes: Data) throws -> Data {
+        guard var root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
+            throw CommandFailure(.internal, "Invalid internal simulator AX result.", inputSent: .unknown)
+        }
+        let focused = (root["nodes"] as? [[String: Any]] ?? []).first { $0["focused"] as? Bool == true }
+        root["focus"] = ["read": true, "attribute": AccessibilityRequest.focusedElementAttribute,
+                         "nodeId": focused?["id"] ?? NSNull(), "label": focused?["label"] ?? NSNull(), "identifier": focused?["identifier"] ?? NSNull()]
+        return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
     }
 
     static func annotate(_ bytes: Data, info: SimulatorDeviceInfo, screen: [String: Any]? = nil, selections: [String] = [],

@@ -40,7 +40,13 @@ final class SimulatorAXFixture: @unchecked Sendable {
         var visible: Bool? = true
         var enabled: Bool? = true
         var frame = NSRect(x: 100, y: 200, width: 80, height: 40)
+        /// The live focused attribute (28); nil leaves it out.
+        var focused: Bool?
     }
+    /// The element the application's focused-element attribute (19) names; nil answers none.
+    var focusedElement: Int?
+    /// Attribute lists of live-attribute requests (type 5), in order.
+    private(set) var attributeQueries: [[UInt64]] = []
 
     var pid: Int32 = 42
     var elements: [Element] = []
@@ -122,8 +128,18 @@ final class SimulatorAXFixture: @unchecked Sendable {
             let current = frontmostPIDs.isEmpty ? pid : frontmostPIDs.removeFirst()
             response = Response(kind: 4, result: noFrontmost ? nil : Token(1, pid: current, application: true))
         case 5:
+            var queried: [UInt64] = []
+            if case .dictionary(let parameters) = fields["parameters"], case .array(let list) = parameters["attributes"] ?? .null {
+                queried = list.compactMap(\.unsignedInteger)
+            }
+            attributeQueries.append(queried)
+            if queried == [19] {
+                response = Response(kind: 5, result: (focusedElement.map { [19: Token($0, pid: pid)] } ?? [:]) as NSDictionary)
+                break
+            }
             let element = elements.first ?? Element()
             var live: [Int: Any] = [21: NSValue(rect: element.frame)]
+            if queried.contains(28), let focused = element.focused { live[28] = NSNumber(value: focused) }
             if let enabled = element.enabled { live[27] = NSNumber(value: enabled) }
             if let visible = element.visible { live[32] = NSNumber(value: visible) }
             if let identifier = element.identifier { live[25] = identifier }

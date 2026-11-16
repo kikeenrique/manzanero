@@ -231,11 +231,11 @@ extension ManzaneroCLI {
 
     struct Wait: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "wait", abstract: "Wait, read-only, until an element meets a condition.",
-            discussion: "visible (default) needs exactly one visible match; gone means no match or none visible; value needs --value. Exits 0 when met and 124 on timeout, with JSON on stdout either way. Sends no input.")
+            discussion: "visible (default) needs exactly one visible match; gone means no match or none visible; value needs --value; focused needs the element to have focus (checked on Apple TV simulators). Exits 0 when met and 124 on timeout, with JSON on stdout either way. Sends no input.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions
-        @Option(help: ArgumentHelp("visible, gone, enabled, disabled or value.", valueName: "condition"),
+        @Option(help: ArgumentHelp("visible, gone, enabled, disabled, value or focused.", valueName: "condition"),
                 completion: .list(AccessibilityWait.conditionNames)) var until: String?
         @Option(parsing: .unconditional, help: ArgumentHelp("Exact expected value, for --until value.", valueName: "text")) var value: String?
         @Option(help: ArgumentHelp("Seconds, 0...60 (default 10).", valueName: "seconds")) var timeout: String?

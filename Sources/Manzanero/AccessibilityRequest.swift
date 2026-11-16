@@ -66,7 +66,7 @@ enum AccessibilityRequest {
     }
 
     static func attributes(_ attributes: [Int], of token: Token) throws -> Data {
-        let supported: Set<Int> = [3, 8, 21, 25, 27, 32, 53]
+        let supported: Set<Int> = [3, 8, 21, 25, 27, 32, 53, focusedElementAttribute, focusedAttribute]
         guard !attributes.isEmpty, attributes.count <= supported.count,
               Set(attributes).count == attributes.count, attributes.allSatisfy(supported.contains) else {
             throw CommandFailure(.internal, "Unsupported, duplicate or empty AX attribute query.", inputSent: .unknown)
@@ -77,6 +77,12 @@ enum AccessibilityRequest {
     static func action(_ token: Token, action: Action) throws -> Data {
         try archive(kind: 7, parameters: nil, token: token, action: action.rawValue)
     }
+
+    /// The application's focused element (19, AXFocusedUIElement) and an
+    /// element's focused state (28, AXFocused), as AccessibilityPlatformTranslation
+    /// maps those macOS names. Read on Apple TV simulators (docs/other-families.md).
+    static let focusedElementAttribute = 19
+    static let focusedAttribute = 28
 
     /// The value attribute (53), for the settable query and set-value below.
     static let valueAttribute = 53

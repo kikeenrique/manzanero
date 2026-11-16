@@ -42,6 +42,14 @@ Apple TV has no touch screen: `tap`, `long-press`, `swipe`, `drag`, `pinch`, `mu
 
 MCP: `press_remote`.
 
+### Focus in the tree and in waits
+
+On an Apple TV simulator, `tree` (and `screen`'s tree) asks the application for its focused element once more after the snapshot and marks that node `"focused": true`; the result also has `"focus": {"read": true, "attribute": 19, "nodeId", "label", "identifier"}`, with nulls when the focused element is not among the snapshot's nodes. No existing field changes, and other families send no extra request and get no `focus` key.
+
+`wait … --until focused` is met when exactly one visible element matches and its live focused attribute is true; the reason is `not-focused` or `focus-unknown` otherwise. It reads the focused attribute together with the enabled and visible attributes it already reads; other conditions send exactly the requests they did before. It is accepted on every platform, but has only been checked on the Apple TV simulator. On tvOS, `remote` moves focus and `select` activates the focused item, so a `wait --until focused` between them confirms the target before the click.
+
+How the attributes were found: the snapshot's attributes and the traits of the focused and unfocused buttons were identical. `-[AXPMacPlatformElement _attributeTypeForMacAttribute:]` in AccessibilityPlatformTranslation maps `AXFocused` to attribute 28 and `AXFocusedUIElement` to 19 (`AXFrame` 21, `AXIdentifier` 25, `AXEnabled` 27 and `AXValue` 53 match the attributes Manzanero already used). On the tvOS probe, 28 answered true for the focused button and false for the others, and 19 on the application answered the focused button's element.
+
 ## Digital Crown and side button (Apple Watch)
 
 ```sh

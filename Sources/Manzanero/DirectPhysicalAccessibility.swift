@@ -125,7 +125,7 @@ enum DirectPhysicalAccessibility {
     static func capture(device: String, resolved: String, pid: Int32?, session: any AccessibilityExchange,
                         display: () throws -> AccessibilityDisplay = {
                             throw CommandFailure(.internal, "Foreground AX requires an Apple display query.", inputSent: .none)
-                        }) throws -> Data {
+                        }, readFocus: Bool = false) throws -> Data {
         defer { session.close() }
         let platform = session.platform
         do {
@@ -144,7 +144,11 @@ enum DirectPhysicalAccessibility {
             } else { throw CommandFailure(.internal, "Missing AX selection.", inputSent: .none) }
             let root = try session.application(pid: selectedPID)
             let snapshot = try session.snapshot(root)
-            let nodes = try AccessibilitySnapshot.normalize(snapshot, root: root)
+            var nodes = try AccessibilitySnapshot.normalize(snapshot, root: root)
+            if readFocus, let focused = try focusedElement(of: root, session: session),
+               let index = nodes.firstIndex(where: { $0.token.pid == focused.pid && $0.token.objectID == focused.objectID }) {
+                nodes[index].focused = true
+            }
             let after = try session.application(pid: selectedPID)
             guard root.pid == after.pid, root.objectID == after.objectID else {
                 throw CommandFailure(.preconditionChanged, "Application identity changed during AX observation; no tree returned.", inputSent: .none)
@@ -166,6 +170,17 @@ enum DirectPhysicalAccessibility {
             // A tree only reads, so nothing was sent whatever failed.
             throw CommandFailure("\(platform.failurePrefix) tree failed: \(error). Subscription cleanup: \(cleanup.subscriptionStop); confirmed=\(cleanup.confirmed).", wrapping: error).noInputSent()
         }
+    }
+
+    /// The application's focused element (attribute 19), or nil when it
+    /// answers with none. One read-only request.
+    static func focusedElement(of root: AccessibilityRequest.Token, session: any AccessibilityExchange) throws -> AccessibilityRequest.Token? {
+        let attribute = AccessibilityRequest.focusedElementAttribute
+        guard case .dictionary(let fields) = try session.attributes([attribute], of: root) else {
+            throw CommandFailure(.transportFailed, "The focused-element answer is not a dictionary.", inputSent: .none)
+        }
+        guard let value = fields[String(attribute)], value != .null else { return nil }
+        return try AccessibilityResponse.token(value)
     }
 
     private struct Application: Encodable {

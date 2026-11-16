@@ -568,6 +568,18 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `tap 0.5 0.5` on the TV | Refused, `unsupported-operation`: Apple TV has no touch screen, pointing to `remote` |
 | `remote down` on the Duo; `remote menu --device x` | Refused before input (`this simulator is an iPhone`), and before device contact |
 
+### Apple TV focus
+
+**2026-11-16**, `manzanero-research-tv`, the tvOS probe and Settings. With temporary diagnostics, the snapshot attributes and traits of the focused and an unfocused probe button were identical. AccessibilityPlatformTranslation's own mapping (`_attributeTypeForMacAttribute:`, read on the Mac) gave `AXFocused` 28 and `AXFocusedUIElement` 19; on the TV, 28 answered true for the focused button (Bravo) and false for Alpha, and 19 on the application answered Bravo's element.
+
+| Command | Observed |
+| --- | --- |
+| `tree` on the probe, Bravo focused | One node `focused: true` (Bravo); `focus` `{nodeId: n7, label: Bravo, identifier: probe.bravo}` |
+| `remote right`, then `wait --id probe.charlie --until focused` | `condition-met`, reason `focused` |
+| `wait --id probe.alpha --until focused --timeout 1` | `timed-out`, reason `not-focused` |
+| `tree` on Settings, then `remote down`, `tree` | `focus.label` Profiles and Accounts, then Video and Audio; `wait --label "Video and Audio" --until focused` met |
+| `tree` on the Duo and on the watch | No `focus` key and no `focused` field |
+
 ### Digital Crown and side button
 
 **2026-11-16**, `manzanero-research-watch`. Apps: Watch Settings and a throwaway SwiftUI probe (built for the watchOS 27.2 simulator SDK with `swiftc`, installed with `simctl install`; a `digitalCrownRotation` binding at low sensitivity and a change counter, read through the tree). Raw events were first sent with a copy of the research probe, then through `crown`.

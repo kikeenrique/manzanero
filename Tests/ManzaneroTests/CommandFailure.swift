@@ -148,7 +148,7 @@ struct CommandFailureTests {
         (["tap", "0.5", "0.5", "--simulator", "U"], "Simulator tap requires the simulator's UUID (see devices --simulators); names and 'booted' are not accepted.", "usage"),
         (["wake", "--simulator", "11111111-2222-3333-4444-555555555555"], "Simulator wake is not implemented yet; simulator input covers touch with one to five contacts, gesture sequences, button, key and type. Wake remains physical-only. No input sent.", "unsupported-operation"),
         (["boot", "--device", "U"], "Unsupported physical-device operation: boot.", "unsupported-operation"),
-        (["wait", "--id", "sel", "--timeout", "99", "--device", "U"], "--timeout must be a number of seconds in 0...60. Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--until visible|gone|enabled|disabled|value] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>].", "usage"),
+        (["wait", "--id", "sel", "--timeout", "99", "--device", "U"], "--timeout must be a number of seconds in 0...60. Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--until visible|gone|enabled|disabled|value|focused] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>].", "usage"),
         (["gesture", #"{"frames":[{"ms":0,"touches":[]}]}"#, "--device", "U"], "Gesture requires 2...512 frames, starting at ms=0 with a touch and ending with touches:[].", "usage"),
     ])
     func parseFailuresKeepTheirTextAndSayNothingWasSent(_ args: [String], _ message: String, _ code: String) async throws {

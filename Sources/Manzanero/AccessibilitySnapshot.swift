@@ -53,12 +53,15 @@ enum AccessibilitySnapshot {
         var nativeAttributes: [String: String]?
         var processIdentifier: Int32?
         var externalProcessReference: Bool?
+        /// True on the application's focused element when focus was read
+        /// (Apple TV simulators); absent otherwise.
+        var focused: Bool?
         // Fresh in-session identity, excluded from encoded agent observations.
         let token: AccessibilityRequest.Token
 
         enum CodingKeys: String, CodingKey {
             case id, parentId, depth, children, attributeSource, label, hint, identifier, value
-            case frame, frameUnavailable, traits, visible, nativeAttributes, processIdentifier, externalProcessReference
+            case frame, frameUnavailable, traits, visible, nativeAttributes, processIdentifier, externalProcessReference, focused
         }
 
         func encode(to encoder: any Encoder) throws {
@@ -79,6 +82,7 @@ enum AccessibilitySnapshot {
             try container.encodeIfPresent(nativeAttributes, forKey: .nativeAttributes)
             try container.encodeIfPresent(processIdentifier, forKey: .processIdentifier)
             try container.encodeIfPresent(externalProcessReference, forKey: .externalProcessReference)
+            try container.encodeIfPresent(focused, forKey: .focused)
         }
     }
 

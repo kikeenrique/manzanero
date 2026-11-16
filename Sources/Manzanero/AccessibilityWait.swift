@@ -13,6 +13,9 @@ struct AccessibilityWait {
         case enabled, disabled
         /// `visible`, and the snapshot value is exactly this string.
         case value(String)
+        /// `visible`, and the live focused attribute (28) is true: the
+        /// Apple TV focus (docs/other-families.md).
+        case focused
 
         var name: String {
             switch self {
@@ -21,13 +24,14 @@ struct AccessibilityWait {
             case .enabled: "enabled"
             case .disabled: "disabled"
             case .value: "value"
+            case .focused: "focused"
             }
         }
     }
 
     static let operations = ["wait-id", "wait-label"]
     static let optionNames: Set<String> = ["--until", "--value", "--timeout", "--interval"]
-    static let conditionNames = ["visible", "gone", "enabled", "disabled", "value"]
+    static let conditionNames = ["visible", "gone", "enabled", "disabled", "value", "focused"]
     static let timeoutRange: ClosedRange<Double> = 0...60
     static let intervalRange: ClosedRange<Double> = 0.25...5
     static let defaultTimeout = 10.0
@@ -55,7 +59,7 @@ struct AccessibilityWait {
               callbackBytes: max(40 * 1024 * 1024, 4 * 1024 * 1024 * maximumPolls))
     }
 
-    private static let usage = "Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--until visible|gone|enabled|disabled|value] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>]."
+    private static let usage = "Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--until visible|gone|enabled|disabled|value|focused] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>]."
 
     init(_ input: CoreDeviceInput) throws {
         guard Self.operations.contains(input.operation), !input.operands.isEmpty else { throw Self.invalid("") }
@@ -89,7 +93,7 @@ struct AccessibilityWait {
             }
             switch name {
             case "--until":
-                guard until == nil, Self.conditionNames.contains(argument) else { throw Self.invalid("--until must appear once, as visible, gone, enabled, disabled or value.") }
+                guard until == nil, Self.conditionNames.contains(argument) else { throw Self.invalid("--until must appear once, as visible, gone, enabled, disabled, value or focused.") }
                 until = argument
             case "--value":
                 guard value == nil, (1...4096).contains(argument.utf8.count), !argument.contains("\0") else {
@@ -112,6 +116,7 @@ struct AccessibilityWait {
         case (_, .some): throw Self.invalid("--value applies only to --until value.")
         case ("gone", nil): condition = .gone
         case ("enabled", nil): condition = .enabled
+        case ("focused", nil): condition = .focused
         default: condition = .disabled
         }
         timeoutMilliseconds = Int64(((timeout ?? Self.defaultTimeout) * 1000).rounded())
@@ -373,7 +378,9 @@ struct AccessibilityWait {
             return observation
         }
         stage = "live-attributes"
-        let live = try session.attributes([27, 32], of: node.token)
+        // Focus is read only for the focused condition, so other waits send
+        // exactly the requests they always did.
+        let live = try session.attributes(condition == .focused ? [27, 32, AccessibilityRequest.focusedAttribute] : [27, 32], of: node.token)
         guard case .dictionary(let fields) = live else { throw failure("live attributes are not a dictionary", .transportFailed) }
         let enabled = fields["27"].flatMap(AccessibilityResponse.booleanResult)
         observation.element?["enabled"] = enabled ?? NSNull()
@@ -391,6 +398,17 @@ struct AccessibilityWait {
             guard enabled == wanted else {
                 observation.reason = wanted ? "not-enabled" : "still-enabled"
                 observation.detail = wanted ? "The element is visible but disabled." : "The element is visible and enabled."
+                return observation
+            }
+        case .focused:
+            let focused = fields[String(AccessibilityRequest.focusedAttribute)].flatMap(AccessibilityResponse.booleanResult)
+            observation.element?["focused"] = focused ?? NSNull()
+            guard let focused else {
+                observation.reason = "focus-unknown"; observation.detail = "The live focused attribute is unavailable."
+                return observation
+            }
+            guard focused else {
+                observation.reason = "not-focused"; observation.detail = "The element is visible but does not have focus."
                 return observation
             }
         default: break
