@@ -553,6 +553,21 @@ Not observed: an unfolded Duo (no fold control exists yet), so nothing showed on
 
 The selector, duplicate-match rule and press guards in `DirectAccessibilityAction` are unchanged and physical requests are unchanged. Not re-checked: the iPhone 17e simulator (in use elsewhere), where type 2 had worked; the Home Screen icon press refused there by the same guard may have the same cause.
 
+### Apple TV remote
+
+**2026-11-16**, `manzanero-research-tv`. Apps: Settings, and a throwaway SwiftUI probe built for the tvOS 27.2 simulator SDK with `swiftc` and installed with `simctl install` (three focusable buttons, readouts for focus, the selected button, `onMoveCommand` directions, `onExitCommand` and `onPlayPauseCommand` counts, read through the tree). Not committed; it lives in the worktree's `tmp/`.
+
+| Command | Observed |
+| --- | --- |
+| `remote menu` on Settings > Video and Audio | Back to the Settings root (tree) |
+| `remote select` | Opened the focused row (Video and Audio) |
+| `remote down`, `select`; `menu`, `up`, `up`, `select` | Opened Screen Saver, then Profiles and Accounts: focus moved |
+| `remote home` | The Home Screen (HeadBoard) |
+| Probe: `play-pause` twice | `playPause 1`, then `2` |
+| Probe: `right`, `right`, `left`, `select`, `down`, `up`, `menu` | Focus Alpha → Bravo → Charlie → Bravo; `selected Bravo`; moves `right,right,left,down,up`; `exit 1` |
+| `tap 0.5 0.5` on the TV | Refused, `unsupported-operation`: Apple TV has no touch screen, pointing to `remote` |
+| `remote down` on the Duo; `remote menu --device x` | Refused before input (`this simulator is an iPhone`), and before device contact |
+
 ## Retired implementations
 
 These results are preserved as history, not current runtime availability:

@@ -113,6 +113,21 @@ extension ManzaneroCLI {
         func request(_ target: Target) throws -> CommandRequest { try .input(target, "button", [name]) }
     }
 
+    struct Remote: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "remote", abstract: "Press one Siri Remote button (Apple TV simulators).",
+            discussion: "The arrows move focus and select clicks the focused item (keyboard usages); menu goes back, home opens the Home Screen and play-pause toggles playback (consumer buttons). Apple TV has no touch screen, so touch commands are refused there. \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: ArgumentHelp("select, menu, home, play-pause, up, down, left or right.", valueName: "button"),
+                  completion: .list(AppleTVRemote.names)) var name: String
+        func request(_ target: Target) throws -> CommandRequest {
+            guard target.platform == .simulator else {
+                throw CommandFailure.unsupported("remote is implemented for Apple TV simulators only; no device was contacted.")
+            }
+            return try .input(target, "remote", [name])
+        }
+    }
+
     struct Key: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "key", abstract: "Press one named key at the current focus.", discussion: receiptCaveat)
         @OptionGroup var target: TargetOptions

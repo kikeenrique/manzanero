@@ -194,6 +194,7 @@ typedef struct {
     int booted;           // stateString is exactly "Booted"
     char state[32];       // CoreSimulator's stateString, truncated
     char name[128];       // device name, truncated
+    char family[32];      // the device type's productFamily ("iPhone", "Apple TV", "Apple Watch"), or empty
 } ADCSimulatorInfo;
 /// Status of ADCOpenSimulatorDevice when no simulator has the UUID.
 #define ADCSimulatorNotFound 3
@@ -253,6 +254,12 @@ int ADCSimulatorDisplayInfo(void *owner, void (^sink)(const uint8_t *, size_t), 
 /// Home (64), lock/side (48), volume up (233) and volume down (234).
 int ADCSimulatorPressButton(void *owner, uint64_t usage, unsigned holdMicroseconds,
                             ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
+/// One Apple TV remote button on the simulator's button service, consumer
+/// page: 0x40 (TV/Home), 0x46 (Menu/Back) or 0xCD (Play/Pause); hold
+/// 1...400000 microseconds. Down, hold, up (sent even when stopped). Same
+/// status contract as ADCSimulatorPressButton.
+int ADCSimulatorPressRemoteButton(void *owner, uint64_t usage, unsigned holdMicroseconds,
+                                  ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 
 /// Host-only availability of the dynamically resolved Apple interfaces, grouped
 /// by capability. Loads the listed frameworks with the operations' own flags and

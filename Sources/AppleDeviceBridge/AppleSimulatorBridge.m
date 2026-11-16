@@ -86,6 +86,8 @@ static int ADCReadDevice(id device, ADCSimulatorInfo *info, char *error, size_t 
     id type = ((id (*)(id, SEL))objc_msgSend)(device, NSSelectorFromString(@"deviceType"));
     if (!ADCResponds(type, @"mainScreenSize") || !ADCResponds(type, @"mainScreenScale"))
         return ADCSimulatorFail(error, capacity, @"CoreSimulator did not report the simulator's device type or screen geometry.");
+    if (ADCResponds(type, @"productFamily"))
+        ADCCopyText(info->family, sizeof(info->family), ((id (*)(id, SEL))objc_msgSend)(type, NSSelectorFromString(@"productFamily")));
     CGSize pixels = ((CGSize (*)(id, SEL))objc_msgSend)(type, NSSelectorFromString(@"mainScreenSize"));
     float scale = ((float (*)(id, SEL))objc_msgSend)(type, NSSelectorFromString(@"mainScreenScale"));
     if (!(scale > 0 && scale <= 10) || !(pixels.width > 0 && pixels.height > 0) || pixels.width > 32768 || pixels.height > 32768)
@@ -394,6 +396,34 @@ int ADCSimulatorPressButton(void *owner, uint64_t usage, unsigned hold, ADCInput
             return ADCRunPress(usage, hold, stop, ^(uint64_t code, uint64_t state) {
                 xpc_connection_send_message(connection, ADCButtonEvent(code, state, NO));
             });
+        }, error, capacity);
+}
+
+/// Waits until `offset` nanoseconds after `start`, polling `stop` every 5 ms.
+static BOOL ADCSimulatorWaitUntil(uint64_t start, uint64_t offset, ADCInputShouldStop stop) {
+    for (;;) {
+        if (stop && stop()) return NO;
+        uint64_t now = clock_gettime_nsec_np(CLOCK_MONOTONIC);
+        if (now >= start + offset) return YES;
+        uint64_t left = start + offset - now;
+        struct timespec pause = { 0, (long)MIN(left, 5 * NSEC_PER_MSEC) };
+        nanosleep(&pause, NULL);
+    }
+}
+
+int ADCSimulatorPressRemoteButton(void *owner, uint64_t usage, unsigned hold, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    // Consumer page: Menu (0x40, the TV/Home button), Menu Escape (0x46,
+    // Back/Menu) and Play/Pause (0xCD); docs/other-families.md.
+    if ((usage != 0x40 && usage != 0x46 && usage != 0xCD) || hold == 0 || hold > 400000)
+        return ADCSimulatorFail(error, capacity, @"Invalid simulator remote button request; no input sent.");
+    return ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.hid.button", shouldCancel, NULL,
+        ^int(xpc_connection_t connection, ADCInputShouldStop stop) {
+            if (stop && stop()) return 1;
+            xpc_connection_send_message(connection, ADCButtonEvent(usage, 1, NO));
+            BOOL held = ADCSimulatorWaitUntil(clock_gettime_nsec_np(CLOCK_MONOTONIC), (uint64_t)hold * 1000, stop);
+            // Release is sent even when stopped, as the shared press does.
+            xpc_connection_send_message(connection, ADCButtonEvent(usage, 2, NO));
+            return held ? 0 : 1;
         }, error, capacity);
 }
 

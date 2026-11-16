@@ -10,8 +10,12 @@ struct SimulatorDeviceInfo: Sendable, Equatable {
     let widthPoints: Double
     let heightPoints: Double
     let scale: Double
+    /// CoreSimulator's product family ("iPhone", "iPad", "Apple TV", "Apple Watch"); empty when unknown.
+    var family = ""
 
     var booted: Bool { state == "Booted" }
+    var isAppleTV: Bool { family == "Apple TV" }
+    var isAppleWatch: Bool { family == "Apple Watch" }
 
     /// The native (portrait) screen. Commands that read the display
     /// information replace it with `SimulatorDisplay.screenJSON`.
@@ -166,6 +170,6 @@ extension ADCSimulatorInfo {
             }
         }
         return SimulatorDeviceInfo(uuid: uuid, name: text(&copy.name), state: text(&copy.state),
-                                   widthPoints: widthPoints, heightPoints: heightPoints, scale: scale)
+                                   widthPoints: widthPoints, heightPoints: heightPoints, scale: scale, family: text(&copy.family))
     }
 }

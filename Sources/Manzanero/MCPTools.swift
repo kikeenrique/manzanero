@@ -203,6 +203,9 @@ enum MCPTools {
         .init(name: "list_displays", description: "Simulator only: list a booted simulator's displays from its display information (dtdeviceinfod): screen ID, name, device name, type, pixel and point size, backlight state, active flag, current orientation, whether it is primary and whether it can be captured. An iPhone Duo lists two integrated displays (LCD, primary; LCD-1); captures default to the primary one and take display to choose. Trees, waits, actions and touch follow the primary display. Read-only.", fields: [device], readOnly: true) {
             $0.command(["displays"], platform: "simulator")
         },
+        .init(name: "press_remote", description: "Apple TV simulator only (booted, by UUID): press one Siri Remote button in process through the simulator's dtuhidd. up/down/left/right move focus and select clicks the focused item (keyboard usages, which tvOS treats as the remote's arrows and click); menu goes back one level (consumer 0x46), home opens the Home Screen (consumer 0x40) and play-pause toggles playback (consumer 0xCD). Apple TV has no touch screen: tap and other touch tools are refused there. Another family or a physical device is refused before any input. Dispatch does not verify the UI effect; inspect the tree or a screenshot.", fields: [device, .init(name: "button", choices: AppleTVRemote.names)]) {
+            $0.command(["remote"], platform: "simulator", operands: [$0.text("button")])
+        },
     ]
 
     /// `logs`, `console` and `last-crash` (docs/app-logs.md).

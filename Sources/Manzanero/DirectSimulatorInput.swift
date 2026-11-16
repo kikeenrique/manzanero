@@ -34,6 +34,7 @@ enum DirectSimulatorInput {
 
     static func execute(_ input: SimulatorInput, info: SimulatorDeviceInfo, environment: SimulatorEnvironment) throws -> Data {
         try Task.checkCancellation()
+        try AppleTVRemote.checkFamily(input, info: info)
         var result: [String: Any] = ["backend": backend, "operation": input.operation, "status": "dispatched",
             "verified": false, "releaseVerified": false, "platform": "simulator", "device": input.device,
             "resolvedSimulatorUUID": info.uuid, "screen": info.screenJSON]
@@ -92,6 +93,17 @@ enum DirectSimulatorInput {
             try environment.key(input.device, usage)
             result["key"] = name
             result["usage"] = usage
+        case "remote":
+            guard input.operands.count == 1, let name = input.operands.first, let route = AppleTVRemote.routes[name] else {
+                throw CommandFailure.usage(AppleTVRemote.usage)
+            }
+            try Task.checkCancellation()
+            switch route {
+            case .key(let usage): try environment.key(input.device, usage)
+            case .button(let usage): try environment.remoteButton(input.device, usage, AppleTVRemote.holdMicroseconds)
+            }
+            result["remote"] = name
+            result["route"] = AppleTVRemote.describe(route)
         case "type":
             let (text, layout) = try DirectPhysicalTyping.request(input.operands, subject: "Simulator")
             let schedule = try layout.samples(text)
@@ -178,5 +190,9 @@ enum DirectSimulatorInput {
 
     static func button(_ uuid: String, _ usage: UInt64, _ hold: UInt32) throws {
         try dispatch(uuid) { owner, error in ADCSimulatorPressButton(owner, usage, hold, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
+    }
+
+    static func remoteButton(_ uuid: String, _ usage: UInt64, _ hold: UInt32) throws {
+        try dispatch(uuid) { owner, error in ADCSimulatorPressRemoteButton(owner, usage, hold, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
     }
 }
