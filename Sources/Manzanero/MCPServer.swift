@@ -52,10 +52,13 @@ struct AppleMCPServerSession: Sendable {
     let handoff: MCPHandoffChannel
     let operations: MCPToolOperations
 
-    func start(transport: any Transport) async throws {
+    /// `initializing` runs inside the `initialize` request, before the SDK
+    /// records the session as initialized; tests use it to widen that window.
+    func start(transport: any Transport, initializing: (@Sendable () async -> Void)? = nil) async throws {
         try await operations.checkOpen()
-        try await server.start(transport: transport, initializeHook: { _, capabilities in
+        try await server.start(transport: MCPSessionTransport(transport), initializeHook: { _, capabilities in
             await handoff.configure(supportsForm: capabilities.elicitation?.form != nil)
+            await initializing?()
         })
     }
     func stop() async {
