@@ -78,11 +78,11 @@ struct SimulatorInputTests {
         try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
     }
 
-    static let primaryDisplay = "5FCAD30D-AEFC-49D9-B285-7936739F1B63"
+    static let primaryDisplay = "AAAAAAAA-0000-4000-8000-000000000001"
 
-    /// The bridge's display information in devicectl's shape, as captured from
-    /// an iPhone 17e simulator (trimmed): the primary display plus a second,
-    /// non-primary one, as the simulator reports.
+    /// The bridge's display information in devicectl's shape, modelled on an
+    /// iPhone 17e simulator's (trimmed, placeholder identifiers): the primary
+    /// display plus a second, non-primary one, as the simulator reports.
     static func displayJSON(current: String = "rot0", native: String = "rot0", backlight: String = "activeOn",
                             sensor: String = "portrait", uniqueId: String? = primaryDisplay,
                             width: Double = 1170, height: Double = 2532) -> Data {
@@ -92,7 +92,7 @@ struct SimulatorInputTests {
         if let uniqueId { primary["uniqueId"] = uniqueId }
         let resizable: [String: Any] = ["primary": false, "type": ["integrated": [String: Any]()], "backlightState": "activeOn",
             "displayId": 4, "bounds": [[0, 0], [1170, 2532]], "nativeOrientation": "rot0", "currentOrientation": "rot0",
-            "pointScale": 3, "name": "Resizable", "uniqueId": "C0027839-ABAD-41AE-9F76-43C1CE5A085C"]
+            "pointScale": 3, "name": "Resizable", "uniqueId": "AAAAAAAA-0000-4000-8000-000000000004"]
         let root: [String: Any] = ["info": ["outcome": "success"], "result": ["displays": [primary, resizable],
             "orientation": ["currentDeviceNonFlatOrientation": sensor, "currentDeviceOrientationLocked": false]]]
         return try! JSONSerialization.data(withJSONObject: root, options: [.sortedKeys])
