@@ -10,8 +10,10 @@ If every query to a connected device times out, capture the state of Apple's dev
 
 ## Not yet run on hardware
 
-- `handoff` with a real prompt.
-- Setting an element's value on a phone. It is refused there today; enabling it needs a small change first (see [simulator input](simulator-input.md)).
+- `handoff` with a real prompt. Wait for the owner to say when.
+- Setting an element's value on a phone. It is refused there today; the owner wants it enabled, which needs a small change first (see [simulator input](simulator-input.md)).
+- The bridge's decoded-JPEG video mode. The owner wants it kept and tested; no command reaches it yet.
+- Typing with a keyboard layout other than the US one, once `type` supports it.
 - Landscape on a phone, an iPad, and anything on a second device. The simulator side of rotation and iPad is measured.
 - Debug-level log lines and a large output through `console`.
 

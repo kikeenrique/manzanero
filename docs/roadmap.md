@@ -15,6 +15,16 @@ iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope. [Feature status
 
 These are implementation priorities, not evidence that a feature is complete or a request to change device settings automatically.
 
+## Owner decisions, 2026-11-16
+
+| Topic | Decision | State |
+| --- | --- | --- |
+| Typing and keyboard layouts | `type` must work with any keyboard layout, not only the US one, on physical devices and simulators | Not started; needs a design for how the layout is known or chosen |
+| `set-value` on physical devices | Enable it; it is wanted on phones as well as simulators | Not started; one change and a phone test |
+| `handoff` live test | Do it only when the owner says so | Waiting for the owner |
+| Apple TV, Apple Watch, iPhone Duo | Quick research on their simulators first (all three have one installed) | Research in progress |
+| Decoded-JPEG video mode in the bridge | Keep it and test it; do not remove it | Not started; no command reaches it yet |
+
 ## Remaining capabilities
 
 | Area | Work still needed |
