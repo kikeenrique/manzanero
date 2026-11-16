@@ -51,6 +51,8 @@ Observed on the probe's text field: the field becomes first responder, as after 
 - `hw=Automatic` (the default: a fresh simulator is `en_US@sw=QWERTY;hw=Automatic` and types US), a layout macOS does not ship, or a failed read gives `status: not-checked` with the reason; iOS's resolution of `Automatic` is not predicted.
 - An app that was running when the setting changed kept its old layout until it was relaunched; the receipt's `note` says so.
 
+With `hw=Automatic`, [`detect-layout`](physical-typing.md#finding-the-layout-detect-layout) finds what the simulator actually applies by typing a probe into a field; with an explicit layout it reports whether the setting agrees.
+
 Manzanero does not change the simulator's layout. For tests it can be set with `xcrun simctl spawn <UUID> defaults write -g AppleKeyboards -array … <mode>`, the same mode in `com.apple.keyboard.preferences` `KeyboardLastUsed` and `KeyboardsCurrentAndNext`, and a relaunch of the app ([research](keyboard-layouts.md#where-the-layout-comes-from)). Settings shows no Hardware Keyboard section on a simulator.
 
 ## Requirements

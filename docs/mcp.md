@@ -25,7 +25,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 ## Tool catalog
 
-`tools/list` is the exact schema reference: 44 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
+`tools/list` is the exact schema reference: 45 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
 
 | Tools | Current purpose |
 | --- | --- |
@@ -44,6 +44,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md); optional `platform` (default physical); a booted simulator receives all of them |
 | `type_text`, `paste_text`, `press_key`, `press_button` | [Typing in a named keyboard layout](physical-typing.md#layouts) (`layout`, default `us`), named keys and hardware buttons (physical or simulator, the same four buttons), and physical clipboard-replacing paste |
 | `list_keyboard_layouts` | The layout names `type_text` accepts: the Mac's own layouts, read-only, no device contact |
+| `detect_keyboard_layout` | [Which layout a device applies](physical-typing.md#finding-the-layout-detect-layout): types a probe into one named settable field, compares it with every Mac layout, reports `detected`, `ambiguous` or `no-match` with the `--layout` value, and restores the field; physical (default) or simulator. Sends input |
 | `press_remote` | [Siri Remote](other-families.md#siri-remote-apple-tv) buttons on an Apple TV simulator: D-pad, select, menu, home, play-pause; other families and physical devices are refused |
 | `rotate_crown` | [Digital Crown](other-families.md#digital-crown-and-side-button-apple-watch) on an Apple Watch simulator: integer units, optional event count; `press_button` also takes `side` there |
 | `fold_device`, `set_hinge_angle`, `get_hinge_angle` | [Fold](other-families.md#fold-iphone-duo) an iPhone Duo simulator: fold or unfold and wait (bounded) for the matching display, set any hinge angle 0...180 without a display promise, or read the angle once (read-only); other simulators and physical devices are refused |

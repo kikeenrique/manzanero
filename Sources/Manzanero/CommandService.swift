@@ -135,6 +135,8 @@ actor CommandService {
             if dryRun { return try json(frames.plan()) }
             try checkHandoffPause(request)
             return try await executeFrames(frames)
+        case .detectLayout(let detection):
+            return try await executeLayoutDetection(detection, dryRun: dryRun)
         case .buildRun(let command):
             if !dryRun { try checkHandoffPause(request) }
             return try executeBuildRun(command, dryRun: dryRun)
@@ -376,6 +378,59 @@ actor CommandService {
             // Frame capture sends no input, so none of its failures can have.
             throw failure.noInputSent()
         }
+    }
+
+    /// `detect-layout`: the lease is held for the whole detection; each step
+    /// is an existing operation (tree read, guarded set-value, keyboard
+    /// schedule), run on this service's queue (docs/physical-typing.md).
+    private func executeLayoutDetection(_ command: LayoutDetectionCommand, dryRun: Bool) async throws -> CommandOutput {
+        let probe = try LayoutProbe.installed()
+        if dryRun { return try json(command.plan(probe)) }
+        try checkHandoffPause(.detectLayout(command))
+        let lease: DeviceLease
+        let keyboard: LayoutDetection.Keyboard
+        var setting: @Sendable () -> [String: Any]? = { nil }
+        do {
+            switch command.platform {
+            case .physical:
+                let details = try readinessQuery(command.device)
+                let identity = try DirectPhysicalInput.identity(CoreDeviceInput(device: command.device, operation: "type", operands: []),
+                                                                query: { _ in details })
+                lease = try leases.acquire(device: identity.uuid, operation: "detect-layout")
+                keyboard = .physical(uuid: identity.uuid, version: identity.version)
+            case .simulator:
+                _ = try SimulatorDevice.requireBooted(command.device, operation: "detect-layout", lookup: simulator.lookup)
+                lease = try leases.acquire(device: command.device, operation: "detect-layout")
+                keyboard = .simulator(command.device)
+                let environment = simulator, device = command.device
+                setting = { DeviceKeyboardLayout.simulatorSetting(Result { try environment.keyboardPreferences(device) }, sources: KeyboardLayout.available()) }
+            }
+        } catch let failure as CommandFailure {
+            throw failure.noInputSent()
+        }
+        defer { lease.release() }
+        let operations = LayoutDetection.Operations(
+            read: { try await self.detectionRead(command) },
+            set: { try await self.detectionSet(command, $0) },
+            keys: { try await self.detectionKeys($0, keyboard) },
+            deviceSetting: setting)
+        return try json(await LayoutDetection.run(command, probe: probe, operations: operations))
+    }
+
+    private func detectionRead(_ command: LayoutDetectionCommand) async throws -> String {
+        let tree = try await execute(.input(command.target, "tree", command.pid.map { [String($0)] } ?? []))
+        return try LayoutDetection.fieldValue(fromTree: tree.data, by: command.by, text: command.text)
+    }
+
+    private func detectionSet(_ command: LayoutDetectionCommand, _ value: String) async throws -> Bool {
+        let receipt = try await execute(.input(command.target, command.setValueOperation, command.selectorOperands + [value]))
+        let fields = try JSONSerialization.jsonObject(with: receipt.data) as? [String: Any]
+        return fields?["valueMatches"] as? Bool == true
+    }
+
+    /// On this service's queue, as every blocking device call is.
+    private func detectionKeys(_ schedule: LayoutDetection.KeySchedule, _ keyboard: LayoutDetection.Keyboard) throws {
+        try LayoutDetection.send(schedule, to: keyboard, simulator: simulator)
     }
 
     private func executeBuildRun(_ command: BuildRunCommand, dryRun: Bool) throws -> CommandOutput {

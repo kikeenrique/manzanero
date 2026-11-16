@@ -179,6 +179,28 @@ extension ManzaneroCLI {
         func request(_ target: Target) throws -> CommandRequest { try .input(target, "type", [text, layout ?? KeyboardLayout.defaultName]) }
     }
 
+    struct DetectLayout: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "detect-layout", abstract: "Find out which hardware-keyboard layout the device applies to typed keys.",
+            discussion: """
+            Types a short probe into one named, settable text field and compares what arrives with what each \
+            keyboard layout on this Mac would type. The probe is computed from those layouts: letter, digit and \
+            punctuation keys, with and without Shift, never Option, Return, Tab, space or arrows, ending with no \
+            dead key pending. Steps: read the field (tree), set-value it to "x" (the press guards apply), type, read \
+            it back, then delete what is there with backspaces; if it does not read as before, the first value is \
+            set back with set-value. The receipt names the matching layouts (one, several that the probe cannot \
+            tell apart, or none), the text that arrived, the --layout value to use and whether the restore was \
+            confirmed. Autocorrection, auto-capitalisation, smart punctuation and input methods change what \
+            arrives: use a plain field with them off, such as the probe app's probe.text.field. A simulator's own \
+            layout setting is reported alongside. Sends input; changes no setting.
+            """)
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @OptionGroup var selector: SelectorOptions
+        func request(_ target: Target) throws -> CommandRequest {
+            .detectLayout(try LayoutDetectionCommand(target, selector: selector))
+        }
+    }
+
     struct Paste: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "paste", abstract: "Paste Unicode text at the focused field (physical devices).",
             discussion: "Replaces the device clipboard with the text and does not restore it, then pastes once at the focused caret or selection. \(receiptCaveat)")

@@ -493,6 +493,34 @@ Other observations, from the research on the same simulator (details in [keyboar
 
 Not verified: any physical device (only US ASCII has ever been typed on a phone); layouts other than the five above; Shift+Option dead keys outside US; input-method layouts (Japanese, Chinese, Korean); Caps Lock on; texts near the 2048-event limit; other runtimes and Xcodes. The simulator's keyboard preferences were restored to their earlier values (`en_US@sw=QWERTY;hw=Automatic`, no `AppleKeyboards`) after the run.
 
+### Layout detection
+
+**2026-11-16**, macOS 27.2.1 (26B131), Xcode 27.2 (27B52), 262 keyboard layouts on the Mac; the probe was 12 keys in 215 groups. Each run used the probe app's `probe.text.field`; the result was checked against the app's own readout `probe.text.value`. Guide: [finding the layout](physical-typing.md#finding-the-layout-detect-layout).
+
+**Simulator**: one iPhone 17e, iOS 27.2 runtime (24B8117), booted for the run and shut down afterwards. The hardware layout was set as for the [typing checks](#keyboard-layouts-on-the-simulator) (input mode written with `defaults write`, app relaunched) and restored afterwards to the earlier preferences (`en_US@sw=QWERTY;hw=Automatic`, no `AppleKeyboards`; iOS had changed `DictationLanguagesEnabled` on its own and that was put back too).
+
+| Simulator input mode | Arrived | Result | `deviceSetting` | Restore |
+| --- | --- | --- | --- | --- |
+| `en_US@sw=QWERTY;hw=Automatic` (the default) | `` [`o\'#q=z^;5 `` | `ambiguous`: the ten US-like layouts | `automatic` | `cleared-to-original`, confirmed; readout empty |
+| `es_ES@sw=QWERTY-Spanish;hw=Spanish - ISO` | `` `<oç´·q¡z&ñ5 `` | `detected`, `--layout spanish-iso` | `explicit`, agrees | `cleared-to-original`, confirmed |
+| `de_DE@sw=QWERTZ-German;hw=German` | `ü<o#ä§q´y&ö5` | `ambiguous`: `abc-qwertz`, `austrian`, `german` | `explicit`, agrees | `cleared-to-original`, confirmed |
+| `fr_FR@sw=AZERTY-French;hw=French` | `` ^<o`ù3a-w6m( `` | `ambiguous`: `abc-azerty`, `belgian`, `french`, `french-numerical` | `explicit`, agrees | `cleared-to-original`, confirmed |
+| French, field holding `hola señor ✓`, through MCP `detect_keyboard_layout` over a real stdio session | as above | `ambiguous`, `isError: false` | `explicit` | `set-value`, confirmed; readout `hola señor ✓` |
+| SIGINT 3 s into a run | — | Exit 130, during the first set-value (not sent) | — | `unchanged`, confirmed |
+| SIGINT 4.6 s into a run, after the probe was typed | — | Exit 130 | — | `set-value`, confirmed; readout `hola señor ✓` |
+
+Each run took about 7 seconds. The two dead keys in the Spanish probe that do not compose (grave before `<`, acute before `·`) arrived as `UCKeyTranslate` predicts. After the setting was put back to `hw=Automatic` without relaunching the app, one more run still came back with the French group (`deviceSetting: automatic`): detection reports what the running app applies, which is what `type` will meet, not what the setting says.
+
+**Phone**: iPhone 13 mini (iOS 27.2.1, wired), the probe app in front, the field holding `<>≤ ºª\` from earlier checks.
+
+| Command | Observed |
+| --- | --- |
+| `detect-layout --id probe.text.field` | 8.7 s. Arrived `` `<oç´·q¡z&ñ5 ``; `detected`, `--layout spanish-iso`; restore `set-value` after 13 backspaces, confirmed; the readout showed `<>≤ ºª\` again |
+| `set-value … x`, `key backspace`, then `type --layout spanish-iso` with `` ¿Qué? ¡Sí! "x" (p) [a] {b} <c> #1 $2 %3 &4 /5 =6 +7 *8 ^9 ~0 @€ºª\\|;:,._-'¨ç `` (76 characters, 226 events) | The readout's text equalled the requested string: 76 scalars, 86 UTF-8 bytes |
+| `set-value … '<>≤ ºª\'` | The field's earlier text put back; `valueMatches: true` |
+
+Not covered: other phones and phone layouts (only Spanish – ISO, which this phone uses), fields other than the probe's (autocorrecting, SwiftUI, web), MCP against the phone, input-method layouts, and a phone whose iOS ships a different table from the Mac's.
+
 ## App logs, console and crashes
 
 First run of [`logs`, `console` and `last-crash`](app-logs.md), 2026-11-16: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), devicectl 651.32, one iPhone Air simulator on iOS 27.2 (24B8117), booted for the run and shut down afterwards, with the probe app's [log probe](probe-app.md#log-probe) installed through `simulator <UUID> build-run`. Every command went through the real CLI. Captured output stayed under `tmp/`; only shapes and counts are recorded here. No physical device was contacted.

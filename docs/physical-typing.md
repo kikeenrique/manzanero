@@ -26,9 +26,28 @@ The character table comes from the macOS layout of that name ([research](keyboar
 
 **The device's own layout is not read on a physical device.** No Apple tool exposes it; the receipt's `deviceLayout` says `not-read`, and the text is right only if the phone uses the named layout. A wrong name types wrong characters without any error. (On a simulator the setting is read and a different explicit layout is refused; see [simulator input](simulator-input.md#keyboard-layouts).)
 
-**Do not assume `us`.** A phone picks a layout without anyone choosing one, probably from its language: the test iPhone 13 mini, set to Spanish, applied Spanish – ISO, so the default `us` typed wrong punctuation there while `--layout spanish-iso` typed every character exactly, including Shift, Option and dead keys ([verification](verification.md#keyboard-layouts-on-the-phone)). To find a phone's layout, type a probe string such as `;[<` into a field you can read back and compare.
+**Do not assume `us`.** A phone picks a layout without anyone choosing one, probably from its language: the test iPhone 13 mini, set to Spanish, applied Spanish – ISO, so the default `us` typed wrong punctuation there while `--layout spanish-iso` typed every character exactly, including Shift, Option and dead keys ([verification](verification.md#keyboard-layouts-on-the-phone)). Find it with `detect-layout` first.
 
-What is verified: US, Spanish – ISO, German, French and Latin American on a simulator ([verification](verification.md#keyboard-layouts-on-the-simulator)); Spanish – ISO on one phone, which used the ISO keyboard type like the simulator (the key left of Z arrived). Other layouts on a phone, and changing the phone's layout in Settings, are untested.
+## Finding the layout: `detect-layout`
+
+```sh
+manzanero launch com.lemambo.manzanero.probeapp --device <UDID>
+manzanero detect-layout --id probe.text.field --device <UDID>
+manzanero type --layout spanish-iso '¿Qué? <º> @€' --device <UDID>
+```
+
+`detect-layout` (MCP `detect_keyboard_layout`) types a short probe into one named text field, reads what arrived and compares it with what every keyboard layout on this Mac would have typed. It works on physical devices and simulators.
+
+- **The probe** is computed from the Mac's layouts when the command runs: a greedy choice of letter, digit and punctuation keys, with and without Shift, that splits the layouts into as many groups as possible. Never Option, Return, Tab, Escape, space or arrows; a key that types a control character in any layout is not used; ties prefer keys that are not letters; and no layout may be left with a dead key pending at the end. On the test Mac it is 12 keys and tells the 262 layouts apart in 215 groups. `--dry-run` prints the keys and group counts without contacting the device.
+- **Steps.** Read the field's value from the tree; `set-value` it to `x`, with the guards of `press` and the settable check (this focuses it with the caret at the end, and keeps the probe from starting a sentence); type the probe as HID keyboard events; read the field again and take what follows the `x`; compare.
+- **Result.** `status` is `detected` (one layout; `layoutOption` is the `--layout` value to use), `ambiguous` (several layouts that type the same probe; all are listed, and they can still differ on keys the probe does not press, such as Option ones) or `no-match` (with the text that `arrived` and hints). It never picks one of several. The ten US-like layouts (`us`, `abc`, `us-extended`, `australian`, `canadian`, `dutch`, `brazilian`, `polish-pro`, `turkish-qwerty`, `unicode-hex-input`) differ only under Option, so a US device comes back `ambiguous` among them; any of them types the same non-Option characters.
+- **Restore.** It deletes what the field holds with that many backspaces and reads it again. An empty field reads as its placeholder, so getting the first value back means the field was empty and is restored (`cleared-to-original`); otherwise the first value is set back with `set-value` (`set-value`). `restore.confirmed` says whether the read-back matched. If the backspaces did not all arrive, it stops with `not-cleared` rather than write the placeholder as text. Cancellation (SIGINT, SIGTERM, MCP) still restores, and says so on stderr. No setting is read or changed on a physical device.
+- **Simulator.** The simulator's own `hw=` setting is reported in `deviceSetting`, with `agrees` when it names a layout; `hw=Automatic` names none.
+- **Which field.** Autocorrection, auto-capitalisation, smart quotes and dashes, input methods (Japanese, Chinese, Korean) and fields that filter or reformat input all change what arrives. Use a plain text field with those off; the probe app's `probe.text.field` is the reference. A field that does not keep `x` as set is refused before typing. When nothing matches but a layout would after undoing a case change or smart punctuation, the result lists it under `matchesAfterUndoing`, as a hint only.
+
+It sends input (about 30 key events and up to two set-values) and takes the device lease. The steps are existing operations run one after another, so it takes 7–9 seconds.
+
+What is verified: US, Spanish – ISO, German, French and Latin American on a simulator ([verification](verification.md#keyboard-layouts-on-the-simulator)); Spanish – ISO on one phone, which used the ISO keyboard type like the simulator (the key left of Z arrived). Other layouts on a phone, and changing the phone's layout in Settings, are untested. `detect-layout` found Spanish – ISO on that phone and the explicit setting on a simulator in four settings ([verification](verification.md#layout-detection)).
 
 ## Focus and other state
 

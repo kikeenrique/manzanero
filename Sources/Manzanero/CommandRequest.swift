@@ -15,6 +15,8 @@ enum CommandRequest: Sendable, Equatable {
     case record(RecordingCommand)
     /// `frames`: native video frames saved as JPEG files (physical).
     case frames(FramesCommand)
+    /// `detect-layout`: a probe typed into a named field and read back.
+    case detectLayout(LayoutDetectionCommand)
     case buildRun(BuildRunCommand)
     case diagnostics(AppDiagnosticsCommand)
     /// A `devicectl` or `simctl` wrapper.
@@ -73,6 +75,7 @@ extension CommandRequest {
         case .screen(let screen): (screen.platform, screen.device, "screen")
         case .record(let recording): (recording.physical ? "physical" : "simulator", recording.device, "record")
         case .frames(let frames): ("physical", frames.device, "frames")
+        case .detectLayout(let detection): (detection.platform.rawValue, detection.device, "detect-layout")
         case .buildRun(let build): (build.physical ? "physical" : "simulator", build.device, "build-run")
         case .diagnostics(let diagnostics): (diagnostics.physical ? "physical" : "simulator", diagnostics.device, diagnostics.operation)
         case .tool(let tool): (tool.platform.rawValue, tool.device, tool.operation)
@@ -99,6 +102,7 @@ extension CommandRequest {
         case .simulatorInput: "simulator input"
         case .physicalInput: "physical input"
         case .frames: "frame capture"
+        case .detectLayout: "layout detection"
         default: nil
         }
     }

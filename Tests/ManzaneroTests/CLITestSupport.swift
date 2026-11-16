@@ -54,6 +54,9 @@ func summary(_ request: CommandRequest) -> [String] {
             + option("--seconds", frames.seconds.map { String(format: "%g", $0) })
             + option("--interval", frames.intervalMilliseconds == 0 ? nil : String(frames.intervalMilliseconds))
             + flag("--overwrite", frames.overwrite)
+    case .detectLayout(let detection):
+        return [detection.platform.rawValue, detection.device, "detect-layout", detection.by == "identifier" ? "--id" : "--label", detection.text]
+            + option("--pid", detection.pid.map { String($0) })
     case .buildRun(let build):
         return [platform(build.physical), build.device, "build-run", build.project, build.scheme]
             + option("--configuration", build.configuration == "Debug" ? nil : build.configuration)

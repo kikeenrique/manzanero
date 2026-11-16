@@ -10,7 +10,7 @@ Machine and versions: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), iOS 27.2 simula
 - **The iOS 27.2 runtime ships the same layouts.** Its `USBKeyboardLayouts.bundle` holds 253 `uchr` files indexed by HID usage instead of Mac key code. For every one of the 252 that has a macOS counterpart, the table of typeable characters and their strokes (plain, Shift, Option, Shift+Option, and one dead key followed by one key) was identical to the macOS table built through the HID mapping below, with the same keyboard type on both sides. (observed)
 - **The simulator translates with the ISO keyboard type.** In Latin American, whose ANSI and ISO tables differ, HID 53 typed `<` (ISO), not `|` (ANSI). (observed, after this note was first written)
 - **Simulator: the layout is a preference that can be read and set.** It is the `hw=` part of the current input mode in `com.apple.keyboard.preferences`. An explicit value (`hw=German`) is honoured; `hw=Automatic`, the default, is resolved by iOS in a way that could not be predicted. (observed)
-- **Physical device: no Apple tool reads it.** `devicectl` exposes no preferences domain; the layout cannot be read. (inferred from `devicectl` help; no phone was used)
+- **Physical device: no Apple tool reads it.** `devicectl` exposes no preferences domain; the layout cannot be read. (inferred from `devicectl` help; no phone was used) It can be detected by typing instead: `detect-layout` ([below](#detecting-the-layout-by-typing)).
 
 So the requirement can be met with the caller naming the layout: the table is exact for the layouts macOS ships, a simulator's explicit layout can be checked before sending, and everything else must be stated as unverified in the receipt.
 
@@ -80,6 +80,15 @@ Only one iOS layout name, `Arabic-North_Africa`, had no macOS file by the file-n
 - On a simulator the current input mode is read first. An explicit `hw=` that names another layout is refused before input; `Automatic`, an unreadable preference, or a value without a macOS counterpart is reported in the receipt as not checked. On a physical device the receipt says the layout was not read.
 - The `us` table gives exactly the former strokes for ASCII, so existing schedules do not change (a test compares all 95 printable characters, tab and LF with the former table).
 - The schedule limit stays at 2048 events (20.47 s at 10 ms), the former worst case. Option and dead keys need more events per character, so 512 such characters can exceed it and are refused with the count.
+
+## Detecting the layout by typing
+
+A phone's layout cannot be read, but what it does with keys can be watched. `detect-layout` ([guide](physical-typing.md#finding-the-layout-detect-layout)) types a probe into a field, reads it back and compares it with the output of every layout on the Mac, built with the same `UCKeyTranslate` tables as `type`.
+
+- **Choosing the keys.** The probe is designed greedily from the installed layouts when the command runs: at each step the key (main block except space, with or without Shift, never Option) that minimises the sum of squared group sizes, which is the expected number of layouts left; ties prefer non-letters, then no Shift, then the lower usage, so the result is fixed for a given Mac. A key whose output contains a control character in any layout is never used. The dead-key state is part of each layout's progress, so a dead key followed by another key is predicted as the layout predicts it; a sequence that would leave a dead key pending in some layout is finished with the key that resolves it best. On macOS 27.2.1 the probe is 12 keys (HID `47 53 18 49 52 ⇧32 20 46 29 ⇧35 51 34`); US types `` [`o\'#q=z^;5 ``, Spanish – ISO `` `<oç´·q¡z&ñ5 ``, German `ü<o#ä§q´y&ö5`, French `` ^<o`ù3a-w6m( ``. (observed)
+- **What it can tell apart.** 262 layouts fall into 215 groups. The largest, ten US-like layouts (`us`, `abc`, `us-extended`, `australian`, `canadian`, `dutch`, `brazilian`, `polish-pro`, `turkish-qwerty`, `unicode-hex-input`), differ only under Option; German shares its group with `abc-qwertz` and `austrian`, French with `abc-azerty`, `belgian` and `french-numerical`, British with `irish`, `irish-extended` and `welsh`. Without Option no probe can split these. (observed)
+- **Dead keys that do not compose.** In Spanish – ISO the probe presses the dead grave before `<` and the dead acute before `·`; `UCKeyTranslate` gives `` `< `` and `´·`, and both the simulator and the iPhone 13 mini typed exactly that. (observed)
+- **What can make it fail.** Anything between the key and the field's text: autocorrection, auto-capitalisation (the probe follows an `x` set through accessibility, so it never starts a sentence), smart punctuation, input methods, fields that filter input, and a phone whose iOS version ships a different table. The result is then `no-match`, never a nearby layout.
 
 ## Options that were not taken
 

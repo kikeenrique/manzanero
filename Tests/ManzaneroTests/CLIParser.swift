@@ -36,6 +36,7 @@ struct CLIParserTests {
         (["key", "return", "--device", device], ["physical", device, "key", "return"]),
         (["type", "Hello", "--device", device], ["physical", device, "type", "Hello", "us"]),
         (["type", "--layout", "Spanish - ISO", "año", "--simulator", simulator], ["simulator", simulator, "type", "año", "spanish-iso"]),
+        (["detect-layout", "--id", "probe.text.field", "--device", device], ["physical", device, "detect-layout", "--id", "probe.text.field"]),
         (["paste", "mañana", "--device", device], ["physical", device, "paste", "mañana"]),
         (["wake", "--device", device], ["physical", device, "wake"]),
         (["wake", "--no-dismiss", "--device", device], ["physical", device, "wake", "--no-dismiss"]),
@@ -119,7 +120,7 @@ struct CLIParserTests {
 
     @Test func commandsCoverEveryOperationOnce() {
         let names = Self.forms.map { $0.0[0] == "files" || $0.0[0] == "reports" ? "\($0.0[0]) \($0.0[1])" : $0.0[0] }
-        #expect(Set(names).count == 49)
+        #expect(Set(names).count == 50)
     }
 
     @Test func dryRunAndErrorFormatAreAcceptedInAnyPosition() throws {

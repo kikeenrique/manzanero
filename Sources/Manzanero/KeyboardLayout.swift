@@ -275,11 +275,16 @@ struct KeyboardLayout: Sendable {
     /// released before the next, 10 ms apart. For US ASCII this is exactly the
     /// schedule of the former fixed table.
     func samples(_ text: String) throws -> [ADCKeyboardSample] {
+        Self.samples(try plan(text))
+    }
+
+    /// The timed HID schedule of some strokes, as `samples(_:)` builds it.
+    static func samples(_ strokes: [Stroke]) -> [ADCKeyboardSample] {
         var result: [ADCKeyboardSample] = []
         func append(_ usage: UInt64, _ state: UInt64) {
             result.append(ADCKeyboardSample(nanoseconds: UInt64(result.count) * 10_000_000, usage: usage, state: state))
         }
-        for key in try plan(text) {
+        for key in strokes {
             if key.shift { append(Self.shiftUsage, 1) }
             if key.option { append(Self.optionUsage, 1) }
             append(key.usage, 1)
@@ -288,6 +293,25 @@ struct KeyboardLayout: Sendable {
             if key.shift { append(Self.shiftUsage, 2) }
         }
         return result
+    }
+
+    /// Runs `body` with a translator for every installed layout, under the
+    /// Carbon lock. The translators read buffers freed when `body` returns, so
+    /// they must not escape it.
+    static func withInstalledTranslators<Result: Sendable>(_ body: ([(source: Source, translate: Translate)]) throws -> Result) throws -> Result {
+        try carbon.withLock { cache in
+            let installed = cache.load()
+            let buffers = installed.map { entry in
+                let buffer = UnsafeMutableRawBufferPointer.allocate(byteCount: max(entry.data.count, 1), alignment: 16)
+                buffer.copyBytes(from: entry.data)
+                return buffer
+            }
+            defer { buffers.forEach { $0.deallocate() } }
+            let translators = zip(installed, buffers).map { entry, buffer in
+                (source: entry.source, translate: translator(UnsafeRawBufferPointer(rebasing: buffer[0..<entry.data.count])))
+            }
+            return try body(translators)
+        }
     }
 
     /// The layout fields of receipts and plans.
@@ -333,6 +357,25 @@ enum DeviceKeyboardLayout {
             return String(attribute.dropFirst(3))
         }
         return nil
+    }
+
+    /// What a simulator's setting says, for `detect-layout` to compare with:
+    /// `deviceLayout` is the matching macOS layout name when the setting is
+    /// an explicit `hw=` layout; otherwise `status` says why there is none.
+    static func simulatorSetting(_ preferences: Result<Data, any Error>, sources: [KeyboardLayout.Source]) -> [String: Any] {
+        guard case .success(let plist) = preferences else {
+            return ["status": "not-read", "reason": "The simulator's keyboard preferences could not be read.", "note": relaunchNote]
+        }
+        guard let mode = inputMode(plist) else {
+            return ["status": "not-read", "reason": "The simulator records no current input mode.", "note": relaunchNote]
+        }
+        guard let hardware = hardwareLayout(mode), hardware.caseInsensitiveCompare("Automatic") != .orderedSame else {
+            return ["status": "automatic", "inputMode": mode, "reason": "hw=Automatic: iOS chooses the layout, so the setting names none to compare with.", "note": relaunchNote]
+        }
+        guard let device = KeyboardLayout.match(hardware, in: sources) else {
+            return ["status": "unknown-layout", "inputMode": mode, "hardwareLayout": hardware, "note": relaunchNote]
+        }
+        return ["status": "explicit", "inputMode": mode, "deviceLayout": device.name, "note": relaunchNote]
     }
 
     /// The receipt entry for a simulator, or a usage failure when its explicit
