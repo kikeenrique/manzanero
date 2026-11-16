@@ -4,26 +4,8 @@ import Synchronization
 
 /// One CLI runtime owns these process-wide handlers. Direct HID and MCP runtime
 /// shutdown use the scope; MCP request cancellation remains a separate path.
+/// Which commands run under it is `CommandRequest.signalContext`.
 enum CLIInputSignals {
-    static func applies(to args: [String], dryRun: Bool) -> Bool {
-        !dryRun && ((try? CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args))) != nil || isSimulator(args) || isCapture(args))
-    }
-
-    /// `logs` and `console` own a child process (`log stream`, devicectl's
-    /// console) that cancellation must stop and reap.
-    static func isCapture(_ args: [String]) -> Bool {
-        if case .logs = try? AppDiagnosticsCommand.parse(args) { return true }
-        if case .console = try? AppDiagnosticsCommand.parse(args) { return true }
-        return false
-    }
-
-    /// Simulator input and accessibility run under the same scope.
-    static func isSimulator(_ args: [String]) -> Bool { (try? SimulatorInput.parse(args)) != nil }
-
-    static func context(for args: [String]) -> String {
-        isCapture(args) ? "app output capture" : (isSimulator(args) ? "simulator input" : "physical input")
-    }
-
     final class Controller: Sendable {
         private struct State {
             var task: Task<CommandOutput, any Error>?

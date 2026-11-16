@@ -90,10 +90,11 @@ struct DirectPhysicalPasteTests {
         }
     }
 
-    @Test func defaultAndExplicitDryRunExposeClipboardEffectWithoutQueries() async throws {
+    @Test func dryRunExposesClipboardEffectWithoutQueries() async throws {
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried"); return Data() })
-        for prefix in [[], ["--physical-backend", "coredevice"]] {
-            let output = try await service.execute(prefix + ["physical", CoreDeviceInputTests().udid, "paste", "🚀"], dryRun: true)
+        // The service's dry run and the CLI's --dry-run option.
+        for (flag, dryRun) in [([String](), true), (["--dry-run"], false)] {
+            let output = try await service.run(["paste", "🚀", "--device", CoreDeviceInputTests().udid] + flag, dryRun: dryRun)
             let result = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
             #expect(result["backend"] as? String == "coredevice-direct")
             #expect(result["stdinUTF8Bytes"] as? Int == 4)

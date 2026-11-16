@@ -6,8 +6,17 @@ import Testing
 
 private let uuid = SimulatorDeviceTests.uuid
 
-private func logs(_ operands: [String]) throws -> LogCapture {
-    guard case .logs(let capture) = try AppDiagnosticsCommand.parse(["simulator", uuid, "logs"] + operands) else {
+/// The diagnostics command a command line in the CLI's grammar builds.
+private func diagnostics(_ command: [String]) throws -> AppDiagnosticsCommand {
+    guard case .diagnostics(let diagnostics) = try request(command) else {
+        throw CommandFailure(.internal, "not a diagnostics command", inputSent: .none)
+    }
+    return diagnostics
+}
+
+/// `logs` with these options on the fixture simulator.
+private func logs(_ options: [String]) throws -> LogCapture {
+    guard case .logs(let capture) = try diagnostics(["logs"] + options + ["--simulator", uuid]) else {
         throw CommandFailure(.internal, "not logs", inputSent: .none)
     }
     return capture
@@ -56,7 +65,7 @@ struct LogCaptureParsingTests {
         ["--seconds", "61", "--pid", "1"], ["--last", "3601", "--pid", "1"], ["--seconds", "5", "--pid", "1", "--bundle", "a.b"],
         ["--seconds", "5", "--pid", "0"], ["--seconds", "5", "--pid", "1", "--category", "c"], ["--seconds", "5", "--pid", "1", "--level", "trace"],
         ["--seconds", "5", "--pid", "1", "--max-entries", "10001"], ["--seconds", "5", "--pid", "1", "--max-bytes", "100"],
-        ["--seconds", "5", "--pid", "1", "--predicate", "TRUEPREDICATE"], ["--seconds", "5", "--pid", "1", "--seconds", "6"],
+        ["--seconds", "5", "--pid", "1", "--predicate", "TRUEPREDICATE"],
         ["--start", "yesterday", "--pid", "1"], ["--start", "2026-01-02T00:00:00Z", "--end", "2026-01-01T00:00:00Z", "--pid", "1"],
         ["--seconds", "5", "--end", "2026-01-01T00:00:00Z", "--pid", "1"], ["--seconds", "5", "--pid", "1", "extra"],
     ])
@@ -65,13 +74,13 @@ struct LogCaptureParsingTests {
     }
 
     @Test func physicalLogsAreUnsupportedAndSimulatorsNeedAUUID() throws {
-        #expect { try AppDiagnosticsCommand.parse(["physical", "phone", "logs", "--seconds", "5", "--pid", "1"]) } throws: {
+        #expect { try diagnostics(["logs", "--seconds", "5", "--pid", "1", "--device", "phone"]) } throws: {
             ($0 as? CommandFailure)?.code == .unsupportedOperation && ($0 as? CommandFailure)?.inputSent == CommandFailure.InputSent.none
         }
-        #expect { try AppDiagnosticsCommand.parse(["simulator", "booted", "logs", "--seconds", "5", "--pid", "1"]) } throws: {
+        #expect { try diagnostics(["logs", "--seconds", "5", "--pid", "1", "--simulator", "booted"]) } throws: {
             ($0 as? CommandFailure)?.code == .usage
         }
-        #expect(try AppDiagnosticsCommand.parse(["simulator", uuid, "tap", "0.5", "0.5"]) == nil)
+        #expect(try simulatorInput(["tap", "0.5", "0.5", "--simulator", uuid])?.operation == "tap")
     }
 }
 
@@ -300,8 +309,9 @@ struct DiagnosticTimeTests {
 
 // MARK: - Console
 
-private func console(_ args: [String]) throws -> ConsoleCapture {
-    guard case .console(let capture) = try AppDiagnosticsCommand.parse(args) else { throw CommandFailure(.internal, "not console", inputSent: .none) }
+/// The console capture a `console` command line in the CLI's grammar builds.
+private func console(_ command: [String]) throws -> ConsoleCapture {
+    guard case .console(let capture) = try diagnostics(command) else { throw CommandFailure(.internal, "not console", inputSent: .none) }
     return capture
 }
 
@@ -345,25 +355,25 @@ struct ConsoleCaptureTests {
     private let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/console-test-\(UUID().uuidString)")
 
     @Test func parsingKeepsAppArgumentsVerbatim() throws {
-        let capture = try console(["simulator", uuid, "console", "com.example.app", "--seconds", "5", "--os-log", "--", "-flag", "--seconds", "$(x)"])
+        let capture = try console(["console", "com.example.app", "--seconds", "5", "--os-log", "--simulator", uuid, "--", "-flag", "--seconds", "$(x)"])
         #expect(capture.bundle == "com.example.app" && capture.seconds == 5 && capture.osLog && !capture.terminate)
         #expect(capture.appArguments == ["-flag", "--seconds", "$(x)"])
         #expect(capture.environment == ["SIMCTL_CHILD_OS_ACTIVITY_DT_MODE": "enable"])
         #expect(capture.simulatorArguments(stdout: "/o", stderr: "/e") == ["simctl", "launch", "--terminate-running-process",
             "--stdout=/o", "--stderr=/e", uuid, "com.example.app", "-flag", "--seconds", "$(x)"])
-        let physical = try console(["physical", "phone", "console", "com.example.app", "--seconds", "10", "--os-log", "--terminate"])
+        let physical = try console(["console", "com.example.app", "--seconds", "10", "--os-log", "--terminate", "--device", "phone"])
         #expect(physical.environment == ["DEVICECTL_CHILD_OS_ACTIVITY_DT_MODE": "enable"])
         #expect(physical.physicalArguments(json: "/j") == ["devicectl", "device", "process", "launch", "--device", "phone", "--console",
             "--terminate-existing", "--timeout", "70", "--json-output", "/j", "com.example.app"])
         #expect(physical.hardDeadlineSeconds == 30)
-        #expect(try console(["simulator", uuid, "console", "a.b", "--seconds", "1"]).environment.isEmpty)
+        #expect(try console(["console", "a.b", "--seconds", "1", "--simulator", uuid]).environment.isEmpty)
     }
 
     @Test(arguments: [["com.example.app"], ["com.example.app", "--seconds", "0"], ["com.example.app", "--seconds", "61"], ["--seconds", "5"],
                       ["a\"b", "--seconds", "5"], ["a.b", "c.d", "--seconds", "5"], ["a.b", "--seconds", "5", "--max-bytes", "10"],
                       ["a.b", "--seconds", "5", "--follow"]])
     func invalidConsoleCallsAreUsageErrors(_ operands: [String]) {
-        #expect { try console(["simulator", uuid, "console"] + operands) } throws: { ($0 as? CommandFailure)?.code == .usage }
+        #expect { try console(["console"] + operands + ["--simulator", uuid]) } throws: { ($0 as? CommandFailure)?.code == .usage }
     }
 
     @Test func launchOutputGivesThePID() {
@@ -387,7 +397,7 @@ struct ConsoleCaptureTests {
     @Test func appExitEndsTheWaitAndTheResultIsHonestAboutExitStatus() async throws {
         defer { try? FileManager.default.removeItem(at: directory) }
         let fake = FakeConsole(aliveChecks: 2, stdout: "out line\n", stderr: "err line\n")
-        let capture = try console(["simulator", uuid, "console", "com.example.app", "--seconds", "5", "--os-log"])
+        let capture = try console(["console", "com.example.app", "--seconds", "5", "--os-log", "--simulator", uuid])
         let result = try object(await AppConsole.executeSimulator(capture, directory: directory, environment: fake.environment()))
         #expect(result["stopReason"] as? String == "exited" && result["pid"] as? Int == 4242 && result["exitStatus"] is NSNull)
         #expect(result["stdoutTail"] as? String == "out line\n" && result["stderrTail"] as? String == "err line\n")
@@ -398,13 +408,13 @@ struct ConsoleCaptureTests {
     @Test func durationLeavesTheAppRunningUnlessTerminateIsGiven() async throws {
         defer { try? FileManager.default.removeItem(at: directory) }
         let keep = FakeConsole(aliveChecks: 1000, stdout: String(repeating: "x", count: 2000))
-        let kept = try object(await AppConsole.executeSimulator(try console(["simulator", uuid, "console", "a.b", "--seconds", "2", "--max-bytes", "1024"]),
+        let kept = try object(await AppConsole.executeSimulator(try console(["console", "a.b", "--seconds", "2", "--max-bytes", "1024", "--simulator", uuid]),
                                                                 directory: directory, environment: keep.environment()))
         #expect(kept["stopReason"] as? String == "duration" && kept["stillRunning"] as? Bool == true && kept["terminatedByTool"] as? Bool == false)
         #expect(kept["truncated"] as? Bool == true && kept["stdoutBytes"] as? Int == 2000 && (kept["stdoutTail"] as? String)?.count == 1024)
         #expect(!keep.state.withLock { $0.calls.contains { $0.contains("terminate") } })
         let stop = FakeConsole(aliveChecks: 1000)
-        let stopped = try object(await AppConsole.executeSimulator(try console(["simulator", uuid, "console", "a.b", "--seconds", "1", "--terminate"]),
+        let stopped = try object(await AppConsole.executeSimulator(try console(["console", "a.b", "--seconds", "1", "--terminate", "--simulator", uuid]),
                                                                    directory: directory, environment: stop.environment()))
         #expect(stopped["terminatedByTool"] as? Bool == true && stopped["stillRunning"] as? Bool == false)
         #expect(stop.state.withLock { $0.calls.last } == ["simctl", "terminate", uuid, "a.b"])
@@ -413,7 +423,7 @@ struct ConsoleCaptureTests {
     @Test func unbootedSimulatorIsRefusedBeforeLaunch() async throws {
         let fake = FakeConsole(aliveChecks: 0)
         await #expect {
-            _ = try await AppConsole.executeSimulator(try console(["simulator", uuid, "console", "a.b", "--seconds", "1"]),
+            _ = try await AppConsole.executeSimulator(try console(["console", "a.b", "--seconds", "1", "--simulator", uuid]),
                                                       directory: directory, environment: fake.environment(state: "Shutdown"))
         } throws: { ($0 as? CommandFailure)?.code == .deviceNotReady }
         #expect(fake.state.withLock { $0.calls.isEmpty })
@@ -430,7 +440,7 @@ struct ConsoleCaptureTests {
     // exits when interrupted, as the one phone run did.
     @Test func physicalConsoleIsHonestWhenOnlyStatusLinesArrive() async throws {
         defer { try? FileManager.default.removeItem(at: directory) }
-        let capture = try console(["physical", "phone", "console", "a.b", "--seconds", "1"])
+        let capture = try console(["console", "a.b", "--seconds", "1", "--device", "phone"])
         let script = "trap 'echo \"App terminated due to signal 2.\"; exit 0' INT; echo 'Launched application with a.b bundle identifier.'; while :; do /bin/sleep 0.05; done"
         let result = try object(await AppConsole.executePhysical(capture, directory: directory, launch: { _ in ("/bin/sh", ["-c", script]) }))
         #expect(result["stopReason"] as? String == "duration" && result["terminatedByTool"] as? Bool == true)
@@ -444,7 +454,7 @@ struct ConsoleCaptureTests {
     // That run's output is the answer, not a tool failure.
     @Test func physicalConsoleReturnsTheOutputOfAnAppThatCrashed() async throws {
         defer { try? FileManager.default.removeItem(at: directory) }
-        let capture = try console(["physical", "phone", "console", "a.b", "--seconds", "5"])
+        let capture = try console(["console", "a.b", "--seconds", "5", "--device", "phone"])
         let script = "echo 'Launched application with a.b bundle identifier.'; echo 'stdout K1'; echo 'stderr K1' >&2; exit 1"
         let result = try object(await AppConsole.executePhysical(capture, directory: directory, launch: { _ in ("/bin/sh", ["-c", script]) }))
         #expect(result["stopReason"] as? String == "exited" && result["terminatedByTool"] as? Bool == false)
@@ -456,7 +466,7 @@ struct ConsoleCaptureTests {
     // A launch that never happened is still a failure of the tool.
     @Test func physicalConsoleFailsWhenNothingWasLaunched() async throws {
         defer { try? FileManager.default.removeItem(at: directory) }
-        let capture = try console(["physical", "phone", "console", "a.b", "--seconds", "5"])
+        let capture = try console(["console", "a.b", "--seconds", "5", "--device", "phone"])
         await #expect(throws: CommandFailure.self) {
             _ = try await AppConsole.executePhysical(capture, directory: directory, launch: { _ in ("/bin/sh", ["-c", "echo 'no such device' >&2; exit 1"]) })
         }
@@ -464,7 +474,7 @@ struct ConsoleCaptureTests {
 
     @Test func physicalConsoleReportsAppOutputAndAFailedLaunch() async throws {
         defer { try? FileManager.default.removeItem(at: directory) }
-        let capture = try console(["physical", "phone", "console", "a.b", "--seconds", "5"])
+        let capture = try console(["console", "a.b", "--seconds", "5", "--device", "phone"])
         let result = try object(await AppConsole.executePhysical(capture, directory: directory,
             launch: { _ in ("/bin/sh", ["-c", "echo 'Launched application with a.b bundle identifier.'; echo app-line; echo app-err >&2"]) }))
         #expect(result["stopReason"] as? String == "exited" && result["appOutputObserved"] as? Bool == true && result["captured"] == nil)
@@ -501,8 +511,12 @@ func fixtureReport(bundle: String = "com.example.app", name: String = "Example",
     return data
 }
 
-private func crashQuery(_ args: [String]) throws -> LastCrashQuery {
-    guard case .lastCrash(let query) = try AppDiagnosticsCommand.parse(args) else { throw CommandFailure(.internal, "not last-crash", inputSent: .none) }
+/// `last-crash` with these options on a physical `device`, or else on the fixture simulator.
+private func crashQuery(_ options: [String], device: String? = nil) throws -> LastCrashQuery {
+    let target = device.map { ["--device", $0] } ?? ["--simulator", uuid]
+    guard case .lastCrash(let query) = try diagnostics(["last-crash"] + options + target) else {
+        throw CommandFailure(.internal, "not last-crash", inputSent: .none)
+    }
     return query
 }
 
@@ -538,10 +552,10 @@ struct CrashReportTests {
     }
 
     @Test func parsingNeedsExactlyOneTarget() throws {
-        let query = try crashQuery(["simulator", uuid, "last-crash", "--bundle", "com.example.app", "--since", "2026-01-01T00:00:00Z"])
+        let query = try crashQuery(["--bundle", "com.example.app", "--since", "2026-01-01T00:00:00Z"])
         #expect(query.bundle == "com.example.app" && query.process == nil && query.since != nil && !query.physical)
         for bad in [[], ["--bundle", "a.b", "--process", "A"], ["--since", "2026-01-01T00:00:00Z"], ["--bundle", "a\"b"], ["--bundle", "a.b", "--since", "now"]] {
-            #expect { try crashQuery(["simulator", uuid, "last-crash"] + bad) } throws: { ($0 as? CommandFailure)?.code == .usage }
+            #expect { try crashQuery(bad) } throws: { ($0 as? CommandFailure)?.code == .usage }
         }
     }
 
@@ -559,13 +573,13 @@ struct CrashReportTests {
             ("Example-notes.txt", fixtureReport(timestamp: "2026-01-01 17:00:00.00 +0000")),
         ]
         for (name, data) in files { try data.write(to: directory.appendingPathComponent(name)) }
-        let byBundle = try #require(try CrashReportSelection.simulator(try crashQuery(["simulator", uuid, "last-crash", "--bundle", "com.example.app"]), directory: directory))
+        let byBundle = try #require(try CrashReportSelection.simulator(try crashQuery(["--bundle", "com.example.app"]), directory: directory))
         #expect(byBundle.url.lastPathComponent == "Example-new.ips" && byBundle.deviceMatch == true)
-        let byProcess = try #require(try CrashReportSelection.simulator(try crashQuery(["simulator", uuid, "last-crash", "--process", "Example"]), directory: directory))
+        let byProcess = try #require(try CrashReportSelection.simulator(try crashQuery(["--process", "Example"]), directory: directory))
         #expect(byProcess.url.lastPathComponent == "Example-new.ips")
-        let since = try crashQuery(["simulator", uuid, "last-crash", "--bundle", "com.example.app", "--since", "2026-01-01T12:30:00Z"])
+        let since = try crashQuery(["--bundle", "com.example.app", "--since", "2026-01-01T12:30:00Z"])
         #expect(try CrashReportSelection.simulator(since, directory: directory) == nil)
-        #expect(try CrashReportSelection.simulator(try crashQuery(["simulator", uuid, "last-crash", "--bundle", "com.none"]), directory: directory) == nil)
+        #expect(try CrashReportSelection.simulator(try crashQuery(["--bundle", "com.none"]), directory: directory) == nil)
     }
 
     @Test func deviceListingCandidatesAreFilteredAndNewestFirst() throws {
@@ -581,12 +595,12 @@ struct CrashReportTests {
             file("Analytics-2026-01-01.ips.ca.synced", "2026-01-01T15:00:00.000Z"),
             file("Other-2026-01-01-110000.ips", "2026-01-01T11:00:00.000Z"),
         ]]])
-        let all = try CrashReportSelection.deviceCandidates(listing, query: try crashQuery(["physical", "phone", "last-crash", "--bundle", "com.example.app"]))
+        let all = try CrashReportSelection.deviceCandidates(listing, query: try crashQuery(["--bundle", "com.example.app"], device: "phone"))
         #expect(all == ["Example-2026-01-01-120000.ips", "Other-2026-01-01-110000.ips", "Example-2026-01-01-100000.ips"])
-        let named = try CrashReportSelection.deviceCandidates(listing, query: try crashQuery(["physical", "phone", "last-crash", "--process", "Example",
-                                                                                             "--since", "2026-01-01T11:00:00Z"]))
+        let named = try CrashReportSelection.deviceCandidates(listing, query: try crashQuery(["--process", "Example", "--since", "2026-01-01T11:00:00Z"],
+                                                                                            device: "phone"))
         #expect(named == ["Example-2026-01-01-120000.ips"])
-        #expect(throws: CommandFailure.self) { try CrashReportSelection.deviceCandidates(Data("{}".utf8), query: try crashQuery(["physical", "phone", "last-crash", "--process", "E"])) }
+        #expect(throws: CommandFailure.self) { try CrashReportSelection.deviceCandidates(Data("{}".utf8), query: try crashQuery(["--process", "E"], device: "phone")) }
     }
 
     @Test func physicalSelectionDownloadsUntilAHeaderMatchesAndDeletesTheRest() throws {
@@ -599,7 +613,7 @@ struct CrashReportTests {
         let reports = ["Other-1.ips": fixtureReport(bundle: "com.other.app", name: "Other", platform: 2),
                        "Example-1.ips": fixtureReport(platform: 2, procPath: "/private/var/containers/Bundle/Application/X/Example.app/Example")]
         let calls = Mutex<[[String]]>([])
-        let query = try crashQuery(["physical", "phone", "last-crash", "--bundle", "com.example.app"])
+        let query = try crashQuery(["--bundle", "com.example.app"], device: "phone")
         let result = try object(try CrashReportSelection.executePhysical(query, directory: directory) { plan in
             calls.withLock { $0.append(plan.arguments) }
             if plan.arguments.contains("info") { return listing }
@@ -613,7 +627,7 @@ struct CrashReportTests {
         #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("Other-1.ips").path))
         #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("Example-1.ips").path))
         #expect(calls.withLock { $0.count } == 3)
-        let none = try object(try CrashReportSelection.executePhysical(try crashQuery(["physical", "phone", "last-crash", "--process", "Nothing"]),
+        let none = try object(try CrashReportSelection.executePhysical(try crashQuery(["--process", "Nothing"], device: "phone"),
                                                                        directory: directory) { _ in listing })
         #expect(none["found"] as? Bool == false && none["candidatesListed"] as? Int == 0)
     }
@@ -630,31 +644,33 @@ struct AppDiagnosticsServiceTests {
     }
 
     @Test func dryRunsPlanWithoutContactingAnything() async throws {
-        let logsPlan = try object(await service().execute(["simulator", uuid, "logs", "--seconds", "10", "--bundle", "com.example.app"], dryRun: true).data)
+        let logsPlan = try object(await service().run(["logs", "--seconds", "10", "--bundle", "com.example.app", "--simulator", uuid], dryRun: true).data)
         #expect(logsPlan["readOnly"] as? Bool == true && logsPlan["source"] as? String == "simctl-log-stream")
         #expect((logsPlan["bounds"] as? [String: Any])?["hardDeadlineSeconds"] as? Double == 15)
         #expect(((logsPlan["targetResolution"] as? [String: Any])?["query"] as? [String: Any])?["arguments"] as? [String] == ["simctl", "get_app_container", uuid, "com.example.app", "app"])
-        let consolePlan = try object(await service().execute(["physical", "phone", "console", "com.example.app", "--seconds", "5"], dryRun: true).data)
+        let consolePlan = try object(await service().run(["console", "com.example.app", "--seconds", "5", "--device", "phone"], dryRun: true).data)
         #expect(consolePlan["liveVerification"] as? String == "one iPhone 13 mini" && consolePlan["readOnly"] as? Bool == false && (consolePlan["execution"] as? String)?.contains("forwards to the app") == true)
-        let simConsole = try object(await service().execute(["simulator", uuid, "console", "com.example.app", "--seconds", "5"], dryRun: true).data)
+        let simConsole = try object(await service().run(["console", "com.example.app", "--seconds", "5", "--simulator", uuid], dryRun: true).data)
         #expect((simConsole["arguments"] as? [String])?.prefix(3) == ["simctl", "launch", "--terminate-running-process"])
-        let crash = try object(await service().execute(["physical", "phone", "last-crash", "--process", "Example"], dryRun: true).data)
+        let crash = try object(await service().run(["last-crash", "--process", "Example", "--device", "phone"], dryRun: true).data)
         #expect((crash["listing"] as? [String: Any])?["arguments"] as? [String] == ["devicectl", "device", "info", "files", "--domain-type", "systemCrashLogs",
             "--subdirectory", ".", "--no-recurse", "--device", "phone", "--timeout", "60", "--json-output", "-"])
     }
 
-    @Test func readOnlyClassification() {
-        #expect(CommandService.isReadOnly(["simulator", uuid, "logs", "--seconds", "5", "--pid", "1"]))
-        #expect(CommandService.isReadOnly(["physical", "phone", "last-crash", "--process", "E"]))
-        #expect(!CommandService.isReadOnly(["simulator", uuid, "console", "a.b", "--seconds", "5"]))
-        #expect(CLIInputSignals.isCapture(["simulator", uuid, "logs", "--seconds", "5", "--pid", "1"]))
-        #expect(CLIInputSignals.isCapture(["physical", "phone", "console", "a.b", "--seconds", "5"]))
-        #expect(!CLIInputSignals.isCapture(["simulator", uuid, "last-crash", "--process", "E"]))
-        #expect(!CLIInputSignals.applies(to: ["simulator", uuid, "logs", "--seconds", "5", "--pid", "1"], dryRun: true))
+    @Test func readOnlyClassification() throws {
+        let logs = ["logs", "--seconds", "5", "--pid", "1", "--simulator", uuid]
+        #expect(try request(logs).isReadOnly)
+        #expect(try request(["last-crash", "--process", "E", "--device", "phone"]).isReadOnly)
+        #expect(try !request(["console", "a.b", "--seconds", "5", "--simulator", uuid]).isReadOnly)
+        #expect(try request(logs).signalContext == "app output capture")
+        #expect(try request(["console", "a.b", "--seconds", "5", "--device", "phone"]).signalContext == "app output capture")
+        #expect(try request(["last-crash", "--process", "E", "--simulator", uuid]).signalContext == nil)
+        // main.swift leaves a dry run outside the signal scope.
+        #expect(try CLI.invocation(logs + ["--dry-run"]).dryRun)
     }
 
     @Test func physicalLogsFailAsUnsupportedWithNothingSent() async {
-        await #expect { _ = try await service().execute(["physical", "phone", "logs", "--seconds", "5", "--pid", "1"]) } throws: {
+        await #expect { _ = try await service().run(["logs", "--seconds", "5", "--pid", "1", "--device", "phone"]) } throws: {
             ($0 as? CommandFailure)?.code == .unsupportedOperation && ($0 as? CommandFailure)?.inputSent == CommandFailure.InputSent.none
         }
     }
@@ -670,17 +686,17 @@ struct AppDiagnosticsMCPTests {
                                                         "subsystem": "com.example.app", "category": "probe", "max_entries": 3])
         #expect(logArgs == ["logs", "--simulator=\(uuid)", "--seconds=10", "--max-entries=3", "--bundle=com.example.app",
                             "--subsystem=com.example.app", "--category=probe", "--level=debug"])
-        guard case .logs(let parsed) = try AppDiagnosticsCommand.parse(legacy(logArgs)) else { Issue.record("not logs"); return }
+        guard case .logs(let parsed) = try diagnostics(logArgs) else { Issue.record("not logs"); return }
         #expect(parsed.maxEntries == 3 && parsed.level == .debug)
         let consoleArgs = try tool("capture_console").command(["platform": "simulator", "device": .string(uuid), "bundle_id": "a.b", "seconds": 5,
                                                                "os_log": true, "terminate": false, "app_arguments": ["-probeLogToken", "T1"]])
         #expect(consoleArgs == ["console", "--simulator=\(uuid)", "--seconds=5", "--os-log", "a.b", "--", "-probeLogToken", "T1"])
-        #expect(try legacy(consoleArgs) == ["simulator", uuid, "console", "a.b", "--seconds", "5", "--os-log", "--", "-probeLogToken", "T1"])
-        guard case .console(let consoleParsed) = try AppDiagnosticsCommand.parse(legacy(consoleArgs)) else { Issue.record("not console"); return }
+        #expect(summary(try request(consoleArgs)) == ["simulator", uuid, "console", "a.b", "--seconds", "5", "--os-log", "--", "-probeLogToken", "T1"])
+        guard case .console(let consoleParsed) = try diagnostics(consoleArgs) else { Issue.record("not console"); return }
         #expect(consoleParsed.appArguments == ["-probeLogToken", "T1"])
         let crashArgs = try tool("latest_crash").command(["platform": "physical", "device": "phone", "process": "Example", "since": "2026-01-01T00:00:00Z"])
         #expect(crashArgs == ["last-crash", "--device=phone", "--process=Example", "--since=2026-01-01T00:00:00Z"])
-        #expect(try legacy(crashArgs) == ["physical", "phone", "last-crash", "--process", "Example", "--since", "2026-01-01T00:00:00Z"])
+        #expect(summary(try request(crashArgs)) == ["physical", "phone", "last-crash", "--process", "Example", "--since", "2026-01-01T00:00:00Z"])
     }
 
     @Test func schemasRejectWrongTypes() throws {

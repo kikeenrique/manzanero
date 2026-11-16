@@ -42,9 +42,7 @@ struct ConsoleCapture: Sendable, Equatable {
         self.osLog = osLog; self.terminate = terminate; self.appArguments = appArguments
     }
 
-    init(physical: Bool, device: String, operands: [String]) throws {
-        let options = try DiagnosticOptions(operands, operation: "console", values: ["--seconds", "--max-bytes"],
-                                            flags: ["--os-log", "--terminate"], allowTrailing: true)
+    init(physical: Bool, device: String, options: DiagnosticOptions) throws {
         guard options.positional.count == 1 else {
             throw CommandFailure.usage("Usage: console <bundle-id> --seconds <1...60> [--max-bytes N] [--os-log] [--terminate] [-- app-args…]")
         }

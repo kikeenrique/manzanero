@@ -150,7 +150,7 @@ struct DeviceLeaseServiceTests {
         return descriptor
     }
 
-    @Test(arguments: [["tap", "0.5", "0.5"], ["button", "home"], ["type", "abc"], ["press-label", "Back"]])
+    @Test(arguments: [["tap", "0.5", "0.5"], ["button", "home"], ["type", "abc"], ["press", "--label", "Back"]])
     func inputIsRefusedWhileAnotherProcessOwnsTheDevice(operation: [String]) async throws {
         let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("tmp/lease-test-\(UUID().uuidString)")
@@ -162,7 +162,7 @@ struct DeviceLeaseServiceTests {
         for device in ["My iPhone", "00008110-000A1B2C3D4E5F60", Self.uuid] {
             let service = CommandService(leases: DeviceLeaseRegistry(directory: directory), readinessQuery: { _ in data })
             do {
-                _ = try await service.execute(["physical", device] + operation)
+                _ = try await service.run(operation + ["--device", device])
                 Issue.record("\(operation[0]) reached dispatch while another owner held \(device)")
             } catch {
                 #expect(String(describing: error).contains("another manzanero process"))
@@ -179,7 +179,7 @@ struct DeviceLeaseServiceTests {
         let data = try details(mode: "disabled")
         let service = CommandService(leases: DeviceLeaseRegistry(directory: directory), readinessQuery: { _ in data })
         do {
-            _ = try await service.execute(["physical", Self.uuid, "tap", "0.5", "0.5"])
+            _ = try await service.run(["tap", "0.5", "0.5", "--device", Self.uuid])
             Issue.record("A disabled device reached dispatch")
         } catch {
             #expect(String(describing: error).contains("Developer Mode is disabled"))
@@ -196,7 +196,7 @@ struct DeviceLeaseServiceTests {
         let service = CommandService(leases: DeviceLeaseRegistry(directory: directory), readinessQuery: { _ in data })
         let destination = directory.appendingPathComponent("refused.mp4").path
         do {
-            _ = try await service.execute(["--recording-backend", "coredevice", "physical", Self.uuid, "record", destination, "1"])
+            _ = try await service.run(["record", destination, "1", "--backend", "coredevice", "--device", Self.uuid])
             Issue.record("Native recording started while another owner held the device")
         } catch {
             #expect(String(describing: error).contains("another manzanero process"))
@@ -217,7 +217,7 @@ struct CommandServiceIsolationTests {
             release.wait()
             throw CommandFailure(description: "fixture stop")
         })
-        let blocked = Task { try await service.execute(["physical", "fixture", "readiness"]) }
+        let blocked = Task { try await service.run(["readiness", "--device", "fixture"]) }
         await entered.wait()
         // While the service is blocked, far more pool tasks than there are
         // cores still complete: none of them is waiting behind the query.
@@ -238,7 +238,7 @@ struct CommandServiceIsolationTests {
             sawCancellation.withLock { $0 = true }
             throw CancellationError()
         })
-        let task = Task { try await service.execute(["physical", "fixture", "readiness"]) }
+        let task = Task { try await service.run(["readiness", "--device", "fixture"]) }
         await entered.wait()
         task.cancel()
         await #expect(throws: CancellationError.self) { _ = try await task.value }

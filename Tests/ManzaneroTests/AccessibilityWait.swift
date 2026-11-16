@@ -490,22 +490,22 @@ struct AccessibilityWaitTests {
     }
 
     @Test func cliParsingSignalsAndDryRunNeverQueryADevice() async throws {
-        let args = ["physical", "fixture", "wait-label", "42", "Done", "--until", "gone", "--timeout", "3"]
-        let native = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(args)))
+        let args = ["wait", "--label", "Done", "--pid", "42", "--until", "gone", "--timeout", "3", "--device", "fixture"]
+        let native = try #require(try physicalInput(args))
         #expect(native.operation == "wait-label" && native.operands == ["42", "Done", "--until", "gone", "--timeout", "3"])
-        #expect(CLIInputSignals.applies(to: args, dryRun: false) && !CLIInputSignals.applies(to: args, dryRun: true))
+        #expect(try request(args).signalContext == "physical input")
         await #expect(throws: CommandFailure.self) {
-            try await CommandService().execute(["physical", "fixture", "wait-id", "x", "--interval", "9"], dryRun: true)
+            try await CommandService().run(["wait", "--id", "x", "--interval", "9", "--device", "fixture"], dryRun: true)
         }
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried a device"); return Data() })
-        let output = try await service.execute(args, dryRun: true)
+        let output = try await service.run(args, dryRun: true)
         let plan = try #require(JSONSerialization.jsonObject(with: output.data) as? [String: Any])
         #expect(output.exitCode == 0 && plan["operation"] as? String == "wait" && plan["readOnly"] as? Bool == true)
         #expect(plan["pid"] as? Int == 42 && (plan["condition"] as? [String: Any])?["until"] as? String == "gone")
         #expect(plan["timeoutSeconds"] as? Double == 3 && plan["intervalSeconds"] as? Double == 0.5 && plan["maximumPolls"] as? Int == 8)
         #expect(plan["timeoutExitCode"] as? Int == 124 && plan["liveVerified"] as? Bool == false)
         #expect((plan["identityArguments"] as? [String])?.contains("details") == true)
-        let foreground = try await service.execute(["physical", "fixture", "wait-id", "x"], dryRun: true)
+        let foreground = try await service.run(["wait", "--id", "x", "--device", "fixture"], dryRun: true)
         #expect((try JSONSerialization.jsonObject(with: foreground.data) as? [String: Any])?["pid"] is NSNull)
     }
 
@@ -519,8 +519,8 @@ struct AccessibilityWaitTests {
         let full = try tool.command(["device": "fixture", "by": "label", "text": "Done", "pid": 42, "until": "value", "value": "Ready",
                                      "timeout_seconds": 2.5, "interval_seconds": 1])
         #expect(full == ["wait", "--device=fixture", "--label=Done", "--pid=42", "--until=value", "--value=Ready", "--timeout=2.5", "--interval=1"])
-        #expect(try legacy(full) == ["physical", "fixture", "wait-label", "42", "Done", "--until", "value", "--value", "Ready", "--timeout", "2.5", "--interval", "1"])
-        let parsed = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(full))))
+        #expect(summary(try request(full)) == ["physical", "fixture", "wait-label", "42", "Done", "--until", "value", "--value", "Ready", "--timeout", "2.5", "--interval", "1"])
+        let parsed = try #require(try physicalInput(full))
         let wait = try AccessibilityWait(parsed)
         #expect(wait.pid == 42 && wait.condition == .value("Ready") && wait.timeoutMilliseconds == 2500 && wait.intervalMilliseconds == 1000)
         for invalid: [String: Value] in [["device": "fixture", "by": "name", "text": "x"], ["device": "fixture", "by": "label"],
@@ -566,7 +566,7 @@ struct AccessibilityWaitTests {
             "identifier": uuid, "properties": ["state": ["developerModeStatus": "enabled"], "hardware": ["udid": udid]]]])
         let service = CommandService(leases: DeviceLeaseRegistry(directory: directory), readinessQuery: { _ in details })
         do {
-            _ = try await service.execute(["physical", udid, "wait-id", "fixture.target"])
+            _ = try await service.run(["wait", "--id", "fixture.target", "--device", udid])
             Issue.record("Fixture details unexpectedly reached a device connection")
         } catch {
             let text = String(describing: error)

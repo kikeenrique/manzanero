@@ -6,22 +6,24 @@ import Testing
 struct HandoffCommandTests {
     let device = "11111111-2222-3333-4444-555555555555"
     func request() throws -> HandoffCommand {
-        try #require(try HandoffCommand.parse(["simulator", device, "handoff", "Complete the step on the device"]))
+        try HandoffCommand(platform: "simulator", device: device, message: "Complete the step on the device", timeout: nil)
     }
 
     @Test func validatesExplicitTargetAndTerminalLimits() throws {
         let parsed = try request()
         #expect(parsed.timeoutSeconds == 300)
         #expect(parsed.target.identifier == device)
-        for args in [
-            ["simulator", "booted", "handoff", "message"],
-            ["simulator", device, "handoff", ""],
-            ["simulator", device, "handoff", "\u{1b}[2J"],
-            ["simulator", device, "handoff", "message", "0"],
-            ["simulator", device, "handoff", "message", "3601"],
-            ["physical", "device-name", "handoff", "message"],
-            ["physical", device, "handoff", "message"]
-        ] { #expect(throws: CommandFailure.self) { try HandoffCommand.parse(args) } }
+        for (platform, target, message, timeout) in [
+            ("simulator", "booted", "message", nil),
+            ("simulator", device, "", nil),
+            ("simulator", device, "\u{1b}[2J", nil),
+            ("simulator", device, "message", "0"),
+            ("simulator", device, "message", "3601"),
+            ("physical", "device-name", "message", nil),
+            ("physical", device, "message", nil)
+        ] as [(String, String, String, String?)] {
+            #expect(throws: CommandFailure.self) { try HandoffCommand(platform: platform, device: target, message: message, timeout: timeout) }
+        }
     }
 
     @Test(arguments: [("done\n", HandoffStatus.acknowledged), ("decline\n", .declined), ("cancel\n", .cancelled), ("\n", .cancelled), ("yes\n", .cancelled), (String(repeating: "x", count: 128) + "\n", .notCompleted)])
@@ -65,25 +67,25 @@ struct HandoffCommandTests {
 
     @Test(.timeLimit(.minutes(1))) func pendingHandoffPausesMutationsAndUnpausesAfterResponse() async throws {
         let service = CommandService(), gate = Gate()
-        let pending = Task { try await service.execute(["simulator", device, "handoff", "fixture"], handoffConfirmation: { _ in await gate.wait() }) }
+        let pending = Task { try await service.run(["handoff", "fixture", "--simulator", device], handoffConfirmation: { _ in await gate.wait() }) }
         try #require(await gate.entered.wait())
         try #require(await gate.waiting)
         do {
-            _ = try await service.execute(["simulator", device, "type", "hello"])
+            _ = try await service.run(["type", "hello", "--simulator", device])
             Issue.record("Device mutation was not paused")
         } catch { #expect(String(describing: error).contains("Automation is paused")) }
         do {
-            _ = try await service.execute(["simulator", "booted", "shutdown"])
+            _ = try await service.run(["shutdown", "--simulator", "booted"])
             Issue.record("Alias bypassed pending handoff")
         } catch { #expect(String(describing: error).contains("explicit device ID")) }
         do {
-            _ = try await service.execute(["simulator", device, "handoff", "duplicate"], handoffConfirmation: { _ in Issue.record("Duplicate prompted"); return .acknowledged })
+            _ = try await service.run(["handoff", "duplicate", "--simulator", device], handoffConfirmation: { _ in Issue.record("Duplicate prompted"); return .acknowledged })
             Issue.record("Duplicate handoff was accepted")
         } catch { #expect(String(describing: error).contains("already pending")) }
         await gate.finish()
         #expect(try await pending.value.exitCode == 0)
         do {
-            _ = try await service.execute(["simulator", device, "tap", "nan", "0"])
+            _ = try await service.run(["tap", "nan", "0", "--simulator", device])
             Issue.record("Invalid tap was accepted")
         } catch { #expect(!String(describing: error).contains("paused")) }
     }
@@ -101,55 +103,58 @@ struct HandoffCommandTests {
         let metadata = Data("{\"info\":{\"outcome\":\"success\"},\"result\":{\"properties\":{\"state\":{\"developerModeStatus\":{\"enabled\":{}}},\"connection\":{\"state\":\"connected\",\"pairingState\":\"paired\"}},\"deviceProperties\":{\"ddiServicesAvailable\":true}}}".utf8)
         let service = CommandService(readinessQuery: { _ in metadata }), gate = Gate()
         let udid = "00000000-0000000000000000"
-        let pending = Task { try await service.execute(["physical", udid, "handoff", "synthetic"], handoffConfirmation: { _ in await gate.wait() }) }
+        let pending = Task { try await service.run(["handoff", "synthetic", "--device", udid], handoffConfirmation: { _ in await gate.wait() }) }
         try #require(await gate.entered.wait())
         try #require(await gate.waiting)
         do {
-            for operands in [["multi-tap", "0.25", "0.25", "0.75", "0.25"],
-                             ["multi-drag", "1"] + Array(repeating: "0.5", count: 12)] {
+            for command in [["multi-tap", "0.25", "0.25", "0.75", "0.25"],
+                            ["multi-drag", "1"] + Array(repeating: "0.5", count: 12)] {
                 do {
-                    _ = try await service.execute(["physical", udid] + operands)
+                    _ = try await service.run(command + ["--device", udid])
                     Issue.record("Standalone multitouch bypassed handoff pause")
                 } catch { #expect(String(describing: error).contains("Automation is paused")) }
             }
-            let observation = try await service.execute(["physical", udid, "readiness"])
+            let observation = try await service.run(["readiness", "--device", udid])
             #expect(observation.exitCode == 0)
             // An AX wait is an observation like a tree: it proceeds (and here
             // stops at the fixture's missing identity) instead of pausing.
-            for operands in [["tree"], ["wait-id", "fixture.button", "--until", "gone"], ["wait-label", "123", "Button"]] {
+            for command in [["tree"], ["wait", "--id", "fixture.button", "--until", "gone"], ["wait", "--label", "Button", "--pid", "123"]] {
                 do {
-                    _ = try await service.execute(["physical", udid] + operands)
+                    _ = try await service.run(command + ["--device", udid])
                     Issue.record("Fixture details unexpectedly reached a device connection")
                 } catch { #expect(!String(describing: error).contains("paused")) }
             }
             do {
-                _ = try await service.execute(["physical", device, "terminate", "123"])
+                _ = try await service.run(["terminate", "123", "--device", device])
                 Issue.record("CoreDevice alias bypassed handoff pause")
             } catch { #expect(String(describing: error).contains("physical hardware UDID")) }
-            for operands in [["gesture", NativeGestureSequenceTests().doubleTap], ["type", "synthetic"], ["paste", "synthetic"], ["key", "backspace"], ["pinch", "0.5", "0.5", "0.5", "1", "1"], ["multi-drag", "1", "0", "0", "1", "1", "1", "1", "0", "0"], ["press-id", "123", "fixture.button"], ["press-label", "123", "Button"], ["scroll-id", "fixture.row"], ["scroll-label", "123", "Row"]] {
+            for command in [["gesture", NativeGestureSequenceTests().doubleTap], ["type", "synthetic"], ["paste", "synthetic"], ["key", "backspace"],
+                            ["pinch", "0.5", "0.5", "0.5", "1", "1"], ["multi-drag", "1", "0", "0", "1", "1", "1", "1", "0", "0"],
+                            ["press", "--id", "fixture.button", "--pid", "123"], ["press", "--label", "Button", "--pid", "123"],
+                            ["scroll", "--id", "fixture.row"], ["scroll", "--label", "Row", "--pid", "123"]] {
                 do {
-                    _ = try await service.execute(["physical", udid] + operands)
+                    _ = try await service.run(command + ["--device", udid])
                     Issue.record("Physical action bypassed handoff pause")
                 } catch { #expect(String(describing: error).contains("Automation is paused")) }
             }
             do {
-                _ = try await service.execute(["--recording-backend", "coredevice", "physical", udid, "record", "tmp/paused.mp4", "1"])
+                _ = try await service.run(["record", "tmp/paused.mp4", "1", "--backend", "coredevice", "--device", udid])
                 Issue.record("Native recording bypassed handoff pause")
             } catch { #expect(String(describing: error).contains("Automation is paused")) }
             do {
-                _ = try await service.execute(["--physical-backend", "coredevice", "physical", udid, "button", "home"])
+                _ = try await service.run(["button", "home", "--device", udid])
                 Issue.record("Native backend bypassed handoff pause")
             } catch { #expect(String(describing: error).contains("Automation is paused")) }
             do {
-                _ = try await service.execute(["--physical-backend", "coredevice", "physical", udid, "long-press", "0.5", "0.5", "0.8"])
+                _ = try await service.run(["long-press", "0.5", "0.5", "0.8", "--device", udid])
                 Issue.record("Native long-press bypassed handoff pause")
             } catch { #expect(String(describing: error).contains("Automation is paused")) }
             do {
-                _ = try await service.execute(["--physical-backend", "coredevice", "physical", udid, "gesture", NativeGestureSequenceTests().doubleTap])
+                _ = try await service.run(["gesture", NativeGestureSequenceTests().doubleTap, "--device", udid])
                 Issue.record("Native gesture bypassed handoff pause")
             } catch { #expect(String(describing: error).contains("Automation is paused")) }
             do {
-                _ = try await service.execute(["--physical-backend", "coredevice", "physical", udid, "paste", "synthetic"])
+                _ = try await service.run(["paste", "synthetic", "--device", udid])
                 Issue.record("Native paste bypassed handoff pause")
             } catch { #expect(String(describing: error).contains("Automation is paused")) }
         } catch {

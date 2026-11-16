@@ -5,6 +5,8 @@ import Testing
 struct CLIParserTests {
     static let device = "00008110-000A11112222801E"
     static let simulator = "11111111-2222-3333-4444-555555555555"
+    /// The smallest valid sequence: the parser's request validates it.
+    static let gesture = #"{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.5}]},{"ms":60,"touches":[]}]}"#
 
     private func invocation(_ arguments: [String], environment: [String: String] = [:]) throws -> CLIInvocation {
         guard case .run(let invocation) = try CLI.parse(arguments, environment: environment) else {
@@ -17,7 +19,8 @@ struct CLIParserTests {
         try #require(throws: CommandFailure.self) { try CLI.parse(arguments, environment: environment) }
     }
 
-    /// Every command's documented forms, and what the command service runs.
+    /// Every command's documented forms, and the request the command service
+    /// runs, as `summary` renders it.
     static let forms: [([String], [String])] = [
         (["tap", "0.5", "0.45", "--device", device], ["physical", device, "tap", "0.5", "0.45"]),
         (["tap", "--simulator", simulator, "0.5", "0.45"], ["simulator", simulator, "tap", "0.5", "0.45"]),
@@ -28,7 +31,7 @@ struct CLIParserTests {
         (["multi-tap", "0.3", "0.4", "0.6", "0.4", "--simulator", simulator], ["simulator", simulator, "multi-tap", "0.3", "0.4", "0.6", "0.4"]),
         (["multi-drag", "0.5", "0.3", "0.6", "0.3", "0.4", "0.7", "0.6", "0.7", "0.4", "--device", device],
          ["physical", device, "multi-drag", "0.5", "0.3", "0.6", "0.3", "0.4", "0.7", "0.6", "0.7", "0.4"]),
-        (["gesture", "{}", "--device", device], ["physical", device, "gesture", "{}"]),
+        (["gesture", gesture, "--device", device], ["physical", device, "gesture", gesture]),
         (["button", "home", "--simulator", simulator], ["simulator", simulator, "button", "home"]),
         (["key", "return", "--device", device], ["physical", device, "key", "return"]),
         (["type", "Hello", "--device", device], ["physical", device, "type", "Hello"]),
@@ -51,7 +54,7 @@ struct CLIParserTests {
         (["screen", "ocr", "--device", device], ["physical", device, "screen", "ocr"]),
         (["record", "tmp/a.mp4", "5", "--device", device], ["physical", device, "record", "tmp/a.mp4", "5"]),
         (["record", "tmp/a.mp4", "5", "hevc", "--backend", "coredevice", "--device", device],
-         ["--recording-backend", "coredevice", "physical", device, "record", "tmp/a.mp4", "5", "hevc"]),
+         ["physical", device, "record", "tmp/a.mp4", "5", "hevc", "--backend", "coredevice"]),
         (["apps", "--simulator", simulator], ["simulator", simulator, "apps"]),
         (["launch", "com.example.app", "--device", device], ["physical", device, "launch", "com.example.app"]),
         (["terminate", "123", "--device", device], ["physical", device, "terminate", "123"]),
@@ -100,7 +103,11 @@ struct CLIParserTests {
     @Test(arguments: forms)
     func everyCommandParsesItsDocumentedForm(_ arguments: [String], _ expected: [String]) throws {
         let parsed = try invocation(arguments)
-        #expect(parsed.arguments == expected)
+        if case .tool = parsed.request {
+            #expect(parsed.request == (try toolRequest(expected)))
+        } else {
+            #expect(summary(parsed.request) == expected)
+        }
         #expect(!parsed.dryRun && parsed.errorFormat == nil)
     }
 
@@ -116,7 +123,7 @@ struct CLIParserTests {
                           ["tap", "0.5", "0.5", "--device", Self.device, "--dry-run"],
                           ["--error-format", "json", "--dry-run", "tap", "0.5", "0.5", "--device", Self.device]] {
             let parsed = try invocation(arguments)
-            #expect(parsed.arguments == expected && parsed.dryRun, "\(arguments)")
+            #expect(summary(parsed.request) == expected && parsed.dryRun, "\(arguments)")
         }
         #expect(try invocation(["tap", "0.5", "0.5", "--device", Self.device, "--error-format", "json"]).errorFormat == .json)
         #expect(try invocation(["files", "--dry-run", "list", "a.b", ".", "--device", Self.device]).dryRun)
@@ -124,12 +131,12 @@ struct CLIParserTests {
 
     @Test func anExplicitTargetWinsOverTheEnvironment() throws {
         let both = [Target.deviceVariable: Self.device, Target.simulatorVariable: Self.simulator]
-        #expect(try invocation(["tap", "0.5", "0.5", "--simulator", Self.simulator], environment: both).arguments[0...1] == ["simulator", Self.simulator])
-        #expect(try invocation(["tree", "--device", "other"], environment: [Target.deviceVariable: Self.device]).arguments[1] == "other")
-        #expect(try invocation(["tree"], environment: [Target.deviceVariable: Self.device]).arguments[0...1] == ["physical", Self.device])
-        #expect(try invocation(["tree"], environment: [Target.simulatorVariable: Self.simulator]).arguments[0...1] == ["simulator", Self.simulator])
+        #expect(summary(try invocation(["tap", "0.5", "0.5", "--simulator", Self.simulator], environment: both).request)[0...1] == ["simulator", Self.simulator])
+        #expect(summary(try invocation(["tree", "--device", "other"], environment: [Target.deviceVariable: Self.device]).request)[1] == "other")
+        #expect(summary(try invocation(["tree"], environment: [Target.deviceVariable: Self.device]).request)[0...1] == ["physical", Self.device])
+        #expect(summary(try invocation(["tree"], environment: [Target.simulatorVariable: Self.simulator]).request)[0...1] == ["simulator", Self.simulator])
         // An empty variable counts as unset.
-        #expect(try invocation(["tree"], environment: [Target.deviceVariable: "", Target.simulatorVariable: Self.simulator]).arguments[0] == "simulator")
+        #expect(summary(try invocation(["tree"], environment: [Target.deviceVariable: "", Target.simulatorVariable: Self.simulator]).request)[0] == "simulator")
         let ambiguous = try usageFailure(["tree"], environment: both)
         #expect(ambiguous.description == "Both MANZANERO_DEVICE and MANZANERO_SIMULATOR are set; pass --device or --simulator to choose one.")
         let missing = try usageFailure(["tree"])
@@ -137,7 +144,7 @@ struct CLIParserTests {
         let twice = try usageFailure(["tree", "--device", Self.device, "--simulator", Self.simulator])
         #expect(twice.description == "Give exactly one of --device or --simulator.")
         // Commands without a target ignore the variables.
-        #expect(try invocation(["doctor"], environment: both).arguments == ["doctor"])
+        #expect(try invocation(["doctor"], environment: both).request == .doctor)
     }
 
     @Test(arguments: ["press", "scroll", "wait"])
@@ -150,20 +157,33 @@ struct CLIParserTests {
     }
 
     @Test func selectorValuesMayBeginWithDashes() throws {
-        #expect(try invocation(["press", "--label", "-x", "--device", Self.device]).arguments == ["physical", Self.device, "press-label", "-x"])
+        #expect(summary(try invocation(["press", "--label", "-x", "--device", Self.device]).request) == ["physical", Self.device, "press-label", "-x"])
         // The root's own options are read before the command's, so a value
         // that spells one of them is attached with '=' (as MCP always does).
         let attached = try invocation(["press", "--label=--dry-run", "--device", Self.device])
-        #expect(attached.arguments == ["physical", Self.device, "press-label", "--dry-run"] && !attached.dryRun)
-        #expect(try invocation(["wait", "--id", "-x", "--value", "-1", "--device", Self.device]).arguments
+        #expect(summary(attached.request) == ["physical", Self.device, "press-label", "--dry-run"] && !attached.dryRun)
+        #expect(summary(try invocation(["wait", "--id", "-x", "--value", "-1", "--device", Self.device]).request)
             == ["physical", Self.device, "wait-id", "-x", "--value", "-1"])
     }
 
+    /// Swift Argument Parser keeps the last value of a repeated single-value
+    /// option, where the hand-written parsers refused a repeat.
+    @Test func aRepeatedOptionKeepsItsLastValue() throws {
+        let logs = try invocation(["logs", "--seconds", "5", "--seconds", "6", "--pid", "1", "--simulator", Self.simulator])
+        #expect(summary(logs.request) == ["simulator", Self.simulator, "logs", "--seconds", "6", "--pid", "1"])
+        let build = try invocation(["build-run", "A.xcodeproj", "A", "--configuration", "Debug", "--configuration", "Release",
+                                    "--allow-provisioning-updates", "--allow-provisioning-updates", "--device", Self.device])
+        #expect(summary(build.request) == ["physical", Self.device, "build-run", "A.xcodeproj", "A", "--configuration", "Release",
+                                           "--allow-provisioning-updates"])
+    }
+
     @Test func operandsAfterTheTerminatorPassThroughUnchanged() throws {
-        #expect(try invocation(["tap", "--device", Self.device, "--", "-0.1", "0.5"]).arguments == ["physical", Self.device, "tap", "-0.1", "0.5"])
-        #expect(try invocation(["type", "--simulator", Self.simulator, "--", "--help"]).arguments == ["simulator", Self.simulator, "type", "--help"])
+        // A coordinate outside 0...1 reaches the operation's own validation.
+        let tap = try usageFailure(["tap", "--device", Self.device, "--", "-0.1", "0.5"])
+        #expect(tap.text == nil && tap.description == "Physical input coordinates must be normalized numbers from 0 to 1.")
+        #expect(summary(try invocation(["type", "--simulator", Self.simulator, "--", "--help"]).request) == ["simulator", Self.simulator, "type", "--help"])
         let console = try invocation(["console", "a.b", "--seconds", "1", "--device", Self.device, "--", "--dry-run", "-x", "plain"])
-        #expect(console.arguments == ["physical", Self.device, "console", "a.b", "--seconds", "1", "--", "--dry-run", "-x", "plain"])
+        #expect(summary(console.request) == ["physical", Self.device, "console", "a.b", "--seconds", "1", "--", "--dry-run", "-x", "plain"])
         #expect(!console.dryRun)
     }
 
@@ -221,6 +241,6 @@ struct CLIParserTests {
     /// MCP's command lines never take the target from the environment.
     @Test func toolInvocationsIgnoreTheEnvironmentTarget() throws {
         #expect(throws: CommandFailure.self) { try CLI.invocation(["tree"]) }
-        #expect(try CLI.invocation(["tree", "--device=\(Self.device)"]).arguments == ["physical", Self.device, "tree"])
+        #expect(summary(try CLI.invocation(["tree", "--device=\(Self.device)"]).request) == ["physical", Self.device, "tree"])
     }
 }

@@ -5,7 +5,7 @@ import Foundation
 /// plans and routing. Execution lives in `DirectSimulator*`, and the
 /// connections in `AppleSimulatorBridge.m`. The operands, coordinate space,
 /// receipts and error categories are those of the physical commands.
-struct SimulatorInput {
+struct SimulatorInput: Sendable, Equatable {
     let device: String
     let operation: String
     let operands: [String]
@@ -36,21 +36,24 @@ struct SimulatorInput {
     var isObservation: Bool { Self.observations.contains(operation) }
     var coreDeviceInput: CoreDeviceInput { CoreDeviceInput(device: device, operation: operation, operands: operands) }
 
-    static func parse(_ args: [String]) throws -> Self? {
-        guard args.count >= 3, args[0] == "simulator" else { return nil }
-        let operation = args[2]
+    /// One simulator input or accessibility operation with its operands
+    /// checked, before any simulator lookup. Paste and wake are refused, and
+    /// an operation the simulator route lacks is unsupported.
+    init(device: String, operation: String, operands: [String]) throws {
         if operation == "paste" {
             // simctl pbcopy did not reach the pasteboard the simulator pastes
             // from (docs/simulator-input.md), so Command+V could insert text
             // the caller never supplied.
             throw CommandFailure.unsupported("Simulator paste is refused: simctl pbcopy did not change the simulator's pasteboard in testing, so a paste could insert other text. For Unicode text use set-value with --id or --label, which replaces a named element's value without the clipboard. No input sent.")
         }
-        if unimplemented.contains(operation) {
+        if Self.unimplemented.contains(operation) {
             throw CommandFailure.unsupported("Simulator \(operation) is not implemented yet; simulator input covers touch with one to five contacts, gesture sequences, button, key and type. Wake remains physical-only. No input sent.")
         }
-        guard operations.contains(operation) else { return nil }
-        let device = try SimulatorDevice.requireUUID(args[1], operation: operation)
-        var operands = Array(args.dropFirst(3))
+        guard Self.operations.contains(operation) else {
+            throw CommandFailure.unsupported("Unsupported simulator operation: \(operation).")
+        }
+        let device = try SimulatorDevice.requireUUID(device, operation: operation)
+        var operands = operands
         let probe = CoreDeviceInput(device: device, operation: operation, operands: operands)
         switch operation {
         case "tree":
@@ -60,7 +63,7 @@ struct SimulatorInput {
                 }
                 operands = [String(pid)]
             }
-        case let value where selectorActions.contains(value):
+        case let value where Self.selectorActions.contains(value):
             _ = try DirectAccessibilityAction(probe)
         case let value where DirectAccessibilitySetValue.operations.contains(value):
             _ = try DirectAccessibilitySetValue(probe)
@@ -87,7 +90,7 @@ struct SimulatorInput {
             guard operands.count == 1 else { throw CommandFailure.usage("Simulator gesture requires one JSON sequence argument.") }
             _ = try NativeGestureSequence(json: operands[0])
         case "button":
-            guard operands.count == 1, buttons[operands[0]] != nil else {
+            guard operands.count == 1, Self.buttons[operands[0]] != nil else {
                 throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down; no input sent.")
             }
         case "type":
@@ -99,7 +102,9 @@ struct SimulatorInput {
         default:
             throw CommandFailure.unsupported("Unsupported simulator operation: \(operation).")
         }
-        return Self(device: device, operation: operation, operands: operands)
+        self.device = device
+        self.operation = operation
+        self.operands = operands
     }
 
     /// The dry-run plan: what would run, without looking the simulator up.

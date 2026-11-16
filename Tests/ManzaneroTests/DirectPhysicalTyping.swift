@@ -78,8 +78,9 @@ struct DirectPhysicalTypingTests {
         let tool = try #require(MCPTools.definitions.first { $0.name == "type_text" })
         let args = try tool.command(["platform": "physical", "device": .string(CoreDeviceInputTests().udid), "text": "synthetic"])
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried"); return Data() })
-        for arguments in [try legacy(args), try ["--physical-backend", "coredevice"] + legacy(args)] {
-            let output = try await service.execute(arguments, dryRun: true)
+        // The MCP form and the CLI spelling of the same command.
+        for arguments in [args, ["type", "synthetic", "--device", CoreDeviceInputTests().udid]] {
+            let output = try await service.run(arguments, dryRun: true)
             let plan = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
             #expect(plan["backend"] as? String == "coredevice-direct" && plan["operation"] as? String == "type")
             #expect(plan["clipboardArguments"] == nil && plan["executable"] == nil)

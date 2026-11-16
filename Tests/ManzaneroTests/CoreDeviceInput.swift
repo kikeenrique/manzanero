@@ -7,7 +7,7 @@ struct CoreDeviceInputTests {
     let uuid = "11111111-2222-3333-4444-555555555555"
     let udid = "00000000-0000000000000000"
     func input(_ values: [String]) throws -> CoreDeviceInput {
-        try #require(try CoreDeviceInput.parse(["--physical-backend", "coredevice", "physical", udid] + values))
+        try CoreDeviceInput.validated(device: udid, operation: values[0], operands: Array(values.dropFirst()))
     }
     func details(mode: String = "enabled", id: String? = nil, hardware: String? = nil) throws -> Data {
         try JSONSerialization.data(withJSONObject: ["info": ["outcome": "success"], "result": ["identifier": id ?? uuid,
@@ -34,7 +34,7 @@ struct CoreDeviceInputTests {
     @Test func mcpTapRoutesToTheDirectBackend() async throws {
         let tool = try #require(MCPTools.definitions.first { $0.name == "tap" })
         let args = try tool.command(["platform": "physical", "device": .string(udid), "x": 0.25, "y": 0.75])
-        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(args)))?.operands == ["0.25", "0.75"])
+        #expect(try physicalInput(args)?.operands == ["0.25", "0.75"])
         let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).run(args, dryRun: true)
         #expect(String(decoding: dry.data, as: UTF8.self).contains("coredevice-direct"))
     }
@@ -62,14 +62,14 @@ struct CoreDeviceInputTests {
         let tool = try #require(MCPTools.definitions.first { $0.name == "paste_text" })
         let text = "ñ🙂"
         let args = try tool.command(["device": .string(udid), "text": .string(text)])
-        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(args)))?.operands == [text])
+        #expect(try physicalInput(args)?.operands == [text])
         let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).run(args, dryRun: true)
         let result = try #require(try JSONSerialization.jsonObject(with: dry.data) as? [String: Any])
         #expect(result["stdinUTF8Bytes"] as? Int == text.utf8.count)
         #expect(result["clipboardArguments"] != nil)
         #expect((result["clipboardEffect"] as? String)?.contains("not restored") == true)
         let key = try #require(MCPTools.definitions.first { $0.name == "press_key" })
-        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(key.command(["device": .string(udid), "key": "backspace"]))))?.operation == "key")
+        #expect(try physicalInput(key.command(["device": .string(udid), "key": "backspace"]))?.operation == "key")
     }
 
     @Test(.dedicatedThread) func subprocessStdinPreservesBinaryAndUnicodeBytesWithoutShellEvaluation() throws {

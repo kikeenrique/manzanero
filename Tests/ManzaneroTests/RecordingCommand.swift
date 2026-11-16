@@ -9,29 +9,33 @@ struct RecordingCommandTests {
     let simulator = "11111111-2222-3333-4444-555555555555"
 
     @Test func nativeDurationAndTimeoutCoverWholePhysicalRecording() throws {
-        let recording = try #require(try RecordingCommand.parse(["physical", "phone", "record", "tmp/My Video.mp4", "300", "hevc"]))
+        let recording = try RecordingCommand(physical: true, device: "phone", output: "tmp/My Video.mp4", seconds: "300", codec: "hevc", backend: nil)
         let plan = try recording.command(staging: URL(fileURLWithPath: "/project/tmp/capture.mp4"))
         #expect(plan.arguments == ["devicectl", "device", "capture", "screen-record", "--device", "phone", "--destination", "/project/tmp/capture.mp4", "--duration", "300.0", "--codec", "hevc", "--timeout", "360", "--json-output", "-"])
         #expect(plan.jsonOutput)
     }
 
     @Test func simulatorUsesExplicitTargetAndDoesNotForceOverwrite() throws {
-        let recording = try #require(try RecordingCommand.parse(["simulator", simulator, "record", "tmp/video.mp4", "1.5"]))
+        let recording = try RecordingCommand(physical: false, device: simulator, output: "tmp/video.mp4", seconds: "1.5", codec: nil, backend: nil)
         let plan = try recording.command(staging: URL(fileURLWithPath: "/project/tmp/video with spaces.mp4"))
         #expect(plan.arguments == ["simctl", "io", simulator, "recordVideo", "--codec=h264", "/project/tmp/video with spaces.mp4"])
     }
 
+    /// Platform, device, output, seconds and an optional codec.
     @Test(arguments: [
-        ["physical", "phone", "record", "tmp/x.mp4", "0"],
-        ["physical", "phone", "record", "tmp/x.mp4", "301"],
-        ["physical", "phone", "record", "tmp/x.mp4", "nan"],
-        ["physical", "phone", "record", "tmp/x.mp4", "inf"],
-        ["physical", "phone", "record", "tmp/x.mov", "2"],
-        ["physical", "phone", "record", "-x.mp4", "2"],
-        ["physical", "phone", "record", "tmp/x.mp4", "2", "h265"],
-        ["simulator", "booted", "record", "tmp/x.mp4", "2"]
+        ["physical", "phone", "tmp/x.mp4", "0"],
+        ["physical", "phone", "tmp/x.mp4", "301"],
+        ["physical", "phone", "tmp/x.mp4", "nan"],
+        ["physical", "phone", "tmp/x.mp4", "inf"],
+        ["physical", "phone", "tmp/x.mov", "2"],
+        ["physical", "phone", "-x.mp4", "2"],
+        ["physical", "phone", "tmp/x.mp4", "2", "h265"],
+        ["simulator", "booted", "tmp/x.mp4", "2"]
     ]) func invalidArguments(_ args: [String]) {
-        #expect(throws: CommandFailure.self) { try RecordingCommand.parse(args) }
+        #expect(throws: CommandFailure.self) {
+            try RecordingCommand(physical: args[0] == "physical", device: args[1], output: args[2], seconds: args[3],
+                                 codec: args.count > 4 ? args[4] : nil, backend: nil)
+        }
     }
 
     @Test func refusesExistingDestinationBeforeStartingARecorder() async throws {
@@ -41,7 +45,7 @@ struct RecordingCommandTests {
         let destination = directory.appendingPathComponent("existing.mp4")
         let sentinel = Data("existing content must survive".utf8)
         try sentinel.write(to: destination)
-        let recording = try #require(try RecordingCommand.parse(["physical", "nonexistent-device", "record", destination.path, "1"]))
+        let recording = try RecordingCommand(physical: true, device: "nonexistent-device", output: destination.path, seconds: "1", codec: nil, backend: nil)
         await #expect(throws: CommandFailure.self) {
             try await recording.execute(directory: directory.appendingPathComponent("staging"), runner: ToolRunner())
         }

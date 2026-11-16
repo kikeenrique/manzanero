@@ -5,19 +5,19 @@ import Testing
 @testable import Manzanero
 
 struct CLIInputSignalsTests {
-    @Test func scopeMatchesOnlyValidatedDirectPhysicalInput() {
+    @Test func scopeMatchesOnlyValidatedDirectPhysicalInput() throws {
         let target = CoreDeviceInputTests().udid
         for operands in [["button", "home"], ["type", "fixture"], ["paste", "fixture"], ["key", "backspace"],
                          ["tap", "0.5", "0.5"], ["long-press", "0.5", "0.5", "9"],
                          ["multi-tap", "0.25", "0.5", "0.75", "0.5"], ["gesture", NativeGestureSequenceTests().doubleTap]] {
-            let args = ["physical", target] + operands
-            #expect(CLIInputSignals.applies(to: args, dryRun: false))
-            #expect(CLIInputSignals.applies(to: ["--physical-backend", "coredevice"] + args, dryRun: false))
-            #expect(!CLIInputSignals.applies(to: args, dryRun: true))
+            // main.swift leaves dry runs outside the scope.
+            #expect((try? request(operands + ["--device", target]))?.signalContext == "physical input", "\(operands)")
         }
-        for args in [["mcp"], ["physical", target, "apps"], ["physical", target, "tap", "nan", "0"],
-                     ["simulator", target, "tap", "1", "1"], ["--physical-backend", "idevice", "physical", target, "button", "home"]] {
-            #expect(!CLIInputSignals.applies(to: args, dryRun: false))
+        #expect(throws: CommandFailure.self) { try CLI.invocation(["mcp"]) }
+        #expect(try request(["apps", "--device", target]).signalContext == nil)
+        // Invalid input never becomes a request, so it never runs under the scope.
+        for args in [["tap", "nan", "0", "--device", target], ["tap", "1", "1", "--simulator", target]] {
+            #expect(throws: CommandFailure.self, "\(args)") { try request(args) }
         }
     }
 

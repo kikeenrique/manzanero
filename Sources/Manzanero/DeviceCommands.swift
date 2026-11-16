@@ -1,27 +1,14 @@
 import Foundation
 
 /// Pure planning of Apple `devicectl`/`simctl` invocations, independent of process execution.
-struct DeviceCommand {
+struct DeviceCommand: Sendable, Equatable {
     var executable: String = "/usr/bin/xcrun"
     var arguments: [String]
     let jsonOutput: Bool
 
-    static func parse(_ args: [String]) throws -> Self? {
-        if args.first == "decode-ax-archive" {
-            guard args.count == 2, !args[1].isEmpty else {
-                throw CommandFailure.usage("Usage: decode-ax-archive <local-plist>")
-            }
-            // CommandService handles this in process; it has no external plan.
-            return nil
-        }
-        guard args.first == "physical" || args.first == "simulator" else { return nil }
-        guard args.count >= 3 else {
-            throw CommandFailure.usage("Expected <physical|simulator> <device> <operation>. See --help.")
-        }
-        let physical = args[0] == "physical"
-        let device = args[1]
-        let operation = args[2]
-        let operands = Array(args.dropFirst(3))
+    /// The `devicectl` or `simctl` invocation for one wrapped operation, after
+    /// checking its operands. An operation the platform lacks is unsupported.
+    static func plan(physical: Bool, device: String, operation: String, operands: [String] = []) throws -> Self {
         guard !device.isEmpty, !device.hasPrefix("-") else {
             throw CommandFailure.usage("Device identifier must be nonempty and cannot begin with '-'.")
         }

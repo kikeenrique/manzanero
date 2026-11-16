@@ -55,10 +55,7 @@ struct LogCapture: Sendable, Equatable {
         self.level = level; self.maxEntries = maxEntries; self.maxBytes = maxBytes; self.output = output
     }
 
-    init(device: String, operands: [String]) throws {
-        let options = try DiagnosticOptions(operands, operation: "logs", values: [
-            "--seconds", "--last", "--start", "--end", "--pid", "--bundle", "--process", "--subsystem", "--category",
-            "--level", "--max-entries", "--max-bytes", "--output"])
+    init(device: String, options: DiagnosticOptions) throws {
         guard options.positional.isEmpty else { throw CommandFailure.usage("logs takes options only; see --help.") }
         let modes = ["--seconds", "--last", "--start"].filter { options.values[$0] != nil }
         guard modes.count == 1 else {

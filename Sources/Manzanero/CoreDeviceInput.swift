@@ -2,56 +2,49 @@ import Foundation
 
 /// Native physical input and AX: argument validation, CoreDevice identity
 /// resolution and the Apple clipboard plan. Execution lives in `DirectPhysical*`.
-struct CoreDeviceInput {
+struct CoreDeviceInput: Sendable, Equatable {
     let device: String
     let operation: String
     let operands: [String]
 
-    /// `coredevice` is the only physical backend, so it is also the default.
-    static func selectDefaultBackend(_ args: [String]) -> [String] {
-        args.count >= 3 && args[0] == "physical" &&
-            (["button", "key", "type", "paste", "gesture", "multi-tap", "tree", "press-id", "press-label", "scroll-id", "scroll-label", DirectPhysicalWake.operation]
-                + AccessibilityWait.operations + DirectPhysicalTouch.operations).contains(args[2])
-            ? ["--physical-backend", "coredevice"] + args : args
-    }
+    /// The operations that run in process on a physical device.
+    static let operations = ["button", "key", "type", "paste", "gesture", "multi-tap", "tree", "press-id", "press-label",
+                             "scroll-id", "scroll-label", DirectPhysicalWake.operation] + AccessibilityWait.operations + DirectPhysicalTouch.operations
 
-    static func parse(_ args: [String]) throws -> Self? {
-        guard args.first == "--physical-backend" else { return nil }
-        guard args.count >= 2, args[1] == "coredevice" else {
-            throw CommandFailure.unsupported("Unsupported physical backend: \(args.count >= 2 ? args[1] : "<none>"). coredevice is the only physical backend and the default; --physical-backend may be omitted.")
+    /// One native physical operation with its operands checked, before any
+    /// device query. Long-press operands are normalized to their numbers.
+    static func validated(device: String, operation: String, operands: [String]) throws -> Self {
+        guard operations.contains(operation) else {
+            throw CommandFailure.unsupported("Unsupported native physical operation: \(operation).")
         }
-        guard args.count >= 5, args[2] == "physical",
-              (["button", "tap", "multi-tap", "long-press", "gesture", "drag", "swipe", "key", "type", "paste", "multi-drag", "pinch", "tree", "press-id", "press-label", "scroll-id", "scroll-label", DirectPhysicalWake.operation] + AccessibilityWait.operations).contains(args[4]) else {
-            throw CommandFailure.usage("Native backend usage: --physical-backend coredevice physical <device> <button|tap|multi-tap|long-press|gesture|drag|swipe|key|type|paste|multi-drag|pinch|tree|press-id|press-label|scroll-id|scroll-label|wait-id|wait-label|wake> ... . Tree, selector actions and waits accept an optional PID.")
-        }
-        var operands = Array(args.dropFirst(5))
-        guard !args[3].isEmpty, !args[3].hasPrefix("-") else {
+        var operands = operands
+        guard !device.isEmpty, !device.hasPrefix("-") else {
             throw CommandFailure.usage("Invalid native physical input target or operands.")
         }
-        if ["press-id", "press-label", "scroll-id", "scroll-label"].contains(args[4]) {
-            _ = try DirectAccessibilityAction(Self(device: args[3], operation: args[4], operands: operands))
-        } else if AccessibilityWait.operations.contains(args[4]) {
-            _ = try AccessibilityWait(Self(device: args[3], operation: args[4], operands: operands))
-        } else if args[4] == DirectPhysicalWake.operation {
+        if ["press-id", "press-label", "scroll-id", "scroll-label"].contains(operation) {
+            _ = try DirectAccessibilityAction(Self(device: device, operation: operation, operands: operands))
+        } else if AccessibilityWait.operations.contains(operation) {
+            _ = try AccessibilityWait(Self(device: device, operation: operation, operands: operands))
+        } else if operation == DirectPhysicalWake.operation {
             try DirectPhysicalWake.validate(operands)
-        } else if args[4] == "tree" {
+        } else if operation == "tree" {
             if !operands.isEmpty {
                 guard operands.count == 1, let pid = Int32(operands[0]), pid > 0 else {
                     throw CommandFailure.usage("Direct physical tree accepts one PID in 1...2147483647, or no PID for primary display-centre selection.")
                 }
                 operands = [String(pid)]
             }
-        } else if args[4] == "type" {
+        } else if operation == "type" {
             guard operands.count == 1 else { throw CommandFailure.usage("Physical typing expects one text operand.") }
             _ = try DirectPhysicalTyping.samples(operands[0])
-        } else if args[4] == "paste" {
+        } else if operation == "paste" {
             guard operands.count == 1, (1...65536).contains(operands[0].utf8.count), !operands[0].contains("\0") else {
                 throw CommandFailure.usage("Native paste requires 1...65536 UTF-8 bytes without NUL. It replaces the device clipboard and pastes at the focused caret/selection.")
             }
-        } else if args[4] == "gesture" {
+        } else if operation == "gesture" {
             guard operands.count == 1 else { throw CommandFailure.usage("Native gesture requires one JSON sequence argument.") }
             _ = try NativeGestureSequence(json: operands[0])
-        } else if args[4] == "long-press" {
+        } else if operation == "long-press" {
             guard operands.count == 3, let x = Double(operands[0]), let y = Double(operands[1]),
                   let seconds = Double(operands[2]), x.isFinite, y.isFinite, seconds.isFinite,
                   (0...1).contains(x), (0...1).contains(y), (0.1...10).contains(seconds) else {
@@ -59,13 +52,13 @@ struct CoreDeviceInput {
             }
             operands = [x, y, seconds].map { String($0) }
         } else {
-            try PhysicalInputOperands.validate(args[4], operands)
+            try PhysicalInputOperands.validate(operation, operands)
         }
-        return Self(device: args[3], operation: args[4], operands: operands)
+        return Self(device: device, operation: operation, operands: operands)
     }
 
     func identityPlan() throws -> DeviceCommand {
-        guard var plan = try DeviceCommand.parse(["physical", device, "details"]) else { throw CommandFailure(.internal, "Cannot plan CoreDevice identity query.", inputSent: .none) }
+        var plan = try DeviceCommand.plan(physical: true, device: device, operation: "details")
         plan.arguments.append("--quiet")
         return plan
     }

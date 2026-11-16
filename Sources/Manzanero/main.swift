@@ -21,15 +21,14 @@ do {
         invocation = parsed
     }
     errorFormat = try ErrorFormat.select(invocation.errorFormat, environment: environment)
-    let commandArgs = invocation.arguments
-    let dryRun = invocation.dryRun
+    let request = invocation.request
     let result: CommandOutput
-    if CLIInputSignals.applies(to: commandArgs, dryRun: dryRun) {
-        result = try await CLIInputSignals.run(context: CLIInputSignals.context(for: commandArgs)) {
-            try await CommandService().execute(commandArgs, allowInteractive: true)
+    if !invocation.dryRun, let context = request.signalContext {
+        result = try await CLIInputSignals.run(context: context) {
+            try await CommandService().execute(request, allowInteractive: true)
         }
     } else {
-        result = try await CommandService().execute(commandArgs, dryRun: dryRun, allowInteractive: true)
+        result = try await CommandService().execute(request, dryRun: invocation.dryRun, allowInteractive: true)
     }
     if result.data.isEmpty, result.exitCode != 0 { exit(result.exitCode) }
     FileHandle.standardOutput.write(result.data)

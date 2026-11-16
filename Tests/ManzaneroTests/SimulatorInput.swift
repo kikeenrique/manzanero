@@ -111,11 +111,16 @@ struct SimulatorInputTests {
 
     // MARK: - Parsing
 
+    /// The validated input for an internal operation and its operands on the fixture simulator.
+    static func input(_ args: [String]) throws -> SimulatorInput {
+        try SimulatorInput(device: uuid, operation: args[0], operands: Array(args.dropFirst()))
+    }
+
     @Test func touchOperandsAreValidatedLikePhysical() throws {
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "tap", "0.5", "0.25"])?.operands == ["0.5", "0.25"])
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "long-press", "0.5", "0.5", "1"])?.operands == ["0.5", "0.5", "1.0"])
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "swipe", "0.5", "0.8", "0.5", "0.2", "0.6"]) != nil)
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "drag", "0", "0", "1", "1", "10"]) != nil)
+        #expect(try Self.input(["tap", "0.5", "0.25"]).operands == ["0.5", "0.25"])
+        #expect(try Self.input(["long-press", "0.5", "0.5", "1"]).operands == ["0.5", "0.5", "1.0"])
+        #expect(try Self.input(["swipe", "0.5", "0.8", "0.5", "0.2", "0.6"]).operation == "swipe")
+        #expect(try Self.input(["drag", "0", "0", "1", "1", "10"]).operation == "drag")
         let invalid: [([String], String)] = [
             (["tap", "2", "0.5"], "Simulator input coordinates must be normalized numbers from 0 to 1."),
             (["tap", "0.5"], "tap expects 2 operands. See --help."),
@@ -124,7 +129,7 @@ struct SimulatorInputTests {
             (["tap", "nan", "0"], "Simulator input coordinates must be normalized numbers from 0 to 1.")
         ]
         for (operands, message) in invalid {
-            let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + operands) }
+            let failure = try #require(throws: CommandFailure.self) { try Self.input(operands) }
             #expect(failure.description == message && failure.code == .usage && failure.inputSent == .none)
         }
         // The physical wording is unchanged by the shared validator.
@@ -132,13 +137,14 @@ struct SimulatorInputTests {
         #expect(physical.description == "Physical input coordinates must be normalized numbers from 0 to 1.")
     }
 
-    @Test func simulatorInputRunsUnderTheSignalScope() {
-        #expect(CLIInputSignals.applies(to: ["simulator", Self.uuid, "tap", "0.5", "0.5"], dryRun: false))
-        #expect(CLIInputSignals.context(for: ["simulator", Self.uuid, "tap", "0.5", "0.5"]) == "simulator input")
-        #expect(CLIInputSignals.context(for: ["physical", "00008110-000A1B2C3D4E5F60", "tap", "0.5", "0.5"]) == "physical input")
-        #expect(!CLIInputSignals.applies(to: ["simulator", Self.uuid, "tap", "0.5", "0.5"], dryRun: true))
-        #expect(!CLIInputSignals.applies(to: ["simulator", Self.uuid, "apps"], dryRun: false))
-        #expect(!CLIInputSignals.applies(to: ["simulator", "booted", "tap", "0.5", "0.5"], dryRun: false))
+    @Test func simulatorInputRunsUnderTheSignalScope() throws {
+        #expect(try request(["tap", "0.5", "0.5", "--simulator", Self.uuid]).signalContext == "simulator input")
+        #expect(try request(["tap", "0.5", "0.5", "--device", "00008110-000A1B2C3D4E5F60"]).signalContext == "physical input")
+        // main.swift leaves a dry run outside the scope.
+        #expect(try CLI.invocation(["tap", "0.5", "0.5", "--simulator", Self.uuid, "--dry-run"]).dryRun)
+        #expect(try request(["apps", "--simulator", Self.uuid]).signalContext == nil)
+        // An alias never becomes a simulator input request.
+        #expect(throws: CommandFailure.self) { try request(["tap", "0.5", "0.5", "--simulator", "booted"]) }
     }
 
     // MARK: - Geometry and schedules
@@ -148,17 +154,17 @@ struct SimulatorInputTests {
     }
 
     @Test func portraitCoordinatesReachTheDigitizerUnchanged() throws {
-        let tap = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "tap", "0.5", "0.711"])), display: Self.touch())
+        let tap = try DirectSimulatorInput.touchSamples(Self.input(["tap", "0.5", "0.711"]), display: Self.touch())
         #expect(tap.first?.x == 0.5 && tap.first?.y == 0.711 && tap.first?.phase == 0 && tap.last?.phase == 2)
         #expect(tap.last?.nanoseconds == 80_000_000 && tap.allSatisfy { $0.second == nil })
         // Another screen size changes nothing: the space is the interface's 0...1.
-        let large = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "tap", "0.5", "0.711"])),
+        let large = try DirectSimulatorInput.touchSamples(Self.input(["tap", "0.5", "0.711"]),
                                                           display: SimulatorDisplay(Self.displayJSON(width: 1488, height: 2266)).touch())
         #expect(large == tap)
-        let swipe = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "swipe", "0.2", "0.8", "0.8", "0.2", "0.5"])), display: Self.touch())
+        let swipe = try DirectSimulatorInput.touchSamples(Self.input(["swipe", "0.2", "0.8", "0.8", "0.2", "0.5"]), display: Self.touch())
         #expect(swipe.count == 32 && swipe.first?.x == 0.2 && swipe.last?.x == 0.8 && swipe.last?.y == 0.2)
         #expect(swipe.last?.nanoseconds == 501_000_000)
-        let hold = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "long-press", "0.4", "0.55", "0.8"])), display: Self.touch())
+        let hold = try DirectSimulatorInput.touchSamples(Self.input(["long-press", "0.4", "0.55", "0.8"]), display: Self.touch())
         #expect(hold.last?.nanoseconds == 800_000_000 && Set(hold.map(\.x)) == [0.4])
     }
 
@@ -166,9 +172,9 @@ struct SimulatorInputTests {
     /// digitizer's portrait-native coordinates are DirectTouchDisplay.portrait's.
     @Test(arguments: [("rot0", 0.2, 0.3), ("rot90", 0.3, 0.8), ("rot180", 0.8, 0.7), ("rot270", 0.7, 0.2)])
     func interfaceCoordinatesAreRotatedIntoTheNativeDigitizer(_ current: String, _ x: Double, _ y: Double) throws {
-        let tap = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "tap", "0.2", "0.3"])), display: Self.touch(current))
+        let tap = try DirectSimulatorInput.touchSamples(Self.input(["tap", "0.2", "0.3"]), display: Self.touch(current))
         #expect(abs(tap[0].x - x) < 1e-9 && abs(tap[0].y - y) < 1e-9)
-        let pinch = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "pinch", "0.5", "0.4", "0.2", "0.5", "0.4"])), display: Self.touch(current))
+        let pinch = try DirectSimulatorInput.touchSamples(Self.input(["pinch", "0.5", "0.4", "0.2", "0.5", "0.4"]), display: Self.touch(current))
         let expected = DirectTouchDisplay(rotation: Int(current.dropFirst(3))!).portrait(0.4, 0.4)
         #expect(abs(pinch[0].x - expected.0) < 1e-9 && abs(pinch[0].y - expected.1) < 1e-9)
     }
@@ -177,7 +183,7 @@ struct SimulatorInputTests {
     func landscapeTouchReportsTheRotationAndInterface(_ current: String) async throws {
         let sent = Sent()
         sent.displays = [Self.displayJSON(current: current, sensor: current == "rot90" ? "landscapeRight" : "landscapeLeft")]
-        let receipt = try Self.json(await Self.service(sent).execute(["simulator", Self.uuid, "tap", "0.2", "0.3"]))
+        let receipt = try Self.json(await Self.service(sent).run(["tap", "0.2", "0.3", "--simulator", Self.uuid]))
         #expect(receipt["displayRotationDegrees"] as? Int == Int(current.dropFirst(3)) && sent.displayReads == 2)
         let screen = try #require(receipt["screen"] as? [String: Any])
         #expect(screen["orientation"] as? String == current && screen["interfaceWidthPoints"] as? Double == 844)
@@ -190,13 +196,13 @@ struct SimulatorInputTests {
         let sent = Sent()
         sent.displays = [Self.displayJSON(), Self.displayJSON(current: "rot90", sensor: "landscapeRight")]
         let failure = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(sent).execute(["simulator", Self.uuid, "tap", "0.5", "0.5"])
+            _ = try await Self.service(sent).run(["tap", "0.5", "0.5", "--simulator", Self.uuid])
         })
         #expect(failure.code == .preconditionChanged && failure.inputSent == .none && sent.touches.isEmpty)
         let dark = Sent()
         dark.displays = [Self.displayJSON(backlight: "off")]
         let off = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(dark).execute(["simulator", Self.uuid, "swipe", "0.5", "0.9", "0.5", "0.4", "0.3"])
+            _ = try await Self.service(dark).run(["swipe", "0.5", "0.9", "0.5", "0.4", "0.3", "--simulator", Self.uuid])
         })
         #expect(off.code == .displayOff && off.inputSent == .none && dark.touches.isEmpty)
     }
@@ -211,7 +217,7 @@ struct SimulatorInputTests {
         var holder = ""
         sent.onSend = { holder = SimulatorAccessibilityTests.leaseHolder(directory) }
         let receipt = try Self.json(await Self.service(sent, leases: SimulatorAccessibilityTests.usableLeases(directory))
-            .execute(["simulator", Self.uuid] + operands))
+            .run(operands + ["--simulator", Self.uuid]))
         #expect(sent.touches.count == 1 && sent.lookups == 1)
         #expect(holder.contains(operands[0]))
         #expect(receipt["backend"] as? String == "coresimulator-dtuhid" && receipt["operation"] as? String == operands[0])
@@ -228,8 +234,8 @@ struct SimulatorInputTests {
     // MARK: - Two contacts
 
     @Test func pinchAndTwoPathMultiDragAreValidatedLikePhysical() throws {
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "pinch", "0.5", "0.5", "0.2", "0.5", "0.6"])?.operation == "pinch")
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"]) != nil)
+        #expect(try Self.input(["pinch", "0.5", "0.5", "0.2", "0.5", "0.6"]).operation == "pinch")
+        #expect(try Self.input(["multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"]).operation == "multi-drag")
         let invalid: [([String], CommandFailure.Code, String)] = [
             (["pinch", "0.5", "0.5", "0.2", "0.2", "0.6"], .usage, "Pinch requires different positive start/end spans and 0.03...10 seconds. Spans are fractions of screen width."),
             (["pinch", "0.5", "0.5", "0.2", "1.5", "0.6"], .usage, "Simulator input coordinates must be normalized numbers from 0 to 1."),
@@ -238,7 +244,7 @@ struct SimulatorInputTests {
             (["multi-drag", "20", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4"], .usage, "Usage: multi-drag <seconds: 0.03...10> <start-x> <start-y> <end-x> <end-y> ... (two to five contact paths)")
         ]
         for (operands, code, message) in invalid {
-            let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + operands) }
+            let failure = try #require(throws: CommandFailure.self) { try Self.input(operands) }
             #expect(failure.description == message && failure.code == code && failure.inputSent == .none)
         }
     }
@@ -246,7 +252,7 @@ struct SimulatorInputTests {
     @Test(arguments: [["pinch", "0.5", "0.5", "0.2", "0.5", "0.6"], ["multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"]])
     func twoContactsTravelInOneDigitizerSchedule(_ operands: [String]) async throws {
         let sent = Sent()
-        let receipt = try Self.json(await Self.service(sent).execute(["simulator", Self.uuid] + operands))
+        let receipt = try Self.json(await Self.service(sent).run(operands + ["--simulator", Self.uuid]))
         #expect(sent.touches.isEmpty && sent.twoContacts.count == 1)
         let (first, second) = try #require(sent.twoContacts.first)
         // The physical paired plan: down, 30 moves, release 1 ms after the duration.
@@ -265,7 +271,7 @@ struct SimulatorInputTests {
 
     @Test func twoContactDryRunNamesBothContacts() async throws {
         let sent = Sent()
-        let plan = try Self.json(await Self.service(sent, state: "Shutdown").execute(["simulator", Self.uuid, "pinch", "0.5", "0.5", "0.5", "0.2", "0.4"], dryRun: true))
+        let plan = try Self.json(await Self.service(sent, state: "Shutdown").run(["pinch", "0.5", "0.5", "0.5", "0.2", "0.4", "--simulator", Self.uuid], dryRun: true))
         #expect(plan["contactCount"] as? Int == 2 && plan["sampleCount"] as? Int == 32)
         #expect((plan["execution"] as? String)?.contains("pointTwo") == true)
         #expect(sent.lookups == 0 && sent.twoContacts.isEmpty)
@@ -277,11 +283,11 @@ struct SimulatorInputTests {
         for args in [["multi-tap", "0.3", "0.45", "0.5", "0.45", "0.7", "0.45"], ["multi-tap", "0.25", "0.5", "0.75", "0.5"],
                      ["multi-drag", "0.6", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4", "0.7", "0.6", "0.7", "0.4"],
                      ["gesture", #"{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]}]}"#]] {
-            let parsed = try #require(try SimulatorInput.parse(["simulator", Self.uuid] + args))
+            let parsed = try Self.input(args)
             #expect(parsed.usesUniversalHID && SimulatorInput.inputOperations.contains(parsed.operation))
         }
         // A two-path multi-drag stays on the Indigo digitizer, as on a phone.
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"])?.usesUniversalHID == false)
+        #expect(try Self.input(["multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"]).usesUniversalHID == false)
         let invalid: [([String], String)] = [
             (["multi-tap", "0.25", "0.5"], "multi-tap expects two to five pairs of normalized coordinates."),
             (["multi-tap", "2", "0.5", "0.5", "0.5"], "Simulator input coordinates must be normalized numbers from 0 to 1."),
@@ -289,14 +295,14 @@ struct SimulatorInputTests {
             (["gesture", #"{"frames":[{"ms":0,"touches":[{"id":1,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]}]}"#], "Gesture contact IDs must form a contiguous set starting at zero across the sequence.")
         ]
         for (operands, message) in invalid {
-            let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + operands) }
+            let failure = try #require(throws: CommandFailure.self) { try Self.input(operands) }
             #expect(failure.description == message && failure.code == .usage && failure.inputSent == .none)
         }
     }
 
     @Test func multiTapSendsThePhysicalReportsToThePrimaryTouchscreen() async throws {
         let sent = Sent()
-        let receipt = try Self.json(await Self.service(sent).execute(["simulator", Self.uuid, "multi-tap", "0.3", "0.45", "0.5", "0.45", "0.7", "0.45"]))
+        let receipt = try Self.json(await Self.service(sent).run(["multi-tap", "0.3", "0.45", "0.5", "0.45", "0.7", "0.45", "--simulator", Self.uuid]))
         let report = try #require(sent.reports.first)
         #expect(sent.reports.count == 1 && report.display == Self.primaryDisplay && sent.displayReads == 2)
         // The physical multi-tap: all down at 0, all up at 80 ms; the same bytes.
@@ -317,10 +323,11 @@ struct SimulatorInputTests {
         let sent = Sent()
         let service = Self.service(sent)
         let json = #"{"frames":[{"ms":0,"touches":[{"id":0,"x":0.35,"y":0.5}]},{"ms":150,"touches":[{"id":0,"x":0.35,"y":0.5},{"id":1,"x":0.65,"y":0.5}]},{"ms":450,"touches":[{"id":1,"x":0.65,"y":0.5}]},{"ms":600,"touches":[]}]}"#
-        _ = try await service.execute(["simulator", Self.uuid, "gesture", json])
+        _ = try await service.run(["gesture", json, "--simulator", Self.uuid])
         #expect(sent.reports.first?.times == [0, 150, 450, 600].map { UInt64($0) * 1_000_000 })
         #expect(sent.reports.first?.bytes == (try NativeGestureSequence(json: json).reports.flatMap { $0 }))
-        let drag = try Self.json(await service.execute(["simulator", Self.uuid, "multi-drag", "0.6", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4", "0.7", "0.6", "0.7", "0.4"]))
+        let drag = try Self.json(await service.run(["multi-drag", "0.6", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4", "0.7", "0.6", "0.7", "0.4",
+                                                    "--simulator", Self.uuid]))
         #expect(sent.reports.count == 2 && sent.reports[1].times.count == 32 && sent.reports[1].times.last == 601_000_000)
         #expect(drag["contactSlots"] as? Int == 3 && drag["frameCount"] as? Int == 32)
     }
@@ -329,26 +336,26 @@ struct SimulatorInputTests {
         let changed = Sent()
         changed.displays = [Self.displayJSON(), Self.displayJSON(current: "rot90", sensor: "landscapeRight")]
         let moved = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(changed).execute(["simulator", Self.uuid, "multi-tap", "0.3", "0.45", "0.7", "0.45"])
+            _ = try await Self.service(changed).run(["multi-tap", "0.3", "0.45", "0.7", "0.45", "--simulator", Self.uuid])
         })
         #expect(moved.code == .preconditionChanged && moved.inputSent == .none && changed.reports.isEmpty)
         let off = Sent()
         off.displays = [Self.displayJSON(backlight: "off")]
         let dark = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(off).execute(["simulator", Self.uuid, "multi-tap", "0.3", "0.45", "0.7", "0.45"])
+            _ = try await Self.service(off).run(["multi-tap", "0.3", "0.45", "0.7", "0.45", "--simulator", Self.uuid])
         })
         #expect(dark.code == .displayOff && dark.inputSent == .none && dark.description.contains("button home") && off.reports.isEmpty)
         let anonymous = Sent()
         anonymous.displays = [Self.displayJSON(uniqueId: nil)]
         let unnamed = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(anonymous).execute(["simulator", Self.uuid, "multi-tap", "0.3", "0.45", "0.7", "0.45"])
+            _ = try await Self.service(anonymous).run(["multi-tap", "0.3", "0.45", "0.7", "0.45", "--simulator", Self.uuid])
         })
         #expect(unnamed.code == .transportFailed && unnamed.inputSent == .none && anonymous.reports.isEmpty)
     }
 
     @Test func universalHIDDryRunReadsNothing() async throws {
         let sent = Sent()
-        let plan = try Self.json(await Self.service(sent, state: "Shutdown").execute(["simulator", Self.uuid, "multi-tap", "0.3", "0.45", "0.5", "0.45", "0.7", "0.45", "0.4", "0.6", "0.6", "0.6"], dryRun: true))
+        let plan = try Self.json(await Self.service(sent, state: "Shutdown").run(["multi-tap", "0.3", "0.45", "0.5", "0.45", "0.7", "0.45", "0.4", "0.6", "0.6", "0.6", "--simulator", Self.uuid], dryRun: true))
         #expect(plan["contactSlots"] as? Int == 5 && plan["frameCount"] as? Int == 2 && plan["durationMilliseconds"] as? Int == 80)
         #expect((plan["execution"] as? String)?.contains("universalhidservice") == true)
         #expect(sent.lookups == 0 && sent.displayReads == 0 && sent.reports.isEmpty)
@@ -358,7 +365,7 @@ struct SimulatorInputTests {
         let sent = Sent()
         let failure = try #require(await #expect(throws: CommandFailure.self) {
             _ = try await Self.service(sent, state: "Shutdown", leases: try SimulatorAccessibilityTests.unusableLeases())
-                .execute(["simulator", Self.uuid, "tap", "0.5", "0.5"])
+                .run(["tap", "0.5", "0.5", "--simulator", Self.uuid])
         })
         // The lookup refusal comes before the (unusable) lease.
         #expect(failure.code == .deviceNotReady && failure.inputSent == .none && sent.touches.isEmpty)
@@ -373,7 +380,7 @@ struct SimulatorInputTests {
         try #require(owner >= 0 && flock(owner, LOCK_EX | LOCK_NB) == 0)
         defer { _ = close(owner) }
         let failure = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(sent, leases: DeviceLeaseRegistry(directory: directory)).execute(["simulator", Self.uuid, "drag", "0.3", "0.5", "0.7", "0.5", "0.4"])
+            _ = try await Self.service(sent, leases: DeviceLeaseRegistry(directory: directory)).run(["drag", "0.3", "0.5", "0.7", "0.5", "0.4", "--simulator", Self.uuid])
         })
         #expect(failure.code == .deviceBusy && failure.inputSent == .none && failure.action == .wait && sent.touches.isEmpty)
     }
@@ -384,7 +391,7 @@ struct SimulatorInputTests {
             let sent = Sent()
             sent.failure = CommandFailure.inputDispatch(status: status, message: "fixture")
             let failure = try #require(await #expect(throws: CommandFailure.self) {
-                _ = try await Self.service(sent).execute(["simulator", Self.uuid, "tap", "0.5", "0.5"])
+                _ = try await Self.service(sent).run(["tap", "0.5", "0.5", "--simulator", Self.uuid])
             })
             #expect(failure.code == code && failure.inputSent == inputSent)
         }
@@ -392,7 +399,7 @@ struct SimulatorInputTests {
 
     @Test func touchDryRunPlansWithoutLookingTheSimulatorUp() async throws {
         let sent = Sent()
-        let plan = try Self.json(await Self.service(sent, state: "Shutdown").execute(["simulator", Self.uuid, "swipe", "0.5", "0.8", "0.5", "0.2", "0.6"], dryRun: true))
+        let plan = try Self.json(await Self.service(sent, state: "Shutdown").run(["swipe", "0.5", "0.8", "0.5", "0.2", "0.6", "--simulator", Self.uuid], dryRun: true))
         #expect(plan["backend"] as? String == "coresimulator-dtuhid" && plan["operation"] as? String == "swipe")
         #expect(plan["operands"] as? [String] == ["0.5", "0.8", "0.5", "0.2", "0.6"] && plan["sampleCount"] as? Int == 32)
         #expect(plan["deviceLease"] as? String == "simulator UUID" && plan["liveVerified"] as? Bool == false)
@@ -404,7 +411,7 @@ struct SimulatorInputTests {
 
     @Test func buttonsKeysAndTypingAreValidatedForTheSimulator() throws {
         for args in [["button", "home"], ["button", "lock"], ["key", "backspace"], ["key", "return"], ["type", "Wi-Fi 5\tok\n"]] {
-            #expect(try SimulatorInput.parse(["simulator", Self.uuid] + args)?.operation == args[0])
+            #expect(try Self.input(args).operation == args[0])
         }
         let invalid: [([String], String)] = [
             (["button", "side"], "Supported simulator buttons: home, lock, volume-up, volume-down; no input sent."),
@@ -415,7 +422,7 @@ struct SimulatorInputTests {
             (["type", "a", "b"], "Simulator typing expects one text operand.")
         ]
         for (operands, message) in invalid {
-            let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + operands) }
+            let failure = try #require(throws: CommandFailure.self) { try Self.input(operands) }
             #expect(failure.description == message && failure.code == .usage && failure.inputSent == .none)
         }
     }
@@ -423,10 +430,10 @@ struct SimulatorInputTests {
     @Test func buttonsUseThePhysicalUsagesAndHolds() async throws {
         let sent = Sent()
         let service = Self.service(sent)
-        let home = try Self.json(await service.execute(["simulator", Self.uuid, "button", "home"]))
-        _ = try await service.execute(["simulator", Self.uuid, "button", "lock"])
-        _ = try await service.execute(["simulator", Self.uuid, "button", "volume-up"])
-        _ = try await service.execute(["simulator", Self.uuid, "button", "volume-down"])
+        let home = try Self.json(await service.run(["button", "home", "--simulator", Self.uuid]))
+        _ = try await service.run(["button", "lock", "--simulator", Self.uuid])
+        _ = try await service.run(["button", "volume-up", "--simulator", Self.uuid])
+        _ = try await service.run(["button", "volume-down", "--simulator", Self.uuid])
         #expect(sent.buttons.map(\.usage) == [64, 48, 233, 234] && sent.buttons.map(\.hold) == [80_000, 400_000, 80_000, 80_000])
         #expect(home["backend"] as? String == "coresimulator-dtuhid" && home["button"] as? String == "home")
         #expect(home["status"] as? String == "dispatched" && home["verified"] as? Bool == false && home["releaseVerified"] as? Bool == false)
@@ -435,9 +442,9 @@ struct SimulatorInputTests {
     @Test func keysAndTypingUseThePhysicalTable() async throws {
         let sent = Sent()
         let service = Self.service(sent)
-        let key = try Self.json(await service.execute(["simulator", Self.uuid, "key", "backspace"]))
+        let key = try Self.json(await service.run(["key", "backspace", "--simulator", Self.uuid]))
         #expect(sent.keys == [42] && key["key"] as? String == "backspace" && key["usage"] as? Int == 42)
-        let typed = try Self.json(await service.execute(["simulator", Self.uuid, "type", "Wi"]))
+        let typed = try Self.json(await service.run(["type", "Wi", "--simulator", Self.uuid]))
         let schedule = try #require(sent.keyboards.first)
         // Shift down, W down/up, shift up, i down/up: the physical US-layout table.
         #expect(schedule.map(\.usage) == [225, 26, 26, 225, 12, 12] && schedule.map(\.state) == [1, 1, 2, 2, 1, 2])
@@ -449,13 +456,13 @@ struct SimulatorInputTests {
     @Test func buttonKeyAndTypeDryRunsNameTheirService() async throws {
         let sent = Sent()
         let service = Self.service(sent, state: "Shutdown")
-        let button = try Self.json(await service.execute(["simulator", Self.uuid, "button", "lock"], dryRun: true))
+        let button = try Self.json(await service.run(["button", "lock", "--simulator", Self.uuid], dryRun: true))
         #expect(button["usage"] as? Int == 48 && button["holdMilliseconds"] as? Int == 400)
         #expect((button["execution"] as? String)?.contains("remote.hid.button") == true)
-        let type = try Self.json(await service.execute(["simulator", Self.uuid, "type", "hello"], dryRun: true))
+        let type = try Self.json(await service.run(["type", "hello", "--simulator", Self.uuid], dryRun: true))
         #expect(type["sampleCount"] as? Int == 10 && type["layout"] as? String == "US")
         #expect((type["execution"] as? String)?.contains("remote.hid.keyboard") == true)
-        let key = try Self.json(await service.execute(["simulator", Self.uuid, "key", "return"], dryRun: true))
+        let key = try Self.json(await service.run(["key", "return", "--simulator", Self.uuid], dryRun: true))
         #expect(key["usage"] as? Int == 40 && key["backend"] as? String == "coresimulator-dtuhid")
         #expect(sent.lookups == 0 && sent.keys.isEmpty && sent.buttons.isEmpty && sent.keyboards.isEmpty)
     }
@@ -464,7 +471,7 @@ struct SimulatorInputTests {
         let sent = Sent()
         sent.failure = CommandFailure.inputDispatch(status: ADCInputOutcomeUnknown, message: "Input stopped after cancellation or transport failure")
         let failure = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(sent).execute(["simulator", Self.uuid, "type", "hello"])
+            _ = try await Self.service(sent).run(["type", "hello", "--simulator", Self.uuid])
         })
         #expect(failure.code == .inputOutcomeUnknown && failure.inputSent == .possible && failure.retry == .afterInspection)
     }
@@ -473,10 +480,10 @@ struct SimulatorInputTests {
         let sent = Sent()
         let service = Self.service(sent)
         let gate = HandoffCommandTests.Gate()
-        let pending = Task { try await service.execute(["simulator", Self.uuid, "handoff", "fixture"], handoffConfirmation: { _ in await gate.wait() }) }
+        let pending = Task { try await service.run(["handoff", "fixture", "--simulator", Self.uuid], handoffConfirmation: { _ in await gate.wait() }) }
         try #require(await gate.entered.wait())
         let paused = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await service.execute(["simulator", Self.uuid, "tap", "0.5", "0.5"])
+            _ = try await service.run(["tap", "0.5", "0.5", "--simulator", Self.uuid])
         })
         #expect(paused.code == .handoffPending && sent.touches.isEmpty && sent.lookups == 0)
         await gate.finish()

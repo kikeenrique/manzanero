@@ -238,25 +238,29 @@ struct SimulatorAccessibilityTests {
     // MARK: - Parsing and plans
 
     @Test func treeParsesWithAnOptionalPIDAndRequiresAUUID() throws {
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid.lowercased(), "tree"])?.device == Self.uuid)
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "tree", "0042"])?.operands == ["42"])
-        for invalid in [["simulator", Self.uuid, "tree", "0"], ["simulator", Self.uuid, "tree", "x"], ["simulator", Self.uuid, "tree", "1", "2"]] {
-            #expect(throws: CommandFailure.self) { try SimulatorInput.parse(invalid) }
+        #expect(try SimulatorInput(device: Self.uuid.lowercased(), operation: "tree", operands: []).device == Self.uuid)
+        #expect(try SimulatorInput(device: Self.uuid, operation: "tree", operands: ["0042"]).operands == ["42"])
+        #expect(try simulatorInput(["tree", "--pid", "0042", "--simulator", Self.uuid])?.operands == ["42"])
+        for invalid in [["0"], ["x"], ["1", "2"]] {
+            #expect(throws: CommandFailure.self) { try SimulatorInput(device: Self.uuid, operation: "tree", operands: invalid) }
         }
-        let alias = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", "booted", "tree"]) }
+        let alias = try #require(throws: CommandFailure.self) { try SimulatorInput(device: "booted", operation: "tree", operands: []) }
         #expect(alias.code == .usage)
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "apps"]) == nil)
-        #expect(try SimulatorInput.parse(["physical", Self.uuid, "tree"]) == nil)
+        // apps is a simctl wrapper, and a device tree is physical input.
+        #expect(try simulatorInput(["apps", "--simulator", Self.uuid]) == nil)
+        #expect(try simulatorInput(["tree", "--device", Self.uuid]) == nil)
     }
 
     @Test(arguments: ["paste", "wake"])
     func multiContactAndPhysicalOnlyOperationsAreRefusedPlainly(operation: String) async throws {
-        let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid, operation, "0.5"]) }
+        let failure = try #require(throws: CommandFailure.self) { try SimulatorInput(device: Self.uuid, operation: operation, operands: ["0.5"]) }
         #expect(failure.code == .unsupportedOperation && failure.inputSent == .none && failure.retry == .no)
         #expect(failure.description.contains(operation == "paste" ? "set-value with --id or --label" : "not implemented yet"))
         let fixture = SimulatorAXFixture()
+        let command = (operation == "paste" ? ["paste", "0.5"] : ["wake"]) + ["--simulator", Self.uuid]
         for dryRun in [false, true] {
-            await #expect(throws: CommandFailure.self) { _ = try await Self.service(fixture).execute(["simulator", Self.uuid, operation, "0.5"], dryRun: dryRun) }
+            let refused = try #require(await #expect(throws: CommandFailure.self) { _ = try await Self.service(fixture).run(command, dryRun: dryRun) })
+            #expect(refused.code == .unsupportedOperation)
         }
         #expect(fixture.requests.isEmpty)
     }
@@ -267,7 +271,7 @@ struct SimulatorAccessibilityTests {
             lookup: { _ in Issue.record("Dry run looked the simulator up"); return Self.screen },
             accessibility: { _, _ in Issue.record("Dry run opened AX"); return fixture.session() }),
             readinessQuery: { _ in Issue.record("Dry run queried CoreDevice"); return Data() })
-        let plan = try Self.json(await service.execute(["simulator", Self.uuid, "tree"], dryRun: true))
+        let plan = try Self.json(await service.run(["tree", "--simulator", Self.uuid], dryRun: true))
         #expect(plan["backend"] as? String == "coresimulator-ax" && plan["platform"] as? String == "simulator")
         #expect(plan["operation"] as? String == "tree" && plan["pid"] is NSNull && plan["liveVerified"] as? Bool == false)
         #expect((plan["execution"] as? String)?.contains("frontmost application") == true)
@@ -280,7 +284,7 @@ struct SimulatorAccessibilityTests {
         let fixture = SimulatorAXFixture()
         fixture.elements = [.init(identifier: "probe.touch.summary", label: "Probe summary", value: "{\"v\":1}")]
         let sessions = SessionCounter()
-        let tree = try Self.json(await Self.service(fixture, sessions: sessions).execute(["simulator", Self.uuid, "tree"]))
+        let tree = try Self.json(await Self.service(fixture, sessions: sessions).run(["tree", "--simulator", Self.uuid]))
         // frontmost, application, snapshot, application recheck, frontmost recheck.
         #expect(fixture.kinds == [4, 1, 2, 1, 4] && sessions.count == 1)
         #expect(tree["format"] as? String == "accessibility-tree" && tree["parsedHierarchy"] as? Bool == true)
@@ -307,13 +311,13 @@ struct SimulatorAccessibilityTests {
         fixture.displayInfo = SimulatorInputTests.displayJSON(current: current, sensor: sensor)
         // A landscape-only position: wholly outside the 390-point native width.
         fixture.elements = [.init(identifier: "fixture.target", label: "Target", frame: NSRect(x: 600, y: 200, width: 80, height: 40))]
-        let tree = try Self.json(await Self.service(fixture).execute(["simulator", Self.uuid, "tree"]))
+        let tree = try Self.json(await Self.service(fixture).run(["tree", "--simulator", Self.uuid]))
         let display = try #require(tree["display"] as? [String: Any])
         #expect(display["orientation"] as? String == current)
         #expect((display["bounds"] as? [String: Any])?["width"] as? Int == 844 && (display["bounds"] as? [String: Any])?["height"] as? Int == 390)
         #expect((tree["screen"] as? [String: Any])?["interfaceWidthPoints"] as? Int == 844)
         // The press guard accepts the frame and hits its centre in native points.
-        let press = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "fixture.target"]))
+        let press = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).run(["press", "--id", "fixture.target", "--simulator", Self.uuid]))
         #expect(press["status"] as? String == "accepted")
         let hit = try #require(fixture.hitPoints.last)
         let expected = current == "rot90" ? NSPoint(x: 220, y: 204) : NSPoint(x: 170, y: 640)
@@ -322,7 +326,7 @@ struct SimulatorAccessibilityTests {
 
     @Test func treeWithAPIDSkipsForegroundSelection() async throws {
         let fixture = SimulatorAXFixture()
-        let tree = try Self.json(await Self.service(fixture).execute(["simulator", Self.uuid, "tree", "42"]))
+        let tree = try Self.json(await Self.service(fixture).run(["tree", "--pid", "42", "--simulator", Self.uuid]))
         #expect(fixture.kinds == [1, 2, 1])
         #expect((tree["application"] as? [String: Any])?["selection"] as? String == "explicit-pid" && tree["display"] == nil)
     }
@@ -331,7 +335,7 @@ struct SimulatorAccessibilityTests {
         let fixture = SimulatorAXFixture()
         fixture.frontmostPIDs = [42, 77]
         let failure = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(fixture).execute(["simulator", Self.uuid, "tree"])
+            _ = try await Self.service(fixture).run(["tree", "--simulator", Self.uuid])
         })
         #expect(failure.code == .preconditionChanged && failure.inputSent == .none)
         #expect(failure.description.hasPrefix("Simulator tree failed: Foreground application AX process changed"))
@@ -342,7 +346,7 @@ struct SimulatorAccessibilityTests {
         let fixture = SimulatorAXFixture()
         let sessions = SessionCounter()
         let failure = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(fixture, state: state, sessions: sessions).execute(["simulator", Self.uuid, "tree"])
+            _ = try await Self.service(fixture, state: state, sessions: sessions).run(["tree", "--simulator", Self.uuid])
         })
         #expect(failure.code == .deviceNotReady && failure.inputSent == .none && sessions.count == 0 && fixture.requests.isEmpty)
     }
@@ -351,7 +355,7 @@ struct SimulatorAccessibilityTests {
         let fixture = SimulatorAXFixture()
         fixture.emptySnapshot = true
         let failure = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(fixture).execute(["simulator", Self.uuid, "tree"])
+            _ = try await Self.service(fixture).run(["tree", "--simulator", Self.uuid])
         })
         #expect(failure.code == .transportFailed && failure.inputSent == .none)
         #expect(failure.description.contains("no snapshot data"))
@@ -362,7 +366,7 @@ struct SimulatorAccessibilityTests {
         fixture.elements = [.init(identifier: "fixture.target", label: "Settings")]
         fixture.emptyAtFullDepth = true
         fixture.emptyShallowAnswers = 2
-        let tree = try Self.json(await Self.service(fixture).execute(["simulator", Self.uuid, "tree"]))
+        let tree = try Self.json(await Self.service(fixture).run(["tree", "--simulator", Self.uuid]))
         // Full depth empty, then depth 10 once a second until it answers.
         #expect(fixture.snapshotDepths == [48, 10, 10, 10] && fixture.clock.slept == .seconds(2))
         let shallow = try #require(tree["shallowSnapshot"] as? [String: Any])
@@ -374,11 +378,11 @@ struct SimulatorAccessibilityTests {
         let press = SimulatorAXFixture()
         press.elements = [.init(identifier: "fixture.target", label: "Settings")]
         press.emptyAtFullDepth = true
-        let receipt = try Self.json(await Self.service(press, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-label", "Settings"]))
+        let receipt = try Self.json(await Self.service(press, leases: Self.usableLeases()).run(["press", "--label", "Settings", "--simulator", Self.uuid]))
         #expect(receipt["status"] as? String == "accepted" && press.snapshotDepths == [48, 10, 10])
         // A process with a full answer is never read shallower.
         let normal = SimulatorAXFixture()
-        let plain = try Self.json(await Self.service(normal).execute(["simulator", Self.uuid, "tree"]))
+        let plain = try Self.json(await Self.service(normal).run(["tree", "--simulator", Self.uuid]))
         #expect(normal.snapshotDepths == [48] && plain["shallowSnapshot"] == nil && normal.clock.slept == .zero)
     }
 
@@ -396,7 +400,7 @@ struct SimulatorAccessibilityTests {
     @Test func withoutAFrontmostApplicationTheScreenCentreProcessIsSelected() async throws {
         let fixture = SimulatorAXFixture()
         fixture.noFrontmost = true
-        let tree = try Self.json(await Self.service(fixture).execute(["simulator", Self.uuid, "tree"]))
+        let tree = try Self.json(await Self.service(fixture).run(["tree", "--simulator", Self.uuid]))
         // frontmost (none), centre hit, application, snapshot, application,
         // frontmost (none) and centre hit again for the recheck.
         #expect(fixture.kinds == [4, 6, 1, 2, 1, 4, 6])
@@ -404,12 +408,12 @@ struct SimulatorAccessibilityTests {
         #expect(tree["foregroundSelection"] as? [String: Int] == ["frontmost": 0, "centre-hit": 2])
         // A frontmost application is used when there is one.
         let normal = SimulatorAXFixture()
-        let selected = try Self.json(await Self.service(normal).execute(["simulator", Self.uuid, "tree"]))
+        let selected = try Self.json(await Self.service(normal).run(["tree", "--simulator", Self.uuid]))
         #expect(selected["foregroundSelection"] as? [String: Int] == ["frontmost": 2, "centre-hit": 0])
         // An explicit PID needs neither.
         let explicit = SimulatorAXFixture()
         explicit.noFrontmost = true
-        let pid = try Self.json(await Self.service(explicit).execute(["simulator", Self.uuid, "tree", "42"]))
+        let pid = try Self.json(await Self.service(explicit).run(["tree", "--pid", "42", "--simulator", Self.uuid]))
         #expect(explicit.kinds == [1, 2, 1] && pid["foregroundSelection"] == nil)
     }
 
@@ -465,11 +469,13 @@ struct SimulatorAccessibilityTests {
     @Test func selectorActionsAndWaitsParseLikePhysical() throws {
         for args in [["press-id", "probe.touch.reset"], ["press-label", "42", "Reset probe"], ["scroll-id", "row"],
                      ["wait-id", "x", "--until", "gone", "--timeout", "0"], ["wait-label", "42", "Done", "--value", "v"]] {
-            let input = try #require(try SimulatorInput.parse(["simulator", Self.uuid] + args))
+            let input = try SimulatorInput(device: Self.uuid, operation: args[0], operands: Array(args.dropFirst()))
             #expect(input.operation == args[0] && input.operands == Array(args.dropFirst()))
         }
         for invalid in [["press-id"], ["press-id", "0", "x"], ["scroll-label", ""], ["wait-id", "x", "--timeout", "99"], ["wait-id", "x", "--bogus", "1"]] {
-            let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + invalid) }
+            let failure = try #require(throws: CommandFailure.self) {
+                try SimulatorInput(device: Self.uuid, operation: invalid[0], operands: Array(invalid.dropFirst()))
+            }
             #expect(failure.code == .usage && failure.inputSent == .none)
         }
     }
@@ -481,7 +487,7 @@ struct SimulatorAccessibilityTests {
         let leases = Self.usableLeases(directory)
         var holder = ""
         fixture.onAction = { holder = Self.leaseHolder(directory) }
-        let output = try await Self.service(fixture, leases: leases).execute(["simulator", Self.uuid, "press-id", "probe.touch.reset"])
+        let output = try await Self.service(fixture, leases: leases).run(["press", "--id", "probe.touch.reset", "--simulator", Self.uuid])
         #expect(holder.contains("press-id") && holder.contains("pid \(getpid())"))
         #expect(Self.leaseHolder(directory).isEmpty)
         let receipt = try Self.json(output)
@@ -503,11 +509,11 @@ struct SimulatorAccessibilityTests {
     @Test func pressIsRefusedWhenTheSimulatorIsBusyOrUnbooted() async throws {
         let fixture = Self.pressable()
         let unusable = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(fixture).execute(["simulator", Self.uuid, "press-id", "probe.touch.reset"])
+            _ = try await Self.service(fixture).run(["press", "--id", "probe.touch.reset", "--simulator", Self.uuid])
         })
         #expect(unusable.code == .hostRequirement && unusable.inputSent == .none)
         let unbooted = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(fixture, state: "Shutdown", leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-label", "Reset probe"])
+            _ = try await Self.service(fixture, state: "Shutdown", leases: Self.usableLeases()).run(["press", "--label", "Reset probe", "--simulator", Self.uuid])
         })
         #expect(unbooted.code == .deviceNotReady && unbooted.inputSent == .none)
         #expect(fixture.requests.isEmpty)
@@ -516,12 +522,12 @@ struct SimulatorAccessibilityTests {
     @Test func pressWithAnotherPIDOrAMissingTargetSendsNoAction() async throws {
         let fixture = Self.pressable()
         let foreign = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "7", "probe.touch.reset"])
+            _ = try await Self.service(fixture, leases: Self.usableLeases()).run(["press", "--id", "probe.touch.reset", "--pid", "7", "--simulator", Self.uuid])
         })
         #expect(foreign.code == .targetUnresolved && foreign.inputSent == .none)
         #expect(foreign.description.contains("requested PID differs from foreground application process"))
         let missing = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "absent"])
+            _ = try await Self.service(fixture, leases: Self.usableLeases()).run(["press", "--id", "absent", "--simulator", Self.uuid])
         })
         #expect(missing.code == .targetUnresolved && missing.inputSent == .none)
         #expect(!fixture.kinds.contains(7))
@@ -531,21 +537,21 @@ struct SimulatorAccessibilityTests {
         let fixture = Self.pressable()
         fixture.actionResult = nil
         let failure = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "probe.touch.reset"])
+            _ = try await Self.service(fixture, leases: Self.usableLeases()).run(["press", "--id", "probe.touch.reset", "--simulator", Self.uuid])
         })
         #expect(failure.code == .inputOutcomeUnknown && failure.inputSent == .possible && failure.retry == .afterInspection)
         #expect(failure.description.contains("state=submitted"))
         let refused = Self.pressable()
         refused.actionResult = false
         let refusal = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.service(refused, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "probe.touch.reset"])
+            _ = try await Self.service(refused, leases: Self.usableLeases()).run(["press", "--id", "probe.touch.reset", "--simulator", Self.uuid])
         })
         #expect(refusal.code == .inputOutcomeUnknown && refusal.description.contains("state=refused"))
     }
 
     @Test func scrollReportsItsPostcondition() async throws {
         let fixture = Self.pressable()
-        let receipt = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "scroll-label", "Reset probe"]))
+        let receipt = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).run(["scroll", "--label", "Reset probe", "--simulator", Self.uuid]))
         #expect(fixture.requests.filter { $0.kind == 7 }.map(\.action) == [11])
         #expect(receipt["status"] as? String == "postcondition-verified" && receipt["nativeResult"] as? Bool == true)
         #expect(receipt["operation"] as? String == "scroll-to-visible")
@@ -554,7 +560,7 @@ struct SimulatorAccessibilityTests {
     @Test func waitIsReadOnlyTakesNoLeaseAndAnswersATimeoutWith124() async throws {
         let present = Self.pressable()
         let sessions = SessionCounter()
-        let met = try await Self.service(present, sessions: sessions).execute(["simulator", Self.uuid, "wait-id", "probe.touch.reset"])
+        let met = try await Self.service(present, sessions: sessions).run(["wait", "--id", "probe.touch.reset", "--simulator", Self.uuid])
         #expect(met.exitCode == 0)
         let json = try Self.json(met)
         #expect(json["status"] as? String == "condition-met" && json["readOnly"] as? Bool == true)
@@ -564,7 +570,7 @@ struct SimulatorAccessibilityTests {
         // The session's whole life scales with the wait, as for physical.
         #expect(sessions.lifetimes == [.seconds(40)])
         let absent = SimulatorAXFixture()
-        let timedOut = try await Self.service(absent).execute(["simulator", Self.uuid, "wait-id", "probe.touch.reset", "--timeout", "0"])
+        let timedOut = try await Self.service(absent).run(["wait", "--id", "probe.touch.reset", "--timeout", "0", "--simulator", Self.uuid])
         #expect(timedOut.exitCode == AccessibilityWait.timeoutExitCode)
         #expect(try Self.json(timedOut)["status"] as? String == "timed-out")
     }
@@ -573,7 +579,7 @@ struct SimulatorAccessibilityTests {
         let fixture = Self.pressable()
         // Selected 42, but the recheck finds another app frontmost.
         fixture.frontmostPIDs = [42, 77]
-        let output = try await Self.service(fixture).execute(["simulator", Self.uuid, "wait-id", "probe.touch.reset", "--timeout", "0"])
+        let output = try await Self.service(fixture).run(["wait", "--id", "probe.touch.reset", "--timeout", "0", "--simulator", Self.uuid])
         let json = try Self.json(output)
         #expect(output.exitCode == AccessibilityWait.timeoutExitCode && json["status"] as? String == "timed-out")
         let observation = try #require(json["observation"] as? [String: Any])
@@ -584,11 +590,11 @@ struct SimulatorAccessibilityTests {
     @Test func actionAndWaitDryRunsDescribeTheSimulatorRoute() async throws {
         let fixture = SimulatorAXFixture()
         let service = try Self.service(fixture, state: "Shutdown")
-        let press = try Self.json(await service.execute(["simulator", Self.uuid, "press-label", "42", "Reset probe"], dryRun: true))
+        let press = try Self.json(await service.run(["press", "--label", "Reset probe", "--pid", "42", "--simulator", Self.uuid], dryRun: true))
         #expect(press["backend"] as? String == "coresimulator-ax" && press["operation"] as? String == "press")
         #expect(press["pid"] as? Int == 42 && (press["selector"] as? [String: String]) == ["by": "label", "text": "Reset probe"])
         #expect(press["deviceLease"] as? String == "simulator UUID" && press["identityArguments"] == nil)
-        let wait = try Self.json(await service.execute(["simulator", Self.uuid, "wait-id", "x", "--timeout", "3"], dryRun: true))
+        let wait = try Self.json(await service.run(["wait", "--id", "x", "--timeout", "3", "--simulator", Self.uuid], dryRun: true))
         #expect(wait["backend"] as? String == "coresimulator-ax" && wait["operation"] as? String == "wait" && wait["readOnly"] as? Bool == true)
         #expect(wait["maximumPolls"] as? Int == 8 && wait["identityArguments"] == nil && wait["platform"] as? String == "simulator")
         #expect((wait["execution"] as? String)?.contains("foreground application") == true)

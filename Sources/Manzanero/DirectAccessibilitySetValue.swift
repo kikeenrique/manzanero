@@ -20,6 +20,7 @@ protocol AccessibilityValueSetting: AccessibilityExchange {
 struct DirectAccessibilitySetValue {
     static let operations = ["set-value-id", "set-value-label"]
     static let maximumTextBytes = 65536
+    static let physicalRefusal = "Physical set-value is not enabled: the accessibility set-value request has been verified only on simulators. For Unicode text on a physical device use paste. No input sent."
 
     let guards: DirectAccessibilityAction
     let value: String

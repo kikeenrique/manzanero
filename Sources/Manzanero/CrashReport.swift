@@ -32,8 +32,7 @@ struct LastCrashQuery: Sendable, Equatable {
         self.since = since; self.download = download
     }
 
-    init(physical: Bool, device: String, operands: [String]) throws {
-        let options = try DiagnosticOptions(operands, operation: "last-crash", values: ["--bundle", "--process", "--since", "--download"])
+    init(physical: Bool, device: String, options: DiagnosticOptions) throws {
         guard options.positional.isEmpty,
               [options.values["--bundle"], options.values["--process"]].compactMap({ $0 }).count == 1 else {
             throw CommandFailure.usage("Usage: last-crash (--bundle <id> | --process <name>) [--since <ISO-8601>] [--download <existing-dir>]")
@@ -47,7 +46,7 @@ struct LastCrashQuery: Sendable, Equatable {
                   since: try options.date("--since"), download: options.values["--download"])
     }
 
-    var listingPlan: DeviceCommand? { try? DeviceCommand.parse(["physical", device, "reports", "."]) }
+    var listingPlan: DeviceCommand? { try? DeviceCommand.plan(physical: true, device: device, operation: "reports", operands: ["."]) }
 
     func plan() -> [String: Any] {
         let sinceValue: Any = since.map { DiagnosticTime.iso8601($0) } ?? NSNull()
@@ -61,7 +60,7 @@ struct LastCrashQuery: Sendable, Equatable {
         if physical {
             plan["backend"] = "devicectl"
             plan["listing"] = ["executable": "/usr/bin/xcrun", "arguments": listingPlan?.arguments ?? []]
-            plan["download"] = ["executable": "/usr/bin/xcrun", "arguments": (try? DeviceCommand.parse(["physical", device, "report", "<report.ips>", "<tmp/crash-…/report.ips>"]))?.arguments ?? [],
+            plan["download"] = ["executable": "/usr/bin/xcrun", "arguments": (try? DeviceCommand.plan(physical: true, device: device, operation: "report", operands: ["<report.ips>", "<tmp/crash-…/report.ips>"]))?.arguments ?? [],
                                 "maxDownloads": Self.maxDownloads]
             plan["execution"] = "Lists systemCrashLogs without recursion, keeps .ips names newer than --since (and starting with '<process>-' for --process), downloads the newest into tmp/ one at a time (at most \(Self.maxDownloads)) until a header matches the bundle or process, deletes non-matching downloads, and parses the match. The download route is not yet verified on hardware."
         } else {
@@ -292,7 +291,7 @@ enum CrashReportSelection {
         for name in names.prefix(LastCrashQuery.maxDownloads) {
             considered += 1
             let local = directory.appendingPathComponent(name)
-            guard let plan = try DeviceCommand.parse(["physical", query.device, "report", name, local.path]) else { continue }
+            let plan = try DeviceCommand.plan(physical: true, device: query.device, operation: "report", operands: [name, local.path])
             _ = try run(plan)
             guard let data = try? Data(contentsOf: local), let header = IPSReport.header(data),
                   IPSReport.bugType(header) == LastCrashQuery.crashBugType,

@@ -35,7 +35,7 @@ enum CLI {
             do { try command.run() } catch { return try outcome(of: error) }
             return .output("")
         }
-        return .run(CLIInvocation(arguments: try operation.legacyArguments(environment: environment),
+        return .run(CLIInvocation(request: try operation.request(environment: environment),
                                   dryRun: operation.common.dryRun, errorFormat: operation.common.errorFormat))
     }
 
@@ -67,9 +67,9 @@ private extension String {
     }
 }
 
-/// One parsed operation, still in the argument form the command service reads.
+/// One parsed operation and the options that shape how it runs.
 struct CLIInvocation: Sendable, Equatable {
-    let arguments: [String]
+    let request: CommandRequest
     let dryRun: Bool
     let errorFormat: ErrorFormat?
 }
@@ -144,29 +144,28 @@ struct SelectorOptions: ParsableArguments {
 /// A parsed operation.
 protocol CLICommand: ParsableCommand {
     var common: CommonOptions { get }
-    /// The argument vector `CommandService.execute` reads.
-    func legacyArguments(environment: [String: String]) throws -> [String]
+    /// The validated request `CommandService.execute` runs.
+    func request(environment: [String: String]) throws -> CommandRequest
 }
 
 /// An operation on one device or simulator.
 protocol TargetedCommand: CLICommand {
     var target: TargetOptions { get }
-    /// The operation and its operands after `<platform> <identifier>`.
-    var legacyOperation: [String] { get }
+    func request(_ target: Target) throws -> CommandRequest
 }
 
 extension TargetedCommand {
-    func legacyArguments(environment: [String: String]) throws -> [String] {
-        let target = try target.resolve(environment)
-        return [target.platform.rawValue, target.identifier] + legacyOperation
+    func request(environment: [String: String]) throws -> CommandRequest {
+        try request(target.resolve(environment))
     }
 }
 
 extension SelectorOptions {
-    /// `press-id [pid] <text>` and the other selector operations.
-    func legacy(_ operation: String) -> [String] {
-        ["\(operation)-\(id != nil ? "id" : "label")"] + (pid.map { [$0] } ?? []) + [id ?? label ?? ""]
-    }
+    /// The internal name of a selector operation: `press-id`, `wait-label`, …
+    func operation(_ base: String) -> String { "\(base)-\(id != nil ? "id" : "label")" }
+
+    /// `[pid] <text>`, the operands the selector operations validate.
+    var operands: [String] { (pid.map { [$0] } ?? []) + [id ?? label ?? ""] }
 }
 
 struct ManzaneroCLI: ParsableCommand {

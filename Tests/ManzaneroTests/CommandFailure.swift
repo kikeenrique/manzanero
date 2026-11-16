@@ -143,19 +143,17 @@ struct CommandFailureTests {
     // MARK: Tagged sites, with the exact existing text
 
     @Test(arguments: [
-        (["frobnicate"], "Unknown command. Run manzanero --help.", "usage"),
-        (["physical", "U", "tap", "2", "0.5"], "Physical input coordinates must be normalized numbers from 0 to 1.", "usage"),
-        (["physical", "U", "button", "power"], "Supported physical buttons: home, lock, volume-up, volume-down.", "usage"),
-        (["simulator", "U", "tap", "0.5", "0.5"], "Simulator tap requires the simulator's UUID (see devices --simulators); names and 'booted' are not accepted.", "usage"),
-        (["simulator", "11111111-2222-3333-4444-555555555555", "wake"], "Simulator wake is not implemented yet; simulator input covers touch with one to five contacts, gesture sequences, button, key and type. Wake remains physical-only. No input sent.", "unsupported-operation"),
-        (["physical", "U", "frobnicate"], "Unsupported physical-device operation: frobnicate.", "unsupported-operation"),
-        (["--physical-backend", "helper", "physical", "U", "tap", "0.5", "0.5"], "Unsupported physical backend: helper. coredevice is the only physical backend and the default; --physical-backend may be omitted.", "unsupported-operation"),
-        (["physical", "U", "wait-id", "sel", "--timeout", "99"], "--timeout must be a number of seconds in 0...60. Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--until visible|gone|enabled|disabled|value] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>].", "usage"),
-        (["physical", "U", "gesture", #"{"frames":[{"ms":0,"touches":[]}]}"#], "Gesture requires 2...512 frames, starting at ms=0 with a touch and ending with touches:[].", "usage"),
+        (["tap", "2", "0.5", "--device", "U"], "Physical input coordinates must be normalized numbers from 0 to 1.", "usage"),
+        (["button", "power", "--device", "U"], "Supported physical buttons: home, lock, volume-up, volume-down.", "usage"),
+        (["tap", "0.5", "0.5", "--simulator", "U"], "Simulator tap requires the simulator's UUID (see devices --simulators); names and 'booted' are not accepted.", "usage"),
+        (["wake", "--simulator", "11111111-2222-3333-4444-555555555555"], "Simulator wake is not implemented yet; simulator input covers touch with one to five contacts, gesture sequences, button, key and type. Wake remains physical-only. No input sent.", "unsupported-operation"),
+        (["boot", "--device", "U"], "Unsupported physical-device operation: boot.", "unsupported-operation"),
+        (["wait", "--id", "sel", "--timeout", "99", "--device", "U"], "--timeout must be a number of seconds in 0...60. Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--until visible|gone|enabled|disabled|value] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>].", "usage"),
+        (["gesture", #"{"frames":[{"ms":0,"touches":[]}]}"#, "--device", "U"], "Gesture requires 2...512 frames, starting at ms=0 with a touch and ending with touches:[].", "usage"),
     ])
     func parseFailuresKeepTheirTextAndSayNothingWasSent(_ args: [String], _ message: String, _ code: String) async throws {
         // Parsing fails before any device query, so these run without a dry run.
-        let error = try #require(await failure { _ = try await CommandService().execute(args) } as? CommandFailure)
+        let error = try #require(await failure { _ = try await CommandService().run(args) } as? CommandFailure)
         #expect(error.description == message)
         #expect(error.code.rawValue == code && error.inputSent == .none && error.retry == .no)
     }
@@ -166,7 +164,7 @@ struct CommandFailureTests {
         let disabled = try details(mode: "disabled")
         let blocked = try #require(await failure {
             _ = try await CommandService(leases: DeviceLeaseRegistry(directory: directory), readinessQuery: { _ in disabled })
-                .execute(["physical", Self.uuid, "tap", "0.5", "0.5"])
+                .run(["tap", "0.5", "0.5", "--device", Self.uuid])
         } as? CommandFailure)
         #expect(blocked.description.hasPrefix("Cannot tap: Developer Mode is disabled. On the iPhone, open Settings"))
         #expect(blocked.code == .deviceNotReady && blocked.inputSent == .none && blocked.action == .human)
@@ -178,7 +176,7 @@ struct CommandFailureTests {
         let enabled = try details()
         let busy = try #require(await failure {
             _ = try await CommandService(leases: DeviceLeaseRegistry(directory: directory), readinessQuery: { _ in enabled })
-                .execute(["physical", Self.uuid, "tap", "0.5", "0.5"])
+                .run(["tap", "0.5", "0.5", "--device", Self.uuid])
         } as? CommandFailure)
         #expect(busy.description.hasPrefix("Device is controlled by another manzanero process"))
         #expect(busy.description.hasSuffix("Wait for it to finish or stop it; no input sent."))
@@ -187,36 +185,36 @@ struct CommandFailureTests {
 
     @Test func unclassifiedReadinessFailuresBeforeInputSayNothingWasSent() async throws {
         let service = CommandService(readinessQuery: { _ in throw CommandFailure(description: "fixture details unavailable") })
-        for args in [["physical", Self.uuid, "tap", "0.5", "0.5"], ["physical", Self.uuid, "tree"]] {
-            let error = try #require(await failure { _ = try await service.execute(args) } as? CommandFailure)
+        for args in [["tap", "0.5", "0.5", "--device", Self.uuid], ["tree", "--device", Self.uuid]] {
+            let error = try #require(await failure { _ = try await service.run(args) } as? CommandFailure)
             #expect(error.description == "fixture details unavailable")
             #expect(error.code == .unclassified && error.inputSent == .none)
         }
     }
 
-    @Test func readOnlyCommandsAreRecognisedAndMutationsAreNot() {
-        for args in [["physical", "U", "tree"], ["physical", "U", "wait-id", "x"], ["physical", "U", "screen"], ["physical", "U", "details"],
-                     ["simulator", "U", "apps"], ["physical", "U", "media-status"], ["--physical-backend", "coredevice", "physical", "U", "tree"],
-                     ["doctor"], ["ocr", "x.png"], ["devices", "physical"], ["decode-ax-archive", "x"]] {
-            #expect(CommandService.isReadOnly(args), "\(args)")
+    @Test func readOnlyCommandsAreRecognisedAndMutationsAreNot() throws {
+        for args in [["tree", "--device", "U"], ["wait", "--id", "x", "--device", "U"], ["screen", "--device", "U"], ["details", "--device", "U"],
+                     ["apps", "--simulator", "U"], ["media-status", "--device", "U"],
+                     ["doctor"], ["ocr", "x.png"], ["devices"], ["decode-ax-archive", "x"]] {
+            #expect(try request(args).isReadOnly, "\(args)")
         }
-        for args in [["physical", "U", "tap", "0.5", "0.5"], ["physical", "U", "launch", "a.b"], ["physical", "U", "wake"],
-                     ["physical", "U", "press-id", "x"], ["physical", "U", "push", "a", "b", "c"], ["simulator", "U", "boot"],
-                     ["physical", "U", "record", "a.mp4", "5"], ["physical", "U", "handoff", "m"]] {
-            #expect(!CommandService.isReadOnly(args), "\(args)")
+        for args in [["tap", "0.5", "0.5", "--device", "U"], ["launch", "a.b", "--device", "U"], ["wake", "--device", "U"],
+                     ["press", "--id", "x", "--device", "U"], ["files", "push", "a", "b", "c", "--device", "U"], ["boot", "--simulator", "U"],
+                     ["record", "a.mp4", "5", "--device", "U"], ["handoff", "m", "--device", Self.udid]] {
+            #expect(try !request(args).isReadOnly, "\(args)")
         }
     }
 
     @Test(.timeLimit(.minutes(1))) func handoffPauseIsClassified() async throws {
         let device = "11111111-2222-3333-4444-555555555555"
         let service = CommandService(), gate = HandoffCommandTests.Gate()
-        let pending = Task { try await service.execute(["simulator", device, "handoff", "fixture"], handoffConfirmation: { _ in await gate.wait() }) }
+        let pending = Task { try await service.run(["handoff", "fixture", "--simulator", device], handoffConfirmation: { _ in await gate.wait() }) }
         try #require(await gate.entered.wait())
-        let paused = try #require(await failure { _ = try await service.execute(["simulator", device, "type", "hello"]) } as? CommandFailure)
+        let paused = try #require(await failure { _ = try await service.run(["type", "hello", "--simulator", device]) } as? CommandFailure)
         #expect(paused.description == "Automation is paused for this device while human handoff is pending. Wait for the person's response.")
         #expect(paused.code == .handoffPending && paused.inputSent == .none && paused.action == .wait)
         let duplicate = try #require(await failure {
-            _ = try await service.execute(["simulator", device, "handoff", "again"], handoffConfirmation: { _ in .acknowledged })
+            _ = try await service.run(["handoff", "again", "--simulator", device], handoffConfirmation: { _ in .acknowledged })
         } as? CommandFailure)
         #expect(duplicate.description == "A handoff is already pending for this device." && duplicate.code == .handoffPending)
         await gate.finish()
@@ -309,7 +307,7 @@ struct CommandFailureTests {
     @Test func signingFailuresFromTheBuildLogAreClassified() throws {
         let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/failure-test-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
-        let command = try #require(try BuildRunCommand.parse(["physical", Self.udid, "build-run", "App.xcodeproj", "App"]))
+        let command = try BuildRunCommand(physical: true, device: Self.udid, project: "App.xcodeproj", scheme: "App", configuration: nil, appTarget: nil)
         let settings = try JSONSerialization.data(withJSONObject: [["target": "App", "buildSettings": [
             "PRODUCT_TYPE": "com.apple.product-type.application", "TARGET_BUILD_DIR": "/tmp/fixture", "FULL_PRODUCT_NAME": "App.app",
             "PRODUCT_BUNDLE_IDENTIFIER": "com.example.app", "PLATFORM_NAME": "iphoneos"]]])

@@ -1,8 +1,7 @@
 import Foundation
 
 /// Build orchestration stays separate from single device-operation planning.
-struct BuildRunCommand {
-    static let usage = "Usage: <physical|simulator> <UDID> build-run <project.xcodeproj|workspace.xcworkspace> <scheme> [--configuration <name>] [--app-target <name>] [--allow-provisioning-updates [--allow-device-registration]]"
+struct BuildRunCommand: Sendable, Equatable {
     static let provisioningUpdatesFlag = "--allow-provisioning-updates"
     static let deviceRegistrationFlag = "--allow-device-registration"
 
@@ -22,49 +21,41 @@ struct BuildRunCommand {
     /// UUID is resolved to it before building. devicectl accepts either and keeps `device`.
     var destinationID: String
 
-    static func parse(_ args: [String]) throws -> Self? {
-        guard args.count >= 3, ["physical", "simulator"].contains(args[0]), args[2] == "build-run" else { return nil }
-        guard args.count >= 5 else { throw CommandFailure.usage(usage) }
-        let physical = args[0] == "physical"
-        let device = args[1]
-        guard UUID(uuidString: device) != nil || (physical && isHardwareUDID(device)) else {
+    /// Checks the target, paths and options before anything is built.
+    init(physical: Bool, device: String, project: String, scheme: String, configuration: String?, appTarget: String?,
+         allowProvisioningUpdates: Bool = false, allowDeviceRegistration: Bool = false) throws {
+        guard UUID(uuidString: device) != nil || (physical && Self.isHardwareUDID(device)) else {
             throw CommandFailure.usage("Build & Run requires an explicit device UDID or CoreDevice UUID, not a name or 'booted'.")
         }
-        let project = args[3]
         guard ["xcodeproj", "xcworkspace"].contains(URL(fileURLWithPath: project).pathExtension),
-              !project.hasPrefix("-"), !args[4].isEmpty, !args[4].hasPrefix("-") else {
+              !project.hasPrefix("-"), !scheme.isEmpty, !scheme.hasPrefix("-") else {
             throw CommandFailure.usage("Provide an Xcode project/workspace path and a nonempty scheme.")
         }
-        var values: [String: String] = [:]
-        var switches: Set<String> = []
-        var index = 5
-        while index < args.count {
-            let key = args[index]
-            if [provisioningUpdatesFlag, deviceRegistrationFlag].contains(key) {
-                guard switches.insert(key).inserted else {
-                    throw CommandFailure.usage("Repeated Build & Run option: \(key)")
-                }
-                index += 1
-                continue
-            }
-            guard ["--configuration", "--app-target"].contains(key), values[key] == nil, index + 1 < args.count,
-                  !args[index + 1].isEmpty, !args[index + 1].hasPrefix("-") else {
+        for (key, value) in [("--configuration", configuration), ("--app-target", appTarget)] {
+            if let value, value.isEmpty || value.hasPrefix("-") {
                 throw CommandFailure.usage("Unknown, repeated, or empty Build & Run option: \(key)")
             }
-            values[key] = args[index + 1]
-            index += 2
         }
+        let switches = [allowProvisioningUpdates ? Self.provisioningUpdatesFlag : nil, allowDeviceRegistration ? Self.deviceRegistrationFlag : nil]
+            .compactMap { $0 }
         if !physical, !switches.isEmpty {
             throw CommandFailure.usage("Provisioning options (\(switches.sorted().joined(separator: ", "))) apply only to physical devices; simulator builds need no provisioning profile.")
         }
-        if switches.contains(deviceRegistrationFlag), !switches.contains(provisioningUpdatesFlag) {
-            throw CommandFailure.usage("\(deviceRegistrationFlag) requires \(provisioningUpdatesFlag); xcodebuild ignores device registration without provisioning updates.")
+        if allowDeviceRegistration, !allowProvisioningUpdates {
+            throw CommandFailure.usage("\(Self.deviceRegistrationFlag) requires \(Self.provisioningUpdatesFlag); xcodebuild ignores device registration without provisioning updates.")
         }
-        return Self(physical: physical, device: device, project: project, scheme: args[4],
-                    configuration: values["--configuration"] ?? "Debug", appTarget: values["--app-target"],
-                    allowProvisioningUpdates: switches.contains(provisioningUpdatesFlag),
-                    allowDeviceRegistration: switches.contains(deviceRegistrationFlag),
-                    destinationID: device)
+        self.init(physical: physical, device: device, project: project, scheme: scheme,
+                  configuration: configuration ?? "Debug", appTarget: appTarget,
+                  allowProvisioningUpdates: allowProvisioningUpdates, allowDeviceRegistration: allowDeviceRegistration,
+                  destinationID: device)
+    }
+
+    init(physical: Bool, device: String, project: String, scheme: String, configuration: String, appTarget: String?,
+         allowProvisioningUpdates: Bool, allowDeviceRegistration: Bool, destinationID: String) {
+        self.physical = physical; self.device = device; self.project = project; self.scheme = scheme
+        self.configuration = configuration; self.appTarget = appTarget
+        self.allowProvisioningUpdates = allowProvisioningUpdates; self.allowDeviceRegistration = allowDeviceRegistration
+        self.destinationID = destinationID
     }
 
     static func isHardwareUDID(_ value: String) -> Bool {
@@ -131,11 +122,8 @@ struct BuildRunCommand {
 
     /// Install and launch plans. Launch terminates a running copy so a rebuild runs the new executable.
     func deploymentPlan(app: String, bundleID: String) throws -> (install: DeviceCommand, launch: DeviceCommand) {
-        let prefix = [physical ? "physical" : "simulator", device]
-        guard let install = try DeviceCommand.parse(prefix + ["install", app]),
-              var launch = try DeviceCommand.parse(prefix + ["launch", bundleID]) else {
-            throw CommandFailure(.internal, "Cannot plan app deployment.", inputSent: .none)
-        }
+        let install = try DeviceCommand.plan(physical: physical, device: device, operation: "install", operands: [app])
+        var launch = try DeviceCommand.plan(physical: physical, device: device, operation: "launch", operands: [bundleID])
         // devicectl: options precede the app operand, which ends devicectl's own options.
         launch.arguments.insert(physical ? "--terminate-existing" : "--terminate-running-process", at: physical ? 4 : 2)
         return (install, launch)

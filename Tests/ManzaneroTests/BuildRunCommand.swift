@@ -5,8 +5,15 @@ import Testing
 struct BuildRunCommandTests {
     let device = "11111111-2222-3333-4444-555555555555"
 
-    func request(_ extra: [String] = []) throws -> BuildRunCommand {
-        try #require(try BuildRunCommand.parse(["simulator", device, "build-run", "tmp/My App.xcodeproj", "My App"] + extra))
+    func request(appTarget: String? = nil) throws -> BuildRunCommand {
+        try BuildRunCommand(physical: false, device: device, project: "tmp/My App.xcodeproj", scheme: "My App", configuration: nil, appTarget: appTarget)
+    }
+
+    /// A physical build of `A.xcodeproj`'s scheme `A` (or the given project and scheme).
+    static func physical(_ device: String = "00000000-0000000000000000", project: String = "A.xcodeproj", scheme: String = "A",
+                         configuration: String? = nil, updates: Bool = false, registration: Bool = false) throws -> BuildRunCommand {
+        try BuildRunCommand(physical: true, device: device, project: project, scheme: scheme, configuration: configuration, appTarget: nil,
+                            allowProvisioningUpdates: updates, allowDeviceRegistration: registration)
     }
 
     func settings(directory: URL, targets: [String] = ["My App"], platform: String = "iphonesimulator") throws -> Data {
@@ -34,30 +41,31 @@ struct BuildRunCommandTests {
     }
 
     @Test func pathsAndSchemeAreLiteralArguments() throws {
-        let command = try #require(try BuildRunCommand.parse(["simulator", device, "build-run", "tmp/$(touch sentinel).xcworkspace", "My App; echo x", "--configuration", "Custom Debug"]))
+        let command = try BuildRunCommand(physical: false, device: device, project: "tmp/$(touch sentinel).xcworkspace", scheme: "My App; echo x",
+                                          configuration: "Custom Debug", appTarget: nil)
         let args = command.xcodeArguments(directory: URL(fileURLWithPath: "/project/tmp/build"))
         #expect(args.prefix(7) == ["xcodebuild", "-workspace", "tmp/$(touch sentinel).xcworkspace", "-scheme", "My App; echo x", "-configuration", "Custom Debug"])
         #expect(args.contains("platform=iOS Simulator,id=\(device)"))
         #expect(args.contains("-allowProvisioningUpdates") == false)
     }
 
+    /// Command lines the parser or Build & Run refuses before anything is built.
     @Test(arguments: [
-        ["simulator", "booted", "build-run", "A.xcodeproj", "A"],
-        ["physical", "x,id=other", "build-run", "A.xcodeproj", "A"],
-        ["simulator", "11111111-2222-3333-4444-555555555555", "build-run", "A.xcodeproj"],
-        ["simulator", "11111111-2222-3333-4444-555555555555", "build-run", "A", "A"],
-        ["simulator", "11111111-2222-3333-4444-555555555555", "build-run", "A.xcodeproj", "A", "--unknown", "x"],
-        ["simulator", "11111111-2222-3333-4444-555555555555", "build-run", "A.xcodeproj", "A", "--configuration", "Debug", "--configuration", "Release"],
-        ["simulator", "11111111-2222-3333-4444-555555555555", "build-run", "A.xcodeproj", "A", "--configuration"],
-        ["physical", "00000000-0000000000000000", "build-run", "A.xcodeproj", "A", "--allow-provisioning-updates", "--allow-provisioning-updates"],
-        ["physical", "00000000-0000000000000000", "build-run", "A.xcodeproj", "A", "--allow-provisioning-updates=YES"],
-        ["physical", "00000000-0000000000000000", "build-run", "A.xcodeproj", "A", "--configuration", "--allow-provisioning-updates"]
+        ["build-run", "A.xcodeproj", "A", "--simulator", "booted"],
+        ["build-run", "A.xcodeproj", "A", "--device", "x,id=other"],
+        ["build-run", "A.xcodeproj", "--simulator", "11111111-2222-3333-4444-555555555555"],
+        ["build-run", "A", "A", "--simulator", "11111111-2222-3333-4444-555555555555"],
+        ["build-run", "A.xcodeproj", "A", "--unknown", "x", "--simulator", "11111111-2222-3333-4444-555555555555"],
+        ["build-run", "A.xcodeproj", "A", "--simulator", "11111111-2222-3333-4444-555555555555", "--configuration"],
+        ["build-run", "A.xcodeproj", "A", "--configuration=-x", "--simulator", "11111111-2222-3333-4444-555555555555"],
+        ["build-run", "A.xcodeproj", "A", "--allow-provisioning-updates=YES", "--device", "00000000-0000000000000000"],
+        ["build-run", "A.xcodeproj", "A", "--device", "00000000-0000000000000000", "--configuration", "--allow-provisioning-updates"]
     ]) func invalidRequestsAreRejected(_ args: [String]) {
-        #expect(throws: CommandFailure.self) { try BuildRunCommand.parse(args) }
+        #expect(throws: CommandFailure.self) { try CLI.invocation(args) }
     }
 
     @Test func defaultBuildDoesNotContactDeveloperServices() throws {
-        let command = try #require(try BuildRunCommand.parse(["physical", "00000000-0000000000000000", "build-run", "A.xcodeproj", "A"]))
+        let command = try Self.physical()
         let build = command.buildArguments(directory: URL(fileURLWithPath: "/project/tmp/build"))
         #expect(build.last == "build")
         #expect(!build.contains("-allowProvisioningUpdates"))
@@ -65,28 +73,28 @@ struct BuildRunCommandTests {
     }
 
     @Test func provisioningFlagsReachOnlyTheBuildInvocation() throws {
-        let command = try #require(try BuildRunCommand.parse(["physical", "00000000-0000000000000000", "build-run", "A.xcodeproj", "A",
-            "--allow-provisioning-updates", "--configuration", "Release", "--allow-device-registration"]))
+        let command = try Self.physical(configuration: "Release", updates: true, registration: true)
         let directory = URL(fileURLWithPath: "/project/tmp/build")
         #expect(command.configuration == "Release")
         #expect(command.buildArguments(directory: directory).suffix(3) == ["-allowProvisioningUpdates", "-allowProvisioningDeviceRegistration", "build"])
         let settings = command.settingsArguments(directory: directory)
         #expect(!settings.contains("-allowProvisioningUpdates"))
         #expect(settings.suffix(2) == ["-showBuildSettings", "-json"])
-        let updatesOnly = try #require(try BuildRunCommand.parse(["physical", "00000000-0000000000000000", "build-run", "A.xcodeproj", "A", "--allow-provisioning-updates"]))
+        let updatesOnly = try Self.physical(updates: true)
         #expect(updatesOnly.buildArguments(directory: directory).suffix(2) == ["-allowProvisioningUpdates", "build"])
     }
 
     @Test func deviceRegistrationRequiresProvisioningUpdates() {
         #expect {
-            try BuildRunCommand.parse(["physical", "00000000-0000000000000000", "build-run", "A.xcodeproj", "A", "--allow-device-registration"])
+            try Self.physical(registration: true)
         } throws: { String(describing: $0).contains("requires --allow-provisioning-updates") }
     }
 
-    @Test(arguments: [["--allow-provisioning-updates"], ["--allow-provisioning-updates", "--allow-device-registration"], ["--allow-device-registration"]])
-    func provisioningFlagsAreRejectedForSimulators(_ flags: [String]) {
+    @Test(arguments: [(true, false), (true, true), (false, true)])
+    func provisioningFlagsAreRejectedForSimulators(_ updates: Bool, _ registration: Bool) {
         #expect {
-            try BuildRunCommand.parse(["simulator", "11111111-2222-3333-4444-555555555555", "build-run", "A.xcodeproj", "A"] + flags)
+            try BuildRunCommand(physical: false, device: "11111111-2222-3333-4444-555555555555", project: "A.xcodeproj", scheme: "A",
+                                configuration: nil, appTarget: nil, allowProvisioningUpdates: updates, allowDeviceRegistration: registration)
         } throws: { String(describing: $0).contains("apply only to physical devices") }
     }
 
@@ -98,7 +106,7 @@ struct BuildRunCommandTests {
 
     @Test func coreDeviceUUIDIsResolvedToHardwareUDIDForXcodeOnly() throws {
         let coreDevice = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE", udid = "00000000-0000000000000000"
-        let command = try #require(try BuildRunCommand.parse(["physical", coreDevice, "build-run", "A.xcodeproj", "A"]))
+        let command = try Self.physical(coreDevice)
         #expect(command.requiresDestinationResolution)
         for legacy in [false, true] {
             let resolved = try command.resolvingDestination(details: details(identifier: coreDevice.lowercased(), udid: udid, legacy: legacy))
@@ -113,7 +121,7 @@ struct BuildRunCommandTests {
                     try details(identifier: coreDevice, udid: udid, outcome: "failed"), Data()] {
             #expect { try command.resolvingDestination(details: bad) } throws: { String(describing: $0).contains("hardware UDID") }
         }
-        let hardware = try #require(try BuildRunCommand.parse(["physical", udid, "build-run", "A.xcodeproj", "A"]))
+        let hardware = try Self.physical(udid)
         #expect(!hardware.requiresDestinationResolution)
         let simulator = try request()
         #expect(!simulator.requiresDestinationResolution)
@@ -121,7 +129,7 @@ struct BuildRunCommandTests {
 
     @Test func physicalSigningFailuresNameTheCauseAndKeepTheLogPath() throws {
         try fixture { directory in
-            let command = try #require(try BuildRunCommand.parse(["physical", "00000000-0000000000000000", "build-run", "App.xcodeproj", "App"]))
+            let command = try Self.physical(project: "App.xcodeproj", scheme: "App")
             var deployed = false
             #expect {
                 try command.execute(directory: directory, run: { plan in
@@ -141,9 +149,8 @@ struct BuildRunCommandTests {
     }
 
     @Test func signingHintsDependOnFlagsAndPlatform() throws {
-        let base = ["physical", "00000000-0000000000000000", "build-run", "A.xcodeproj", "A"]
-        let plain = try #require(try BuildRunCommand.parse(base))
-        let updating = try #require(try BuildRunCommand.parse(base + ["--allow-provisioning-updates"]))
+        let plain = try Self.physical()
+        let updating = try Self.physical(updates: true)
         let team = "Signing for \"A\" requires a development team. Select a development team in the Signing & Capabilities editor."
         #expect(plain.failureHints(log: team).count == 1)
         #expect(plain.failureHints(log: team).first?.contains("DEVELOPMENT_TEAM") == true)
@@ -158,7 +165,7 @@ struct BuildRunCommandTests {
 
     @Test func unrecognisedBuildFailureIsRethrownUnchanged() throws {
         try fixture { directory in
-            let command = try #require(try BuildRunCommand.parse(["physical", "00000000-0000000000000000", "build-run", "App.xcodeproj", "App"]))
+            let command = try Self.physical(project: "App.xcodeproj", scheme: "App")
             #expect {
                 try command.execute(directory: directory, run: { _ in try settings(directory: directory, platform: "iphoneos") },
                     build: { _, log in
@@ -172,14 +179,14 @@ struct BuildRunCommandTests {
     @Test func unresolvableCoreDeviceUUIDStopsBeforeXcode() async throws {
         let service = CommandService(readinessQuery: { _ in throw CommandFailure(description: "fixture details unavailable") })
         await #expect {
-            try await service.execute(["physical", "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE", "build-run", "nonexistent.xcodeproj", "NoApp"])
+            try await service.run(["build-run", "nonexistent.xcodeproj", "NoApp", "--device", "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"])
         } throws: { String(describing: $0).contains("Pass the device's hardware UDID") }
     }
 
     @Test func dryRunShowsProvisioningEffectAndDeploymentOrder() async throws {
         let service = CommandService()
-        let base = ["physical", "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE", "build-run", "A.xcworkspace", "A"]
-        let plain = try #require(try JSONSerialization.jsonObject(with: await service.execute(base, dryRun: true).data) as? [String: Any])
+        let base = ["build-run", "A.xcworkspace", "A", "--device", "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"]
+        let plain = try #require(try JSONSerialization.jsonObject(with: await service.run(base, dryRun: true).data) as? [String: Any])
         let plainBuild = try #require(plain["buildArguments"] as? [String])
         #expect(!plainBuild.contains("-allowProvisioningUpdates"))
         let plainProvisioning = try #require(plain["provisioning"] as? [String: Any])
@@ -190,7 +197,7 @@ struct BuildRunCommandTests {
             "--device", "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE", "--timeout", "60", "--json-output", "-", "<PRODUCT_BUNDLE_IDENTIFIER>"])
         #expect((plain["installArguments"] as? [String])?.prefix(5) == ["devicectl", "device", "install", "app", "<TARGET_BUILD_DIR>/<FULL_PRODUCT_NAME>"])
 
-        let flagged = try #require(try JSONSerialization.jsonObject(with: await service.execute(
+        let flagged = try #require(try JSONSerialization.jsonObject(with: await service.run(
             base + ["--allow-provisioning-updates", "--allow-device-registration"], dryRun: true).data) as? [String: Any])
         let build = try #require(flagged["buildArguments"] as? [String])
         #expect(build.suffix(3) == ["-allowProvisioningUpdates", "-allowProvisioningDeviceRegistration", "build"])
@@ -199,12 +206,12 @@ struct BuildRunCommandTests {
         #expect(provisioning["allowDeviceRegistration"] as? Bool == true)
         #expect((provisioning["effect"] as? String)?.contains("register this device") == true)
 
-        let simulator = try #require(try JSONSerialization.jsonObject(with: await service.execute(
-            ["simulator", device, "build-run", "A.xcodeproj", "A"], dryRun: true).data) as? [String: Any])
+        let simulator = try #require(try JSONSerialization.jsonObject(with: await service.run(
+            ["build-run", "A.xcodeproj", "A", "--simulator", device], dryRun: true).data) as? [String: Any])
         #expect(simulator["provisioning"] == nil)
         #expect(simulator["destinationResolution"] == nil)
         await #expect(throws: CommandFailure.self) {
-            try await service.execute(["simulator", device, "build-run", "A.xcodeproj", "A", "--allow-provisioning-updates"], dryRun: true)
+            try await service.run(["build-run", "A.xcodeproj", "A", "--allow-provisioning-updates", "--simulator", device], dryRun: true)
         }
     }
 
@@ -216,7 +223,7 @@ struct BuildRunCommandTests {
                      try settings(directory: directory, platform: "iphoneos")] {
             #expect(throws: CommandFailure.self) { try command.product(settings: data) }
         }
-        let selected = try request(["--app-target", "Two"])
+        let selected = try request(appTarget: "Two")
         let product = try selected.product(settings: settings(directory: directory, targets: ["One", "Two"]))
         #expect(product.bundleID == "org.example.build-run")
     }
@@ -293,7 +300,7 @@ struct BuildRunCommandTests {
 
     @Test func physicalDeploymentUsesCoreDeviceAndRestartsExistingApp() throws {
         try fixture { directory in
-            let command = try #require(try BuildRunCommand.parse(["physical", "00000000-0000000000000000", "build-run", "App.xcodeproj", "App"]))
+            let command = try Self.physical(project: "App.xcodeproj", scheme: "App")
             var operations: [[String]] = []
             _ = try command.execute(directory: directory, run: { plan in
                 if plan.arguments.contains("-showBuildSettings") {

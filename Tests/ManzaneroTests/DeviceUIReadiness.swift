@@ -73,14 +73,14 @@ struct DeviceUIReadinessTests {
             #expect(plan.arguments[3] == "displays" || plan.arguments[3] == "lockState")
             return try response(plan.arguments[3], power: "off")
         })
-        let output = try await service.execute(["physical", fixture.udid, "readiness"])
+        let output = try await service.run(["readiness", "--device", fixture.udid])
         let value = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
         let ui = try #require(value["ui"] as? [String: Any])
         #expect(ui["displayPower"] as? String == "off")
         #expect(ui["status"] as? String == "needsUserAction")
         let dryService = CommandService(readinessQuery: { _ in Issue.record("Dry run queried details"); return Data() },
             uiReadinessQuery: { _ in Issue.record("Dry run queried UI state"); return Data() })
-        let dry = try await dryService.execute(["physical", fixture.udid, "readiness"], dryRun: true)
+        let dry = try await dryService.run(["readiness", "--device", fixture.udid], dryRun: true)
         #expect(String(decoding: dry.data, as: UTF8.self).contains("lockState"))
     }
 }

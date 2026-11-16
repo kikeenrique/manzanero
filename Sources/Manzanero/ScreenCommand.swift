@@ -1,27 +1,14 @@
 import Foundation
 import ImageIO
 
-struct ScreenCommand: Sendable {
+struct ScreenCommand: Sendable, Equatable {
     enum Mode: String, Sendable { case automatic = "auto", tree, ocr }
     let platform: String
     let device: String
     let mode: Mode
 
-    static func parse(_ args: [String]) throws -> Self? {
-        guard args.count >= 3, ["physical", "simulator"].contains(args[0]), args[2] == "screen" else { return nil }
-        guard (3...4).contains(args.count), !args[1].isEmpty, !args[1].hasPrefix("-"),
-              let mode = Mode(rawValue: args.count == 4 ? args[3] : "auto"),
-              args[0] != "simulator" || UUID(uuidString: args[1]) != nil else {
-            throw CommandFailure.usage("Usage: screen [auto|tree|ocr] (--device <UDID> | --simulator <UUID>). Simulator screen requires an explicit UUID.")
-        }
-        return Self(platform: args[0], device: args[1], mode: mode)
-    }
-
     func capturePlan(image: URL) throws -> DeviceCommand {
-        guard let plan = try DeviceCommand.parse([platform, device, "screenshot", image.path]) else {
-            throw CommandFailure(.internal, "Cannot plan screen capture.", inputSent: .none)
-        }
-        return plan
+        try DeviceCommand.plan(physical: platform == "physical", device: device, operation: "screenshot", operands: [image.path])
     }
 
     /// `hierarchy` reads the AX tree: the display-centre app on a physical
@@ -97,6 +84,17 @@ struct ScreenCommand: Sendable {
         if let hierarchy { result["hierarchy"] = try JSONSerialization.jsonObject(with: hierarchy) }
         if let text { result["textRegions"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(text.regions)) }
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+    }
+}
+
+extension ScreenCommand {
+    /// `mode` defaults to auto; a simulator is addressed by UUID only.
+    init(platform: String, device: String, mode: String?) throws {
+        guard !device.isEmpty, !device.hasPrefix("-"), let mode = Mode(rawValue: mode ?? "auto"),
+              platform != "simulator" || UUID(uuidString: device) != nil else {
+            throw CommandFailure.usage("Usage: screen [auto|tree|ocr] (--device <UDID> | --simulator <UUID>). Simulator screen requires an explicit UUID.")
+        }
+        self.init(platform: platform, device: device, mode: mode)
     }
 }
 

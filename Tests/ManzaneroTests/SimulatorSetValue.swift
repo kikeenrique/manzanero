@@ -13,18 +13,25 @@ struct SimulatorSetValueTests {
         return fixture
     }
 
-    static func run(_ fixture: Fixture, _ operands: [String], dryRun: Bool = false) async throws -> [String: Any] {
+    /// Runs a command line on the fixture simulator; `command` names no target.
+    static func run(_ fixture: Fixture, _ command: [String], dryRun: Bool = false) async throws -> [String: Any] {
         let directory = URL(fileURLWithPath: "tmp/simulator-leases-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         return try SimulatorAccessibilityTests.json(await SimulatorAccessibilityTests.service(
-            fixture, leases: SimulatorAccessibilityTests.usableLeases(directory)).execute(["simulator", uuid] + operands, dryRun: dryRun))
+            fixture, leases: SimulatorAccessibilityTests.usableLeases(directory)).run(command + ["--simulator", uuid], dryRun: dryRun))
+    }
+
+    /// The validated simulator input for an internal operation and its operands.
+    static func input(_ operation: String, _ operands: [String]) throws -> SimulatorInput {
+        try SimulatorInput(device: uuid, operation: operation, operands: operands)
     }
 
     @Test func operandsAreAnOptionalPIDASelectorAndText() throws {
-        let plain = try #require(try SimulatorInput.parse(["simulator", Self.uuid, "set-value-id", "probe.text.field", "mañana 🚀 中"]))
+        let plain = try Self.input("set-value-id", ["probe.text.field", "mañana 🚀 中"])
         let action = try DirectAccessibilitySetValue(plain.coreDeviceInput)
         #expect(action.guards.by == "identifier" && action.guards.text == "probe.text.field" && action.value == "mañana 🚀 中" && action.guards.pid == nil)
-        let labelled = try DirectAccessibilitySetValue(#require(try SimulatorInput.parse(["simulator", Self.uuid, "set-value-label", "42", "Field", "x"])).coreDeviceInput)
+        #expect(try simulatorInput(["set-value", "--id", "probe.text.field", "mañana 🚀 中", "--simulator", Self.uuid]) == plain)
+        let labelled = try DirectAccessibilitySetValue(Self.input("set-value-label", ["42", "Field", "x"]).coreDeviceInput)
         #expect(labelled.guards.by == "label" && labelled.guards.pid == 42 && labelled.operation == "set-value")
         let invalid: [([String], String)] = [
             (["set-value-id", "only"], "Usage: set-value-id|set-value-label [positive-pid] <exact-selector> <text>; text is 1...65536 UTF-8 bytes without NUL."),
@@ -36,11 +43,11 @@ struct SimulatorSetValueTests {
             (["set-value-id", "0", "field", "x"], "Native AX selector PID must be positive.")
         ]
         for (operands, message) in invalid {
-            let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + operands) }
+            let failure = try #require(throws: CommandFailure.self) { try Self.input(operands[0], Array(operands.dropFirst())) }
             #expect(failure.description == message && failure.code == .usage && failure.inputSent == .none)
         }
         // The largest value is accepted.
-        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "set-value-id", "f", String(repeating: "é", count: 32768)]) != nil)
+        #expect(try Self.input("set-value-id", ["f", String(repeating: "é", count: 32768)]).operands.count == 2)
     }
 
     @Test func requestsCarryTheValueAttributeAndLeaveOtherArchivesUnchanged() throws {
@@ -67,7 +74,7 @@ struct SimulatorSetValueTests {
 
     @Test func aSettableTargetGetsOneSetValueAndAReadBack() async throws {
         let fixture = Self.fixture()
-        let receipt = try await Self.run(fixture, ["set-value-id", "probe.text.field", "mañana 🚀 中"])
+        let receipt = try await Self.run(fixture, ["set-value", "--id", "probe.text.field", "mañana 🚀 中"])
         #expect(fixture.setValues == ["mañana 🚀 中"])
         // Selection, application, two snapshots, live state, settable, hit,
         // rechecks, set-value, read-back.
@@ -85,7 +92,7 @@ struct SimulatorSetValueTests {
     @Test func aTransformedValueIsReportedNotRefused() async throws {
         let fixture = Self.fixture()
         fixture.transform = { $0.uppercased() }
-        let receipt = try await Self.run(fixture, ["set-value-label", "Probe text field", "abc"])
+        let receipt = try await Self.run(fixture, ["set-value", "--label", "Probe text field", "abc"])
         #expect(fixture.setValues == ["abc"] && receipt["valueMatches"] as? Bool == false && receipt["status"] as? String == "acknowledged")
     }
 
@@ -93,7 +100,7 @@ struct SimulatorSetValueTests {
         let fixture = Self.fixture()
         fixture.settable = false
         let failure = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.run(fixture, ["set-value-id", "probe.text.field", "x"])
+            _ = try await Self.run(fixture, ["set-value", "--id", "probe.text.field", "x"])
         })
         #expect(failure.code == .targetUnresolved && failure.inputSent == .none && fixture.setValues.isEmpty && !fixture.kinds.contains(8))
         #expect(failure.description.hasPrefix("Native AX set-value: the target does not report a settable value"))
@@ -102,13 +109,13 @@ struct SimulatorSetValueTests {
     @Test func aMissingOrHiddenTargetIsRefusedLikePress() async throws {
         let missing = Self.fixture()
         let none = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.run(missing, ["set-value-id", "no.such.field", "x"])
+            _ = try await Self.run(missing, ["set-value", "--id", "no.such.field", "x"])
         })
         #expect(none.code == .targetUnresolved && none.inputSent == .none && !missing.kinds.contains(3))
         let hidden = Self.fixture()
         hidden.elements[0].visible = false
         let covered = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.run(hidden, ["set-value-id", "probe.text.field", "x"])
+            _ = try await Self.run(hidden, ["set-value", "--id", "probe.text.field", "x"])
         })
         #expect(covered.code == .preconditionChanged && covered.inputSent == .none && hidden.setValues.isEmpty)
     }
@@ -117,7 +124,7 @@ struct SimulatorSetValueTests {
         let fixture = Self.fixture()
         fixture.actionResult = nil
         let failure = try #require(await #expect(throws: CommandFailure.self) {
-            _ = try await Self.run(fixture, ["set-value-id", "probe.text.field", "x"])
+            _ = try await Self.run(fixture, ["set-value", "--id", "probe.text.field", "x"])
         })
         #expect(failure.code == .inputOutcomeUnknown && failure.inputSent == .possible && failure.retry == .afterInspection)
         #expect(failure.description.contains("state=submitted, stage=set-value"))
@@ -130,14 +137,14 @@ struct SimulatorSetValueTests {
         var holder = ""
         fixture.onAction = { holder = SimulatorAccessibilityTests.leaseHolder(directory) }
         _ = try await SimulatorAccessibilityTests.service(fixture, leases: SimulatorAccessibilityTests.usableLeases(directory))
-            .execute(["simulator", Self.uuid, "set-value-id", "probe.text.field", "x"])
+            .run(["set-value", "--id", "probe.text.field", "x", "--simulator", Self.uuid])
         #expect(holder.contains("set-value-id"))
     }
 
     @Test func dryRunPlansWithoutLookingTheSimulatorUp() async throws {
         let fixture = Self.fixture()
         let plan = try SimulatorAccessibilityTests.json(await SimulatorAccessibilityTests.service(fixture, state: "Shutdown")
-            .execute(["simulator", Self.uuid, "set-value-label", "7", "Field", "héllo"], dryRun: true))
+            .run(["set-value", "--label", "Field", "--pid", "7", "héllo", "--simulator", Self.uuid], dryRun: true))
         #expect(plan["operation"] as? String == "set-value" && plan["pid"] as? Int == 7 && plan["requestedUTF8Bytes"] as? Int == 6)
         #expect(plan["deviceLease"] as? String == "simulator UUID" && plan["backend"] as? String == "coresimulator-ax")
         #expect((plan["execution"] as? String)?.contains("type 8, attribute 53") == true)

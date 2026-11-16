@@ -58,34 +58,34 @@ struct DeviceReadinessTests {
         let data = try fixture(mode: ["disabled": [:]])
         let service = CommandService(readinessQuery: { _ in data })
         do {
-            _ = try await service.execute(["physical", "fixture", "record", "tmp/blocked.mp4", "1"])
+            _ = try await service.run(["record", "tmp/blocked.mp4", "1", "--device", "fixture"])
             Issue.record("Disabled device reached recording")
         } catch {
             #expect(String(describing: error).contains("Developer Mode is disabled"))
         }
         do {
-            _ = try await service.execute(["physical", "00000000-0000000000000000", "build-run", "nonexistent.xcodeproj", "NoApp"])
+            _ = try await service.run(["build-run", "nonexistent.xcodeproj", "NoApp", "--device", "00000000-0000000000000000"])
             Issue.record("Disabled device reached build")
         } catch {
             #expect(String(describing: error).contains("Developer Mode is disabled"))
         }
-        let output = try await service.execute(["physical", "fixture", "readiness"])
+        let output = try await service.run(["readiness", "--device", "fixture"])
         #expect(output.exitCode == 1)
         do {
-            _ = try await service.execute(["physical", "fixture", "screen"])
+            _ = try await service.run(["screen", "--device", "fixture"])
             Issue.record("Disabled device reached screen capture")
         } catch {
             #expect(String(describing: error).contains("Developer Mode is disabled"))
         }
         do {
-            _ = try await service.execute(["physical", "fixture", "type", "fixture"])
+            _ = try await service.run(["type", "fixture", "--device", "fixture"])
             Issue.record("Disabled device reached physical typing")
         } catch {
             #expect(String(describing: error).contains("Developer Mode is disabled"))
         }
         for operands in [["pinch", "0.5", "0.5", "0.5", "1", "1"], ["multi-drag", "1", "0", "0", "1", "1", "1", "1", "0", "0"]] {
             do {
-                _ = try await service.execute(["physical", "fixture"] + operands)
+                _ = try await service.run(operands + ["--device", "fixture"])
                 Issue.record("Disabled device reached moving multitouch")
             } catch {
                 #expect(String(describing: error).contains("Developer Mode is disabled"))

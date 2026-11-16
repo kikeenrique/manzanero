@@ -1,9 +1,9 @@
 import ArgumentParser
 
-// One type per operation. Each declares its operands and options, and says in
-// `legacyOperation` (or `legacyArguments`) what the command service runs.
+// One type per operation. Each declares its operands and options and builds
+// its `CommandRequest`, the one place that says what the command service runs.
 // Operands stay text here: the operations' own validators convert and check
-// them, so their messages do not depend on the parser.
+// them while the request is built, so their messages do not depend on the parser.
 
 private let receiptCaveat = "A receipt reports what was sent, not what the app did; inspect the screen afterward."
 private let coordinateNote = "Coordinates are normalized 0...1 from the top left of the current interface."
@@ -18,7 +18,7 @@ extension ManzaneroCLI {
         @OptionGroup var common: CommonOptions
         @Argument(help: "Normalized x, 0...1.") var x: String
         @Argument(help: "Normalized y, 0...1.") var y: String
-        var legacyOperation: [String] { ["tap", x, y] }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "tap", [x, y]) }
     }
 
     struct LongPress: TargetedCommand {
@@ -29,7 +29,7 @@ extension ManzaneroCLI {
         @Argument(help: "Normalized x, 0...1.") var x: String
         @Argument(help: "Normalized y, 0...1.") var y: String
         @Argument(help: "Hold duration, 0.1...10 seconds.") var seconds: String
-        var legacyOperation: [String] { ["long-press", x, y, seconds] }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "long-press", [x, y, seconds]) }
     }
 
     /// The operands of `swipe` and `drag`, which are one movement.
@@ -48,7 +48,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var path: PathOperands
-        var legacyOperation: [String] { ["swipe"] + path.values }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "swipe", path.values) }
     }
 
     struct Drag: TargetedCommand {
@@ -57,7 +57,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var path: PathOperands
-        var legacyOperation: [String] { ["drag"] + path.values }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "drag", path.values) }
     }
 
     struct Pinch: TargetedCommand {
@@ -70,7 +70,9 @@ extension ManzaneroCLI {
         @Argument(help: "Start span, a positive fraction of the width.") var startSpan: String
         @Argument(help: "End span, a positive fraction of the width.") var endSpan: String
         @Argument(help: "Duration, 0.03...10 seconds.") var seconds: String
-        var legacyOperation: [String] { ["pinch", centerX, centerY, startSpan, endSpan, seconds] }
+        func request(_ target: Target) throws -> CommandRequest {
+            try .input(target, "pinch", [centerX, centerY, startSpan, endSpan, seconds])
+        }
     }
 
     struct MultiTap: TargetedCommand {
@@ -79,7 +81,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: ArgumentHelp("Two to five x y pairs.", valueName: "x y")) var coordinates: [String]
-        var legacyOperation: [String] { ["multi-tap"] + coordinates }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "multi-tap", coordinates) }
     }
 
     struct MultiDrag: TargetedCommand {
@@ -89,7 +91,7 @@ extension ManzaneroCLI {
         @OptionGroup var common: CommonOptions
         @Argument(help: "Duration, 0.03...10 seconds.") var seconds: String
         @Argument(help: ArgumentHelp("Two to five paths of four normalized numbers.", valueName: "path")) var paths: [String]
-        var legacyOperation: [String] { ["multi-drag", seconds] + paths }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "multi-drag", [seconds] + paths) }
     }
 
     struct Gesture: TargetedCommand {
@@ -98,7 +100,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "The JSON sequence.") var sequence: String
-        var legacyOperation: [String] { ["gesture", sequence] }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "gesture", [sequence]) }
     }
 
     struct Button: TargetedCommand {
@@ -108,7 +110,7 @@ extension ManzaneroCLI {
         @OptionGroup var common: CommonOptions
         @Argument(help: ArgumentHelp("home, lock, volume-up or volume-down.", valueName: "button"),
                   completion: .list(["home", "lock", "volume-up", "volume-down"])) var name: String
-        var legacyOperation: [String] { ["button", name] }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "button", [name]) }
     }
 
     struct Key: TargetedCommand {
@@ -117,7 +119,7 @@ extension ManzaneroCLI {
         @OptionGroup var common: CommonOptions
         @Argument(help: ArgumentHelp("return, escape, backspace, tab, space, up, down, left or right.", valueName: "key"),
                   completion: .list(["return", "escape", "backspace", "tab", "space", "up", "down", "left", "right"])) var name: String
-        var legacyOperation: [String] { ["key", name] }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "key", [name]) }
     }
 
     struct TypeText: TargetedCommand {
@@ -126,7 +128,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "The text; put -- before text that begins with '-'.") var text: String
-        var legacyOperation: [String] { ["type", text] }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "type", [text]) }
     }
 
     struct Paste: TargetedCommand {
@@ -135,7 +137,8 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "1...65536 UTF-8 bytes without NUL.") var text: String
-        var legacyOperation: [String] { ["paste", text] }
+        // A simulator refuses paste with its own message (SimulatorInput).
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "paste", [text]) }
     }
 
     struct Wake: TargetedCommand {
@@ -144,7 +147,9 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Flag(help: "Do not press Home to leave the lock screen.") var noDismiss = false
-        var legacyOperation: [String] { ["wake"] + (noDismiss ? ["--no-dismiss"] : []) }
+        func request(_ target: Target) throws -> CommandRequest {
+            try .input(target, DirectPhysicalWake.operation, noDismiss ? [DirectPhysicalWake.noDismissFlag] : [])
+        }
     }
 
     // MARK: Accessibility
@@ -155,7 +160,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Option(help: ArgumentHelp("Positive PID of the application to read.", valueName: "pid")) var pid: String?
-        var legacyOperation: [String] { ["tree"] + (pid.map { [$0] } ?? []) }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "tree", pid.map { [$0] } ?? []) }
     }
 
     struct Press: TargetedCommand {
@@ -164,7 +169,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions
-        var legacyOperation: [String] { selector.legacy("press") }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, selector.operation("press"), selector.operands) }
     }
 
     struct Scroll: TargetedCommand {
@@ -173,7 +178,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions
-        var legacyOperation: [String] { selector.legacy("scroll") }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, selector.operation("scroll"), selector.operands) }
     }
 
     struct Wait: TargetedCommand {
@@ -187,9 +192,11 @@ extension ManzaneroCLI {
         @Option(parsing: .unconditional, help: ArgumentHelp("Exact expected value, for --until value.", valueName: "text")) var value: String?
         @Option(help: ArgumentHelp("Seconds, 0...60 (default 10).", valueName: "seconds")) var timeout: String?
         @Option(help: ArgumentHelp("Seconds between polls, 0.25...5 (default 0.5).", valueName: "seconds")) var interval: String?
-        var legacyOperation: [String] {
-            selector.legacy("wait") + [("--until", until), ("--value", value), ("--timeout", timeout), ("--interval", interval)]
-                .flatMap { name, value in value.map { [name, $0] } ?? [] }
+        /// AccessibilityWait reads the options after the selector, by name.
+        func request(_ target: Target) throws -> CommandRequest {
+            try .input(target, selector.operation("wait"), selector.operands
+                + [("--until", until), ("--value", value), ("--timeout", timeout), ("--interval", interval)]
+                    .flatMap { name, value in value.map { [name, $0] } ?? [] })
         }
     }
 
@@ -200,7 +207,10 @@ extension ManzaneroCLI {
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions
         @Argument(help: "The new value, 1...65536 UTF-8 bytes without NUL.") var text: String
-        var legacyOperation: [String] { selector.legacy("set-value") + [text] }
+        func request(_ target: Target) throws -> CommandRequest {
+            guard target.platform == .simulator else { throw CommandFailure.unsupported(DirectAccessibilitySetValue.physicalRefusal) }
+            return try .input(target, selector.operation("set-value"), selector.operands + [text])
+        }
     }
 
     // MARK: Screen
@@ -210,7 +220,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "Output path ending in .png.", completion: .file(extensions: ["png"])) var output: String
-        var legacyOperation: [String] { ["screenshot", output] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "screenshot", [output])) }
     }
 
     struct Screen: TargetedCommand {
@@ -219,7 +229,9 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "auto (default), tree or ocr.", completion: .list(["auto", "tree", "ocr"])) var mode: String?
-        var legacyOperation: [String] { ["screen"] + (mode.map { [$0] } ?? []) }
+        func request(_ target: Target) throws -> CommandRequest {
+            .screen(try ScreenCommand(platform: target.platform.rawValue, device: target.identifier, mode: mode))
+        }
     }
 
     struct Record: TargetedCommand {
@@ -232,10 +244,9 @@ extension ManzaneroCLI {
         @Argument(help: "h264 (default) or hevc.", completion: .list(["h264", "hevc"])) var codec: String?
         @Option(help: ArgumentHelp("Physical recording backend: devicectl (default) or coredevice.", valueName: "backend"),
                 completion: .list(["devicectl", "coredevice"])) var backend: String?
-        var legacyOperation: [String] { ["record", output, seconds] + (codec.map { [$0] } ?? []) }
-        func legacyArguments(environment: [String: String]) throws -> [String] {
-            let target = try target.resolve(environment)
-            return (backend.map { ["--recording-backend", $0] } ?? []) + [target.platform.rawValue, target.identifier] + legacyOperation
+        func request(_ target: Target) throws -> CommandRequest {
+            .record(try RecordingCommand(physical: target.platform == .physical, device: target.identifier, output: output,
+                                         seconds: seconds, codec: codec, backend: backend))
         }
     }
 
@@ -245,7 +256,7 @@ extension ManzaneroCLI {
         static let configuration = CommandConfiguration(commandName: "apps", abstract: "List installed apps.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        var legacyOperation: [String] { ["apps"] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "apps")) }
     }
 
     struct Launch: TargetedCommand {
@@ -253,7 +264,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "Bundle identifier.") var bundleID: String
-        var legacyOperation: [String] { ["launch", bundleID] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "launch", [bundleID])) }
     }
 
     struct Terminate: TargetedCommand {
@@ -262,7 +273,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: ArgumentHelp("PID (device) or bundle identifier (simulator).", valueName: "pid-or-bundle-id")) var app: String
-        var legacyOperation: [String] { ["terminate", app] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "terminate", [app])) }
     }
 
     struct Install: TargetedCommand {
@@ -270,7 +281,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "Path of the .app.", completion: .directory) var appPath: String
-        var legacyOperation: [String] { ["install", appPath] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "install", [appPath])) }
     }
 
     struct Uninstall: TargetedCommand {
@@ -278,7 +289,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "Bundle identifier.") var bundleID: String
-        var legacyOperation: [String] { ["uninstall", bundleID] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "uninstall", [bundleID])) }
     }
 
     struct OpenURL: TargetedCommand {
@@ -286,7 +297,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "An absolute URL with a scheme.") var url: String
-        var legacyOperation: [String] { ["open-url", url] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "open-url", [url])) }
     }
 
     struct Files: ParsableCommand {
@@ -300,7 +311,7 @@ extension ManzaneroCLI {
             @OptionGroup var common: CommonOptions
             @Argument(help: "Bundle identifier.") var bundleID: String
             @Argument(help: "Relative directory; '.' for the root.") var remotePath: String
-            var legacyOperation: [String] { ["files", bundleID, remotePath] }
+            func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "files", [bundleID, remotePath])) }
         }
 
         struct Pull: TargetedCommand {
@@ -310,7 +321,9 @@ extension ManzaneroCLI {
             @Argument(help: "Bundle identifier.") var bundleID: String
             @Argument(help: "Relative path in the container.") var remotePath: String
             @Argument(help: "Destination on the Mac.", completion: .file()) var localPath: String
-            var legacyOperation: [String] { ["pull", bundleID, remotePath, localPath] }
+            func request(_ target: Target) throws -> CommandRequest {
+                .tool(try DeviceOperation(target, "pull", [bundleID, remotePath, localPath]))
+            }
         }
 
         struct Push: TargetedCommand {
@@ -320,7 +333,9 @@ extension ManzaneroCLI {
             @Argument(help: "Bundle identifier.") var bundleID: String
             @Argument(help: "Source on the Mac.", completion: .file()) var localPath: String
             @Argument(help: "Relative path in the container.") var remotePath: String
-            var legacyOperation: [String] { ["push", bundleID, localPath, remotePath] }
+            func request(_ target: Target) throws -> CommandRequest {
+                .tool(try DeviceOperation(target, "push", [bundleID, localPath, remotePath]))
+            }
         }
     }
 
@@ -334,7 +349,7 @@ extension ManzaneroCLI {
             @OptionGroup var target: TargetOptions
             @OptionGroup var common: CommonOptions
             @Argument(help: "Relative directory (default '.').") var directory: String?
-            var legacyOperation: [String] { ["reports"] + (directory.map { [$0] } ?? []) }
+            func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "reports", directory.map { [$0] } ?? [])) }
         }
 
         struct Get: TargetedCommand {
@@ -344,7 +359,7 @@ extension ManzaneroCLI {
             @OptionGroup var common: CommonOptions
             @Argument(help: "Relative report path.") var remotePath: String
             @Argument(help: "Destination on the Mac.", completion: .file()) var localPath: String
-            var legacyOperation: [String] { ["report", remotePath, localPath] }
+            func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "report", [remotePath, localPath])) }
         }
     }
 
@@ -364,10 +379,10 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("The application target, when the scheme builds several.", valueName: "name")) var appTarget: String?
         @Flag(help: "Let Xcode create or update signing assets on Apple's developer services (physical).") var allowProvisioningUpdates = false
         @Flag(help: "Also let Xcode register this device with the team; needs --allow-provisioning-updates.") var allowDeviceRegistration = false
-        var legacyOperation: [String] {
-            ["build-run", project, scheme] + (configuration.map { ["--configuration", $0] } ?? []) + (appTarget.map { ["--app-target", $0] } ?? [])
-                + (allowProvisioningUpdates ? [BuildRunCommand.provisioningUpdatesFlag] : [])
-                + (allowDeviceRegistration ? [BuildRunCommand.deviceRegistrationFlag] : [])
+        func request(_ target: Target) throws -> CommandRequest {
+            .buildRun(try BuildRunCommand(physical: target.platform == .physical, device: target.identifier, project: project, scheme: scheme,
+                                          configuration: configuration, appTarget: appTarget,
+                                          allowProvisioningUpdates: allowProvisioningUpdates, allowDeviceRegistration: allowDeviceRegistration))
         }
     }
 
@@ -396,11 +411,12 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("At most this many entries (default 2000, at most 10000).", valueName: "n")) var maxEntries: String?
         @Option(help: ArgumentHelp("At most this many bytes (default 1 MiB, at most 8 MiB).", valueName: "n")) var maxBytes: String?
         @Option(help: ArgumentHelp("Write every kept entry as NDJSON to this new file.", valueName: "path"), completion: .file()) var output: String?
-        var legacyOperation: [String] {
-            ["logs"] + [("--seconds", seconds), ("--last", last), ("--start", start), ("--end", end), ("--bundle", bundle),
-                        ("--pid", pid), ("--process", process), ("--subsystem", subsystem), ("--category", category),
-                        ("--level", level), ("--max-entries", maxEntries), ("--max-bytes", maxBytes), ("--output", output)]
-                .flatMap { name, value in value.map { [name, $0] } ?? [] }
+        func request(_ target: Target) throws -> CommandRequest {
+            let options = DiagnosticOptions(values: [
+                "--seconds": seconds, "--last": last, "--start": start, "--end": end, "--bundle": bundle, "--pid": pid,
+                "--process": process, "--subsystem": subsystem, "--category": category, "--level": level,
+                "--max-entries": maxEntries, "--max-bytes": maxBytes, "--output": output])
+            return .diagnostics(try .make(physical: target.platform == .physical, device: target.identifier, operation: "logs", options: options))
         }
     }
 
@@ -419,9 +435,11 @@ extension ManzaneroCLI {
         @Flag(help: "Mirror the app's os_log lines to its stderr.") var osLog = false
         @Flag(help: "Simulator: terminate the app at the end.") var terminate = false
         @Argument(parsing: .postTerminator, help: ArgumentHelp("Arguments for the app, after --.", valueName: "app-argument")) var appArguments: [String] = []
-        var legacyOperation: [String] {
-            ["console", bundleID, "--seconds", seconds] + (maxBytes.map { ["--max-bytes", $0] } ?? [])
-                + (osLog ? ["--os-log"] : []) + (terminate ? ["--terminate"] : []) + (appArguments.isEmpty ? [] : ["--"] + appArguments)
+        func request(_ target: Target) throws -> CommandRequest {
+            let options = DiagnosticOptions(values: ["--seconds": seconds, "--max-bytes": maxBytes],
+                                            flags: ["--os-log": osLog, "--terminate": terminate],
+                                            positional: [bundleID], trailing: appArguments)
+            return .diagnostics(try .make(physical: target.platform == .physical, device: target.identifier, operation: "console", options: options))
         }
     }
 
@@ -434,9 +452,9 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("Process name of the app.", valueName: "name")) var process: String?
         @Option(help: ArgumentHelp("Ignore reports older than this ISO-8601 date.", valueName: "date")) var since: String?
         @Option(help: ArgumentHelp("Copy the report into this existing directory.", valueName: "dir"), completion: .directory) var download: String?
-        var legacyOperation: [String] {
-            ["last-crash"] + [("--bundle", bundle), ("--process", process), ("--since", since), ("--download", download)]
-                .flatMap { name, value in value.map { [name, $0] } ?? [] }
+        func request(_ target: Target) throws -> CommandRequest {
+            let options = DiagnosticOptions(values: ["--bundle": bundle, "--process": process, "--since": since, "--download": download])
+            return .diagnostics(try .make(physical: target.platform == .physical, device: target.identifier, operation: "last-crash", options: options))
         }
     }
 
@@ -446,21 +464,21 @@ extension ManzaneroCLI {
         static let configuration = CommandConfiguration(commandName: "devices", abstract: "List physical devices, or simulators, as JSON.")
         @OptionGroup var common: CommonOptions
         @Flag(help: "List available simulators instead of physical devices.") var simulators = false
-        func legacyArguments(environment: [String: String]) throws -> [String] { ["devices", simulators ? "simulators" : "physical"] }
+        func request(environment: [String: String]) throws -> CommandRequest { .devices(simulators: simulators) }
     }
 
     struct Details: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "details", abstract: "Show CoreDevice details (physical devices).")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        var legacyOperation: [String] { ["details"] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "details")) }
     }
 
     struct Processes: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "processes", abstract: "List running processes (physical devices).")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        var legacyOperation: [String] { ["processes"] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "processes")) }
     }
 
     struct Readiness: TargetedCommand {
@@ -468,7 +486,12 @@ extension ManzaneroCLI {
             discussion: "Exits 1 unless the prerequisites are present. Does not verify UI Automation or prove that the UI is unlocked.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        var legacyOperation: [String] { ["readiness"] }
+        /// A simulator has no readiness report: devicectl's refusal applies.
+        func request(_ target: Target) throws -> CommandRequest {
+            guard target.platform == .physical else { return .tool(try DeviceOperation(target, "readiness")) }
+            guard !target.identifier.isEmpty, !target.identifier.hasPrefix("-") else { throw CommandFailure.usage("Provide a valid device identifier.") }
+            return .readiness(device: target.identifier)
+        }
     }
 
     struct MediaStatus: TargetedCommand {
@@ -476,21 +499,25 @@ extension ManzaneroCLI {
                                                         discussion: "Never starts or stops a stream.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        var legacyOperation: [String] { ["media-status"] }
+        func request(_ target: Target) throws -> CommandRequest {
+            guard target.platform == .physical else { return .tool(try DeviceOperation(target, "media-status")) }
+            guard !target.identifier.isEmpty, !target.identifier.hasPrefix("-") else { throw CommandFailure.usage("Usage: media-status --device <UDID>") }
+            return .mediaStatus(device: target.identifier)
+        }
     }
 
     struct Boot: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "boot", abstract: "Boot a simulator.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        var legacyOperation: [String] { ["boot"] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "boot")) }
     }
 
     struct Shutdown: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "shutdown", abstract: "Shut down a simulator; running apps are interrupted.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        var legacyOperation: [String] { ["shutdown"] }
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "shutdown")) }
     }
 
     struct Handoff: TargetedCommand {
@@ -500,7 +527,9 @@ extension ManzaneroCLI {
         @OptionGroup var common: CommonOptions
         @Argument(help: "What the person should do, 1...2048 UTF-8 bytes.") var message: String
         @Argument(help: "Seconds to wait for the answer, 1...3600 (default 300).") var timeout: String?
-        var legacyOperation: [String] { ["handoff", message] + (timeout.map { [$0] } ?? []) }
+        func request(_ target: Target) throws -> CommandRequest {
+            .handoff(try HandoffCommand(platform: target.platform.rawValue, device: target.identifier, message: message, timeout: timeout))
+        }
     }
 
     // MARK: Host
@@ -509,21 +538,24 @@ extension ManzaneroCLI {
         static let configuration = CommandConfiguration(commandName: "doctor", abstract: "Check Xcode, device services and private interfaces on this Mac.",
                                                         discussion: "Contacts no device.")
         @OptionGroup var common: CommonOptions
-        func legacyArguments(environment: [String: String]) throws -> [String] { ["doctor"] }
+        func request(environment: [String: String]) throws -> CommandRequest { .doctor }
     }
 
     struct OCR: CLICommand {
         static let configuration = CommandConfiguration(commandName: "ocr", abstract: "Recognize text in an image, with normalized bounds.")
         @OptionGroup var common: CommonOptions
         @Argument(help: "Image path.", completion: .file()) var imagePath: String
-        func legacyArguments(environment: [String: String]) throws -> [String] { ["ocr", imagePath] }
+        func request(environment: [String: String]) throws -> CommandRequest { .ocr(path: imagePath) }
     }
 
     struct DecodeAXArchive: CLICommand {
         static let configuration = CommandConfiguration(commandName: "decode-ax-archive", abstract: "Inspect a saved accessibility keyed archive offline.")
         @OptionGroup var common: CommonOptions
         @Argument(help: "Local plist path.", completion: .file()) var path: String
-        func legacyArguments(environment: [String: String]) throws -> [String] { ["decode-ax-archive", path] }
+        func request(environment: [String: String]) throws -> CommandRequest {
+            guard !path.isEmpty else { throw CommandFailure.usage("Usage: decode-ax-archive <local-plist>") }
+            return .decodeArchive(path: path)
+        }
     }
 
     struct MCPServe: ParsableCommand {

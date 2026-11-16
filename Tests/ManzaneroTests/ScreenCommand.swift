@@ -32,13 +32,13 @@ struct ScreenCommandTests {
     }
 
     @Test func validatesModesTargetsAndAcceptsForegroundPhysicalTree() throws {
-        #expect(try ScreenCommand.parse(["simulator", device, "screen"])?.mode == .automatic)
-        #expect(try ScreenCommand.parse(["physical", "fixture", "screen", "tree"])?.mode == .tree)
-        for args in [["simulator", "booted", "screen"], ["simulator", device, "screen", "unknown"]] {
-            #expect(throws: CommandFailure.self) { try ScreenCommand.parse(args) }
+        #expect(try ScreenCommand(platform: "simulator", device: device, mode: nil).mode == .automatic)
+        #expect(try ScreenCommand(platform: "physical", device: "fixture", mode: "tree").mode == .tree)
+        for (target, mode) in [("booted", nil), (device, "unknown")] as [(String, String?)] {
+            #expect(throws: CommandFailure.self) { try ScreenCommand(platform: "simulator", device: target, mode: mode) }
         }
-        #expect(try ScreenCommand.parse(["simulator", device, "screen", "tree"])?.mode == .tree)
-        #expect(try ScreenCommand.parse(["simulator", device, "screen", "ocr"])?.mode == .ocr)
+        #expect(try ScreenCommand(platform: "simulator", device: device, mode: "tree").mode == .tree)
+        #expect(try ScreenCommand(platform: "simulator", device: device, mode: "ocr").mode == .ocr)
     }
 
     @Test func simulatorAutoPrefersTheFrontmostApplicationTree() async throws {

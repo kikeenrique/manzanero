@@ -51,7 +51,7 @@ struct DirectPhysicalInputTests {
 
     @Test func defaultPhysicalButtonDryRunUsesDirectBackendWithoutQueries() async throws {
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() })
-        let output = try await service.execute(["physical", CoreDeviceInputTests().udid, "button", "home"], dryRun: true)
+        let output = try await service.run(["button", "home", "--device", CoreDeviceInputTests().udid], dryRun: true)
         let result = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
         #expect(result["backend"] as? String == "coredevice-direct")
         #expect(result["executable"] == nil)

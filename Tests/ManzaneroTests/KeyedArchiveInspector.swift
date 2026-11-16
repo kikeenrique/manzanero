@@ -109,7 +109,7 @@ struct KeyedArchiveInspectorTests {
         let bytes = try NSKeyedArchiver.archivedData(withRootObject: "local fixture", requiringSecureCoding: true)
         try bytes.write(to: URL(fileURLWithPath: path))
         let service = CommandService(readinessQuery: { _ in Issue.record("Offline inspection queried device"); return Data() })
-        let cli = try await service.execute(["decode-ax-archive", path])
+        let cli = try await service.run(["decode-ax-archive", path])
         let expected = try KeyedArchiveInspector.inspect(bytes)
         #expect(cli.data == expected)
         let mcp = try await MCPTools.call(name: "decode_accessibility_archive", arguments: ["path": .string(path)]) {

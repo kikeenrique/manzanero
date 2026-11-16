@@ -60,7 +60,7 @@ struct NativeGestureSequenceTests {
         let tool = try #require(MCPTools.definitions.first { $0.name == "perform_gesture" })
         #expect(tool.readOnly == false)
         let args = try tool.command(["device": .string(fixture.udid), "sequence": .string(doubleTap)])
-        let command = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(args))))
+        let command = try #require(try physicalInput(args))
         #expect(command.operands == [doubleTap])
         let dry = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() }).run(args, dryRun: true)
         #expect(String(decoding: dry.data, as: UTF8.self).contains("coredevice-direct"))

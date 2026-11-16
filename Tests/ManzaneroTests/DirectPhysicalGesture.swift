@@ -47,7 +47,7 @@ struct DirectPhysicalGestureTests {
         for arguments in [["multi-tap", "0.25", "0.25", "0.75", "0.25"],
                           ["multi-drag", "10"] + Array(repeating: "0.5", count: 12)] {
             let output = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried"); return Data() })
-                .execute(["physical", CoreDeviceInputTests().udid] + arguments, dryRun: true)
+                .run(arguments + ["--device", CoreDeviceInputTests().udid], dryRun: true)
             let result = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
             #expect(result["backend"] as? String == "coredevice-direct")
             #expect(result["operation"] as? String == arguments[0])
@@ -159,7 +159,7 @@ struct DirectPhysicalGestureTests {
 
     @Test func defaultGestureDryRunNeverQueriesOrPlansHelper() async throws {
         let output = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried"); return Data() })
-            .execute(["physical", CoreDeviceInputTests().udid, "gesture", NativeGestureSequenceTests().doubleTap], dryRun: true)
+            .run(["gesture", NativeGestureSequenceTests().doubleTap, "--device", CoreDeviceInputTests().udid], dryRun: true)
         let result = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
         #expect(result["backend"] as? String == "coredevice-direct" && result["frameCount"] as? Int == 4)
         #expect(result["actionArguments"] == nil && result["executable"] == nil)

@@ -117,12 +117,12 @@ struct DirectPhysicalAccessibilityTests {
         #expect(mcp.isError == false && mcp.structuredContent?.objectValue?["result"]?.objectValue?["pid"] == 42)
         let plan = try #require(try JSONSerialization.jsonObject(with: cli.data) as? [String: Any])
         #expect(plan["liveVerified"] as? Bool == false && plan["executable"] == nil)
-        let foreground = try await service.execute(["physical", "fixture", "tree"], dryRun: true)
+        let foreground = try await service.run(["tree", "--device", "fixture"], dryRun: true)
         let foregroundPlan = try #require(JSONSerialization.jsonObject(with: foreground.data) as? [String: Any])
         #expect(foregroundPlan["pid"] is NSNull)
-        for invalid in [["--physical-backend", "coredevice", "simulator", "fixture", "tree", "42"],
-                        ["--physical-backend", "coredevice", "physical", "fixture", "tree", "0"]] {
-            await #expect(throws: CommandFailure.self) { try await service.execute(invalid, dryRun: true) }
+        for invalid in [["tree", "--pid", "42", "--simulator", "fixture"],
+                        ["tree", "--pid", "0", "--device", "fixture"]] {
+            await #expect(throws: CommandFailure.self) { try await service.run(invalid, dryRun: true) }
         }
     }
 }

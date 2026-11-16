@@ -72,13 +72,15 @@ struct NativeMediaInspectionTests {
 
     @Test func sharedCLIAndMCPDryRunsDoNotQueryOrClaimCapture() async throws {
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried"); return Data() })
-        let result = try await service.execute(["physical", "fixture", "media-status"], dryRun: true)
+        let result = try await service.run(["media-status", "--device", "fixture"], dryRun: true)
         let value = try #require(JSONSerialization.jsonObject(with: result.data) as? [String: Any])
         #expect(value["readOnly"] as? Bool == true && value["operation"] as? String == "media-status")
         let tool = try #require(MCPTools.definitions.first { $0.name == "inspect_device" })
         #expect(tool.readOnly)
         #expect(try tool.command(["platform": "physical", "device": "fixture", "query": "media-status"]) == ["media-status", "--device=fixture"])
-        #expect(throws: CommandFailure.self) { try NativeMediaInspection.parse(["physical", "fixture", "media-status", "stop"]) }
+        // media-status takes no operands: an extra one is the parser's usage error.
+        let extra = try #require(throws: CommandFailure.self) { try CLI.parse(["media-status", "stop", "--device", "fixture"], environment: [:]) }
+        #expect(extra.code == .usage)
         let disabled = try DeviceReadinessTests().fixture(mode: "disabled")
         #expect(throws: CommandFailure.self) { try NativeMediaInspection.execute(device: "fixture", query: { _ in disabled }) }
     }

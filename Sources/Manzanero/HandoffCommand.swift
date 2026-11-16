@@ -1,24 +1,28 @@
 import Foundation
 import Darwin
 
-struct HandoffCommand: Sendable {
+struct HandoffCommand: Sendable, Equatable {
     let platform: String
     let device: String
     let message: String
     let timeoutSeconds: Int
     let target: DeviceTarget
 
-    static func parse(_ args: [String]) throws -> Self? {
-        guard args.count >= 3, ["physical", "simulator"].contains(args[0]), args[2] == "handoff" else { return nil }
-        guard (4...5).contains(args.count), let identifier = DeviceTarget.identifier(args[1]),
-              args[0] != "simulator" || UUID(uuidString: args[1]) != nil,
-              args[0] != "physical" || UUID(uuidString: args[1]) == nil,
-              !args[3].isEmpty, args[3].utf8.count <= 2048,
-              args[3].unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) || $0.value == 9 || $0.value == 10 }),
-              let timeout = Int(args.count == 5 ? args[4] : "300"), (1...3600).contains(timeout) else {
+    /// A physical device takes a hardware UDID, a simulator its UUID.
+    init(platform: String, device: String, message: String, timeout: String?) throws {
+        guard let identifier = DeviceTarget.identifier(device),
+              platform != "simulator" || UUID(uuidString: device) != nil,
+              platform != "physical" || UUID(uuidString: device) == nil,
+              !message.isEmpty, message.utf8.count <= 2048,
+              message.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) || $0.value == 9 || $0.value == 10 }),
+              let timeout = Int(timeout ?? "300"), (1...3600).contains(timeout) else {
             throw CommandFailure.usage("Usage: handoff <message> [terminal-timeout-seconds: 1...3600] (--device <UDID> | --simulator <UUID>). Message must be 1...2048 UTF-8 bytes without terminal control codes.")
         }
-        return Self(platform: args[0], device: args[1], message: args[3], timeoutSeconds: timeout, target: DeviceTarget(platform: args[0], identifier: identifier))
+        self.platform = platform
+        self.device = device
+        self.message = message
+        self.timeoutSeconds = timeout
+        self.target = DeviceTarget(platform: platform, identifier: identifier)
     }
 
     func output(_ status: HandoffStatus, mechanism: String) throws -> CommandOutput {

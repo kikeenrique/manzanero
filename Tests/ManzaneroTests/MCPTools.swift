@@ -18,11 +18,11 @@ struct MCPToolsTests {
         let pinch = try #require(MCPTools.definitions.first { $0.name == "pinch" })
         let args = try pinch.command(["device": "fixture", "center_x": 0.5, "center_y": 0.5, "start_span": 1, "end_span": 0.5, "seconds": 1])
         #expect(args == ["pinch", "--device=fixture", "--", "0.5", "0.5", "1", "0.5", "1"])
-        let planned = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(args))))
+        let planned = try #require(try physicalInput(args))
         #expect(planned.operation == "pinch" && planned.operands == ["0.5", "0.5", "1", "0.5", "1"])
         let multi = try #require(MCPTools.definitions.first { $0.name == "multi_drag" })
         let multiArgs = try multi.command(["device": "fixture", "paths": [0, 0, 1, 1, 1, 1, 0, 0], "seconds": 1])
-        let multiPlan = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(multiArgs))))
+        let multiPlan = try #require(try physicalInput(multiArgs))
         #expect(multiPlan.operation == "multi-drag" && multiPlan.operands == ["1", "0", "0", "1", "1", "1", "1", "0", "0"])
     }
     @Test func catalogHasUniqueNamesAndClosedObjectSchemas() throws {
@@ -41,7 +41,7 @@ struct MCPToolsTests {
         let typing = try #require(MCPTools.definitions.first { $0.name == "type_text" })
         let text = "$(touch sentinel); 'hello'\nworld"
         let args = try typing.command(["device": "11111111-2222-3333-4444-555555555555", "text": .string(text)])
-        let plan = try #require(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(args))))
+        let plan = try #require(try physicalInput(args))
         #expect(plan.operands == [text])
         let tap = try #require(MCPTools.definitions.first { $0.name == "tap" })
         let tapped = try tap.command(["platform": "physical", "device": "phone", "x": 0.5, "y": 1])
@@ -49,11 +49,16 @@ struct MCPToolsTests {
         // Values that begin with '-' stay values and operands, so the
         // operation's own validation sees them unchanged.
         let negative = try tap.command(["platform": "simulator", "device": "11111111-2222-3333-4444-555555555555", "x": -0.5, "y": 0.5])
-        #expect(try legacy(negative) == ["simulator", "11111111-2222-3333-4444-555555555555", "tap", "-0.5", "0.5"])
+        let outside = try #require(throws: CommandFailure.self) { try request(negative) }
+        #expect(outside.description == "Simulator input coordinates must be normalized numbers from 0 to 1.")
         let selector = try #require(MCPTools.definitions.first { $0.name == "press_element" })
         let dashed = try selector.command(["device": "phone", "by": "label", "text": "--dry-run", "pid": -3])
         #expect(dashed == ["press", "--device=phone", "--label=--dry-run", "--pid=-3"])
-        #expect(try CLI.invocation(dashed) == CLIInvocation(arguments: ["physical", "phone", "press-label", "-3", "--dry-run"], dryRun: false, errorFormat: nil))
+        let negativePID = try #require(throws: CommandFailure.self) { try CLI.invocation(dashed) }
+        #expect(negativePID.description == "Native AX selector PID must be positive.")
+        let labelled = try selector.command(["device": "phone", "by": "label", "text": "--dry-run", "pid": 3])
+        #expect(try CLI.invocation(labelled) == CLIInvocation(
+            request: .physicalInput(CoreDeviceInput(device: "phone", operation: "press-label", operands: ["3", "--dry-run"])), dryRun: false, errorFormat: nil))
     }
 
     @Test func buildRunProvisioningFlagsAreOptionalBooleans() throws {
@@ -71,12 +76,12 @@ struct MCPToolsTests {
         #expect(try definition.command(base.merging(["allow_provisioning_updates": false]) { $1 }) == plain)
         let flagged = try definition.command(base.merging(["allow_provisioning_updates": true, "allow_device_registration": true]) { $1 })
         #expect(flagged == ["build-run", "--device=00000000-0000000000000000", "--allow-provisioning-updates", "--allow-device-registration", "--", "A.xcodeproj", "A"])
-        let parsed = try #require(try BuildRunCommand.parse(legacy(flagged)))
+        guard case .buildRun(let parsed) = try request(flagged) else { Issue.record("build_run is not a build-run request"); return }
         #expect(parsed.allowProvisioningUpdates && parsed.allowDeviceRegistration)
         #expect(throws: MCPError.self) { try definition.command(base.merging(["allow_provisioning_updates": "yes"]) { $1 }) }
         let simulator = try definition.command(base.merging(["platform": "simulator", "device": "11111111-2222-3333-4444-555555555555",
                                                              "allow_provisioning_updates": true]) { $1 })
-        #expect(throws: CommandFailure.self) { try BuildRunCommand.parse(legacy(simulator)) }
+        #expect(throws: CommandFailure.self) { try request(simulator) }
     }
 
     @Test func helperOnlyToolsAndFieldsAreNotAdvertised() throws {
@@ -103,15 +108,15 @@ struct MCPToolsTests {
         ("wait_for_element", ["device": Value.string("fixture"), "by": "identifier", "text": "x"], ["physical", "fixture", "wait-id", "x"]),
         ("press_key", ["device": Value.string("fixture"), "key": "return"], ["physical", "fixture", "key", "return"]),
         ("long_press", ["device": Value.string("fixture"), "x": 0.5, "y": 0.5, "seconds": 1],
-         ["physical", "fixture", "long-press", "0.5", "0.5", "1"]),
+         ["physical", "fixture", "long-press", "0.5", "0.5", "1.0"]),
         ("pinch", ["device": Value.string("fixture"), "center_x": 0.5, "center_y": 0.5, "start_span": 0.2, "end_span": 0.5, "seconds": 0.6],
          ["physical", "fixture", "pinch", "0.5", "0.5", "0.2", "0.5", "0.6"]),
         ("multi_drag", ["device": Value.string("fixture"), "seconds": 0.5, "paths": [0.5, 0.25, 0.5, 0.1, 0.5, 0.75, 0.5, 0.9]],
          ["physical", "fixture", "multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"]),
         ("multi_tap", ["device": Value.string("fixture"), "coordinates": [0.25, 0.5, 0.75, 0.5]],
          ["physical", "fixture", "multi-tap", "0.25", "0.5", "0.75", "0.5"]),
-        ("perform_gesture", ["device": Value.string("fixture"), "sequence": "{}"],
-         ["physical", "fixture", "gesture", "{}"])
+        ("perform_gesture", ["device": Value.string("fixture"), "sequence": .string(CLIParserTests.gesture)],
+         ["physical", "fixture", "gesture", CLIParserTests.gesture])
     ]
 
     /// `expected` is what the CLI's parser hands the command service.
@@ -120,7 +125,7 @@ struct MCPToolsTests {
         let definition = try #require(MCPTools.definitions.first { $0.name == name })
         let command = try definition.command(arguments)
         #expect(command.contains("--device=fixture"))
-        #expect(try legacy(command) == expected)
+        #expect(summary(try request(command)) == expected)
         #expect(try definition.command(arguments.merging(["platform": "physical"]) { $1 }) == command)
         let required = Set((definition.tool.inputSchema.objectValue?["required"]?.arrayValue ?? []).compactMap(\.stringValue))
         #expect(!required.contains("platform"))
@@ -175,8 +180,8 @@ struct MCPToolsTests {
         let definition = try #require(MCPTools.definitions.first { $0.name == name })
         let args = try definition.command(arguments.merging(["device": .string(uuid)]) { $1 })
         #expect(args.contains("--simulator=\(uuid)"))
-        #expect(try legacy(args) == ["simulator", uuid] + operands)
-        let parsed = try #require(try SimulatorInput.parse(legacy(args)))
+        let parsed = try #require(try simulatorInput(args))
+        #expect(summary(.simulatorInput(parsed)) == ["simulator", uuid] + operands)
         #expect(parsed.operation == operands[0])
     }
 
@@ -184,7 +189,7 @@ struct MCPToolsTests {
                       ("get_ui_tree", ["device": Value.string("fixture")], ["physical", "fixture", "tree"])])
     func optionalPlatformDefaultsToPhysical(_ name: String, _ arguments: [String: Value], _ expected: [String]) throws {
         let definition = try #require(MCPTools.definitions.first { $0.name == name })
-        #expect(try legacy(definition.command(arguments)) == expected)
+        #expect(summary(try request(definition.command(arguments))) == expected)
     }
 
     @Test(arguments: [
@@ -218,7 +223,7 @@ struct MCPToolsTests {
         let definition = try #require(MCPTools.definitions.first { $0.name == "type_text" })
         let args = try definition.command(["platform": "physical", "device": "fixture", "text": "Hello!"])
         #expect(args == ["type", "--device=fixture", "--", "Hello!"])
-        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(legacy(args)))?.operands == ["Hello!"])
+        #expect(try physicalInput(args)?.operands == ["Hello!"])
     }
 
     @Test func unknownToolsCannotInvokeExecutor() async {
@@ -240,7 +245,7 @@ struct MCPToolsTests {
 
     @Test func serviceReusesDryRun() async throws {
         let service = CommandService()
-        let result = try await service.execute(["physical", "phone", "tap", "0.5", "0.5"], dryRun: true)
+        let result = try await service.run(["tap", "0.5", "0.5", "--device", "phone"], dryRun: true)
         let plan = try #require(try JSONSerialization.jsonObject(with: result.data) as? [String: Any])
         #expect(plan["backend"] as? String == "coredevice-direct")
         #expect(plan["operands"] as? [String] == ["0.5", "0.5"])

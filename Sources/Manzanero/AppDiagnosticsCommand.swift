@@ -3,7 +3,7 @@ import Foundation
 /// `logs`, `console` and `last-crash`: what an app under test wrote and how it
 /// ended. Parsing and dry-run plans only; execution lives in
 /// `UnifiedLogCapture`, `AppConsole` and `CrashReport`. See docs/app-logs.md.
-enum AppDiagnosticsCommand: Sendable {
+enum AppDiagnosticsCommand: Sendable, Equatable {
     case logs(LogCapture)
     case console(ConsoleCapture)
     case lastCrash(LastCrashQuery)
@@ -12,26 +12,33 @@ enum AppDiagnosticsCommand: Sendable {
     /// Operations that only read; `console` launches an app.
     static let observations = ["logs", "last-crash"]
 
-    static func parse(_ args: [String]) throws -> Self? {
-        guard args.count >= 3, ["physical", "simulator"].contains(args[0]), operations.contains(args[2]) else { return nil }
-        let physical = args[0] == "physical"
-        let device = args[1]
+    /// One of `operations` with its options checked. Physical logs are refused.
+    static func make(physical: Bool, device: String, operation: String, options: DiagnosticOptions) throws -> Self {
         guard !device.isEmpty, !device.hasPrefix("-") else {
             throw CommandFailure.usage("Device identifier must be nonempty and cannot begin with '-'.")
         }
-        let operands = Array(args.dropFirst(3))
-        switch args[2] {
+        switch operation {
         case "logs":
             if physical {
                 throw CommandFailure.unsupported("Physical logs are not implemented: Apple's tools cannot stream a device's unified log without root, and the native os_trace_relay route is not built. Use physical console (unverified) or last-crash; nothing was sent.")
             }
-            return .logs(try LogCapture(device: SimulatorDevice.requireUUID(device, operation: "logs"), operands: operands))
+            return .logs(try LogCapture(device: SimulatorDevice.requireUUID(device, operation: "logs"), options: options))
         case "console":
             return .console(try ConsoleCapture(physical: physical,
-                device: physical ? device : SimulatorDevice.requireUUID(device, operation: "console"), operands: operands))
-        default:
+                device: physical ? device : SimulatorDevice.requireUUID(device, operation: "console"), options: options))
+        case "last-crash":
             return .lastCrash(try LastCrashQuery(physical: physical,
-                device: physical ? device : SimulatorDevice.requireUUID(device, operation: "last-crash"), operands: operands))
+                device: physical ? device : SimulatorDevice.requireUUID(device, operation: "last-crash"), options: options))
+        default:
+            throw CommandFailure.unsupported("Unsupported diagnostics operation: \(operation).")
+        }
+    }
+
+    var operation: String {
+        switch self {
+        case .logs: "logs"
+        case .console: "console"
+        case .lastCrash: "last-crash"
         }
     }
 
@@ -52,43 +59,21 @@ enum AppDiagnosticsCommand: Sendable {
     }
 }
 
-/// Options after the operands, as in `wait-id`: `--name value` or `--flag`,
-/// each at most once. With `allowTrailing`, `--` ends the options and the
-/// rest is passed through untouched (app arguments).
+/// The options of `logs`, `console` and `last-crash` as the CLI's parser
+/// gives them: `--name value` pairs keyed by option name, flags, the operands
+/// before `--` and the app arguments after it.
 struct DiagnosticOptions: Sendable {
     var values: [String: String] = [:]
     var flags: Set<String> = []
     var positional: [String] = []
     var trailing: [String] = []
 
-    init(_ args: [String], operation: String, values valueNames: Set<String>, flags flagNames: Set<String> = [],
-         allowTrailing: Bool = false) throws {
-        var index = 0
-        while index < args.count {
-            let token = args[index]
-            if token == "--" {
-                guard allowTrailing else { throw CommandFailure.usage("\(operation) does not take '--' arguments.") }
-                trailing = Array(args[(index + 1)...])
-                return
-            }
-            if token.hasPrefix("--") {
-                guard values[token] == nil, !flags.contains(token) else { throw CommandFailure.usage("\(token) was given twice.") }
-                if valueNames.contains(token) {
-                    guard index + 1 < args.count, !args[index + 1].isEmpty else { throw CommandFailure.usage("\(token) needs a value.") }
-                    values[token] = args[index + 1]
-                    index += 2
-                    continue
-                }
-                guard flagNames.contains(token) else {
-                    throw CommandFailure.usage("Unknown option for \(operation): \(token). See --help.")
-                }
-                flags.insert(token)
-            } else {
-                guard !token.isEmpty, !token.hasPrefix("-") else { throw CommandFailure.usage("Invalid \(operation) argument: \(token).") }
-                positional.append(token)
-            }
-            index += 1
-        }
+    /// Leaves out options that were not given.
+    init(values: [String: String?] = [:], flags: [String: Bool] = [:], positional: [String] = [], trailing: [String] = []) {
+        self.values = values.compactMapValues { $0 }
+        self.flags = Set(flags.filter(\.value).keys)
+        self.positional = positional
+        self.trailing = trailing
     }
 
     func integer(_ name: String, in range: ClosedRange<Int>) throws -> Int? {

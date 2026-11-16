@@ -3,15 +3,16 @@ import Testing
 @testable import Manzanero
 
 struct PhysicalInputOperandsTests {
-    func native(_ args: [String]) throws -> CoreDeviceInput? {
-        try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(["physical", "fixture"] + args))
+    /// `args` is the internal operation followed by its operands.
+    func native(_ args: [String]) throws -> CoreDeviceInput {
+        try CoreDeviceInput.validated(device: "fixture", operation: args[0], operands: Array(args.dropFirst()))
     }
 
     @Test func acceptsCoordinatedPathsAndHorizontalPinch() throws {
         try PhysicalInputOperands.validate("pinch", ["0.5", "0.5", "0.5", "1", "0.5"])
         try PhysicalInputOperands.validate("multi-drag", ["0.03", "0", "0", "1", "1", "1", "1", "0", "0"])
-        #expect(try native(["pinch", "0.5", "0.5", "0.5", "1", "0.5"])?.operation == "pinch")
-        #expect(try native(["multi-drag", "0.03", "0", "0", "1", "1", "1", "1", "0", "0"])?.operation == "multi-drag")
+        #expect(try native(["pinch", "0.5", "0.5", "0.5", "1", "0.5"]).operation == "pinch")
+        #expect(try native(["multi-drag", "0.03", "0", "0", "1", "1", "1", "1", "0", "0"]).operation == "multi-drag")
     }
 
     @Test(arguments: [
@@ -33,13 +34,13 @@ struct PhysicalInputOperandsTests {
     @Test func acceptsFivePathsAndRejectsSix() throws {
         let path = ["0", "0", "1", "1"]
         let five = Array(repeating: path, count: 5).flatMap { $0 }
-        #expect(try native(["multi-drag", "10"] + five) != nil)
+        #expect(try native(["multi-drag", "10"] + five).operands.count == 21)
         #expect(throws: CommandFailure.self) { try native(["multi-drag", "10"] + five + path) }
     }
 
     @Test func physicalTypingPreservesLiteralText() throws {
         let text = "--literal 'text'; $(touch sentinel)\tOK\n"
-        #expect(try native(["type", text])?.operands == [text])
+        #expect(try native(["type", text]).operands == [text])
     }
 
     @Test(arguments: ["", "é", "🙂", "\0", "\r", "\u{1b}", String(repeating: "a", count: 513)])
@@ -48,8 +49,8 @@ struct PhysicalInputOperandsTests {
     }
 
     @Test func acceptsNormalizedCoordinateBoundaries() throws {
-        #expect(try native(["multi-tap", "0", "1", "0.5", "0.5"])?.operands == ["0", "1", "0.5", "0.5"])
-        #expect(try native(["swipe", "0", "0.9", "0", "0.1", "0.5"])?.operation == "swipe")
+        #expect(try native(["multi-tap", "0", "1", "0.5", "0.5"]).operands == ["0", "1", "0.5", "0.5"])
+        #expect(try native(["swipe", "0", "0.9", "0", "0.1", "0.5"]).operation == "swipe")
     }
 
     @Test(arguments: [

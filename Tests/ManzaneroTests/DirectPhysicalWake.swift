@@ -154,9 +154,9 @@ struct DirectPhysicalWakeTests {
     @Test func operandsAndPlanAreValidated() async throws {
         #expect(throws: CommandFailure.self) { try DirectPhysicalWake.validate(["--force"]) }
         #expect(throws: CommandFailure.self) { try DirectPhysicalWake.validate(["--no-dismiss", "--no-dismiss"]) }
-        #expect(try CoreDeviceInput.parse(CoreDeviceInput.selectDefaultBackend(["physical", Self.uuid, "wake"]))?.operation == "wake")
-        #expect(CLIInputSignals.applies(to: ["physical", Self.uuid, "wake"], dryRun: false))
-        let output = try await CommandService().execute(["physical", Self.uuid, "wake"], dryRun: true)
+        #expect(try physicalInput(["wake", "--device", Self.uuid])?.operation == "wake")
+        #expect(try request(["wake", "--device", Self.uuid]).signalContext == "physical input")
+        let output = try await CommandService().run(["wake", "--device", Self.uuid], dryRun: true)
         let plan = try #require(JSONSerialization.jsonObject(with: output.data) as? [String: Any])
         #expect(plan["operation"] as? String == "wake" && plan["maximumSideButtonPresses"] as? Int == 1)
         #expect(plan["dismissLockScreen"] as? Bool == true)
@@ -174,7 +174,7 @@ struct DirectPhysicalWakeTests {
         let data = try Self.details()
         let service = CommandService(leases: DeviceLeaseRegistry(directory: directory), readinessQuery: { _ in data })
         do {
-            _ = try await service.execute(["physical", Self.uuid, "wake"])
+            _ = try await service.run(["wake", "--device", Self.uuid])
             Issue.record("Wake reached the device while another process owned it")
         } catch {
             #expect(String(describing: error).contains("another manzanero process"))
@@ -182,7 +182,7 @@ struct DirectPhysicalWakeTests {
         let tool = try #require(MCPTools.definitions.first { $0.name == "wake_device" })
         #expect(try tool.command(["device": .string(Self.uuid)]) == ["wake", "--device=\(Self.uuid)"])
         #expect(try tool.command(["device": .string(Self.uuid), "dismiss_lock_screen": .bool(false)]) == ["wake", "--device=\(Self.uuid)", "--no-dismiss"])
-        #expect(try legacy(["wake", "--device=\(Self.uuid)", "--no-dismiss"]) == ["physical", Self.uuid, "wake", "--no-dismiss"])
+        #expect(summary(try request(["wake", "--device=\(Self.uuid)", "--no-dismiss"])) == ["physical", Self.uuid, "wake", "--no-dismiss"])
         #expect(!tool.readOnly && tool.answerExitCodes == [0, 1])
         let unwrapped = try DirectPhysicalWake.output(JSONSerialization.data(withJSONObject: ["status": "not-awake", "exitCode": 1]))
         #expect(unwrapped.exitCode == 1)

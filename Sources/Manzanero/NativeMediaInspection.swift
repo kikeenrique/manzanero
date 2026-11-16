@@ -4,14 +4,6 @@ import Foundation
 /// Read-only control evidence for the in-process video implementation. No
 /// negotiator offer, stream start/stop, decoder hook or media socket is created.
 enum NativeMediaInspection {
-    static func parse(_ args: [String]) throws -> String? {
-        guard args.count >= 3, args[0] == "physical", args[2] == "media-status" else { return nil }
-        guard args.count == 3, !args[1].isEmpty, !args[1].hasPrefix("-") else {
-            throw CommandFailure.usage("Usage: physical <device> media-status")
-        }
-        return args[1]
-    }
-
     static func execute(device: String, query: (DeviceCommand) throws -> Data) throws -> Data {
         try Task.checkCancellation()
         let input = CoreDeviceInput(device: device, operation: "media-status", operands: [])

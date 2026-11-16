@@ -91,7 +91,7 @@ The wait polls inside one AX session until a condition holds or the timeout expi
 
 Visibility is the native snapshot attribute, not hittability or pixel evidence. A missing visibility or enabled attribute never satisfies a condition, including `gone`. Non-string values never match `--value`.
 
-Options may come in any order. `--id`, `--label` and `--value` take the next argument as their value even when it begins with `-`; attach a value that spells a global option with `=`, as for press.
+Options may come in any order. `--id`, `--label` and `--value` take the next argument as their value even when it begins with `-`; attach a value that spells a global option with `=`, as for press. With `--pid`, the selector cannot be exactly `--until`, `--value`, `--timeout` or `--interval`: the wait reads its options after the selector by name.
 
 | Option | Range | Default |
 | --- | --- | --- |
