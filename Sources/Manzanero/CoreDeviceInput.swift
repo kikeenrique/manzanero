@@ -9,7 +9,8 @@ struct CoreDeviceInput: Sendable, Equatable {
 
     /// The operations that run in process on a physical device.
     static let operations = ["button", "key", "type", "paste", "gesture", "multi-tap", "tree", "press-id", "press-label",
-                             "scroll-id", "scroll-label", DirectPhysicalWake.operation] + AccessibilityWait.operations + DirectPhysicalTouch.operations
+                             "scroll-id", "scroll-label", DirectPhysicalWake.operation] + DirectAccessibilitySetValue.operations
+                             + AccessibilityWait.operations + DirectPhysicalTouch.operations
 
     /// One native physical operation with its operands checked, before any
     /// device query. Long-press operands are normalized to their numbers.
@@ -23,6 +24,8 @@ struct CoreDeviceInput: Sendable, Equatable {
         }
         if ["press-id", "press-label", "scroll-id", "scroll-label"].contains(operation) {
             _ = try DirectAccessibilityAction(Self(device: device, operation: operation, operands: operands))
+        } else if DirectAccessibilitySetValue.operations.contains(operation) {
+            _ = try DirectAccessibilitySetValue(Self(device: device, operation: operation, operands: operands))
         } else if AccessibilityWait.operations.contains(operation) {
             _ = try AccessibilityWait(Self(device: device, operation: operation, operands: operands))
         } else if operation == DirectPhysicalWake.operation {

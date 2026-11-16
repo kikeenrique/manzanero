@@ -161,17 +161,23 @@ struct MCPToolsTests {
          ["set-value-label", "42", "Field", "x"])
     ]
 
-    @Test func setElementValueOnAPhysicalDeviceIsRefusedPlainly() async throws {
+    @Test func setElementValueDefaultsToThePhysicalRouteAndPlansWithoutADevice() async throws {
         let definition = try #require(MCPTools.definitions.first { $0.name == "set_element_value" })
-        let args = try definition.command(["platform": "physical", "device": "fixture", "by": "identifier", "text": "f", "value": "v"])
-        #expect(args == ["set-value", "--device=fixture", "--id=f", "--", "v"])
-        for dryRun in [false, true] {
-            let failure = try #require(await #expect(throws: CommandFailure.self) {
-                _ = try await CommandService(readinessQuery: { _ in Issue.record("queried a device"); return Data() }).run(args, dryRun: dryRun)
-            })
-            #expect(failure.code == .unsupportedOperation && failure.inputSent == .none && failure.retry == .no)
-            #expect(failure.description == "Physical set-value is not enabled: the accessibility set-value request has been verified only on simulators. For Unicode text on a physical device use paste. No input sent.")
-        }
+        let args = try definition.command(["device": "fixture", "by": "label", "text": "Field", "pid": 42, "value": "mañana 🚀"])
+        #expect(args == ["set-value", "--device=fixture", "--label=Field", "--pid=42", "--", "mañana 🚀"])
+        #expect(summary(try request(args)) == ["physical", "fixture", "set-value-label", "42", "Field", "mañana 🚀"])
+        #expect(!definition.readOnly && !CommandService.nativeObservations.contains("set-value-label"))
+        let output = try await CommandService(readinessQuery: { _ in Issue.record("queried a device"); return Data() }).run(args, dryRun: true)
+        let plan = try #require(JSONSerialization.jsonObject(with: output.data) as? [String: Any])
+        #expect(plan["backend"] as? String == "coredevice-direct" && plan["operation"] as? String == "set-value")
+        #expect(plan["selector"] as? [String: String] == ["by": "label", "text": "Field"])
+        #expect(plan["pid"] as? Int == 42 && plan["requestedUTF8Bytes"] as? Int == 12)
+        // Operands are checked before any device contact.
+        let failure = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await CommandService(readinessQuery: { _ in Issue.record("queried a device"); return Data() })
+                .run(["set-value", "--device=fixture", "--id=f", "--", "a\0b"])
+        })
+        #expect(failure.code == .usage && failure.description == "Native AX set-value text must be 1...65536 UTF-8 bytes without NUL.")
     }
 
     @Test(arguments: simulatorRoutes)

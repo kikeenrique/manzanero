@@ -1,14 +1,19 @@
 # Physical text entry
 
-Use `type` for clipboard-free US-layout ASCII keyboard events. Use [paste](native-input.md#direct-unicode-paste) for Unicode text when replacing the device clipboard is acceptable.
+Use `type` for clipboard-free US-layout ASCII keyboard events. For Unicode text use `set-value`, which replaces a named field's whole value through accessibility, or [paste](native-input.md#direct-unicode-paste) when the text must go to the current focus and replacing the device clipboard is acceptable.
 
 ## Current direct implementation
 
 ```sh
 manzanero type 'Ab9!z' --device <UDID>
 manzanero key backspace --device <UDID>
+manzanero set-value --id <identifier> 'mañana 🚀 中' --device <UDID>
 manzanero paste 'mañana 🚀 中' --device <UDID>
 ```
+
+`set-value` is the same operation as on a simulator, with the same guards, receipt and limits; see [set-value](simulator-input.md#unicode-text-set-value). On a physical device it selects the app at the display centre, as `press` does, and takes the device lease.
+
+**Layouts.** `type` maps characters to key codes with a US table, so it is only correct when the device's hardware-keyboard layout is US. Supporting any layout is required and not built yet.
 
 `type` and MCP `type_text` with `platform: physical` use the in-process CoreDevice/Indigo keyboard route. No virtual keyboard registration, helper executable or clipboard write is used.
 

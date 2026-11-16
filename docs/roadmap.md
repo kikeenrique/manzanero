@@ -9,7 +9,7 @@ iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope. [Feature status
 1. **Make physical testing dependable.** Improve recording startup/keyframe recovery, input/stream failure handling, useful readiness diagnostics and cleanup uncertainty.
 2. **Coordinate ownership.** A per-device lease now refuses a second process's input or native recording. Still needed: live two-process verification, and handling uncertain release before admitting later input.
 3. **Improve agent targeting.** Expand AX action/overlay/rotation coverage and useful postconditions without turning old snapshot IDs into stale action handles.
-4. **Complete direct replacements.** Simulator trees, element actions, waits, one-to-five-contact touch and gesture sequences in any orientation (iPhone and iPad), Home/lock, keys, ASCII typing and Unicode entry by AX set-value are back in process ([simulator input](simulator-input.md)). Still needed: simulator `wake`, set-value tried on a phone, then the required diagnostics, all through project-owned Apple APIs or Apple executables.
+4. **Complete direct replacements.** Simulator trees, element actions, waits, one-to-five-contact touch and gesture sequences in any orientation (iPhone and iPad), Home/lock, keys, ASCII typing and Unicode entry by AX set-value are back in process ([simulator input](simulator-input.md)). Set-value also runs on physical devices. Still needed: simulator `wake`, typing in any keyboard layout, then the required diagnostics, all through project-owned Apple APIs or Apple executables.
 5. **Validate other Apple families.** Add family-specific backends and live evidence rather than treating generic identifier acceptance as support.
 6. **Finish operational delivery.** Run the beta workflow in the public repository, publish immutable release assets and update and test the Homebrew tap.
 
@@ -20,7 +20,7 @@ These are implementation priorities, not evidence that a feature is complete or 
 | Topic | Decision | State |
 | --- | --- | --- |
 | Typing and keyboard layouts | `type` must work with any keyboard layout, not only the US one, on physical devices and simulators | Not started; needs a design for how the layout is known or chosen |
-| `set-value` on physical devices | Enable it; it is wanted on phones as well as simulators | Not started; one change and a phone test |
+| `set-value` on physical devices | Enable it; it is wanted on phones as well as simulators | Done: enabled and run on the iPhone 13 mini ([verification](verification.md#unicode-entry-by-set-value-on-the-phone)) |
 | `handoff` live test | Do it only when the owner says so | Waiting for the owner |
 | Apple TV, Apple Watch, iPhone Duo | Quick research on their simulators first (all three have one installed) | Research in progress |
 | Decoded-JPEG video mode in the bridge | Keep it and test it; do not remove it | Not started; no command reaches it yet |

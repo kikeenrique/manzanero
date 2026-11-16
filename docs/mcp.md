@@ -34,7 +34,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `get_ui_tree` | Native AX hierarchy with optional PID, physical or [simulator](simulator-input.md). |
 | `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Auto mode prefers the tree on both platforms. |
 | `press_element`, `scroll_to_element` | [Fresh exact AX selectors](direct-accessibility.md), guarded native press/scroll, physical or simulator |
-| `set_element_value` | [Unicode entry by AX set-value](simulator-input.md#unicode-text-set-value): replaces one settable element's whole value, with the press guards. Simulator only; physical is refused |
+| `set_element_value` | [Unicode entry by AX set-value](simulator-input.md#unicode-text-set-value): replaces one settable element's whole value, with the press guards, on a physical device (the default) or a simulator |
 | `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled or has an exact value, within one AX session. Run on one simulator; not yet verified on physical hardware. |
 | `decode_accessibility_archive` | Offline data-only archive inspection |
 | `record_screen` | [Finite MP4 recording](recording.md) to a new host path |
@@ -58,7 +58,7 @@ Touch coordinates are normalized `0...1` in the current interface on both platfo
 
 A physical tree without `pid` selects/rechecks the awake portrait primary display-centre process; a simulator tree the frontmost application, or the process under the screen centre when the simulator reports none. An explicit positive PID can inspect a background app. IDs belong only to one non-atomic snapshot, not reusable action handles. Press/scroll selectors resolve fresh identities and apply additional guards.
 
-Physical Unicode paste is `paste_text`; it replaces the clipboard and uses current focus. ASCII `type_text` has a US-layout mapping and does not change the clipboard. Neither approves prompts or verifies insertion. On a simulator, Unicode text goes through `set_element_value`, which names its target element and replaces its whole value; `type_text` stays ASCII and never switches to it silently.
+Unicode text goes through `set_element_value` on both platforms: it names its target element and replaces its whole value, without the keyboard or the clipboard. Physical `paste_text` is the alternative at the current focus; it replaces the clipboard. ASCII `type_text` has a US-layout mapping, does not change the clipboard, and never switches to either silently. None of them approves prompts or verifies insertion.
 
 ## Results and errors
 

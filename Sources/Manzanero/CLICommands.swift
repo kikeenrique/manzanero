@@ -124,7 +124,7 @@ extension ManzaneroCLI {
 
     struct TypeText: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "type", abstract: "Type US-layout ASCII text at the current focus.",
-            discussion: "1...512 printable ASCII characters, tab or newline, as keyboard events; the clipboard is untouched. For other text use paste (physical) or set-value (simulator). \(receiptCaveat)")
+            discussion: "1...512 printable ASCII characters, tab or newline, as keyboard events; the clipboard is untouched. For other text use set-value, which replaces a named element's whole value, or paste (physical), which replaces the clipboard. \(receiptCaveat)")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "The text; put -- before text that begins with '-'.") var text: String
@@ -201,15 +201,14 @@ extension ManzaneroCLI {
     }
 
     struct SetValue: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "set-value", abstract: "Replace an element's whole value with Unicode text (simulators).",
+        static let configuration = CommandConfiguration(commandName: "set-value", abstract: "Replace an element's whole value with Unicode text.",
             discussion: "Selection and guards are those of press; the element must report its value settable. No keyboard or clipboard is used; the value is read back once.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions
         @Argument(help: "The new value, 1...65536 UTF-8 bytes without NUL.") var text: String
         func request(_ target: Target) throws -> CommandRequest {
-            guard target.platform == .simulator else { throw CommandFailure.unsupported(DirectAccessibilitySetValue.physicalRefusal) }
-            return try .input(target, selector.operation("set-value"), selector.operands + [text])
+            try .input(target, selector.operation("set-value"), selector.operands + [text])
         }
     }
 

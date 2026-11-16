@@ -152,6 +152,19 @@ These are results from one phone on one iOS version, with the probe in front and
 
 The measurement runner then delivered 28 of 28 actions and 58 of 58 contacts over two rounds, and the opt-in MCP readiness, foreground and button checks passed. `paste`, `type` into a field, `uninstall`, `files push`, `reports get` and `terminate` were not repeated in the new grammar on the phone; their plans were compared with the earlier grammar's by dry run.
 
+### Unicode entry by set-value on the phone
+
+**2026-11-16**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52), with the probe app's text field (`probe.text.field`, readout `probe.text.value`). This was the first time the settable query (request type 3, attribute 53) and the set-value request (type 8) were sent over the physical accessibility session; both answered with the shapes seen on the simulator.
+
+| Command | Observed |
+| --- | --- |
+| `set-value --id probe.text.field 'mañana 🚀 中'` | `status: acknowledged`, `valueMatches: true`, 16 bytes requested and read back |
+| `set-value --label 'Probe text field'` with accented Latin, typographic quotes, Japanese, a three-person family emoji and Arabic | `valueMatches: true`, 75 bytes requested and read back |
+| `tree` afterwards | The app's own readout reported the same text, 75 UTF-8 bytes, 38 scalars, two edits, field focused |
+| `set-value --id probe.touch.summary x` (a static text) | Refused at the settable query, `state=not-sent`; nothing sent |
+
+The clipboard was not involved. Not covered: other apps (SwiftUI fields, secure fields, web views, search fields), text longer than 75 bytes, a field under the keyboard, and the MCP tool against the phone.
+
 ### Remaining phone checks: keys, files, waits, prompts and a live MCP session
 
 **2026-11-16**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52), with the 200 ms input drain.
@@ -182,7 +195,7 @@ The measurement runner then delivered 28 of 28 actions and 58 of 58 contacts ove
 | `tap` with x = 2 | `isError: true` with `structuredContent.error.code: usage` |
 | `screenshot` with `image_max_edge: 1` | JSON-RPC invalid-params error before any capture |
 
-Not covered: `handoff` with a real prompt, `set_element_value` on a phone (refused there by design), and anything on a second device.
+Not covered: `handoff` with a real prompt, `set_element_value` on a phone (refused at the time; enabled and run later, see [set-value on the phone](#unicode-entry-by-set-value-on-the-phone)), and anything on a second device.
 
 ### App console and last crash on the phone
 

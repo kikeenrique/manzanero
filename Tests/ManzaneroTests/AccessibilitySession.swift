@@ -169,6 +169,33 @@ struct AccessibilitySessionTests {
         #expect(session.close() == .stopAcknowledged)
     }
 
+    @Test func settableQueryAndSetValueTravelAsOrdinaryRequests() throws {
+        // Requests 3...6: application, settable (yes), settable (no), set-value.
+        let wire = Transport([try reply(1, value: NSNumber(value: 26)), try reply(2),
+                              try callback(kind: 1), try reply(3), try callback(kind: 3), try reply(4),
+                              try callback(kind: 3, rootID: 0), try reply(5), try reply(6), try callback(kind: 8), try reply(7)])
+        let session = AccessibilitySession(transport: wire)
+        try session.start()
+        let token = try session.application(pid: 42)
+        #expect(try session.isSettable(token))
+        #expect(try !session.isSettable(token))
+        var submitted = 0
+        wire.writeObserver = { message in if message.identifier == 6 { #expect(submitted == 1) } }
+        try session.setValue(token, text: "mañana 🚀 中", onSubmission: { submitted += 1 })
+        #expect(submitted == 1)
+        #expect(session.close() == .stopAcknowledged)
+        #expect(try wire.outgoing.compactMap(selector).filter { $0 == "processDataFromHost:" }.count == 4)
+    }
+
+    @Test func aSetValueWithoutItsReplyClosesTheSessionAsAFailure() throws {
+        let wire = Transport([try reply(1, value: NSNumber(value: 26)), try reply(2), try callback(kind: 1), try reply(3), try reply(4)])
+        let session = AccessibilitySession(transport: wire)
+        try session.start()
+        let token = try session.application(pid: 42)
+        #expect(throws: CommandFailure.self) { try session.setValue(token, text: "x", onSubmission: {}) }
+        #expect(wire.closed)
+    }
+
     @Test func unknownCallbacksAreNotAcknowledgedAsSuccessful() throws {
         let unknown = try AccessibilityDTX.invocation("unrecognized:", argument: nil, identifier: 90)
         let wire = Transport([try reply(1, value: NSNumber(value: 26)), try reply(2), unknown, try reply(4)])
@@ -213,9 +240,13 @@ struct AccessibilitySessionTests {
             coder.encode(attribute, forKey: "attribute")
             coder.encode(0, forKey: "error")
             coder.encode(0, forKey: "notification")
-            coder.encode(kind == 1 ? nil : TokenFixture(pid: pid, objectID: rootID), forKey: "associatedTranslationObject")
-            let result: NSObject
-            if kind == 1 || kind == 6 { result = TokenFixture(pid: pid, objectID: rootID) }
+            coder.encode([1, 3, 8].contains(kind) ? nil : TokenFixture(pid: pid, objectID: rootID), forKey: "associatedTranslationObject")
+            // As observed on a phone: the settable reply (3) is a number and
+            // the set-value reply (8) carries no result.
+            let result: NSObject?
+            if kind == 3 { result = NSNumber(value: rootID == 0 ? 0 : 1) }
+            else if kind == 8 { result = nil }
+            else if kind == 1 || kind == 6 { result = TokenFixture(pid: pid, objectID: rootID) }
             else if nativeSnapshot {
                 result = ["UIAccessibilitySnapshotKeyElement": TokenFixture(pid: pid, objectID: rootID),
                     "UIAccessibilitySnapshotKeyAttributes": [NSNumber(value: 2001): "Fixture"],

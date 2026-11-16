@@ -232,7 +232,7 @@ Compare the `session` with the value read before sending input. If it changed, t
 
 ## Text probe
 
-One editable `UITextField` and a readout of exactly what it holds, to check text entry (HID `type`, `key`, and the simulator's `set-value`) code point for code point. Source: `Fixtures/ProbeApp/App/ProbeTextProbe.swift`.
+One editable `UITextField` and a readout of exactly what it holds, to check text entry (HID `type`, `key`, and `set-value`) code point for code point. Source: `Fixtures/ProbeApp/App/ProbeTextProbe.swift`.
 
 | Identifier | Label | Value | Frame |
 | --- | --- | --- | --- |

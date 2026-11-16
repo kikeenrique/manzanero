@@ -155,6 +155,13 @@ actor CommandService {
                         "identityArguments": identity.arguments, "liveVerified": false,
                         "execution": "Native AX: primary portrait display selection, two unique snapshots and live state/frame guards before one action. Press checks exact hit; scroll follows with fresh visibility/frame/hit and selection checks. No fallback or replay."])
                 }
+                if DirectAccessibilitySetValue.operations.contains(native.operation) {
+                    let action = try DirectAccessibilitySetValue(native)
+                    return try json(["backend": "coredevice-direct", "operation": action.operation,
+                        "selector": ["by": action.guards.by, "text": action.guards.text], "pid": action.guards.pid.map { $0 as Any } ?? NSNull(),
+                        "requestedUTF8Bytes": action.value.utf8.count, "identityArguments": identity.arguments, "liveVerified": false,
+                        "execution": "Native AX: primary display-centre selection, two unique snapshots, live state/frame guards and an exact centre hit as for press; then a settable query (request type 3, attribute 53) that must answer true, one set-value request (type 8, attribute 53) replacing the element's whole value, and one read-back of the value. No keyboard, clipboard, fallback or replay."])
+                }
                 if AccessibilityWait.operations.contains(native.operation) {
                     return try json(AccessibilityWait(native).plan(identityArguments: identity.arguments))
                 }
@@ -238,7 +245,7 @@ actor CommandService {
                 // service can run then; each poll's requests still block it.
                 return try AccessibilityWait.output(await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
             }
-            if ["tree", "press-id", "press-label", "scroll-id", "scroll-label"].contains(native.operation) {
+            if (["tree", "press-id", "press-label", "scroll-id", "scroll-label"] + DirectAccessibilitySetValue.operations).contains(native.operation) {
                 return CommandOutput(data: try await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
             }
             if native.operation == "key" {

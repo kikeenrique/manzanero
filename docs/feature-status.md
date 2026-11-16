@@ -8,7 +8,7 @@ This page describes current product availability, not historical helper capabili
 | --- | --- | --- |
 | Discovery/preparation | CoreDevice/simulator inventory, doctor, physical readiness | Physical inventory may include simulators. Readiness includes display/passcode observations but does not verify UI Automation or current UI unlock. |
 | Physical single-contact input | Home/buttons, tap, long press, swipe/drag | Home, Settings navigation/scroll and Maps context menu visually verified on iPhone 13 mini. Delivery measured with the probe app on that phone: 150/150 actions after a fix for short gestures lost when the connection closed too early. |
-| Keyboard | Named keys, US-layout ASCII typing, Unicode paste | Mixed ASCII, Backspace and synthetic Unicode checked in Settings search. Paste replaces clipboard; other layouts/apps/keys need coverage. |
+| Keyboard | Named keys, US-layout ASCII typing, Unicode paste, Unicode entry by AX set-value | Mixed ASCII, Backspace and synthetic Unicode checked in Settings search. Paste replaces clipboard. Set-value entered accented text, emoji, CJK and Arabic in the probe's field on one iPhone 13 mini; other apps untested. Typing assumes the US layout; other layouts are required and not built. |
 | Coordinated contacts | Two-to-five-contact multi-tap/multi-drag, pinch, timed complete-state schedules | Two-contact Maps zoom and selected timed sequences verified. The probe app received two, three, four and five simultaneous contacts as sent on iPhone 13 mini. What apps' gesture recognizers make of three or more contacts is not established. |
 | Physical AX reads | Explicit-PID and portrait display-centre selected trees | Settings CLI/MCP trees and screenshot/tree workflow verified. Non-atomic, snapshot-local IDs; overlay, rotation and other-family coverage limited. |
 | Physical AX actions | Exact identifier/label press; scroll-to-visible | Settings navigation and row movement verified. Target must resolve freshly; scroll requires materialized nodes and separate postcondition inspection. |
@@ -31,7 +31,6 @@ This page describes current product availability, not historical helper capabili
 ## Unavailable or missing
 
 - Simulator `wake`: refused as not implemented (`unsupported-operation`). Simulator `paste` is refused because `simctl pbcopy` did not reach the pasteboard; non-ASCII `type` is refused in favour of set-value.
-- Physical `set-value`: refused (`unsupported-operation`) until the request has been tried on a phone.
 - Physical `hid-info` and live raw `ax-snapshot`: no direct Apple replacement yet; they fail as an unsupported physical-device operation. Physical `logs` is refused as `unsupported-operation` until the native `os_trace_relay` route exists ([app logs](app-logs.md)). Offline `decode-ax-archive` still works.
 - Independent Wi-Fi pairing (`pair wifi`) and `--pairing-file`: not recognised as commands. Pair through Xcode/CoreDevice.
 

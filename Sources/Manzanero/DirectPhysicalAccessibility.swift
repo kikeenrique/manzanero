@@ -19,9 +19,13 @@ enum DirectPhysicalAccessibility {
         let action: DirectAccessibilityAction?
         let wait: AccessibilityWait?
         let pid: Int32?
+        var setValue: DirectAccessibilitySetValue?
         if input.operation == "tree" {
             action = nil; wait = nil
             pid = input.operands.isEmpty ? nil : try applicationPID(input)
+        } else if DirectAccessibilitySetValue.operations.contains(input.operation) {
+            action = nil; wait = nil; pid = nil
+            setValue = try DirectAccessibilitySetValue(input)
         } else if AccessibilityWait.operations.contains(input.operation) {
             action = nil; pid = nil
             wait = try AccessibilityWait(input)
@@ -75,6 +79,11 @@ enum DirectPhysicalAccessibility {
                 bytes = try action.execute(session: session, display: display)
                 actionStage = 2
             }
+            else if let setValue {
+                actionStage = 1
+                bytes = try setValue.execute(session: session, display: display)
+                actionStage = 2
+            }
             else if let wait {
                 bytes = try await wait.execute(device: input.device, resolved: identity.uuid, session: session,
                                                display: display, clock: ContinuousClock())
@@ -82,7 +91,7 @@ enum DirectPhysicalAccessibility {
             else { bytes = try capture(device: input.device, resolved: identity.uuid, pid: pid, session: session, display: display) }
             directory.close()
             let release = assertion.close()
-            if action != nil, Task.isCancelled {
+            if action != nil || setValue != nil, Task.isCancelled {
                 FileHandle.standardError.write(Data("Native AX action completed, but cancellation withheld its receipt. Inspect before retrying. No automatic replay.\n".utf8))
             }
             try Task.checkCancellation()

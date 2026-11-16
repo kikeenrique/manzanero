@@ -49,6 +49,7 @@ struct CLIParserTests {
         (["wait", "--label", "Done", "--pid", "9", "--until", "value", "--value", "Ready", "--interval", "1", "--timeout", "2", "--device", device],
          ["physical", device, "wait-label", "9", "Done", "--until", "value", "--value", "Ready", "--timeout", "2", "--interval", "1"]),
         (["set-value", "--id", "field", "mañana 🚀", "--simulator", simulator], ["simulator", simulator, "set-value-id", "field", "mañana 🚀"]),
+        (["set-value", "--label", "Field", "--pid", "7", "中", "--device", device], ["physical", device, "set-value-label", "7", "Field", "中"]),
         (["screenshot", "tmp/a.png", "--device", device], ["physical", device, "screenshot", "tmp/a.png"]),
         (["screen", "--simulator", simulator], ["simulator", simulator, "screen"]),
         (["screen", "ocr", "--device", device], ["physical", device, "screen", "ocr"]),

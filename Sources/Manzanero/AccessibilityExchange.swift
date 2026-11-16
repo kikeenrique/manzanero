@@ -57,6 +57,6 @@ struct AccessibilityPlatform: Sendable {
         cleanupLimitation: "A disable acknowledgement is not independent verification of phone-side subscription teardown.")
 }
 
-extension AccessibilitySession: AccessibilityExchange {
+extension AccessibilitySession: AccessibilityValueSetting {
     var platform: AccessibilityPlatform { .physical }
 }

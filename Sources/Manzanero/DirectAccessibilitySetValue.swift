@@ -1,8 +1,8 @@
 import Foundation
 
-/// A session that can ask whether a value is settable and set it. Only the
-/// simulator session conforms: the requests (type 3 and type 8, attribute 53)
-/// have been observed on simulators and never sent to a physical device.
+/// A session that can ask whether a value is settable (request type 3,
+/// attribute 53) and set it (type 8). Both the physical DTX session and the
+/// simulator session conform.
 protocol AccessibilityValueSetting: AccessibilityExchange {
     func isSettable(_ token: AccessibilityRequest.Token) throws -> Bool
     func setValue(_ token: AccessibilityRequest.Token, text: String, onSubmission: () -> Void) throws
@@ -20,7 +20,6 @@ protocol AccessibilityValueSetting: AccessibilityExchange {
 struct DirectAccessibilitySetValue {
     static let operations = ["set-value-id", "set-value-label"]
     static let maximumTextBytes = 65536
-    static let physicalRefusal = "Physical set-value is not enabled: the accessibility set-value request has been verified only on simulators. For Unicode text on a physical device use paste. No input sent."
 
     let guards: DirectAccessibilityAction
     let value: String

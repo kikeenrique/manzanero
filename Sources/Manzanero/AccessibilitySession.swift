@@ -109,6 +109,16 @@ final class AccessibilitySession {
         return accepted
     }
 
+    func isSettable(_ token: AccessibilityRequest.Token) throws -> Bool {
+        let result = try exchange(AccessibilityRequest.settable(token), expected: .settable)
+        guard let settable = AccessibilityResponse.booleanResult(result) else { throw invalid("unknown settable result") }
+        return settable
+    }
+
+    func setValue(_ token: AccessibilityRequest.Token, text: String, onSubmission: () -> Void) throws {
+        _ = try exchange(AccessibilityRequest.setValue(token, text: text), expected: .setValue, onSubmission: onSubmission)
+    }
+
     @discardableResult
     func close() -> Cleanup {
         if let cleanup { return cleanup }
