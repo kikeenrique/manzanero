@@ -49,7 +49,7 @@ enum DirectSimulatorInput {
             }
             result["screen"] = display.screenJSON(info)
             try Task.checkCancellation()
-            let surface = try environment.digitizerReports(input.device, display.primaryUUID,
+            let surface = try environment.digitizerReports(input.device, display.displayUUID,
                                                            sequence.times.map { UInt64($0) * 1_000_000 }, sequence.reports.flatMap { $0 })
             result["surfaceID"] = surface
             result["frameCount"] = sequence.times.count
@@ -64,7 +64,15 @@ enum DirectSimulatorInput {
             let wire = samples.map { ADCTouchSample(nanoseconds: $0.nanoseconds, x: $0.x, y: $0.y, phase: $0.phase) }
             let second = samples.compactMap(\.second).map { ADCTouchPoint(x: $0.x, y: $0.y) }
             try Task.checkCancellation()
-            if second.isEmpty {
+            if !display.isPrimary {
+                // Indigo digitizer events reach only the primary display (an
+                // unfolded Duo's LCD-1 received none, whatever their target
+                // field); its own Universal HID touchscreen does.
+                let frames = try reportFrames(samples)
+                result["surfaceID"] = try environment.digitizerReports(input.device, display.displayUUID, frames.times, frames.reports.flatMap { $0 })
+                result["route"] = "universal-hid"
+                result["frameCount"] = frames.times.count
+            } else if second.isEmpty {
                 try environment.touch(input.device, wire)
             } else {
                 // pinch and two-path multi-drag: pointOne and pointTwo of one
@@ -134,6 +142,26 @@ enum DirectSimulatorInput {
             throw CommandFailure.unsupported("Unsupported simulator input operation: \(input.operation); no input sent.")
         }
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    /// One- and two-contact Indigo samples (portrait-native, phase 0 down,
+    /// 1 move, 2 up) as Universal HID complete-state reports for a display's
+    /// own touchscreen: the same times and points, contacts active until the
+    /// up sample. Long schedules are thinned evenly to the bridge's 512
+    /// frames, keeping the first and the last.
+    static func reportFrames(_ samples: [DirectPhysicalTouch.Sample]) throws -> (times: [UInt64], reports: [[UInt8]]) {
+        guard samples.count >= 2, samples.first?.phase == 0, samples.last?.phase == 2 else {
+            throw CommandFailure(.internal, "Invalid touch schedule for the display's touchscreen; no input sent.", inputSent: .none)
+        }
+        let limit = 512
+        let kept = samples.count <= limit ? samples
+            : (0..<limit).map { samples[Int((Double($0) * Double(samples.count - 1) / Double(limit - 1)).rounded())] }
+        func position(_ x: Double, _ y: Double) -> [Int] { [x, y].map { Int((min(max($0, 0), 1) * 65535).rounded()) } }
+        let reports = kept.map { sample in
+            let positions = [position(sample.x, sample.y)] + (sample.second.map { [position($0.x, $0.y)] } ?? [])
+            return NativeTouchFrames.report(positions: positions, active: sample.phase == 2 ? [] : Set(positions.indices))
+        }
+        return (kept.map(\.nanoseconds), reports)
     }
 
     // MARK: - Bridge dispatch

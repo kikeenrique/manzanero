@@ -17,9 +17,10 @@ struct ScreenCommand: Sendable, Equatable {
         return plan
     }
 
-    /// The accessibility tree follows the primary display; another display is
-    /// described by OCR only.
-    var capturesPrimaryDisplay: Bool { selection?.display.primary ?? true }
+    /// The accessibility tree follows the display the interface is on (the
+    /// primary one, or an unfolded iPhone Duo's inner one); another display
+    /// is described by OCR only.
+    var capturesPrimaryDisplay: Bool { selection?.isInterface ?? true }
 
     /// `hierarchy` reads the AX tree: the display-centre app on a physical
     /// device, the frontmost application on a simulator.
@@ -29,7 +30,7 @@ struct ScreenCommand: Sendable, Equatable {
                  isolation: isolated (any Actor)? = #isolation) async throws -> Data {
         try Task.checkCancellation()
         if mode == .tree, !capturesPrimaryDisplay {
-            throw CommandFailure(.unsupportedOperation, "screen tree describes the primary display only; display \(selection?.display.name ?? "") is not primary. Use screen ocr or auto with --display. Nothing was captured.", inputSent: .none)
+            throw CommandFailure(.unsupportedOperation, "screen tree describes only the display the interface is on (the primary one, or an unfolded iPhone Duo's inner one); display \(selection?.display.name ?? "") is not it. Use screen ocr or auto with --display. Nothing was captured.", inputSent: .none)
         }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let image = directory.appendingPathComponent("screen.png")
@@ -40,7 +41,7 @@ struct ScreenCommand: Sendable, Equatable {
         let capturedAt = Date().ISO8601Format()
         var diagnostics: [String] = []
         if mode == .automatic, !capturesPrimaryDisplay {
-            diagnostics.append("Accessibility skipped: the tree follows the primary display, and display \(selection?.display.name ?? "") was captured.")
+            diagnostics.append("Accessibility skipped: the tree follows the display the interface is on, and display \(selection?.display.name ?? "") was captured.")
         }
         if mode != .ocr, capturesPrimaryDisplay {
             do {

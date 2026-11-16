@@ -75,7 +75,8 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
 
     func hit(x: Double, y: Double, container: Bool) throws -> AccessibilityRequest.Token {
         let point = hitMapping?.native(x, y) ?? (x, y)
-        return try AccessibilityResponse.token(exchange(AccessibilityRequest.hit(x: point.0, y: point.1, container: container), expected: .hit))
+        return try AccessibilityResponse.token(exchange(AccessibilityRequest.hit(x: point.0, y: point.1, container: container,
+                                                                                 displayId: hitMapping?.displayId ?? 0), expected: .hit))
     }
 
     /// Hit points arrive in interface points (the tree's frames); the
@@ -85,7 +86,7 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
 
     /// The frontmost application, or nil when the simulator reports none.
     func frontmost() throws -> AccessibilityRequest.Token? {
-        let result = try exchange(AccessibilityRequest.frontmost(), expected: .frontmost, allowEmpty: true)
+        let result = try exchange(AccessibilityRequest.frontmost(displayId: hitMapping?.displayId ?? 0), expected: .frontmost, allowEmpty: true)
         return result == .null ? nil : try AccessibilityResponse.token(result)
     }
 
@@ -273,13 +274,19 @@ final class SimulatorHitMapping: @unchecked Sendable {
     private var rotation = 0
     private var interface = (width: 1.0, height: 1.0)
     private var native = (width: 1.0, height: 1.0)
+    private var display = 0
+
+    /// The display ID point queries name: 0 for the primary display, else the
+    /// interface display's screen ID (an unfolded iPhone Duo's LCD-1 is 3).
+    var displayId: Int { lock.withLock { display } }
 
     func update(_ display: SimulatorDisplay, _ info: SimulatorDeviceInfo) {
-        let bounds = display.accessibility(info).bounds
+        let bounds = display.accessibility(info).bounds, size = display.native(info)
         lock.withLock {
             rotation = display.rotation
             interface = (bounds.width, bounds.height)
-            native = (info.widthPoints, info.heightPoints)
+            native = (size.width, size.height)
+            self.display = display.secondary?.id ?? 0
         }
     }
 

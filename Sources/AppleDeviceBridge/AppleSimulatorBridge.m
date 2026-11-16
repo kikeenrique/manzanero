@@ -528,8 +528,9 @@ int ADCSimulatorPerformDigitizerReports(void *owner, const char *displayUUID, co
         return ADCSimulatorFail(error, capacity, @"Invalid simulator display identifier; no input sent.");
     if (ADCValidateDigitizerSchedule(times, reports, count, error, capacity)) return 1;
     // The simulator offers one touchscreen per display (observed: the primary
-    // display and a "Resizable" one). Only the primary display's receives
-    // reports that reach the app, so match its unique identifier exactly.
+    // display and a "Resizable" one; an iPhone Duo also lists LCD-1's). Only
+    // the touchscreen of the display the interface is on receives reports
+    // that reach the app, so match that display's unique identifier exactly.
     NSString *product = [NSString stringWithFormat:@"CoreDevice touchscreen(%s)", displayUUID];
     __block uint64_t selected = 0;
     int status = ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.universalhidservice", shouldCancel,
@@ -549,7 +550,7 @@ int ADCSimulatorPerformDigitizerReports(void *owner, const char *displayUUID, co
                 }
             }
             if (matches == 1) return 0;
-            ADCSimulatorFail(error, capacity, @"The simulator's Universal HID service did not list exactly one touchscreen for the primary display; no report sent.");
+            ADCSimulatorFail(error, capacity, @"The simulator's Universal HID service did not list exactly one touchscreen for the display; no report sent.");
             return 1;
         },
         ^int(xpc_connection_t connection, ADCInputShouldStop stop) {

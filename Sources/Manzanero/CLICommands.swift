@@ -318,7 +318,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "auto (default), tree or ocr.", completion: .list(["auto", "tree", "ocr"])) var mode: String?
-        @Option(help: ArgumentHelp("Simulator display: name, device name or screen ID (see displays); the tree follows the primary display only.", valueName: "display")) var display: String?
+        @Option(help: ArgumentHelp("Simulator display: name, device name or screen ID (see displays); the tree follows only the display the interface is on.", valueName: "display")) var display: String?
         func request(_ target: Target) throws -> CommandRequest {
             var screen = try ScreenCommand(platform: target.platform.rawValue, device: target.identifier, mode: mode)
             screen.display = try SimulatorDisplays.validated(display, physical: target.platform == .physical, operation: "screen")

@@ -621,7 +621,29 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `unfold --device` (placeholder identifier) | Refused while parsing, `unsupported-operation`; no device contacted |
 | MCP `fold_device unfold`, `set_hinge_angle 90`, `fold_device fold`, sent together in one stdio session without waiting for answers | All `isError: false`, but the simulator ended at 90 degrees: the server ran the calls out of order, and the first version's wait (`Task.sleep`) let another call run during it. The wait now blocks the command service's thread, as timed input does |
 | `hinge` (read) folded, unfolded, after `hinge 90`, after `hinge 120` | `angle` 0, 180, 94.62 (`mechanicalAngle` 90), 113.84 (`mechanicalAngle` 120); `isAngleValid` true, `velocity` 0; `activeDisplay` LCD, LCD-1, LCD-1, and null right after sending 120, LCD-1 1 s later. About 0.7 s per read; five reads in a row all answered |
-| MCP `fold_device unfold`, `get_hinge_angle`, `set_hinge_angle 90`, `fold_device fold`, `get_hinge_angle`, pipelined in one session | All `isError: false`; answered in the order 90 (displayObserved false), angle 91.54 (still moving), unfold (observed), angle 180, fold (observed): each call ran whole, but pipelined calls still run in no fixed order, so a client must wait for each answer |
+| MCP `fold_device unfold`, `get_hinge_angle`, `set_hinge_angle 90`, `fold_device fold`, `get_hinge_angle`, pipelined in one session (`set_hinge_angle` answered first) | All `isError: false`; answered in the order 90 (displayObserved false), angle 91.54 (still moving), unfold (observed), angle 180, fold (observed): each call ran whole, but pipelined calls still run in no fixed order, so a client must wait for each answer |
+
+### The Duo's inner display
+
+**2026-11-16**, `manzanero-research-duo-fold` unfolded with `unfold`, same versions as above. Apps: the [probe app](probe-app.md) (an existing simulator build, installed with `simctl install`, launched with `-ProbeAllowRotation YES`; its view reported 951 × 669) and Settings. Touches were read back from the probe's `probe.touch.*` readouts through `tree`. A scratch copy of the research probe (`tmp/duo-fold-build/`, untracked) sent the raw experiments; everything else ran through `manzanero`.
+
+| Experiment or command | Observed |
+| --- | --- |
+| Raw Indigo tap on `hid.digitizer` at portrait-native (0.75, 0.75), payload `target` 0, 1, 2, 3, 4, 5 | Probe: `began 0` after each; nothing reached LCD-1 |
+| `connectedServices` on `universalhidservice` | Three touchscreens, `CoreDevice touchscreen(<uniqueId>)` of LCD, LCD-1 and Resizable, plus keyboard, buttons, `touchscreenGesture` and `avpCustom` |
+| Raw Universal HID tap on LCD-1's touchscreen at (0.75, 0.75); then three contacts | Probe: one contact at (0.250, 0.750), so interface (x, y) = touchscreen (y, 1 − x); then `max 3` |
+| `tree` before the change | Worked (frontmost answered: the probe), but with the outer display's 466 × 678 geometry |
+| `press --label "Reset probe"` with `displayId` 0, 1, 2 or 3, mapped or unmapped point | Error 8 for all but `displayId` 3 with the point mapped to LCD-1's native portrait points (563, 475.5): `accepted` |
+| `displays`, `screenshot`, `screen`, `record 2` (no `--display`) | `interfaceDisplay` 3; a 2853 × 2007 PNG; `screen` by accessibility with display LCD-1; video 2852 × 2006 of LCD-1. `screen tree --display LCD` refused before capture |
+| `tree` | `screen`: 669 × 951 native, interface 951 × 669, `rot90`, display LCD-1; frames match the screenshot (Reset at 385.5, 537) |
+| `tap 0.25 0.75`, `long-press 0.6 0.4 1.5`, `swipe 0.2 0.5 0.8 0.5 0.4`, `drag 0.3 0.3 0.6 0.6 0.5` | `route: universal-hid`; probe: (0.2499, 0.7499); held 1.502 s at (0.6001, 0.4001); 0.2001 → 0.7999 in 0.401 s; (0.300, 0.300) → (0.600, 0.600) |
+| `pinch 0.5 0.5 0.2 0.5 0.5`, `multi-drag 0.5` two paths, `multi-tap` with 3 and 5 points | Two contacts 0.400/0.600 → 0.250/0.750; both paths as sent; `max 3` and `max 5` at the requested points (error under 0.0005) |
+| `press --label "Reset probe"`, `wait --id probe.touch.reset --until visible`, `set-value --id probe.text.field "Pliegue ñ"`, `tap` on the field, `type " abc"` | Probe session reset; `condition-met`; `acknowledged`; the text probe read `Pliegue ñ abc` |
+| Settings: `tree`, `press --label General`, `press --id com.apple.settings.general`, `scroll --id com.apple.settings.standBy` | Right after `simctl launch`, the frontmost request still named the probe for a few seconds (Settings blank); then the two-column Settings tree. `--label General` refused as ambiguous (several matches); `--id` opened General's detail; scroll `postcondition-verified` |
+| `button home`, then `tree` | Failed: no snapshot data at full depth or depth 10, as on the folded Duo |
+| Folded again: `displays`, `tap 0.25 0.75`, `multi-tap` 3, `tree`, `press`, `screenshot` | `interfaceDisplay` 1; Indigo route (no `route` key), (0.2504, 0.7503); `max 3`; 466 × 678 `rot0` without a `display` object; `accepted`; 1398 px wide |
+| `iPhone 17e` (iOS 27.2, single display): `displays`, `tap`, `multi-tap` 3, `press`, `tree`, `screenshot` | `interfaceDisplay` 1; Indigo route, (0.300, 0.600); `max 3`; `accepted`; 390 × 844; `simctl io … screenshot` without `--display`, as before |
+| MCP, one call every 4 s: `list_displays`, `tap`, `get_ui_tree`, `screenshot` (no display) | All `isError: false`; `interfaceDisplay` 3, `route: universal-hid`, the probe recorded (0.3999, 0.5999), a 2853-px PNG |
 
 ## Retired implementations
 

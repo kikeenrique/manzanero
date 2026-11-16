@@ -47,6 +47,10 @@ struct SimulatorDisplaySelection: Sendable, Equatable {
     /// one capturable display and none was requested: the invocation is then
     /// exactly the one used before display selection existed.
     let argument: String?
+    /// Whether this is the display the interface is on, which trees, touch
+    /// and actions follow: the primary display, or on an unfolded iPhone Duo
+    /// the awake inner one.
+    var isInterface = true
 }
 
 /// Simulator displays: listing, and the display choice of `screenshot`,
@@ -120,10 +124,33 @@ enum SimulatorDisplays {
     /// is refused. Without a request the primary display is used, and the
     /// simctl argument is omitted when only one display can be captured.
     static func select(_ requested: String?, in displays: [SimulatorDisplayEntry]) throws -> SimulatorDisplaySelection {
+        var selection = try choose(requested, in: displays)
+        selection.isInterface = selection.display.id == interface(displays)?.id
+        return selection
+    }
+
+    /// The display the interface is on: the one awake integrated display when
+    /// it is not the primary one, else the primary display.
+    /// The same rule as `SimulatorDisplay`: another display only when the
+    /// primary one is not awake and exactly one other integrated display with
+    /// a framebuffer is.
+    static func interface(_ displays: [SimulatorDisplayEntry]) -> SimulatorDisplayEntry? {
+        let primaries = displays.filter(\.primary)
+        guard primaries.count == 1 else { return nil }
+        let others = primaries[0].isOn ? [] : displays.filter { !$0.primary && $0.isIntegrated && $0.isOn && $0.capturable }
+        return others.count == 1 ? others[0] : primaries[0]
+    }
+
+    private static func choose(_ requested: String?, in displays: [SimulatorDisplayEntry]) throws -> SimulatorDisplaySelection {
         let capturable = displays.filter(\.capturable)
         let available = capturable.map { "\($0.name) (id \($0.id)\($0.primary ? ", primary" : ""))" }.joined(separator: ", ")
         guard let requested else {
             if capturable.count == 1 { return SimulatorDisplaySelection(display: capturable[0], argument: nil) }
+            // The interface's display when it is not the primary one (an
+            // unfolded iPhone Duo's LCD-1); otherwise the primary, as before.
+            if let interface = interface(displays), !interface.primary {
+                return SimulatorDisplaySelection(display: interface, argument: "--display=\(interface.id)")
+            }
             let primaries = capturable.filter(\.primary)
             guard primaries.count == 1 else {
                 throw CommandFailure(.targetUnresolved, "The simulator has no single capturable primary display; choose one with --display: \(available.isEmpty ? "none" : available). Nothing was captured.", inputSent: .none)
@@ -153,7 +180,7 @@ enum SimulatorDisplays {
         return base.dropLast() + [argument, base[base.count - 1]]
     }
 
-    static let resolution = "Read the simulator's display information (dtdeviceinfod) first; with one capturable display the arguments stay as shown, with several --display=<screen ID> of the requested display (else the primary one) goes before the path. An unknown or uncapturable display is refused before capture."
+    static let resolution = "Read the simulator's display information (dtdeviceinfod) first; with one capturable display the arguments stay as shown, with several --display=<screen ID> of the requested display (else the one the interface is on: the primary one, or the one awake integrated display when that is another) goes before the path. An unknown or uncapturable display is refused before capture."
 }
 
 /// `displays` and simulator `screenshot`: simctl capture with a display choice.
@@ -208,7 +235,8 @@ enum SimulatorDisplayRequest: Sendable, Equatable {
             return try JSONSerialization.data(withJSONObject: [
                 "platform": "simulator", "device": device, "displays": displays.map(\.json),
                 "defaultCaptureDisplay": selection.map { $0.display.id as Any } ?? NSNull(),
-                "note": "id is the screen ID that --display accepts. Trees, waits, actions and touch follow the display marked primary."],
+                "interfaceDisplay": SimulatorDisplays.interface(displays).map { $0.id as Any } ?? NSNull(),
+                "note": "id is the screen ID that --display accepts. Trees, waits, actions, touch and default captures follow interfaceDisplay: the display marked primary, or, when it is off and exactly one other integrated display with a framebuffer is awake, that one (an unfolded iPhone Duo's LCD-1)."],
                 options: [.prettyPrinted, .sortedKeys])
         case .screenshot(let device, let output, let display):
             let selection = try SimulatorDisplays.select(display, in: displays)

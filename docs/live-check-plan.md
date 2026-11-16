@@ -33,6 +33,7 @@ Everything in [other families](other-families.md) has run on simulators only. On
 
 ## Questions still open
 
+- On the Duo simulator's inner display: `gesture`, three-to-five-path `multi-drag`, and the centre-hit fallback when no frontmost application is reported were not run; only the `rot90` orientation was seen. Pipelined MCP calls (sent without waiting for answers) ran in no fixed order; is that intended for a server whose calls share one device?
 - Why does an MCP `tools/call` sent immediately after `notifications/initialized` sometimes get no response? Seen in about half of eight sessions; a one-second pause avoided it.
 
 - Does the 200 ms connection drain hold on other devices and under load? On the iPhone 13 mini, 50 ms lost short gestures and 100 ms did not.

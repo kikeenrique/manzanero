@@ -16,7 +16,10 @@ struct DirectTouchDisplay: Equatable {
         id = 0; self.width = width; self.height = height; self.scale = scale; native = 0; rotation = 0
     }
 
-    init(_ data: Data) throws {
+    /// The display marked primary, or with `displayId` the integrated display
+    /// with that ID (a simulator whose interface is on another display, such
+    /// as an unfolded iPhone Duo's LCD-1); the same checks apply to either.
+    init(_ data: Data, displayId requested: Int? = nil) throws {
         func invalid() -> CommandFailure {
             CommandFailure(.transportFailed, "Expected one integrated primary display with valid typed geometry/orientation; no touch or capture started.", inputSent: .none)
         }
@@ -27,15 +30,16 @@ struct DirectTouchDisplay: Equatable {
               let displays = result["displays"] as? [[String: Any]], (1...16).contains(displays.count) else {
             throw CommandFailure(.transportFailed, "Cannot read bounded Apple display metadata; no touch or capture started.", inputSent: .none)
         }
-        let primary = try displays.filter {
-            guard let value = $0["primary"] as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else { throw invalid() }
-            return value.boolValue
+        let primary = try displays.filter { display in
+            guard let value = display["primary"] as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else { throw invalid() }
+            return requested.map { (display["displayId"] as? NSNumber)?.intValue == $0 } ?? value.boolValue
         }
         let rotations = ["rot0": 0, "rot90": 90, "rot180": 180, "rot270": 270]
         guard primary.count == 1, let display = primary.first,
               (display["type"] as? [String: Any])?["integrated"] is [String: Any] else { throw invalid() }
         guard display["backlightState"] as? String == "activeOn" else {
-            let state = display["backlightState"] as? String == "off" ? "Primary display is off." : "Primary display awake state is unknown or unsupported."
+            let subject = requested == nil ? "Primary display" : "Display"
+            let state = display["backlightState"] as? String == "off" ? "\(subject) is off." : "\(subject) awake state is unknown or unsupported."
             throw CommandFailure(.displayOff, "\(state) Wake and unlock the selected device, then try again; no touch or capture started.", inputSent: .none)
         }
         func number(_ value: Any?) throws -> Double {

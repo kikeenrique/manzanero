@@ -8,17 +8,18 @@ An iPhone Duo simulator has two integrated displays: the outer `LCD` (screen ID 
 
 ```sh
 manzanero displays --simulator <UUID>                       # every display, with id, size, backlight, active, primary
-manzanero screenshot tmp/outer.png --simulator <UUID>       # the primary display (LCD)
+manzanero screenshot tmp/outer.png --simulator <UUID>       # the display the interface is on
 manzanero screenshot tmp/inner.png --simulator <UUID> --display LCD-1
 manzanero screen ocr --simulator <UUID> --display 3
 manzanero record tmp/inner.mp4 5 --simulator <UUID> --display primary-1
 ```
 
-- `displays` reads the simulator's display information (the same read-only `dtdeviceinfod` request touch uses) and prints each display's `id`, `name`, `deviceName`, `type`, pixel and point size, `backlightState`, `active`, `currentOrientation`, `primary` and `capturable`, plus `defaultCaptureDisplay`.
-- `screenshot`, `screen` and simulator `record` take `--display <name|device name|screen ID>`; names ignore case. Without it a simulator with one capturable display gets exactly the `simctl` invocation it got before, and a simulator with several gets `--display=<screen ID>` of the primary display. An unknown display, or one without a framebuffer, is refused with `ambiguous-or-missing-target` before anything is captured. Manzanero always passes the numeric screen ID to `simctl`.
+- `displays` reads the simulator's display information (the same read-only `dtdeviceinfod` request touch uses) and prints each display's `id`, `name`, `deviceName`, `type`, pixel and point size, `backlightState`, `active`, `currentOrientation`, `primary` and `capturable`, plus `defaultCaptureDisplay` and `interfaceDisplay`.
+- **The interface display** is the display marked primary, except when that display is not awake and exactly one other integrated display with a framebuffer is `activeOn`: then it is that one. Only an unfolded iPhone Duo is in that case (the primary flag stays on the outer `LCD` while the interface is on `LCD-1`). With both integrated displays awake, which happens for a moment while folding and after a fresh boot, it is the primary one. A display without a framebuffer (`Resizable`) is never chosen, so a phone whose display is off is still refused as `display-off`.
+- `screenshot`, `screen` and simulator `record` take `--display <name|device name|screen ID>`; names ignore case. Without it a simulator with one capturable display gets exactly the `simctl` invocation it got before, and a simulator with several gets `--display=<screen ID>` of the interface display. An unknown display, or one without a framebuffer, is refused with `ambiguous-or-missing-target` before anything is captured. Manzanero always passes the numeric screen ID to `simctl`.
 - On a physical device `--display` is refused as `unsupported-operation` before any device contact; `displays` is simulator-only.
-- `screen` reads the accessibility tree only for the primary display. With another display, `auto` describes the image by OCR and says why in `diagnostics`, and `tree` is refused before capture.
-- Trees, waits, selector actions and touch follow the display the simulator marks primary, as before. They take no display option. Unfolded, the interface moves to the inner display while the primary flag stays on the outer one; see [fold](#fold-iphone-duo).
+- `screen` reads the accessibility tree only for the interface display. With another display, `auto` describes the image by OCR and says why in `diagnostics`, and `tree` is refused before capture.
+- Trees, waits, selector actions and touch follow the interface display. They take no display option. See [the inner display](#the-inner-display-unfolded) for what that changes on an unfolded Duo.
 
 MCP: `list_displays`, and an optional `display` field on `screenshot`, `get_screen` and `record_screen`.
 
@@ -41,6 +42,23 @@ Each sends one `IndigoVendorDefinedEvent` to the simulator's `com.apple.coredevi
 - `fold`, `unfold` and `hinge <degrees>` take the simulator lease like other input, and hold the command service for their whole duration, wait included, so a second call to the same CLI or MCP server cannot run between the event and the display check.
 
 MCP: `fold_device` (`state`: `fold` or `unfold`), `set_hinge_angle` (`degrees`) and `get_hinge_angle` (read-only).
+
+### The inner display (unfolded)
+
+Unfolded, `LCD-1` reports `nativeOrientation: rot0`, `currentOrientation: rot90`, 2007 × 2853 pixels at 3× (669 × 951 points), and the interface is landscape, 951 × 669 points; the device reports `landscapeRight`. What follows the interface display there, all measured on the iOS 27.2 runtime with the [probe app](probe-app.md) launched with `-ProbeAllowRotation YES` (its view reported 951 × 669):
+
+- **Touch goes to LCD-1's own Universal HID touchscreen.** Indigo digitizer events (`hid.digitizer`) never reached `LCD-1`: a raw tap with the payload's `target` 0, 1, 2, 3, 4 or 5 left the probe at zero touches. The Universal HID service lists one touchscreen per display, `CoreDevice touchscreen(<uniqueId>)`, and the one named after `LCD-1`'s unique identifier delivers. So on a non-primary interface display, `tap`, `long-press`, `swipe`, `drag`, `pinch` and two-path `multi-drag` send their usual samples as Universal HID complete-state reports to that touchscreen (`route: universal-hid` and `frameCount` in the receipt; schedules longer than the bridge's 512 frames, such as a 10 s long press, are thinned evenly). `multi-tap`, `gesture` and three-to-five-path `multi-drag` already used Universal HID and now pick that display's touchscreen. Coordinates map as on a phone in landscape right: interface (x, y) is the touchscreen's (y, 1 − x).
+- **Accessibility hit tests name the display.** Trees worked unchanged (the frontmost-application request answered), but every hit test failed with error 8 until it carried `LCD-1`'s screen ID: hit and frontmost requests now send `displayId` 3 instead of 0, with the point mapped to `LCD-1`'s native portrait points (interface (475.5, 563) is (563, 475.5)). Display 0, 1 or 2, or unmapped interface points, were refused. On the primary display the requests are unchanged (`displayId` 0).
+- **Geometry.** Trees, waits and actions use the interface size 951 × 669 and `rot90`; the result's `screen` object gives `LCD-1`'s native size and adds a `display` object (`id`, `name`, `deviceName`, `primary: false`). On the primary display `screen` keeps its shape.
+- **Captures** default to `LCD-1` (`--display=3`), so `screenshot`, `screen` and `record` without `--display` show the interface; `screen` reads the tree for it.
+
+Observed working unfolded: `tree`, `press` (by label and by identifier), `scroll --id` (Settings' StandBy row, `postcondition-verified`), `wait`, `set-value`, `type` into a focused field, `tap` (landed at 0.2499, 0.7499 for 0.25, 0.75), `long-press` (held 1.502 s for 1.5), `swipe`, `drag`, `pinch`, two-path `multi-drag`, `multi-tap` with 3 and 5 contacts, `screen`, `screenshot` and `record`; folded, the same commands ran on `LCD` by the old route (Indigo for one and two contacts, no `route` key), and on an `iPhone 17e` the requests and the `simctl` invocation were unchanged.
+
+Not working or not tried:
+
+- The Home Screen tree fails unfolded as it does folded on this runtime (no snapshot data at full depth or depth 10); unrelated to the display.
+- Right after `simctl launch` of Settings unfolded, the frontmost request still named the previous app for a few seconds while Settings drew a blank window; a later `tree` read Settings. In its two-column layout `press --label General` is refused as ambiguous (sidebar row and detail title); `press --id com.apple.settings.general` worked.
+- `gesture`, three-to-five-path `multi-drag` and the hit-test fallback for a simulator that reports no frontmost application were not run on `LCD-1`. Only `rot90` was seen; whether `LCD-1` turns to other orientations, and whether the mapping holds then, is unknown.
 
 ## Siri Remote (Apple TV)
 

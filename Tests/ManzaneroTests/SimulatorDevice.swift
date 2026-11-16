@@ -22,7 +22,7 @@ struct SimulatorDeviceTests {
     @Test(arguments: [("rot0", "rot0", 0), ("rot0", "rot90", 90), ("rot0", "rot180", 180), ("rot0", "rot270", 270), ("rot90", "rot270", 0)])
     func displayRotationIsNativePlusCurrent(_ native: String, _ current: String, _ rotation: Int) throws {
         let display = try SimulatorDisplay(SimulatorInputTests.displayJSON(current: current, native: native))
-        #expect(display.rotation == rotation && display.primaryUUID == SimulatorInputTests.primaryDisplay && display.backlight == "activeOn")
+        #expect(display.rotation == rotation && display.displayUUID == SimulatorInputTests.primaryDisplay && display.backlight == "activeOn" && display.isPrimary)
         let ax = display.accessibility(Self.info())
         let turned = rotation == 90 || rotation == 270
         #expect(ax.bounds.width == (turned ? 844 : 390) && ax.bounds.height == (turned ? 390 : 844))

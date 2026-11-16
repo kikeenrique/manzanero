@@ -39,17 +39,23 @@ enum AccessibilityRequest {
     /// point over an area that has no accessibility element is refused
     /// (error 8); with type 2 the enclosing container answers instead. That
     /// matters when the only question is which process owns the point.
-    static func hit(x: Double, y: Double, container: Bool = false) throws -> Data {
+    ///
+    /// `displayId` 0 is the primary display. A simulator whose interface is on
+    /// another display (an unfolded iPhone Duo's LCD-1) answers hit tests only
+    /// with that display's screen ID (3) and its native portrait points;
+    /// 0, 1 and 2 were refused there with error 8.
+    static func hit(x: Double, y: Double, container: Bool = false, displayId: Int = 0) throws -> Data {
         guard x.isFinite, y.isFinite else { throw CommandFailure(.internal, "Invalid AX hit point.", inputSent: .unknown) }
         return try archive(kind: 6, parameters: ["point": NSValue(point: NSPoint(x: x, y: y)),
-            "displayId": 0], token: nil, pointQuery: true, clientType: container ? 2 : 0)
+            "displayId": displayId], token: nil, pointQuery: true, clientType: container ? 2 : 0)
     }
 
-    /// Read-only query for the frontmost application of display 0, used by the
+    /// Read-only query for the frontmost application of a display (0, the
+    /// primary one, unless the interface is on another display), used by the
     /// simulator route. It carries the same synthetic PID-zero translation as
     /// a hit test; the physical route never sends it.
-    static func frontmost() throws -> Data {
-        try archive(kind: 4, parameters: ["displayId": 0], token: nil, pointQuery: true)
+    static func frontmost(displayId: Int = 0) throws -> Data {
+        try archive(kind: 4, parameters: ["displayId": displayId], token: nil, pointQuery: true)
     }
 
     /// The snapshot depth every physical request uses.

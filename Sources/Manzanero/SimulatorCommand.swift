@@ -160,7 +160,7 @@ struct SimulatorInput: Sendable, Equatable {
             plan["contactSlots"] = sequence.contactCount
             plan["durationMilliseconds"] = sequence.times.last ?? 0
             plan["coordinateSpace"] = "normalized-current-interface"
-            plan["execution"] = "Read the simulator's display information (dtdeviceinfod) twice: awake primary display, orientation, unique identifier. Then in-process host XPC to the simulator's dtuhidd Universal HID service (com.apple.coredevice.feature.remote.universalhidservice): readiness barrier, connectedServices must list exactly one touchscreen for the primary display, the physical complete-state report schedule, all-up report on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
+            plan["execution"] = "Read the simulator's display information (dtdeviceinfod) twice: awake primary display, orientation, unique identifier (on an unfolded iPhone Duo, the one awake integrated display instead). Then in-process host XPC to the simulator's dtuhidd Universal HID service (com.apple.coredevice.feature.remote.universalhidservice): readiness barrier, connectedServices must list exactly one touchscreen for that display, the physical complete-state report schedule, all-up report on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
         } else if Self.touchOperations.contains(operation) {
             let samples = try DirectPhysicalTouch.plan(coreDeviceInput, display: DirectTouchDisplay(portraitPoints: 1, height: 1, scale: 1))
             plan["backend"] = DirectSimulatorInput.backend
@@ -169,7 +169,7 @@ struct SimulatorInput: Sendable, Equatable {
             plan["sampleCount"] = samples.count
             plan["contactCount"] = samples.first?.second == nil ? 1 : 2
             plan["coordinateSpace"] = "normalized-current-interface"
-            plan["execution"] = "Read the simulator's display information (dtdeviceinfod) twice around planning: awake primary display and its orientation, which rotates the coordinates into the portrait-native digitizer as on a phone. Then in-process host XPC to the simulator's dtuhidd (com.apple.coredevice.feature.remote.hid.digitizer): readiness barrier, the physical Indigo digitizer schedule\(samples.first?.second == nil ? "" : " with both contacts in each event (pointOne, pointTwo)"), release on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
+            plan["execution"] = "Read the simulator's display information (dtdeviceinfod) twice around planning: awake primary display and its orientation, which rotates the coordinates into the portrait-native digitizer as on a phone. Then in-process host XPC to the simulator's dtuhidd (com.apple.coredevice.feature.remote.hid.digitizer): readiness barrier, the physical Indigo digitizer schedule\(samples.first?.second == nil ? "" : " with both contacts in each event (pointOne, pointTwo)"), release on stop, completion barrier and a short drain before disconnect. When the interface is on another display than the primary one (an unfolded iPhone Duo's LCD-1, which Indigo digitizer events do not reach), the same samples go as Universal HID complete-state reports to that display's touchscreen instead. No helper executable or automatic replay."
         } else if SimulatorHinge.operations.contains(operation) {
             plan.merge(SimulatorHinge.plan(self)) { $1 }
         } else if Self.inputOperations.contains(operation) {

@@ -295,7 +295,7 @@ actor CommandService {
                     "analysis": "Prefer accessibility in auto mode (physical selects the app at primary display centre; simulators the frontmost application, else the one at screen centre); fall back to Vision OCR, then explicitly report image-only if analysis fails."]
                 if screen.platform == "simulator" {
                     output["display"] = ["requested": screen.display.map { $0 as Any } ?? NSNull(),
-                                         "resolution": SimulatorDisplays.resolution + " A display that is not primary is described by OCR only."]
+                                         "resolution": SimulatorDisplays.resolution + " A display the interface is not on is described by OCR only."]
                 }
                 return try json(output)
             }
