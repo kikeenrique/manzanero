@@ -19,8 +19,8 @@ struct SimulatorInput: Sendable, Equatable {
     /// multi-drag with three to five paths (`DirectPhysicalGesture.handles`).
     static let gestureOperations = ["multi-tap", "gesture"]
     static let inputOperations = touchOperations + gestureOperations + ["button", "key", "type"] + familyOperations
-    /// Apple TV and Apple Watch controls (docs/other-families.md).
-    static let familyOperations = ["remote", "crown"]
+    /// Apple TV, Apple Watch and iPhone Duo controls (docs/other-families.md).
+    static let familyOperations = ["remote", "crown"] + SimulatorHinge.operations
     static let operations = accessibilityOperations + inputOperations
     /// Operations that exist for physical devices but not yet for simulators.
     static let unimplemented = ["paste", "wake"]
@@ -101,6 +101,11 @@ struct SimulatorInput: Sendable, Equatable {
             guard (1...2).contains(operands.count) else { throw CommandFailure.usage(DigitalCrown.usage) }
             let units = try DigitalCrown.units(operands[0])
             operands = [String(units), String(try DigitalCrown.events(operands.count == 2 ? operands[1] : nil, units: units))]
+        case "fold", "unfold":
+            guard operands.isEmpty else { throw CommandFailure.usage("\(operation) takes no operands; no input sent.") }
+        case "hinge":
+            guard operands.count == 1 else { throw CommandFailure.usage(SimulatorHinge.usage) }
+            operands = [String(try SimulatorHinge.degrees(operands[0]))]
         case "type":
             operands = try DirectPhysicalTyping.operands(operands, subject: "Simulator")
         default:
@@ -163,6 +168,8 @@ struct SimulatorInput: Sendable, Equatable {
             plan["contactCount"] = samples.first?.second == nil ? 1 : 2
             plan["coordinateSpace"] = "normalized-current-interface"
             plan["execution"] = "Read the simulator's display information (dtdeviceinfod) twice around planning: awake primary display and its orientation, which rotates the coordinates into the portrait-native digitizer as on a phone. Then in-process host XPC to the simulator's dtuhidd (com.apple.coredevice.feature.remote.hid.digitizer): readiness barrier, the physical Indigo digitizer schedule\(samples.first?.second == nil ? "" : " with both contacts in each event (pointOne, pointTwo)"), release on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
+        } else if SimulatorHinge.operations.contains(operation) {
+            plan.merge(SimulatorHinge.plan(self)) { $1 }
         } else if Self.inputOperations.contains(operation) {
             plan["backend"] = DirectSimulatorInput.backend
             plan["operands"] = operands
@@ -229,6 +236,12 @@ struct SimulatorEnvironment: Sendable {
     var remoteButton: @Sendable (String, UInt64, UInt32) throws -> Void = DirectSimulatorInput.remoteButton
     /// Digital Crown steps: per-event deltas and the interval in nanoseconds.
     var crown: @Sendable (String, [Double], UInt64) throws -> Void = DigitalCrown.rotate
+    /// The iPhone Duo hinge: one angle in degrees, 0...180.
+    var hinge: @Sendable (String, Double) throws -> Void = SimulatorHinge.set
+    /// Waits between display reads (fold and unfold); cancellation ends it.
+    var pause: @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    /// The clock that bounds those waits.
+    var now: @Sendable () -> ContinuousClock.Instant = { .now }
 
     static let live = SimulatorEnvironment(
         lookup: { try SimulatorDevice.lookup($0) },

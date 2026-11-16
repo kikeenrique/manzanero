@@ -139,6 +139,19 @@ static const ADCRequirementSpec ADCSimulatorInput[] = {
     ADC_METHOD("SimDevice", "UDID"),
     ADC_FILE("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtdeviceinfod.plist"),
 };
+// Simulator fold, unfold and hinge (iPhone Duo): one vendor-defined Indigo
+// event to dtuhidd's hid.vendordefined service, and the display information
+// from dtdeviceinfod to confirm the active display. IOCFSerialize
+// is public, linked IOKit API and needs no check.
+static const ADCRequirementSpec ADCSimulatorHinge[] = {
+    ADC_CORESIMULATOR_DEVICE,
+    ADC_SYMBOL("xpc_endpoint_create_mach_port_4sim"),
+    ADC_SYMBOL("xpc_connection_create_from_endpoint"),
+    ADC_SYMBOL("xpc_connection_enable_sim2host_4sim"),
+    ADC_METHOD("SimDevice", "UDID"),
+    ADC_FILE("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtuhidd.plist"),
+    ADC_FILE("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtdeviceinfod.plist"),
+};
 // Simulator tree, press/scroll by id or label and waits: archived
 // AXPTranslatorRequest objects through -[SimDevice sendAccessibilityRequestAsync:...].
 static const ADCRequirementSpec ADCSimulatorAccessibility[] = {
@@ -191,6 +204,8 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCNativeRecording, ADC_COUNT(ADCNativeRecording) },
     { "simulator-input", "Simulator touch (one to five contacts, timed gestures), button, key and type through host XPC to the simulator's dtuhidd Indigo and Universal HID services, with display information from dtdeviceinfod", 0, 1,
       ADCSimulatorInput, ADC_COUNT(ADCSimulatorInput) },
+    { "simulator-hinge", "iPhone Duo simulator fold, unfold and hinge through host XPC to dtuhidd's vendor-defined HID service, confirmed with display information from dtdeviceinfod", 0, 1,
+      ADCSimulatorHinge, ADC_COUNT(ADCSimulatorHinge) },
     { "simulator-accessibility", "Simulator accessibility (tree, press/scroll by id or label, waits) through CoreSimulator AXPTranslator requests", 0, 1,
       ADCSimulatorAccessibility, ADC_COUNT(ADCSimulatorAccessibility) },
     { "keyed-archive-uid", "Reading keyed-archive UID values in AX archives and decode-ax-archive", 0, 1,

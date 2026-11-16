@@ -11,7 +11,7 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-subprocess.git", exact: "1.0.2")
     ],
     targets: [
-        .target(name: "AppleDeviceBridge", cSettings: [.unsafeFlags(["-fobjc-arc"])], linkerSettings: [.linkedFramework("Foundation"), .linkedFramework("Network"), .linkedFramework("CoreMedia"), .linkedFramework("CoreVideo"), .linkedFramework("CoreImage")]),
+        .target(name: "AppleDeviceBridge", cSettings: [.unsafeFlags(["-fobjc-arc"])], linkerSettings: [.linkedFramework("Foundation"), .linkedFramework("Network"), .linkedFramework("CoreMedia"), .linkedFramework("CoreVideo"), .linkedFramework("CoreImage"), .linkedFramework("IOKit")]),
         .executableTarget(name: "Manzanero", dependencies: [
             "AppleDeviceBridge",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),

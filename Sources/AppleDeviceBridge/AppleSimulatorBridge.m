@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include <mach/mach.h>
+#include <IOKit/IOCFSerialize.h>
 #include "AppleDeviceBridge.h"
 #include "AppleDeviceBridgeInternal.h"
 
@@ -258,8 +259,18 @@ static BOOL ADCSimulatorBarrierAcknowledged(xpc_connection_t connection, dispatc
 /// (lookup:error:, the _4sim endpoint, sim2host) on the owner's queue and
 /// resumes it. A connection error sets status.arrived. Returns NULL with the
 /// error written ("…; no input sent.") when the service cannot be reached.
+static xpc_connection_t ADCSimulatorConnectWithEvents(ADCSimulatorOwner *lifetime, NSString *service, ADCSimulatorReply *status,
+                                                      NSString *hint, void (^events)(xpc_object_t), char *error, size_t capacity);
+
 static xpc_connection_t ADCSimulatorConnect(ADCSimulatorOwner *lifetime, NSString *service, ADCSimulatorReply *status,
                                             NSString *hint, char *error, size_t capacity) {
+    return ADCSimulatorConnectWithEvents(lifetime, service, status, hint, NULL, error, capacity);
+}
+
+/// As ADCSimulatorConnect; `events`, when given, also receives every
+/// non-error connection event (CoreDevice side-channel pushes).
+static xpc_connection_t ADCSimulatorConnectWithEvents(ADCSimulatorOwner *lifetime, NSString *service, ADCSimulatorReply *status,
+                                                      NSString *hint, void (^events)(xpc_object_t), char *error, size_t capacity) {
     ADCEndpointFromPort endpointFromPort = (ADCEndpointFromPort)dlsym(RTLD_DEFAULT, "xpc_endpoint_create_mach_port_4sim");
     ADCConnectionFromEndpoint fromEndpoint = (ADCConnectionFromEndpoint)dlsym(RTLD_DEFAULT, "xpc_connection_create_from_endpoint");
     ADCEnableSimulatorToHost enable = (ADCEnableSimulatorToHost)dlsym(RTLD_DEFAULT, "xpc_connection_enable_sim2host_4sim");
@@ -286,6 +297,7 @@ static xpc_connection_t ADCSimulatorConnect(ADCSimulatorOwner *lifetime, NSStrin
     xpc_connection_set_target_queue(connection, lifetime.queue);
     xpc_connection_set_event_handler(connection, ^(xpc_object_t event) {
         if (xpc_get_type(event) == XPC_TYPE_ERROR) status.arrived = YES;
+        else if (events) events(event);
     });
     xpc_connection_resume(connection);
     return connection;
@@ -465,6 +477,47 @@ int ADCSimulatorRotateCrown(void *owner, const double *deltas, size_t count, uin
         }, error, capacity);
 }
 
+// MARK: - Hinge (iPhone Duo)
+
+/// The event Device Hub's hinge control sends (docs/duo-fold-research.md):
+/// vendor-defined usage page 0xFF61, usage 0x5B, version 0, and a binary
+/// IOCFSerialize of {source: "hinge-slider-control", type: "range", value}.
+static xpc_object_t ADCHingeEvent(double degrees) {
+    NSDictionary *body = @{@"source": @"hinge-slider-control", @"type": @"range", @"value": @(degrees)};
+    CFDataRef data = IOCFSerialize((__bridge CFTypeRef)body, kIOCFSerializeToBinary);
+    if (!data) return NULL;
+    xpc_object_t payload = xpc_dictionary_create_empty();
+    xpc_dictionary_set_uint64(payload, "usagePage", 0xFF61);
+    xpc_dictionary_set_uint64(payload, "usage", 0x5B);
+    xpc_dictionary_set_uint64(payload, "version", 0);
+    xpc_dictionary_set_data(payload, "data", CFDataGetBytePtr(data), (size_t)CFDataGetLength(data));
+    CFRelease(data);
+    xpc_object_t event = xpc_dictionary_create_empty();
+    xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.vendordefined");
+    xpc_dictionary_set_string(event, "messageType", "IndigoVendorDefinedEvent");
+    xpc_dictionary_set_bool(event, "isBarrier", false);
+    xpc_dictionary_set_value(event, "payload", payload);
+    return event;
+}
+
+int ADCSimulatorSetHingeAngle(void *owner, double degrees, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    if (!isfinite(degrees) || degrees < 0 || degrees > 180)
+        return ADCSimulatorFail(error, capacity, @"Invalid hinge angle; it must be 0...180 degrees. No input sent.");
+    xpc_object_t event = ADCHingeEvent(degrees);
+    if (!event) return ADCSimulatorFail(error, capacity, @"Cannot serialize the hinge event; no input sent.");
+    // The service does not reply to events (a reply request ends in
+    // "Connection interrupted" although the event applies), so it is sent
+    // fire-and-forget between the shared barriers. The shared drain keeps the
+    // connection open afterwards: cancelling at once lost the event in the
+    // research, 50 ms or more always applied it.
+    return ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.hid.vendordefined", shouldCancel, NULL,
+        ^int(xpc_connection_t connection, ADCInputShouldStop stop) {
+            if (stop && stop()) return 1;
+            xpc_connection_send_message(connection, event);
+            return 0;
+        }, error, capacity);
+}
+
 // MARK: - Universal HID (three to five contacts, timed sequences)
 
 int ADCSimulatorPerformDigitizerReports(void *owner, const char *displayUUID, const uint64_t *times, const uint8_t *reports,
@@ -539,6 +592,38 @@ static id ADCFoundationValue(xpc_object_t value, int depth) {
     return NSNull.null;
 }
 
+/// A CoreDevice action request as the simulator's dtdeviceinfod expects it:
+/// the device identifier and the host's CoreDevice version are required.
+/// NULL with the error written ("…; `what` not requested.") when either is unknown.
+static xpc_object_t ADCSimulatorActionRequest(ADCSimulatorOwner *lifetime, const char *feature, const char *action,
+                                              xpc_object_t input, NSString *what, char *error, size_t capacity) {
+    NSString *version = [NSBundle bundleWithPath:@"/Library/Developer/PrivateFrameworks/CoreDevice.framework"].infoDictionary[@"CFBundleVersion"];
+    NSArray<NSString *> *parts = [version isKindOfClass:NSString.class] ? [version componentsSeparatedByString:@"."] : nil;
+    if (parts.count < 1 || parts.count > 4) {
+        ADCSimulatorFail(error, capacity, [NSString stringWithFormat:@"Cannot read the installed CoreDevice framework version; %@ not requested.", what]);
+        return NULL;
+    }
+    id udid = ADCResponds(lifetime.device, @"UDID") ? ((id (*)(id, SEL))objc_msgSend)(lifetime.device, NSSelectorFromString(@"UDID")) : nil;
+    if (![udid isKindOfClass:NSUUID.class]) {
+        ADCSimulatorFail(error, capacity, [NSString stringWithFormat:@"CoreSimulator did not report the simulator's UDID; %@ not requested.", what]);
+        return NULL;
+    }
+    xpc_object_t request = xpc_dictionary_create_empty(), release = xpc_dictionary_create_empty(), components = xpc_array_create_empty();
+    for (NSString *part in parts) xpc_array_append_value(components, xpc_uint64_create((uint64_t)part.longLongValue));
+    xpc_dictionary_set_value(release, "components", components);
+    xpc_dictionary_set_int64(release, "originalComponentsCount", (int64_t)parts.count);
+    xpc_dictionary_set_string(release, "stringValue", version.UTF8String);
+    xpc_dictionary_set_string(request, "CoreDevice.featureIdentifier", feature);
+    xpc_dictionary_set_string(request, "CoreDevice.actionIdentifier", action);
+    xpc_dictionary_set_value(request, "CoreDevice.action", xpc_dictionary_create_empty());
+    xpc_dictionary_set_value(request, "CoreDevice.input", input);
+    xpc_dictionary_set_string(request, "CoreDevice.invocationIdentifier", NSUUID.UUID.UUIDString.UTF8String);
+    xpc_dictionary_set_string(request, "CoreDevice.deviceIdentifier", [(NSUUID *)udid UUIDString].UTF8String);
+    xpc_dictionary_set_int64(request, "CoreDevice.CoreDeviceDDIProtocolVersion", 2);
+    xpc_dictionary_set_value(request, "CoreDevice.coreDeviceVersion", release);
+    return request;
+}
+
 int ADCSimulatorDisplayInfo(void *owner, void (^sink)(const uint8_t *, size_t), char *error, size_t capacity) {
     @autoreleasepool {
         if (!owner || !sink) return ADCSimulatorFail(error, capacity, @"Simulator device is not open.");
@@ -547,34 +632,13 @@ int ADCSimulatorDisplayInfo(void *owner, void (^sink)(const uint8_t *, size_t), 
         ADCSimulatorInfo info;
         if (ADCReadDevice(lifetime.device, &info, error, capacity)) return 1;
         if (!info.booted) return ADCSimulatorFail(error, capacity, [NSString stringWithFormat:@"The simulator is %s, not Booted; nothing was sent.", info.state]);
-        // dtdeviceinfod answers the CoreDevice action format and requires the
-        // device identifier and the host's CoreDevice version.
-        NSString *version = [NSBundle bundleWithPath:@"/Library/Developer/PrivateFrameworks/CoreDevice.framework"].infoDictionary[@"CFBundleVersion"];
-        NSArray<NSString *> *parts = [version componentsSeparatedByString:@"."];
-        if (![version isKindOfClass:NSString.class] || parts.count < 1 || parts.count > 4)
-            return ADCSimulatorFail(error, capacity, @"Cannot read the installed CoreDevice framework version; no display information requested.");
+        xpc_object_t request = ADCSimulatorActionRequest(lifetime, "com.apple.coredevice.feature.getdisplayinfo", "com.apple.coredevice.action.displayinfo",
+                                                         xpc_dictionary_create_empty(), @"display information", error, capacity);
+        if (!request) return 1;
         ADCSimulatorReply *status = [ADCSimulatorReply new];
         xpc_connection_t connection = ADCSimulatorConnect(lifetime, @"com.apple.coredevice.feature.getdisplayinfo", status,
                                                           @"no dtdeviceinfod in this runtime?", error, capacity);
         if (!connection) return 1;
-        xpc_object_t request = xpc_dictionary_create_empty(), release = xpc_dictionary_create_empty(), components = xpc_array_create_empty();
-        for (NSString *part in parts) xpc_array_append_value(components, xpc_uint64_create((uint64_t)part.longLongValue));
-        xpc_dictionary_set_value(release, "components", components);
-        xpc_dictionary_set_int64(release, "originalComponentsCount", (int64_t)parts.count);
-        xpc_dictionary_set_string(release, "stringValue", version.UTF8String);
-        xpc_dictionary_set_string(request, "CoreDevice.featureIdentifier", "com.apple.coredevice.feature.getdisplayinfo");
-        xpc_dictionary_set_string(request, "CoreDevice.actionIdentifier", "com.apple.coredevice.action.displayinfo");
-        xpc_dictionary_set_value(request, "CoreDevice.action", xpc_dictionary_create_empty());
-        xpc_dictionary_set_value(request, "CoreDevice.input", xpc_dictionary_create_empty());
-        xpc_dictionary_set_string(request, "CoreDevice.invocationIdentifier", NSUUID.UUID.UUIDString.UTF8String);
-        id udid = ADCResponds(lifetime.device, @"UDID") ? ((id (*)(id, SEL))objc_msgSend)(lifetime.device, NSSelectorFromString(@"UDID")) : nil;
-        if (![udid isKindOfClass:NSUUID.class]) {
-            xpc_connection_cancel(connection);
-            return ADCSimulatorFail(error, capacity, @"CoreSimulator did not report the simulator's UDID; no display information requested.");
-        }
-        xpc_dictionary_set_string(request, "CoreDevice.deviceIdentifier", [(NSUUID *)udid UUIDString].UTF8String);
-        xpc_dictionary_set_int64(request, "CoreDevice.CoreDeviceDDIProtocolVersion", 2);
-        xpc_dictionary_set_value(request, "CoreDevice.coreDeviceVersion", release);
         xpc_object_t reply = ADCSimulatorRequest(connection, lifetime.queue, request);
         xpc_connection_cancel(connection);
         xpc_object_t output = reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(reply, "CoreDevice.output") : NULL;

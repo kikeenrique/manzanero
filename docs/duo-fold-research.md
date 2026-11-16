@@ -1,5 +1,8 @@
 # Folding the iPhone Duo simulator
 
+> **Built (2026-11-16):** `fold`, `unfold` and `hinge <degrees>` use route 1 below
+> ([other families](other-families.md#fold-iphone-duo)).
+>
 > **Status (2026-11-16):** research pass, no product code changed. Follows up the "Fold state" section of
 > [the other-families research](other-families-research.md#fold-state). **Result: a working route was found and
 > exercised.** Folding, unfolding and reading the hinge angle all work from the host over the same `_4sim` XPC

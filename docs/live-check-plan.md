@@ -27,7 +27,7 @@ If every query to a connected device times out, capture the state of Apple's dev
 
 Everything in [other families](other-families.md) has run on simulators only. On real devices nothing is known, including whether the commands apply at all:
 
-- Duo: `displays`, `screenshot` with and without `--display`, `record --display`.
+- Duo: `displays`, `screenshot` with and without `--display`, `record --display`. `fold`, `unfold` and `hinge` are simulator-only (a physical device's hinge is moved by hand); on hardware, check what the display information reports in each fold state.
 - Apple TV: every `remote` button against an app that reacts to play-pause, touch refused, focus in the tree, `wait --until focused`.
 - Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), and `button side`.
 

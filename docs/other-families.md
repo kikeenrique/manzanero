@@ -18,9 +18,27 @@ manzanero record tmp/inner.mp4 5 --simulator <UUID> --display primary-1
 - `screenshot`, `screen` and simulator `record` take `--display <name|device name|screen ID>`; names ignore case. Without it a simulator with one capturable display gets exactly the `simctl` invocation it got before, and a simulator with several gets `--display=<screen ID>` of the primary display. An unknown display, or one without a framebuffer, is refused with `ambiguous-or-missing-target` before anything is captured. Manzanero always passes the numeric screen ID to `simctl`.
 - On a physical device `--display` is refused as `unsupported-operation` before any device contact; `displays` is simulator-only.
 - `screen` reads the accessibility tree only for the primary display. With another display, `auto` describes the image by OCR and says why in `diagnostics`, and `tree` is refused before capture.
-- Trees, waits, selector actions and touch follow the display the simulator marks primary, as before. They take no display option: with the device folded the inner display captures black, so nothing could be checked on it. The fold itself is separate work.
+- Trees, waits, selector actions and touch follow the display the simulator marks primary, as before. They take no display option. Unfolded, the interface moves to the inner display while the primary flag stays on the outer one; see [fold](#fold-iphone-duo).
 
 MCP: `list_displays`, and an optional `display` field on `screenshot`, `get_screen` and `record_screen`.
+
+## Fold (iPhone Duo)
+
+```sh
+manzanero fold --simulator <UUID>          # hinge 0: outer display LCD
+manzanero unfold --simulator <UUID>        # hinge 180: inner display LCD-1, landscape
+manzanero hinge 110 --simulator <UUID>     # any angle 0...180, no display promised
+```
+
+Each sends one `IndigoVendorDefinedEvent` to the simulator's `com.apple.coredevice.feature.remote.hid.vendordefined` service: usage page `0xFF61`, usage `0x5B`, version 0, and as data a binary `IOCFSerialize` of `{source: "hinge-slider-control", type: "range", value: <degrees>}`, the event Device Hub's hinge control sends ([research](duo-fold-research.md)). It goes through the same input path as buttons and keys: readiness barrier, the event (the service sends no reply), completion barrier and the input drain before the connection closes. The research lost the event when the connection closed at once; the drain keeps it open long enough. The simulator animates to the angle itself (0 to 180 in about 0.3 s).
+
+- **`fold` and `unfold` wait for the display.** After sending 0 or 180 they read the display information every 250 ms, at most 40 times and 10 s, until the expected integrated display is `activeOn` and the other is `off`: the primary one (`LCD`) for `fold`, the other one (`LCD-1`) for `unfold`. The receipt has `expectedDisplay`, `activeDisplay` (the one integrated display awake at the last read, or null when none or both are), `displayObserved` and `displayReads`. When the display was not observed in time the command still exits 0 and says so in `note`; nothing is resent. On the iOS 27.2 runtime unfolding was observed after 3 reads and folding after 11 (about 2.7 s), with both displays reading awake in between.
+- **`hinge <degrees>` promises no display.** Whether an intermediate angle swaps the display depends on how the hinge got there: 0 → 110 in one step unfolded, 0 → 45 → 70 → 110 in steps did not, and 180 → 90 stayed unfolded. So `hinge` reads the display information once right after sending and reports it with `displayObserved: false`.
+- **Foldable only.** A simulator is foldable when its display information lists exactly two integrated displays with a framebuffer, one of them primary; no device-type key marks a foldable. Others are refused as `unsupported-operation` after that read-only request and before any input; a physical device is refused before any contact.
+- **Cancellation.** SIGINT during the wait stops it (exit 130); the hinge connection has already closed, and each display read opens and closes its own. The event itself was sent, so the device may end up folded or unfolded.
+- `fold`, `unfold` and `hinge` take the simulator lease like other input.
+
+MCP: `fold_device` (`state`: `fold` or `unfold`) and `set_hinge_angle` (`degrees`).
 
 ## Siri Remote (Apple TV)
 

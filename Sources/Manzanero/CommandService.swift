@@ -386,6 +386,9 @@ actor CommandService {
             throw failure.noInputSent()
         }
         defer { lease?.release() }
+        if SimulatorHinge.operations.contains(simulator.operation) {
+            return CommandOutput(data: try await SimulatorHinge.execute(simulator, info: info, environment: self.simulator))
+        }
         if SimulatorInput.inputOperations.contains(simulator.operation) {
             return CommandOutput(data: try DirectSimulatorInput.execute(simulator, info: info, environment: self.simulator))
         }

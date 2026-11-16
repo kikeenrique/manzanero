@@ -17,10 +17,19 @@ struct SimulatorDisplayEntry: Sendable, Equatable {
     let backlight: String
     let active: Bool
     let orientation: String
+    /// The identifier that names the display's Universal HID touchscreen.
+    var uniqueId = ""
 
     /// A display whose current mode has a size; simctl can capture only these.
     /// A phone's TVOut, CarPlay and resizable displays report 0 × 0.
     var capturable: Bool { widthPixels > 0 && heightPixels > 0 }
+
+    var isIntegrated: Bool { kind == "integrated" }
+    /// Awake: the backlight reads `activeOn`.
+    var isOn: Bool { backlight == "activeOn" }
+
+    /// id, name and device name, as receipts name a display.
+    var summary: [String: Any] { ["id": id, "name": name, "deviceName": deviceName] }
 
     var json: [String: Any] {
         ["id": id, "name": name, "deviceName": deviceName, "primary": primary, "type": kind,
@@ -81,8 +90,29 @@ enum SimulatorDisplays {
                                          pointScale: number(display["pointScale"]) ?? 0,
                                          backlight: display["backlightState"] as? String ?? "unknown",
                                          active: display["active"] as? Bool == true,
-                                         orientation: display["currentOrientation"] as? String ?? "unknown")
+                                         orientation: display["currentOrientation"] as? String ?? "unknown",
+                                         uniqueId: display["uniqueId"] as? String ?? "")
         }
+    }
+
+    /// The outer (primary) and inner integrated displays of a foldable
+    /// simulator: exactly two integrated displays with a framebuffer, one of
+    /// them primary. The iPhone Duo's are LCD (outer) and LCD-1 (inner); no
+    /// device type key marks a foldable (docs/duo-fold-research.md).
+    static func foldable(_ displays: [SimulatorDisplayEntry]) -> (outer: SimulatorDisplayEntry, inner: SimulatorDisplayEntry)? {
+        let integrated = displays.filter { $0.isIntegrated && $0.capturable }
+        guard integrated.count == 2, let outer = integrated.first(where: \.primary),
+              let inner = integrated.first(where: { !$0.primary }) else { return nil }
+        return (outer, inner)
+    }
+
+    /// The integrated display that is awake, when exactly one is. The iPhone
+    /// Duo keeps the primary flag on its outer display while unfolded; this is
+    /// the display the interface is on. Nil when none or several are awake
+    /// (both read awake for a moment while folding, and after a fresh boot).
+    static func active(_ displays: [SimulatorDisplayEntry]) -> SimulatorDisplayEntry? {
+        let awake = displays.filter { $0.isIntegrated && $0.isOn }
+        return awake.count == 1 ? awake[0] : nil
     }
 
     /// The capture display. A request matches one display by screen ID, name

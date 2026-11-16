@@ -46,7 +46,7 @@ User-facing live mirroring, reusable semantic element handles, automatic permiss
 | iPad | In scope; generic paths exist, but dedicated physical/multitasking/display validation is missing |
 | Apple Watch | Simulator: `crown` (Digital Crown, calibrated) and `button side` verified on one watchOS 27.2 simulator; trees, waits, press, tap and `button home` work. Keyboard input unverified; no physical device |
 | Apple TV | Simulator: `remote` (D-pad, select, menu, home, play-pause) verified on one tvOS 27.2 simulator with Settings and a probe app; trees mark the focused node and `wait --until focused` waits for focus; touch is refused; trees, waits, press, keys and typing work. Remote touch surface (swipes) missing: [route not found](other-families.md#remote-touch-surface-not-built); no physical device |
-| iPhone Duo | Simulator captures default to the primary display and take `--display` (one iOS 27.2 simulator); trees and touch follow the primary display; fold control missing; no physical device |
+| iPhone Duo | Simulator captures default to the primary display and take `--display` (one iOS 27.2 simulator); `fold`, `unfold` and `hinge <degrees>` verified on one iOS 27.2 simulator (display swap observed); trees and touch follow the primary display; no physical device |
 | Simulators | Lifecycle/capture/development support; one-to-five-contact input, keys, AX and set-value checked on one iOS simulator runtime, on an iPhone in portrait and landscape and an iPad mini; other families unfinished |
 
 Accepting an identifier or passing a build does not establish support for a new family.

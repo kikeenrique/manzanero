@@ -606,6 +606,21 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `button side` on the watch face, twice | Control Center opened (screenshot and tree), then closed |
 | `crown 100` on the Apple TV, `button side` on the Duo | Refused before input, `unsupported-operation` |
 
+### Fold (iPhone Duo)
+
+**2026-11-16**, `manzanero-research-duo-fold` (iPhone Duo, iOS 27.2, 24B91016s), booted headless with `simctl boot`; host macOS 27.2.1 (26B131), Xcode 27.2 (27B52), CoreDevice 651.32. Commands in [other families](other-families.md#fold-iphone-duo).
+
+| Command | Observed |
+| --- | --- |
+| `fold` (from 180) | Exit 0 in 4.9 s: `displayObserved: true` after 11 display reads, `activeDisplay` LCD. The first version's 5 s bound was close to that, so it became 10 s / 40 reads |
+| `unfold` (from 0) | Exit 0 in 1.7 s: observed after 3 reads, `activeDisplay` LCD-1; `displays` then showed LCD `off`, LCD-1 `activeOn` |
+| `hinge 90` (from 180) | Exit 0, `activeDisplay` null right after sending (both or neither awake at that instant); 2 s later LCD-1 still `activeOn`, LCD `off`, as in the research |
+| `hinge 110` (from 0) | Exit 0; 3 s later LCD-1 `activeOn`, LCD `off`: one step to 110 unfolds, as in the research |
+| `fold`, SIGINT after 1.2 s (in the wait) | Exit 130 with the input-interruption diagnostic; the process was gone at once. The event had been sent: `displays` then showed LCD `activeOn`, LCD-1 `off` |
+| `fold`, `hinge 45` on `iPhone 17e` (iOS 27.2) | Exit 1, `unsupported-operation`, `inputSent: none`: "lists 1 integrated display(s) with a framebuffer" |
+| `unfold --device` (placeholder identifier) | Refused while parsing, `unsupported-operation`; no device contacted |
+| MCP `fold_device unfold`, `set_hinge_angle 90`, `fold_device fold` (one stdio session) | All `isError: false`; LCD-1 then LCD observed |
+
 ## Retired implementations
 
 These results are preserved as history, not current runtime availability:

@@ -62,7 +62,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
 | A step that needs a person | [Human handoff](docs/handoff.md) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
-| Apple TV, Apple Watch and iPhone Duo simulators: displays, remote, Digital Crown | [Other simulator families](docs/other-families.md) |
+| Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown | [Other simulator families](docs/other-families.md) |
 | Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical console unverified) |
 
 Physical input, accessibility and native video need no separate device helper. The CLI has no routes to AXe, idevice or ipb executables, and the process runners refuse them at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator trees, element actions, waits, single-contact touch, Home/lock, keys and typing run in process on a booted simulator ([simulator input](docs/simulator-input.md)).
