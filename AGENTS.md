@@ -58,6 +58,19 @@ One SwiftPM package, three targets: the `Manzanero` executable, the Objective-C 
 - Keep research, plans, protocol notes, and verification records in `docs/`. Keep the root README as the entry point and maintain its links.
 - Put downloads, extracted binaries, temporary tools, caches, and generated investigation artifacts under the visible local `tmp/` directory. Do not use `.tmp/` or `/tmp` for task artifacts. Keep `tmp/` out of version control.
 - Never commit credentials, local device data, or downloaded commercial app binaries.
+- Record standing instructions and lessons in this file (or a file under `docs/` linked from here when they grow), not in an agent's private memory.
+
+### Delegated agents and git history
+
+- Agents that change the repository work one at a time, directly in the main checkout on `main`. Do not give an agent its own git worktree or side branch, and do not run two writing agents at once; run them one after the other. A read-only research agent that writes only under `tmp/` may run beside one writer.
+- Keep `main` a single line: no merge commits.
+- Do not rewrite history (rebase, cherry-pick onto a new line, moving a branch) without asking the owner first, even for commits that were never pushed.
+- If a stray worktree or branch exists, remove it once its work is on `main`, and say what a git viewer will show until then.
+- Why: on 2026-11-16 parallel agent worktrees, a merge commit and a later history rewrite left the day's commits showing twice in the owner's git viewer, as if the work were at risk.
+
+### Stuck Apple device services
+
+- When every query to a connected device times out, capture evidence before restarting `CoreDeviceService` or `remotepairingd`: a wide `log show` (or `log stream`) window for both and a `sample` of each process, saved under `tmp/`. Then ask before restarting them. On 2026-11-16 a restart fixed such a hang but nothing had been captured, so the cause is unknown.
 
 ## Implementation and validation
 
