@@ -205,6 +205,7 @@ final class SimulatorAXFixture: @unchecked Sendable {
     }
 }
 
+@Suite(.cleansLeaseDirectories)
 struct SimulatorAccessibilityTests {
     static let uuid = SimulatorDeviceTests.uuid
     static let screen = SimulatorDeviceTests.info()
@@ -226,8 +227,14 @@ struct SimulatorAccessibilityTests {
     final class SessionCounter: @unchecked Sendable { var count = 0; var lifetimes: [Duration] = [] }
 
     /// A registry in a fresh directory of its own, for tests that take leases.
-    static func usableLeases(_ directory: URL = URL(fileURLWithPath: "tmp/simulator-leases-\(UUID().uuidString)")) -> DeviceLeaseRegistry {
-        DeviceLeaseRegistry(directory: directory)
+    /// Without a directory, the new one is removed after the test by
+    /// `.cleansLeaseDirectories`, which the calling suite must carry; a caller
+    /// that passes a directory removes it itself.
+    static func usableLeases(_ directory: URL? = nil) -> DeviceLeaseRegistry {
+        guard let directory else {
+            return DeviceLeaseRegistry(directory: LeaseDirectories.register("tmp/simulator-leases-\(UUID().uuidString)"))
+        }
+        return DeviceLeaseRegistry(directory: directory)
     }
 
     /// The holder note of the simulator's lease file, while it is held.
@@ -238,7 +245,7 @@ struct SimulatorAccessibilityTests {
     /// A registry that cannot create its directory: taking a lease fails, so a
     /// successful command proves no lease was taken.
     static func unusableLeases() throws -> DeviceLeaseRegistry {
-        let blocker = URL(fileURLWithPath: "tmp/simulator-lease-blocker-\(UUID().uuidString)")
+        let blocker = LeaseDirectories.register("tmp/simulator-lease-blocker-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: blocker.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data().write(to: blocker)
         return DeviceLeaseRegistry(directory: blocker.appendingPathComponent("leases"))

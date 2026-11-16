@@ -3,6 +3,7 @@ import Testing
 @testable import Manzanero
 
 /// Apple TV focus in trees and waits, against the scripted simulator AX peer.
+@Suite(.cleansLeaseDirectories)
 struct SimulatorFocusTests {
     static let uuid = SimulatorDeviceTests.uuid
 

@@ -4,6 +4,7 @@ import Testing
 @testable import Manzanero
 
 /// The Apple TV remote and the tvOS touch refusal, against injected bridge calls.
+@Suite(.cleansLeaseDirectories)
 struct SimulatorRemoteTests {
     static let uuid = SimulatorDeviceTests.uuid
 

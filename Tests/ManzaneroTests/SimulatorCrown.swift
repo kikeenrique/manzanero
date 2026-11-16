@@ -4,6 +4,7 @@ import Testing
 @testable import Manzanero
 
 /// The Digital Crown and the watch side button, against injected bridge calls.
+@Suite(.cleansLeaseDirectories)
 struct SimulatorCrownTests {
     static let uuid = SimulatorDeviceTests.uuid
 

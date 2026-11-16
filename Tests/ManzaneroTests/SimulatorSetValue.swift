@@ -3,6 +3,7 @@ import Testing
 @testable import Manzanero
 
 /// `set-value-id` / `set-value-label` on the simulator, against the AX fixture.
+@Suite(.cleansLeaseDirectories)
 struct SimulatorSetValueTests {
     static let uuid = SimulatorDeviceTests.uuid
     typealias Fixture = SimulatorAXFixture

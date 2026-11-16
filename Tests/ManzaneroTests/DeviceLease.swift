@@ -245,3 +245,66 @@ struct CommandServiceIsolationTests {
         #expect(sawCancellation.withLock { $0 })
     }
 }
+
+/// Lease directories (and blocker files) that shared test helpers create
+/// under `tmp/`, removed after each test by `.cleansLeaseDirectories`, as
+/// the lease tests above remove theirs with `defer`.
+final class LeaseDirectories: Sendable {
+    private let paths = Mutex<[URL]>([])
+
+    @TaskLocal static var current: LeaseDirectories?
+
+    /// Records `path` for removal after the current test and returns it. A
+    /// test outside the trait would leave it behind, so that is an issue.
+    static func register(_ path: String) -> URL {
+        let url = URL(fileURLWithPath: path)
+        guard let current else {
+            Issue.record("\(path) was created outside .cleansLeaseDirectories; add the trait to the suite.")
+            return url
+        }
+        current.paths.withLock { $0.append(url) }
+        return url
+    }
+
+    func removeAll() {
+        for url in paths.withLock({ $0 }) { try? FileManager.default.removeItem(at: url) }
+    }
+}
+
+struct LeaseDirectoryCleanupTrait: SuiteTrait, TestTrait, TestScoping {
+    var isRecursive: Bool { true }
+
+    func scopeProvider(for test: Test, testCase: Test.Case?) -> Self? {
+        testCase == nil ? nil : self
+    }
+
+    func provideScope(for test: Test, testCase: Test.Case?,
+                      performing function: @Sendable () async throws -> Void) async throws {
+        let directories = LeaseDirectories()
+        defer { directories.removeAll() }
+        try await LeaseDirectories.$current.withValue(directories) { try await function() }
+    }
+}
+
+extension Trait where Self == LeaseDirectoryCleanupTrait {
+    static var cleansLeaseDirectories: Self { Self() }
+}
+
+@Suite(.cleansLeaseDirectories)
+struct LeaseDirectoryCleanupTests {
+    @Test func helperDirectoriesAreRemovedAfterTheTest() throws {
+        let registry = SimulatorAccessibilityTests.usableLeases()
+        let lease = try registry.acquire(device: SimulatorDeviceTests.uuid, operation: "tap")
+        lease.release()
+        let blocked = try SimulatorAccessibilityTests.unusableLeases()
+        #expect(throws: CommandFailure.self) { try blocked.acquire(device: SimulatorDeviceTests.uuid, operation: "tap") }
+        // What the trait does after the test, on a collector of its own.
+        let directories = LeaseDirectories()
+        try LeaseDirectories.$current.withValue(directories) {
+            let path = LeaseDirectories.register("tmp/lease-cleanup-check-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
+            directories.removeAll()
+            #expect(!FileManager.default.fileExists(atPath: path.path))
+        }
+    }
+}

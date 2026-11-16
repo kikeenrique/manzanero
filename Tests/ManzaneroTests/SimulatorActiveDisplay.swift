@@ -6,6 +6,7 @@ import Testing
 /// Touch, accessibility and captures follow the display the interface is on:
 /// an unfolded iPhone Duo's inner display, while every other simulator (and
 /// the folded Duo) keeps the primary-display behaviour.
+@Suite(.cleansLeaseDirectories)
 struct SimulatorActiveDisplayTests {
     static let uuid = SimulatorDeviceTests.uuid
     static let outer = "AAAAAAAA-0000-4000-8000-000000000001"

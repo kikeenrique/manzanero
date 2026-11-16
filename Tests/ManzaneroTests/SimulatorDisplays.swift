@@ -4,6 +4,7 @@ import Testing
 @testable import Manzanero
 
 /// Simulator display listing and the display choice of captures.
+@Suite(.cleansLeaseDirectories)
 struct SimulatorDisplaysTests {
     static let uuid = SimulatorDeviceTests.uuid
 

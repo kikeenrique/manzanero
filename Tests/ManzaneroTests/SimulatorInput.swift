@@ -4,6 +4,7 @@ import Testing
 @testable import Manzanero
 
 /// Simulator touch, buttons, keys and typing against injected bridge calls.
+@Suite(.cleansLeaseDirectories)
 struct SimulatorInputTests {
     static let uuid = SimulatorDeviceTests.uuid
 

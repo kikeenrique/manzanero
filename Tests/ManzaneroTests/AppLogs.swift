@@ -635,6 +635,7 @@ struct CrashReportTests {
 
 // MARK: - Service and MCP
 
+@Suite(.cleansLeaseDirectories)
 struct AppDiagnosticsServiceTests {
     private func service() throws -> CommandService {
         CommandService(leases: try SimulatorAccessibilityTests.unusableLeases(), simulator: SimulatorEnvironment(

@@ -5,6 +5,7 @@ import Testing
 
 /// Folding the iPhone Duo simulator against injected bridge calls, display
 /// information and waits.
+@Suite(.cleansLeaseDirectories)
 struct SimulatorHingeTests {
     static let uuid = SimulatorDeviceTests.uuid
     typealias Fixture = SimulatorDisplaysTests
