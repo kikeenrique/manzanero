@@ -15,10 +15,17 @@ struct SimulatorInput {
     /// Indigo digitizer schedules: one contact, or two for pinch and a
     /// two-path multi-drag (pointOne and pointTwo), as on physical devices.
     static let touchOperations = ["tap", "long-press", "swipe", "drag", "pinch", "multi-drag"]
-    static let inputOperations = touchOperations + ["button", "key", "type"]
+    /// Universal HID complete-state reports: multi-tap, gesture, and
+    /// multi-drag with three to five paths (`DirectPhysicalGesture.handles`).
+    static let gestureOperations = ["multi-tap", "gesture"]
+    static let inputOperations = touchOperations + gestureOperations + ["button", "key", "type"]
     static let operations = accessibilityOperations + inputOperations
     /// Operations that exist for physical devices but not yet for simulators.
-    static let unimplemented = ["multi-tap", "gesture", "paste", "wake"]
+    static let unimplemented = ["paste", "wake"]
+
+    /// Whether the input travels as Universal HID reports rather than Indigo
+    /// digitizer events; the same rule as physical routing.
+    var usesUniversalHID: Bool { DirectPhysicalGesture.handles(coreDeviceInput) }
     static let buttons: [String: UInt64] = ["home": 64, "lock": 48]
 
     /// Same rule as physical: trees and waits only read, take no lease and are
@@ -38,11 +45,7 @@ struct SimulatorInput {
             throw CommandFailure.unsupported("Simulator paste is refused: simctl pbcopy did not change the simulator's pasteboard in testing, so a paste could insert other text. For Unicode text use set-value-id or set-value-label, which replace a named element's value without the clipboard. No input sent.")
         }
         if unimplemented.contains(operation) {
-            throw CommandFailure.unsupported("Simulator \(operation) is not implemented yet; simulator input covers tap, long-press, swipe, drag, pinch, two-path multi-drag, button, key and type. Three-to-five-contact gestures and wake remain physical-only. No input sent.")
-        }
-        if operation == "multi-drag", args.count != 12 {
-            try PhysicalInputOperands.validate(operation, Array(args.dropFirst(3)), subject: "Simulator")
-            throw CommandFailure.unsupported("Simulator multi-drag with three to five paths is not implemented yet; two paths use the digitizer's two contacts. No input sent.")
+            throw CommandFailure.unsupported("Simulator \(operation) is not implemented yet; simulator input covers touch with one to five contacts, gesture sequences, button, key and type. Wake remains physical-only. No input sent.")
         }
         guard operations.contains(operation) else { return nil }
         let device = try SimulatorDevice.requireUUID(args[1], operation: operation)
@@ -71,10 +74,17 @@ struct SimulatorInput {
             operands = [x, y, seconds].map { String($0) }
         case "tap", "swipe", "drag", "key":
             try PhysicalInputOperands.validate(operation, operands, subject: "Simulator")
-        case "pinch", "multi-drag":
+        case "pinch", "multi-drag", "multi-tap":
             try PhysicalInputOperands.validate(operation, operands, subject: "Simulator")
-            // Overlapping or crossing paths are refused here, before any lookup.
-            _ = try DirectPhysicalTouch.plan(probe, display: DirectTouchDisplay(portraitPoints: 1, height: 1, scale: 1))
+            if DirectPhysicalGesture.handles(probe) {
+                _ = try DirectPhysicalGesture.sequence(for: probe)
+            } else {
+                // Overlapping or crossing paths are refused here, before any lookup.
+                _ = try DirectPhysicalTouch.plan(probe, display: DirectTouchDisplay(portraitPoints: 1, height: 1, scale: 1))
+            }
+        case "gesture":
+            guard operands.count == 1 else { throw CommandFailure.usage("Simulator gesture requires one JSON sequence argument.") }
+            _ = try NativeGestureSequence(json: operands[0])
         case "button":
             guard operands.count == 1, buttons[operands[0]] != nil else {
                 throw CommandFailure.usage("Supported simulator buttons: home, lock. Volume buttons are untested on the simulator and refused; no input sent.")
@@ -124,6 +134,16 @@ struct SimulatorInput {
             plan.removeValue(forKey: "identityArguments")
             plan["backend"] = AccessibilityPlatform.simulator.backend
             plan["execution"] = "\(route) Omitted PID re-selects the foreground application (frontmost, else the screen-centre process) on every poll; an explicit PID is observed even in the background. Each poll reads application identity and one bounded snapshot, evaluates the exact selector, and rechecks the selection before reporting a met condition. No input, fallback or reconnection."
+        } else if usesUniversalHID {
+            let sequence = try DirectPhysicalGesture.sequence(for: coreDeviceInput)
+            plan["backend"] = DirectSimulatorInput.backend
+            plan["operands"] = operands
+            plan["deviceLease"] = "simulator UUID"
+            plan["frameCount"] = sequence.times.count
+            plan["contactSlots"] = sequence.contactCount
+            plan["durationMilliseconds"] = sequence.times.last ?? 0
+            plan["coordinateSpace"] = "normalized-current-interface"
+            plan["execution"] = "Read the simulator's display information (dtdeviceinfod) twice: awake primary display, orientation, unique identifier. Then in-process host XPC to the simulator's dtuhidd Universal HID service (com.apple.coredevice.feature.remote.universalhidservice): readiness barrier, connectedServices must list exactly one touchscreen for the primary display, the physical complete-state report schedule, all-up report on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
         } else if Self.touchOperations.contains(operation) {
             let samples = try DirectPhysicalTouch.plan(coreDeviceInput, display: DirectTouchDisplay(portraitPoints: 1, height: 1, scale: 1))
             plan["backend"] = DirectSimulatorInput.backend
@@ -168,6 +188,12 @@ struct SimulatorEnvironment: Sendable {
     var touch: @Sendable (String, [ADCTouchSample]) throws -> Void = DirectSimulatorInput.touch
     /// Sends one two-contact digitizer schedule (pinch, two-path multi-drag).
     var twoContactTouch: @Sendable (String, [ADCTouchSample], [ADCTouchPoint]) throws -> Void = DirectSimulatorInput.twoContactTouch
+    /// Universal HID complete-state reports for the primary display's
+    /// touchscreen: device, display unique identifier, nanosecond offsets and
+    /// 58-byte reports. Returns the touchscreen's service identifier.
+    var digitizerReports: @Sendable (String, String, [UInt64], [UInt8]) throws -> UInt64 = DirectSimulatorInput.digitizerReports
+    /// The simulator's display information as devicectl-shaped JSON.
+    var displayInfo: @Sendable (String) throws -> Data = DirectSimulatorInput.displayInfo
     /// A complete US-layout keyboard schedule (`type`).
     var keyboard: @Sendable (String, [ADCKeyboardSample]) throws -> Void = DirectSimulatorInput.keyboard
     /// One named key (`key`).

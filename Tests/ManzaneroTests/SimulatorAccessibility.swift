@@ -204,7 +204,7 @@ struct SimulatorAccessibilityTests {
         #expect(try SimulatorInput.parse(["physical", Self.uuid, "tree"]) == nil)
     }
 
-    @Test(arguments: ["multi-tap", "gesture", "paste", "wake"])
+    @Test(arguments: ["paste", "wake"])
     func multiContactAndPhysicalOnlyOperationsAreRefusedPlainly(operation: String) async throws {
         let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid, operation, "0.5"]) }
         #expect(failure.code == .unsupportedOperation && failure.inputSent == .none && failure.retry == .no)

@@ -98,7 +98,11 @@ struct MCPToolsTests {
         ("pinch", ["device": Value.string("fixture"), "center_x": 0.5, "center_y": 0.5, "start_span": 0.2, "end_span": 0.5, "seconds": 0.6],
          ["physical", "fixture", "pinch", "0.5", "0.5", "0.2", "0.5", "0.6"]),
         ("multi_drag", ["device": Value.string("fixture"), "seconds": 0.5, "paths": [0.5, 0.25, 0.5, 0.1, 0.5, 0.75, 0.5, 0.9]],
-         ["physical", "fixture", "multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"])
+         ["physical", "fixture", "multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"]),
+        ("multi_tap", ["device": Value.string("fixture"), "coordinates": [0.25, 0.5, 0.75, 0.5]],
+         ["physical", "fixture", "multi-tap", "0.25", "0.5", "0.75", "0.5"]),
+        ("perform_gesture", ["device": Value.string("fixture"), "sequence": "{}"],
+         ["--physical-backend", "coredevice", "physical", "fixture", "gesture", "{}"])
     ]
 
     @Test(arguments: physicalDefaults)
@@ -128,6 +132,12 @@ struct MCPToolsTests {
          ["pinch", "0.5", "0.5", "0.2", "0.5", "0.6"]),
         ("multi_drag", ["platform": Value.string("simulator"), "seconds": 0.5, "paths": [0.5, 0.25, 0.5, 0.1, 0.5, 0.75, 0.5, 0.9]],
          ["multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"]),
+        ("multi_tap", ["platform": Value.string("simulator"), "coordinates": [0.3, 0.45, 0.5, 0.45, 0.7, 0.45]],
+         ["multi-tap", "0.3", "0.45", "0.5", "0.45", "0.7", "0.45"]),
+        ("multi_drag", ["platform": Value.string("simulator"), "seconds": 0.6, "paths": [0.3, 0.6, 0.3, 0.4, 0.5, 0.6, 0.5, 0.4, 0.7, 0.6, 0.7, 0.4]],
+         ["multi-drag", "0.6", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4", "0.7", "0.6", "0.7", "0.4"]),
+        ("perform_gesture", ["platform": Value.string("simulator"), "sequence": #"{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]}]}"#],
+         ["gesture", #"{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]}]}"#]),
         ("set_element_value", ["platform": Value.string("simulator"), "by": "identifier", "text": "probe.text.field", "value": "mañana 🚀 中"],
          ["set-value-id", "probe.text.field", "mañana 🚀 中"]),
         ("set_element_value", ["platform": Value.string("simulator"), "by": "label", "text": "Field", "pid": 42, "value": "x"],

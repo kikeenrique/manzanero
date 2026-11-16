@@ -10,6 +10,10 @@ struct SimulatorInputTests {
     final class Sent: @unchecked Sendable {
         var touches: [[ADCTouchSample]] = []
         var twoContacts: [(first: [ADCTouchSample], second: [ADCTouchPoint])] = []
+        var reports: [(display: String, times: [UInt64], bytes: [UInt8])] = []
+        /// Display information answers, in order; the last one repeats.
+        var displays: [Data] = [SimulatorInputTests.displayJSON()]
+        var displayReads = 0
         var keyboards: [[ADCKeyboardSample]] = []
         var keys: [UInt64] = []
         var buttons: [(usage: UInt64, hold: UInt32)] = []
@@ -33,6 +37,18 @@ struct SimulatorInputTests {
             sent.onSend?()
             if let failure = sent.failure { throw failure }
             sent.twoContacts.append((samples, second))
+        }
+        environment.displayInfo = { device in
+            #expect(device == uuid)
+            defer { sent.displayReads += 1 }
+            return sent.displays[min(sent.displayReads, sent.displays.count - 1)]
+        }
+        environment.digitizerReports = { device, display, times, bytes in
+            #expect(device == uuid)
+            sent.onSend?()
+            if let failure = sent.failure { throw failure }
+            sent.reports.append((display, times, bytes))
+            return 257
         }
         environment.keyboard = { device, samples in
             #expect(device == uuid)
@@ -60,6 +76,37 @@ struct SimulatorInputTests {
 
     static func json(_ output: CommandOutput) throws -> [String: Any] {
         try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
+    }
+
+    static let primaryDisplay = "5FCAD30D-AEFC-49D9-B285-7936739F1B63"
+
+    /// The bridge's display information in devicectl's shape, as captured from
+    /// an iPhone 17e simulator (trimmed): the primary display plus a second,
+    /// non-primary one, as the simulator reports.
+    static func displayJSON(current: String = "rot0", native: String = "rot0", backlight: String = "activeOn",
+                            sensor: String = "portrait", uniqueId: String? = primaryDisplay,
+                            width: Double = 1170, height: Double = 2532) -> Data {
+        var primary: [String: Any] = ["primary": true, "type": ["integrated": [String: Any]()], "backlightState": backlight,
+            "displayId": 1, "bounds": [[0, 0], [width, height]], "nativeOrientation": native, "currentOrientation": current,
+            "pointScale": 3, "name": "LCD"]
+        if let uniqueId { primary["uniqueId"] = uniqueId }
+        let resizable: [String: Any] = ["primary": false, "type": ["integrated": [String: Any]()], "backlightState": "activeOn",
+            "displayId": 4, "bounds": [[0, 0], [1170, 2532]], "nativeOrientation": "rot0", "currentOrientation": "rot0",
+            "pointScale": 3, "name": "Resizable", "uniqueId": "C0027839-ABAD-41AE-9F76-43C1CE5A085C"]
+        let root: [String: Any] = ["info": ["outcome": "success"], "result": ["displays": [primary, resizable],
+            "orientation": ["currentDeviceNonFlatOrientation": sensor, "currentDeviceOrientationLocked": false]]]
+        return try! JSONSerialization.data(withJSONObject: root, options: [.sortedKeys])
+    }
+
+    /// Positions of the active contacts of one 58-byte report, normalized.
+    static func contacts(_ report: ArraySlice<UInt8>) -> [Int: (Double, Double)] {
+        let bytes = Array(report)
+        var result: [Int: (Double, Double)] = [:]
+        for id in 0..<Int(bytes[1]) where bytes[3 + id * 5] & 0xc0 != 0 {
+            let x = Int(bytes[4 + id * 5]) | Int(bytes[5 + id * 5]) << 8, y = Int(bytes[6 + id * 5]) | Int(bytes[7 + id * 5]) << 8
+            result[id] = (Double(x) / 65535, Double(y) / 65535)
+        }
+        return result
     }
 
     // MARK: - Parsing
@@ -145,9 +192,7 @@ struct SimulatorInputTests {
             (["pinch", "0.5", "0.5", "0.2", "1.5", "0.6"], .usage, "Simulator input coordinates must be normalized numbers from 0 to 1."),
             // Crossing paths are refused at parse time, before any lookup.
             (["multi-drag", "0.6", "0.3", "0.6", "0.7", "0.6", "0.7", "0.6", "0.3", "0.6"], .usage, "Two-contact paths overlap or cross; no input sent."),
-            (["multi-drag", "20", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4"], .usage, "Usage: multi-drag <seconds: 0.03...10> <start-x> <start-y> <end-x> <end-y> ... (two to five contact paths)"),
-            (["multi-drag", "0.6", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4", "0.7", "0.6", "0.7", "0.4"], .unsupportedOperation,
-             "Simulator multi-drag with three to five paths is not implemented yet; two paths use the digitizer's two contacts. No input sent.")
+            (["multi-drag", "20", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4"], .usage, "Usage: multi-drag <seconds: 0.03...10> <start-x> <start-y> <end-x> <end-y> ... (two to five contact paths)")
         ]
         for (operands, code, message) in invalid {
             let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + operands) }
@@ -181,6 +226,89 @@ struct SimulatorInputTests {
         #expect(plan["contactCount"] as? Int == 2 && plan["sampleCount"] as? Int == 32)
         #expect((plan["execution"] as? String)?.contains("pointTwo") == true)
         #expect(sent.lookups == 0 && sent.twoContacts.isEmpty)
+    }
+
+    // MARK: - Three to five contacts (Universal HID)
+
+    @Test func universalHIDOperationsAreValidatedLikePhysical() throws {
+        for args in [["multi-tap", "0.3", "0.45", "0.5", "0.45", "0.7", "0.45"], ["multi-tap", "0.25", "0.5", "0.75", "0.5"],
+                     ["multi-drag", "0.6", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4", "0.7", "0.6", "0.7", "0.4"],
+                     ["gesture", #"{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]}]}"#]] {
+            let parsed = try #require(try SimulatorInput.parse(["simulator", Self.uuid] + args))
+            #expect(parsed.usesUniversalHID && SimulatorInput.inputOperations.contains(parsed.operation))
+        }
+        // A two-path multi-drag stays on the Indigo digitizer, as on a phone.
+        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"])?.usesUniversalHID == false)
+        let invalid: [([String], String)] = [
+            (["multi-tap", "0.25", "0.5"], "multi-tap expects two to five pairs of normalized coordinates."),
+            (["multi-tap", "2", "0.5", "0.5", "0.5"], "Simulator input coordinates must be normalized numbers from 0 to 1."),
+            (["gesture"], "Simulator gesture requires one JSON sequence argument."),
+            (["gesture", #"{"frames":[{"ms":0,"touches":[{"id":1,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]}]}"#], "Gesture contact IDs must form a contiguous set starting at zero across the sequence.")
+        ]
+        for (operands, message) in invalid {
+            let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + operands) }
+            #expect(failure.description == message && failure.code == .usage && failure.inputSent == .none)
+        }
+    }
+
+    @Test func multiTapSendsThePhysicalReportsToThePrimaryTouchscreen() async throws {
+        let sent = Sent()
+        let receipt = try Self.json(await Self.service(sent).execute(["simulator", Self.uuid, "multi-tap", "0.3", "0.45", "0.5", "0.45", "0.7", "0.45"]))
+        let report = try #require(sent.reports.first)
+        #expect(sent.reports.count == 1 && report.display == Self.primaryDisplay && sent.displayReads == 2)
+        // The physical multi-tap: all down at 0, all up at 80 ms; the same bytes.
+        let expected = try DirectPhysicalGesture.sequence(for: CoreDeviceInput(device: Self.uuid, operation: "multi-tap",
+                                                                                operands: ["0.3", "0.45", "0.5", "0.45", "0.7", "0.45"]))
+        #expect(report.times == [0, 80_000_000] && report.bytes == expected.reports.flatMap { $0 })
+        let down = Self.contacts(report.bytes[0..<58])
+        #expect(down.count == 3 && abs(down[2]!.0 - 0.7) < 0.0001 && abs(down[0]!.1 - 0.45) < 0.0001)
+        #expect(Self.contacts(report.bytes[58..<116]).isEmpty)
+        #expect(receipt["surfaceID"] as? Int == 257 && receipt["contactSlots"] as? Int == 3 && receipt["frameCount"] as? Int == 2)
+        #expect(receipt["durationMilliseconds"] as? Int == 80 && receipt["displayRotationDegrees"] as? Int == 0)
+        #expect(receipt["backend"] as? String == "coresimulator-dtuhid" && receipt["status"] as? String == "dispatched")
+        #expect(receipt["verified"] as? Bool == false && receipt["releaseVerified"] as? Bool == false)
+        #expect(receipt["coordinateSpace"] as? String == "normalized-current-interface")
+    }
+
+    @Test func gestureAndThreePathDragUseTheSameFrames() async throws {
+        let sent = Sent()
+        let service = Self.service(sent)
+        let json = #"{"frames":[{"ms":0,"touches":[{"id":0,"x":0.35,"y":0.5}]},{"ms":150,"touches":[{"id":0,"x":0.35,"y":0.5},{"id":1,"x":0.65,"y":0.5}]},{"ms":450,"touches":[{"id":1,"x":0.65,"y":0.5}]},{"ms":600,"touches":[]}]}"#
+        _ = try await service.execute(["simulator", Self.uuid, "gesture", json])
+        #expect(sent.reports.first?.times == [0, 150, 450, 600].map { UInt64($0) * 1_000_000 })
+        #expect(sent.reports.first?.bytes == (try NativeGestureSequence(json: json).reports.flatMap { $0 }))
+        let drag = try Self.json(await service.execute(["simulator", Self.uuid, "multi-drag", "0.6", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4", "0.7", "0.6", "0.7", "0.4"]))
+        #expect(sent.reports.count == 2 && sent.reports[1].times.count == 32 && sent.reports[1].times.last == 601_000_000)
+        #expect(drag["contactSlots"] as? Int == 3 && drag["frameCount"] as? Int == 32)
+    }
+
+    @Test func aChangedOffOrUnidentifiedDisplaySendsNothing() async throws {
+        let changed = Sent()
+        changed.displays = [Self.displayJSON(), Self.displayJSON(current: "rot90", sensor: "landscapeRight")]
+        let moved = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(changed).execute(["simulator", Self.uuid, "multi-tap", "0.3", "0.45", "0.7", "0.45"])
+        })
+        #expect(moved.code == .preconditionChanged && moved.inputSent == .none && changed.reports.isEmpty)
+        let off = Sent()
+        off.displays = [Self.displayJSON(backlight: "off")]
+        let dark = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(off).execute(["simulator", Self.uuid, "multi-tap", "0.3", "0.45", "0.7", "0.45"])
+        })
+        #expect(dark.code == .displayOff && dark.inputSent == .none && dark.description.contains("button home") && off.reports.isEmpty)
+        let anonymous = Sent()
+        anonymous.displays = [Self.displayJSON(uniqueId: nil)]
+        let unnamed = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(anonymous).execute(["simulator", Self.uuid, "multi-tap", "0.3", "0.45", "0.7", "0.45"])
+        })
+        #expect(unnamed.code == .transportFailed && unnamed.inputSent == .none && anonymous.reports.isEmpty)
+    }
+
+    @Test func universalHIDDryRunReadsNothing() async throws {
+        let sent = Sent()
+        let plan = try Self.json(await Self.service(sent, state: "Shutdown").execute(["simulator", Self.uuid, "multi-tap", "0.3", "0.45", "0.5", "0.45", "0.7", "0.45", "0.4", "0.6", "0.6", "0.6"], dryRun: true))
+        #expect(plan["contactSlots"] as? Int == 5 && plan["frameCount"] as? Int == 2 && plan["durationMilliseconds"] as? Int == 80)
+        #expect((plan["execution"] as? String)?.contains("universalhidservice") == true)
+        #expect(sent.lookups == 0 && sent.displayReads == 0 && sent.reports.isEmpty)
     }
 
     @Test func unbootedSimulatorSendsNothingAndTakesNoLease() async throws {

@@ -24,6 +24,24 @@ enum DirectSimulatorInput {
             "verified": false, "releaseVerified": false, "platform": "simulator", "device": input.device,
             "resolvedSimulatorUUID": info.uuid, "screen": info.screenJSON]
         switch input.operation {
+        case _ where input.usesUniversalHID:
+            // The physical gesture path: display read twice around planning,
+            // the same complete-state frames, then the Universal HID service.
+            _ = try DirectPhysicalGesture.sequence(for: input.coreDeviceInput)
+            let display = try SimulatorDisplay.read(input.device, environment: environment)
+            let sequence = try DirectPhysicalGesture.sequence(for: input.coreDeviceInput, transform: display.touch.portrait)
+            guard try SimulatorDisplay.read(input.device, environment: environment) == display else {
+                throw CommandFailure(.preconditionChanged, "Simulator display changed before gesture dispatch; no input sent.", inputSent: .none)
+            }
+            try Task.checkCancellation()
+            let surface = try environment.digitizerReports(input.device, display.primaryUUID,
+                                                           sequence.times.map { UInt64($0) * 1_000_000 }, sequence.reports.flatMap { $0 })
+            result["surfaceID"] = surface
+            result["frameCount"] = sequence.times.count
+            result["contactSlots"] = sequence.contactCount
+            result["durationMilliseconds"] = sequence.times.last ?? 0
+            result["coordinateSpace"] = "normalized-current-interface"
+            result["displayRotationDegrees"] = display.touch.rotation
         case let operation where SimulatorInput.touchOperations.contains(operation):
             let samples = try touchSamples(input, info: info)
             let wire = samples.map { ADCTouchSample(nanoseconds: $0.nanoseconds, x: $0.x, y: $0.y, phase: $0.phase) }
@@ -94,6 +112,30 @@ enum DirectSimulatorInput {
         try dispatch(uuid) { owner, error in
             samples.withUnsafeBufferPointer { ADCSimulatorPerformTouch(owner, $0.baseAddress, $0.count, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
         }
+    }
+
+    static func digitizerReports(_ uuid: String, _ display: String, _ times: [UInt64], _ reports: [UInt8]) throws -> UInt64 {
+        var surface: UInt64 = 0
+        try dispatch(uuid) { owner, error in
+            times.withUnsafeBufferPointer { times in
+                reports.withUnsafeBufferPointer { reports in
+                    ADCSimulatorPerformDigitizerReports(owner, display, times.baseAddress, reports.baseAddress, times.count,
+                                                        { Task.isCancelled ? 1 : 0 }, &surface, &error, error.count)
+                }
+            }
+        }
+        return surface
+    }
+
+    static func displayInfo(_ uuid: String) throws -> Data {
+        let owner = try SimulatorBridgeOwner(uuid: uuid, developerDirectory: SimulatorDevice.developerDirectory(), accessibility: false)
+        var error = [CChar](repeating: 0, count: 1024)
+        var data = Data()
+        let status = ADCSimulatorDisplayInfo(owner.pointer, { pointer, count in
+            if let pointer { data = Data(bytes: pointer, count: count) }
+        }, &error, error.count)
+        guard status == 0 else { throw CommandFailure(.transportFailed, message(error), inputSent: .none) }
+        return data
     }
 
     static func twoContactTouch(_ uuid: String, _ samples: [ADCTouchSample], _ second: [ADCTouchPoint]) throws {

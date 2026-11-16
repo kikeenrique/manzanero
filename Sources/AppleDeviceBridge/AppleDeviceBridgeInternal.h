@@ -15,4 +15,10 @@ xpc_object_t ADCTouchEvent(double x, double y, const ADCTouchPoint *second, uint
 int ADCValidateTouchSchedule(const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,
                              size_t count, char *error, size_t capacity);
 int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t count, char *error, size_t capacity);
+// Universal HID (three to five contacts and timed sequences): the request
+// envelope, the report message and the 58-byte complete-state schedule check.
+xpc_object_t ADCUniversalRequest(const char *operation, xpc_object_t arguments);
+xpc_object_t ADCUniversalReport(const uint8_t *bytes, uint64_t surface);
+int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
+                                 size_t count, char *error, size_t capacity);
 #endif

@@ -1,6 +1,6 @@
 # Simulator input and accessibility
 
-Simulator trees, element actions, waits, single-contact touch, Home and lock, named keys and US-layout typing run in the `manzanero` process against Apple frameworks. No helper executable, Simulator.app window or permission is needed. The design and the experiments behind it are in [the research](simulator-input-research.md); live results are in [verification](verification.md#simulator-input-and-accessibility).
+Simulator trees, element actions, waits, touch with one to five contacts and timed gesture sequences, Home and lock, named keys, US-layout typing and Unicode entry by accessibility set-value run in the `manzanero` process against Apple frameworks. No helper executable, Simulator.app window or permission is needed. The design and the experiments behind it are in [the research](simulator-input-research.md); live results are in [verification](verification.md#simulator-input-and-accessibility).
 
 ## Commands
 
@@ -14,7 +14,9 @@ manzanero simulator <UUID> tap <x> <y>
 manzanero simulator <UUID> long-press <x> <y> <seconds>
 manzanero simulator <UUID> swipe|drag <x1> <y1> <x2> <y2> <seconds>
 manzanero simulator <UUID> pinch <center-x> <center-y> <start-span> <end-span> <seconds>
-manzanero simulator <UUID> multi-drag <seconds> <x1> <y1> <x2> <y2> <x1> <y1> <x2> <y2>   # two paths
+manzanero simulator <UUID> multi-drag <seconds> <x1> <y1> <x2> <y2> ...   # two to five paths
+manzanero simulator <UUID> multi-tap <x1> <y1> <x2> <y2> ...                # two to five contacts
+manzanero simulator <UUID> gesture '<JSON frames>'
 manzanero simulator <UUID> button home|lock
 manzanero simulator <UUID> key return|escape|backspace|tab|space|up|down|left|right
 manzanero simulator <UUID> type <text>
@@ -22,7 +24,7 @@ manzanero simulator <UUID> type <text>
 
 Arguments, ranges, coordinate space (normalized `0...1`, origin top left), receipts, dry-run plans, exit codes and error categories are those of the physical commands in [physical input](native-input.md), [physical typing](physical-typing.md) and [native accessibility](direct-accessibility.md). The selectors, the press and scroll guards, the wait conditions and the tree JSON are the same code. Every command has a `--dry-run` plan that does not look the simulator up.
 
-MCP tools take `platform: simulator` for the same operations: `get_ui_tree`, `press_element`, `scroll_to_element`, `wait_for_element`, `set_element_value`, `tap`, `drag`, `long_press`, `pinch`, `multi_drag`, `press_button`, `press_key`, `type_text` and `get_screen`. See [MCP](mcp.md).
+MCP tools take `platform: simulator` for the same operations: `get_ui_tree`, `press_element`, `scroll_to_element`, `wait_for_element`, `set_element_value`, `tap`, `drag`, `long_press`, `pinch`, `multi_drag`, `multi_tap`, `perform_gesture`, `press_button`, `press_key`, `type_text` and `get_screen`. See [MCP](mcp.md).
 
 ## Unicode text: set-value
 
@@ -45,6 +47,8 @@ Observed on the probe's text field: the field becomes first responder, as after 
 ## How it works
 
 **Input.** CoreSimulator's `-[SimDevice lookup:error:]` gives the Mach port of the simulator's `com.apple.coredevice.feature.remote.hid.digitizer`, `.keyboard` or `.button` service. libxpc's `xpc_endpoint_create_mach_port_4sim`, `xpc_connection_create_from_endpoint` and `xpc_connection_enable_sim2host_4sim` turn it into an XPC connection from the host. The connection carries the same `IndigoDigitizerEvent`, `IndigoKeyboardButtonEvent` and `IndigoButtonEvent` dictionaries the physical backend sends over RemoteXPC, built by the same functions and driven by the same schedulers (`ADCRunTouchSchedule`, `ADCRunKeyboardSchedule`, `ADCRunPress`). Each command waits for a readiness barrier (`{isBarrier: true}`, three seconds), sends the schedule, releases active contacts or keys if it is stopped, waits for a completion barrier, keeps the connection open for 380 ms and cancels it. The status contract is the physical one: a failure after input was attempted is `input-outcome-unknown` with `inputSent: possible`; a failure before is `transport-failed` with `inputSent: none`.
+
+**Several contacts.** As on a phone, `pinch` and two-path `multi-drag` send both contacts in each Indigo digitizer event (`pointOne`, `pointTwo`), with the same refusal of overlapping or crossing paths (checked before the simulator is looked up). `multi-tap`, `multi-drag` with three to five paths and `gesture` build the physical complete-state schedule (`DirectPhysicalGesture`, `NativeGestureSequence`) and send its 58-byte reports to the simulator's `com.apple.coredevice.feature.remote.universalhidservice`, the same `Request`/`send` messages the phone's Universal HID service takes. The simulator's service lists one touchscreen per display (observed: the primary display and a "Resizable" one, plus keyboard, buttons and other services); only the primary display's touchscreen delivers to the app, so the touchscreen is chosen by the primary display's unique identifier, which comes from the simulator's display information (`com.apple.coredevice.feature.getdisplayinfo` in `dtdeviceinfod`, a CoreDevice action request answered in the same shape as `devicectl device info displays`). The display information is read twice around planning, as on a phone: an off display is refused as `display-off` and a change between the reads as `precondition-changed`.
 
 **Accessibility.** The tree, press, scroll and wait code sends the project's own `AccessibilityRequest` archives. The bridge unarchives each one with secure coding into AccessibilityPlatformTranslation's real `AXPTranslatorRequest`, sets client type 2 on hit tests, sends it with `-[SimDevice sendAccessibilityRequestAsync:completionQueue:completionHandler:]` and archives the `AXPTranslatorResponse` back. Swift decodes it with the physical data-only decoder and matching rules. Requests run one at a time with a five-second limit inside a 30-second session (a wait's session lasts its timeout plus 30 seconds).
 
@@ -75,7 +79,6 @@ The lease, the handoff pause and the CLI signal handling (SIGINT/SIGTERM exit 13
 ## Not implemented
 
 - Non-ASCII `type` and `paste` (see [set-value](#unicode-text-set-value) for the reasons and the alternative).
-- Three to five contacts: `multi-tap`, `multi-drag` with three or more paths, and `gesture` are refused with `unsupported-operation`. `pinch` and two-path `multi-drag` send both contacts in each Indigo digitizer event (`pointOne`, `pointTwo`), exactly as on a physical device, with the same refusal of overlapping or crossing paths (checked before the simulator is looked up).
 - Rotation, landscape and iPad geometry, `wake`, volume buttons.
 - tvOS, watchOS and visionOS simulators, and runtimes or Xcodes other than the tested ones.
 

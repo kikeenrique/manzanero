@@ -238,6 +238,18 @@ int ADCSimulatorPerformKeyboard(void *owner, const ADCKeyboardSample *samples, s
                                 ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 int ADCSimulatorPressKeyboardKey(void *owner, uint64_t usage, ADCInputShouldStop shouldCancel,
                                  char *error, size_t errorCapacity);
+/// Complete-state Universal HID reports (58 bytes each), validated and
+/// scheduled as by ADCPerformCancellableDigitizerReports, sent to the touchscreen
+/// that the simulator's universalhidservice lists for displayUUID (the primary
+/// display's uniqueId from ADCSimulatorDisplayInfo); exactly one must match.
+int ADCSimulatorPerformDigitizerReports(void *owner, const char *displayUUID, const uint64_t *nanoseconds,
+                                        const uint8_t *reports, size_t count, ADCInputShouldStop shouldCancel,
+                                        uint64_t *surface, char *error, size_t errorCapacity);
+/// One read-only CoreDevice display-information request to the simulator's
+/// dtdeviceinfod. The sink receives JSON in devicectl's shape,
+/// {"info":{"outcome":"success"},"result":{displays, orientation, …}}, borrowed
+/// for the call. Returns zero. Sends no input.
+int ADCSimulatorDisplayInfo(void *owner, void (^sink)(const uint8_t *, size_t), char *error, size_t errorCapacity);
 /// Home (64) and lock/side (48) only.
 int ADCSimulatorPressButton(void *owner, uint64_t usage, unsigned holdMicroseconds,
                             ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);

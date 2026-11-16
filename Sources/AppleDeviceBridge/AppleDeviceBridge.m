@@ -524,7 +524,7 @@ static uint64_t ADCNow(void) {
     return (uint64_t)value.tv_sec * NSEC_PER_SEC + value.tv_nsec;
 }
 
-static int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
+int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
                                         size_t count, char *error, size_t capacity);
 
 static BOOL ADCWaitForInput(uint64_t start, uint64_t offset, ADCInputShouldStop shouldStop) {
@@ -609,7 +609,7 @@ int ADCRunDigitizerSchedule(const uint64_t *times, const uint8_t *reports, size_
     return stopped || (shouldStop && shouldStop()) ? 1 : 0;
 }
 
-static xpc_object_t ADCUniversalRequest(const char *operation, xpc_object_t arguments) {
+xpc_object_t ADCUniversalRequest(const char *operation, xpc_object_t arguments) {
     xpc_object_t message = xpc_dictionary_create_empty(), payload = xpc_dictionary_create_empty();
     xpc_dictionary_set_string(message, "messageType", "Request");
     xpc_dictionary_set_string(message, "featureIdentifier", "com.apple.coredevice.feature.remote.universalhidservice");
@@ -618,7 +618,7 @@ static xpc_object_t ADCUniversalRequest(const char *operation, xpc_object_t argu
     return message;
 }
 
-static xpc_object_t ADCUniversalReport(const uint8_t *bytes, uint64_t surface) {
+xpc_object_t ADCUniversalReport(const uint8_t *bytes, uint64_t surface) {
     xpc_object_t arguments = xpc_dictionary_create_empty();
     xpc_dictionary_set_data(arguments, "_0", bytes, 58);
     xpc_dictionary_set_uint64(arguments, "_1", surface);
@@ -1005,7 +1005,7 @@ int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version,
     return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, times, reports, surface, count, shouldCancel, error, capacity);
 }
 
-static int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
+int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
                                         size_t count, char *error, size_t capacity) {
     if (!times || !reports || count < 2 || count > 512)
         return ADCFail(error, capacity, @"Invalid digitizer report schedule count; no input sent.");

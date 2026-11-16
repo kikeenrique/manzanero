@@ -73,6 +73,35 @@ enum SimulatorDevice {
     }
 }
 
+/// The simulator's primary display as its dtdeviceinfod reports it, in the
+/// devicectl JSON shape, so the physical `DirectTouchDisplay` parser applies
+/// unchanged: awake state, geometry, native and current orientation. Also the
+/// primary display's unique identifier, which names its Universal HID
+/// touchscreen. Reading it sends no input.
+struct SimulatorDisplay: Equatable {
+    let touch: DirectTouchDisplay
+    let primaryUUID: String
+
+    init(_ data: Data) throws {
+        touch = try DirectTouchDisplay(data)
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let displays = (root["result"] as? [String: Any])?["displays"] as? [[String: Any]],
+              let primary = displays.first(where: { ($0["primary"] as? Bool) == true }),
+              let unique = primary["uniqueId"] as? String, let identifier = UUID(uuidString: unique) else {
+            throw CommandFailure(.transportFailed, "The simulator's display information has no primary display identifier; no input sent.", inputSent: .none)
+        }
+        primaryUUID = identifier.uuidString
+    }
+
+    static func read(_ uuid: String, environment: SimulatorEnvironment) throws -> Self {
+        do {
+            return try Self(environment.displayInfo(uuid))
+        } catch let failure as CommandFailure where failure.code == .displayOff {
+            throw CommandFailure(.displayOff, "The simulator's display is off or its state is unknown (locked with button lock?). Press button home and unlock it, then try again; no input sent.", inputSent: .none)
+        }
+    }
+}
+
 extension ADCSimulatorInfo {
     func swift(uuid: String) -> SimulatorDeviceInfo {
         var copy = self

@@ -42,13 +42,13 @@ Receipts report dispatch, not application recognition: `verified: false` and `re
 - `multi_drag`: flat `paths` array, four numbers per contact, plus `seconds`.
 - `pinch`: `center_x`, `center_y`, `start_span`, `end_span`, `seconds`.
 
-`platform` is optional and defaults to physical, which uses the in-process CoreDevice route. With `platform: simulator` and a booted simulator's UUID, `pinch` and two-path `multi_drag` go to the simulator's `dtuhidd` digitizer service with the same schedule ([simulator input](simulator-input.md)). A pending handoff pauses mutations for that device within the same server process.
+`platform` is optional and defaults to physical, which uses the in-process CoreDevice route. With `platform: simulator` and a booted simulator's UUID, the same schedules go to the simulator's `dtuhidd`: `pinch` and two-path `multi_drag` to its digitizer service, `multi_tap` and three-to-five-path `multi_drag` to its Universal HID service ([simulator input](simulator-input.md)). The CLI form is `manzanero simulator <UUID> multi-tap|multi-drag|pinch …`. A pending handoff pauses mutations for that device within the same server process.
 
 ## What has been verified
 
 Two-contact spread and inward movement visibly zoomed Maps on iPhone 13 mini; a direct MCP simultaneous multi-tap also changed Maps zoom. Three- and five-path calls completed dispatch/barriers, but their screenshots did not establish independent tracking or the intended gesture. Four-contact effects remain unverified.
 
-On one iPhone 17e simulator the probe app recorded every two-contact pinch and two-path drag as two simultaneous contacts, 20 of 20 over five rounds ([verification](verification.md#simulator-input-and-accessibility)).
+On one iPhone 17e simulator the probe app recorded every two-contact pinch and two-path drag as two simultaneous contacts (20 of 20 over five rounds), and every three-, four- and five-contact multi-tap and three-path drag as that many simultaneous contacts (20 of 20 over five rounds of the built-in plan) ([runner results](probe-touch-runner.md#simulator-runs)).
 
 Local tests cover two-to-five-slot encoding, rotation, interpolation, endpoint/timing bounds and input rejection before device queries. Exact delivered timing, broad gesture semantics, hardware failure release, other apps/orientations and other Apple families remain unverified.
 

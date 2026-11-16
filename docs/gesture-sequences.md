@@ -11,7 +11,9 @@ CLI `physical <device> gesture <JSON>` and MCP `perform_gesture` use Apple's Uni
 manzanero physical <UDID> gesture '{"frames":[{"ms":0,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":60,"touches":[]},{"ms":180,"touches":[{"id":0,"x":0.5,"y":0.4}]},{"ms":240,"touches":[]}]}'
 ```
 
-MCP takes `device` and `sequence`, where `sequence` is the same JSON string.
+MCP takes `device` and `sequence`, where `sequence` is the same JSON string, and an optional `platform` (default physical).
+
+A booted simulator takes the same sequence: `manzanero simulator <UUID> gesture '<JSON>'`, or `perform_gesture` with `platform: simulator`. The frames, validation and 58-byte reports are the physical ones; they go to the simulator's `dtuhidd` Universal HID service and its primary display's touchscreen ([simulator input](simulator-input.md)). On one iPhone 17e simulator, a one-finger double tap and a two-contact sequence with staggered arrival and lift arrived as scheduled in 10 of 10 runs ([runner results](probe-touch-runner.md#simulator-runs)).
 
 ## Input contract
 

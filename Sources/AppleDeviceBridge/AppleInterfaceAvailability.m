@@ -134,6 +134,10 @@ static const ADCRequirementSpec ADCSimulatorInput[] = {
     ADC_SYMBOL("xpc_connection_create_from_endpoint"),
     ADC_SYMBOL("xpc_connection_enable_sim2host_4sim"),
     ADC_FILE("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtuhidd.plist"),
+    // Display information (orientation, primary display identifier for
+    // Universal HID): a CoreDevice action request to dtdeviceinfod.
+    ADC_METHOD("SimDevice", "UDID"),
+    ADC_FILE("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtdeviceinfod.plist"),
 };
 // Simulator tree, press/scroll by id or label and waits: archived
 // AXPTranslatorRequest objects through -[SimDevice sendAccessibilityRequestAsync:...].
@@ -185,7 +189,7 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCMediaInspectionRequirements, ADC_COUNT(ADCMediaInspectionRequirements) },
     { "native-recording", "record-screen --recording-backend coredevice: AVConference negotiation over the media socket", 26, 1,
       ADCNativeRecording, ADC_COUNT(ADCNativeRecording) },
-    { "simulator-input", "Simulator tap, long-press, swipe, drag, button, key and type through host XPC to the simulator's dtuhidd Indigo HID daemon", 0, 1,
+    { "simulator-input", "Simulator touch (one to five contacts, timed gestures), button, key and type through host XPC to the simulator's dtuhidd Indigo and Universal HID services, with display information from dtdeviceinfod", 0, 1,
       ADCSimulatorInput, ADC_COUNT(ADCSimulatorInput) },
     { "simulator-accessibility", "Simulator accessibility (tree, press/scroll by id or label, waits) through CoreSimulator AXPTranslator requests", 0, 1,
       ADCSimulatorAccessibility, ADC_COUNT(ADCSimulatorAccessibility) },

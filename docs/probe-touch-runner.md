@@ -2,7 +2,7 @@
 
 The runner sends a known plan of touches through Manzanero's CLI to a physical iPhone, or with `--platform simulator` to a booted simulator, running the [probe app](probe-app.md), reads back what the touch probe recorded, and reports delivery rate, coordinate error, contact counts, hold durations and release. It replaces judging delivery from screenshots.
 
-**Status: nothing here has run on hardware.** The comparison and the runner logic pass offline tests against canned `tree` output, receipts and logs built with the probe's own recorder. Live runs so far are on one iPhone 17e simulator ([results below](#simulator-runs)); no phone has produced a measurement.
+The comparison and the runner logic pass offline tests against canned `tree` output, receipts and logs built with the probe's own recorder. Live runs: one iPhone 13 mini ([verification](verification.md#touch-delivery-measured-with-the-probe-app)) and one iPhone 17e simulator ([results below](#simulator-runs)).
 
 ## Where the code lives
 
@@ -37,7 +37,7 @@ mise run test:probe-touch <UDID> --readback end       # readback only before and
 
 Other flags: `--settle <seconds>` (pause before each readback, default 0.5), `--out <dir>`, `--no-reset`, `--no-pull`, `--platform physical|simulator` (default physical).
 
-With `--platform simulator` the device argument must be the simulator's UUID, and every command vector starts with `simulator <UUID>` instead of `physical <UDID>`. Manzanero has no simulator app-data pull, so the pull is skipped and the recent-gestures and last-gesture readouts are the evidence. The simulator refuses multi-contact actions (`multi-tap`, `multi-drag`, `pinch`, `gesture`) as not implemented: in the built-in plan they are dispatch failures, and the third consecutive one stops the run by the ordinary stop rule. Use a single-contact plan for statistics. The pull uses `PROBE_APP_BUNDLE_ID` when it is set (for example in `.env.local`), else the tracked default. The UDID is required; there is no default device.
+With `--platform simulator` the device argument must be the simulator's UUID, and every command vector starts with `simulator <UUID>` instead of `physical <UDID>`. Manzanero has no simulator app-data pull, so the pull is skipped and the recent-gestures and last-gesture readouts are the evidence. Every action kind of the built-in plan, including the two-to-five-contact ones, runs on a simulator ([results](#simulator-runs)). The pull uses `PROBE_APP_BUNDLE_ID` when it is set (for example in `.env.local`), else the tracked default. The UDID is required; there is no default device.
 
 The executable can also be run directly after `swift build --package-path Fixtures/ProbeApp/ProbeCore --scratch-path tmp/probe-app/core-build --product probe-touch`:
 
@@ -201,6 +201,19 @@ On 2026-11-15 the runner ran with `--platform simulator` against the probe on on
 
 - **Built-in plan, once:** the three taps, the long press, the swipe and the drag were `delivered` (start error median 0.0001, max 0.0002; hold error median +0.8 ms, max +0.9 ms). Two-contact multi-tap, pinch and three-contact multi-tap were refused by Manzanero and measured `missing` with `dispatch-failed`; the run then stopped after three consecutive dispatch failures, leaving five actions `not-sent`. Exit 3. This is the expected negative control.
 - **Single-contact plan (three taps, 0.8 s and 2 s long presses, a 0.5 s and a 0.1 s swipe, a 0.8 s drag), five rounds:** 40 of 40 actions and 40 of 40 contacts `delivered`, all through the recent-gestures readout. Start error median 0.0001, max 0.0005 (normalised); hold error median +0.6 ms, max +5.4 ms; `maxActive` 1 every time. The foreground identity matched on all 41 readbacks. One more round after a second boot gave 8 of 8 (max start error 0.0005, max hold error +4.6 ms).
+
+On 2026-11-16, after simulator multi-contact input was added (same simulator and versions, no runner change), the plan ran again:
+
+- **Two-contact plan** (spread and inward pinch, two parallel and two diverging paths), five rounds: 20 of 20 actions and 40 of 40 contacts `delivered`, `maxActive` 2 every time.
+- **Built-in plan, five rounds:** 70 of 70 actions and 145 of 145 contacts `delivered`, all through the recent-gestures readout; identity matched on all 71 readbacks. Per scheduled contact count:
+
+| Contacts | Actions delivered | Contacts delivered | Start error median / max | Hold error (absolute) median / max |
+| --- | --- | --- | --- | --- |
+| 1 | 35/35 | 40/40 | 0.0002 / 0.0002 | 1.1 / 20.5 ms |
+| 2 | 15/15 | 30/30 | 0.0004 / 0.0005 | 3.0 / 19.3 ms |
+| 3 | 10/10 | 30/30 | 0.0001 / 0.0002 | 0.7 / 4.0 ms |
+| 4 | 5/5 | 20/20 | 0.0001 / 0.0001 | 1.0 / 4.1 ms |
+| 5 | 5/5 | 25/25 | 0.0004 / 0.0004 | 2.1 / 4.8 ms |
 
 Not shown by these runs: anything about a phone, and anything the probe log would add (per-event order), since there is no simulator pull.
 
