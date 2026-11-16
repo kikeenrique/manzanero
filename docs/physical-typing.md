@@ -26,7 +26,9 @@ The character table comes from the macOS layout of that name ([research](keyboar
 
 **The device's own layout is not read on a physical device.** No Apple tool exposes it; the receipt's `deviceLayout` says `not-read`, and the text is right only if the phone uses the named layout. A wrong name types wrong characters without any error. (On a simulator the setting is read and a different explicit layout is refused; see [simulator input](simulator-input.md#keyboard-layouts).)
 
-What is verified: layouts were checked live on a simulator only (US, Spanish – ISO, German, French, Latin American; [verification](verification.md#keyboard-layouts-on-the-simulator)). On a phone, only US ASCII has been typed. In particular the phone's keyboard type is unknown: 13 layouts (Latin American, Turkish – Standard and others) give different characters on the key left of 1 and the key left of Z depending on it, and the simulator used the ISO type.
+**Do not assume `us`.** A phone picks a layout without anyone choosing one, probably from its language: the test iPhone 13 mini, set to Spanish, applied Spanish – ISO, so the default `us` typed wrong punctuation there while `--layout spanish-iso` typed every character exactly, including Shift, Option and dead keys ([verification](verification.md#keyboard-layouts-on-the-phone)). To find a phone's layout, type a probe string such as `;[<` into a field you can read back and compare.
+
+What is verified: US, Spanish – ISO, German, French and Latin American on a simulator ([verification](verification.md#keyboard-layouts-on-the-simulator)); Spanish – ISO on one phone, which used the ISO keyboard type like the simulator (the key left of Z arrived). Other layouts on a phone, and changing the phone's layout in Settings, are untested.
 
 ## Focus and other state
 

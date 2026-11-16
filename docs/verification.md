@@ -428,6 +428,25 @@ Paste: `printf … | simctl pbcopy <UUID>` exited 0 three times, and `simctl pbp
 
 Also observed: after the probe's XCUITest suite ran on this simulator (6 of 6 tests passed, including a new text-field test), every snapshot of the probe came back empty within 1 ms, also after relaunching the probe; frontmost and application requests answered. A reboot cleared it. In about the first minute after the reboot, four snapshots came back empty; then 20 of 20 trees in a row succeeded.
 
+### Keyboard layouts on the phone
+
+**2026-11-16, at `17a6560`**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52), the probe app's text field. No hardware keyboard has been attached to this phone and its hardware-keyboard setting was not changed or looked at; its interface language is Spanish. Before each run the field was emptied with `set-value … x` and `key backspace`; the result is the probe's own readout.
+
+| Command | Requested | Read back |
+| --- | --- | --- |
+| `type` (default `us`) | `Ab9!z;[ ~"<>? mañana café über ß €` | ``Ab9!zñ`>¨;:_ ma nana caf€e. uber ∫ ˝``: wrong from the first punctuation on |
+| `type --layout spanish-iso` | `Año Ñandú ¿Qué? ¡Sí! €5 ç <º> @# à ü` | The same text exactly (dead acute, grave and diaeresis; Shift; Option) |
+| `type --layout spanish-iso` | `Ab9!z;[ ~"<>? mañana café über` | The same text exactly |
+| `type --layout latin-american` | `<>≤ \|°¬` | `<>≤ ºª\`: the phone is not on that layout, as expected |
+
+What this shows:
+
+- **This phone applies the Spanish – ISO layout to key events**, although nobody chose it; it probably follows the phone's language. The default `us` is therefore wrong on it for most punctuation. Letters, digits and `!` are the same in both layouts, which is why the earlier US-only checks in Settings search looked right.
+- Shift, Option and dead keys work on a phone, and the key left of Z (`<`, `>`, `≤`) arrived, so the phone uses the ISO keyboard type like the simulator.
+- A wrong layout name types wrong text with exit 0, as documented; the receipt says `deviceLayout: not-read`.
+
+Not covered: changing the phone's layout in Settings (and whether that section exists without a keyboard attached), any layout other than Spanish – ISO, other phones, and MCP `type_text` with a layout against the phone.
+
 ### Keyboard layouts on the simulator
 
 **2026-11-16**, the build committed as `a525c03`; the German row and the first Latin American row ran on the same code before its keyboard type changed from ANSI to ISO (German's table is the same in both), one iPhone 17e simulator, iOS 27.2 runtime (24B8117), headless (no Simulator or DeviceHub window opened). Host macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2; host input source Spanish – ISO. The simulator was booted for the run with `manzanero boot` and shut down afterwards; no other simulator was touched. No physical device was contacted. Research and design: [keyboard layouts](keyboard-layouts.md).
