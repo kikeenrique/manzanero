@@ -4,10 +4,23 @@ import Foundation
 /// targeting; they are not an atomic transaction or XCTest hittability.
 struct DirectAccessibilityAction {
     let action: AccessibilityRequest.Action
-    var operation: String { action == .press ? "press" : "scroll-to-visible" }
+    var operation: String { operationName ?? (action == .press ? "press" : "scroll-to-visible") }
     let pid: Int32?
     let by: String
     let text: String
+    /// Set only by another operation that reuses these guards (set-value);
+    /// it names that operation in messages instead of press.
+    private var operationName: String? = nil
+
+    /// The selector and guards for an operation other than press or scroll
+    /// (`DirectAccessibilitySetValue`); `execute` is not used with it.
+    init(guardsFor operation: String, by: String, text: String, pid: Int32?) {
+        action = .press
+        operationName = operation
+        self.by = by
+        self.text = text
+        self.pid = pid
+    }
 
     init(_ input: CoreDeviceInput) throws {
         guard ["press-id", "press-label", "scroll-id", "scroll-label"].contains(input.operation), (1...2).contains(input.operands.count),
@@ -133,7 +146,7 @@ struct DirectAccessibilityAction {
         }
     }
 
-    private func liveState(_ target: AccessibilitySnapshot.Node, session: any AccessibilityExchange,
+    func liveState(_ target: AccessibilitySnapshot.Node, session: any AccessibilityExchange,
                            requireVisible: Bool) throws -> (frame: AccessibilitySnapshot.Frame, json: [String: Any]) {
         let live = try session.attributes([21, 25, 27, 32], of: target.token)
         guard case .dictionary(let fields) = live,
@@ -156,7 +169,7 @@ struct DirectAccessibilityAction {
         return (frame, json)
     }
 
-    private func verifyHit(_ target: AccessibilitySnapshot.Node, frame: AccessibilitySnapshot.Frame,
+    func verifyHit(_ target: AccessibilitySnapshot.Node, frame: AccessibilitySnapshot.Frame,
                            geometry: AccessibilityDisplay, session: any AccessibilityExchange) throws {
         let bounds = geometry.bounds
         guard frame.x >= bounds.x, frame.y >= bounds.y, frame.x + frame.width <= bounds.x + bounds.width,
@@ -165,7 +178,7 @@ struct DirectAccessibilityAction {
         guard sameIdentity(hit, target.token) else { throw failure("target centre hit is another native element", .targetUnresolved) }
     }
 
-    private func verifySelection(_ root: AccessibilityRequest.Token, geometry: AccessibilityDisplay,
+    func verifySelection(_ root: AccessibilityRequest.Token, geometry: AccessibilityDisplay,
                                  session: any AccessibilityExchange, display: () throws -> AccessibilityDisplay) throws {
         let after = try session.application(pid: root.pid)
         guard sameIdentity(after, root) else { throw failure("application identity changed", .preconditionChanged) }
@@ -174,10 +187,10 @@ struct DirectAccessibilityAction {
         guard try display() == geometry else { throw failure("display geometry changed", .preconditionChanged) }
     }
 
-    private func sameIdentity(_ a: AccessibilityRequest.Token, _ b: AccessibilityRequest.Token) -> Bool {
+    func sameIdentity(_ a: AccessibilityRequest.Token, _ b: AccessibilityRequest.Token) -> Bool {
         a.pid == b.pid && a.objectID == b.objectID
     }
-    private func failure(_ reason: String, _ code: CommandFailure.Code, inputSent: CommandFailure.InputSent = .none) -> CommandFailure {
+    func failure(_ reason: String, _ code: CommandFailure.Code, inputSent: CommandFailure.InputSent = .none) -> CommandFailure {
         CommandFailure(code, "Native AX \(operation): \(reason).", inputSent: inputSent)
     }
 }

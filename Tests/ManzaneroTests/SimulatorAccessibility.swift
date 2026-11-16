@@ -47,6 +47,14 @@ final class SimulatorAXFixture: @unchecked Sendable {
     var noFrontmost = false
     var frontmostPIDs: [Int32] = []
     var failKind: UInt64?
+    /// Answer to the settable query (type 3).
+    var settable = true
+    /// Values received by set-value requests (type 8), in order.
+    private(set) var setValues: [String] = []
+    /// The value attribute (53) a read-back returns; set-value replaces it
+    /// unless `transform` changes it first.
+    var currentValue: String?
+    var transform: (String) -> String = { $0 }
 
     var kinds: [UInt64] { requests.map(\.kind) }
 
@@ -85,7 +93,19 @@ final class SimulatorAXFixture: @unchecked Sendable {
             if let enabled = element.enabled { live[27] = NSNumber(value: enabled) }
             if let visible = element.visible { live[32] = NSNumber(value: visible) }
             if let identifier = element.identifier { live[25] = identifier }
+            if let currentValue { live[53] = currentValue }
             response = Response(kind: 5, result: live as NSDictionary)
+        case 3:
+            #expect(fields["attributeType"]?.unsignedInteger == 53)
+            response = Response(kind: 3, result: NSNumber(value: settable))
+        case 8:
+            guard fields["attributeType"]?.unsignedInteger == 53, case .dictionary(let parameters) = fields["parameters"],
+                  case .string(let value) = parameters["value"] ?? .null else { throw CommandFailure(description: "Bad fixture set-value") }
+            onAction?()
+            setValues.append(value)
+            guard actionResult != nil else { throw CommandFailure(.transportFailed, "Simulator accessibility request failed: no reply", inputSent: .unknown) }
+            currentValue = transform(value)
+            response = Response(kind: 8, result: nil)
         case 6:
             guard case .dictionary(let parameters) = fields["parameters"], case .object(_, let point) = parameters["point"] ?? .null,
                   case .string(let text) = point["NS.pointval"] ?? .null else { throw CommandFailure(description: "Bad fixture hit") }
@@ -188,7 +208,7 @@ struct SimulatorAccessibilityTests {
     func multiContactAndPhysicalOnlyOperationsAreRefusedPlainly(operation: String) async throws {
         let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid, operation, "0.5"]) }
         #expect(failure.code == .unsupportedOperation && failure.inputSent == .none && failure.retry == .no)
-        #expect(failure.description.contains("not implemented yet"))
+        #expect(failure.description.contains(operation == "paste" ? "set-value-id or set-value-label" : "not implemented yet"))
         let fixture = SimulatorAXFixture()
         for dryRun in [false, true] {
             await #expect(throws: CommandFailure.self) { _ = try await Self.service(fixture).execute(["simulator", Self.uuid, operation, "0.5"], dryRun: dryRun) }

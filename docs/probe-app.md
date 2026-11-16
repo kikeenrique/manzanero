@@ -1,6 +1,6 @@
 # Probe fixture app
 
-The probe app is a small iOS app of this project's own that reports what the device actually received, so Manzanero's operations can be checked against ground truth instead of screenshots. It holds two probes: the touch probe described first, whose accessibility identifiers are namespaced `probe.touch.*`, and the [log probe](#log-probe), namespaced `probe.log.*`, which writes known lines for [`logs` and `console`](app-logs.md).
+The probe app is a small iOS app of this project's own that reports what the device actually received, so Manzanero's operations can be checked against ground truth instead of screenshots. It holds three probes: the touch probe described first, whose accessibility identifiers are namespaced `probe.touch.*`; the [log probe](#log-probe), namespaced `probe.log.*`, which writes known lines for [`logs` and `console`](app-logs.md); and the [text probe](#text-probe), namespaced `probe.text.*`, which shows what text entry reached a text field.
 
 ## Touch probe
 
@@ -17,7 +17,7 @@ The app is a test fixture. It is not part of the `manzanero` product and has no 
 | `Fixtures/ProbeApp/Project.swift`, `Tuist.swift` | Tuist manifests (local generation only) |
 | `Fixtures/ProbeApp/Config/ProbeApp.xcconfig` | Neutral bundle identifier and signing defaults, with an optional untracked include |
 | `Fixtures/ProbeApp/ProbeCore/` | UIKit-independent Swift package: recorder, readout formats (summary, last gesture, recent gestures) and log format (encoding and decoding), log writer, the log probe's plan (`LogProbe`), Swift Testing tests; also the host-only [measurement runner](probe-touch-runner.md) targets, which the app does not link |
-| `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing, log probe emitter |
+| `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing, log probe emitter, text probe |
 | `Fixtures/ProbeApp/UITests/` | XCUITest checks of the recording path in the simulator |
 
 Requirements: iOS 18.0 or later, iPhone only, portrait only. Swift 6 language mode with complete strict concurrency. Built and tested with Xcode 27.2 and Tuist 4.214.0.
@@ -229,6 +229,17 @@ Invariants: `dropped + recent.count == gestures`, and the entries are numbered `
 The bound comes from the device side, not Manzanero's. Manzanero does not cap string length, and 8 KB is about 0.05 % of its 16 MiB archive limit. How large an accessibility value iOS will carry through the remote snapshot is not documented and has not been measured, and an oversized value could break the whole `tree` read rather than only this element. So the readout is kept within a few times the size of the readouts that already exist (about 1.5 KB), while still covering a multi-gesture action, a run's shared readback window, or the built-in plan with `--readback end`. Whether a value of this size actually crosses on a phone has not been checked.
 
 Compare the `session` with the value read before sending input. If it changed, the app was relaunched or reset, and the readout does not describe that input.
+
+## Text probe
+
+One editable `UITextField` and a readout of exactly what it holds, to check text entry (HID `type`, `key`, and the simulator's `set-value-id`/`-label`) code point for code point. Source: `Fixtures/ProbeApp/App/ProbeTextProbe.swift`.
+
+| Identifier | Label | Value | Frame |
+| --- | --- | --- | --- |
+| `probe.text.field` | `Probe text field` | The field's text (the placeholder `text probe` while empty); a text field, so its value is settable | Full width minus 16-point margins, 40 high, 100 points above the reset box |
+| `probe.text.value` | `Probe text value` | `{"edits":…,"focused":…,"scalars":…,"text":…,"utf8":…,"v":1}`, keys sorted: the text, its UTF-8 byte and Unicode scalar counts, the number of changes the field reported, and whether it is first responder | A 20-point strip just below the field |
+
+The field has an empty input view, so no on-screen keyboard appears and covers it; hardware keyboard events (Manzanero's HID typing) still reach it. It is a subview of the touch surface: touches inside its frame go to the field and are not recorded by the touch probe. On a 390 × 844 screen it spans y 0.725...0.773, below every point of the built-in touch plan (y at most 0.65). The touch probe's readouts, log and formats are unchanged; the tree simply has two more elements.
 
 ## Readback path 2: file
 

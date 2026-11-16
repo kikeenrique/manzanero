@@ -11,7 +11,7 @@ struct SimulatorInput {
     let operands: [String]
 
     static let selectorActions = ["press-id", "press-label", "scroll-id", "scroll-label"]
-    static let accessibilityOperations = ["tree"] + selectorActions + AccessibilityWait.operations
+    static let accessibilityOperations = ["tree"] + selectorActions + DirectAccessibilitySetValue.operations + AccessibilityWait.operations
     /// Indigo digitizer schedules: one contact, or two for pinch and a
     /// two-path multi-drag (pointOne and pointTwo), as on physical devices.
     static let touchOperations = ["tap", "long-press", "swipe", "drag", "pinch", "multi-drag"]
@@ -31,8 +31,14 @@ struct SimulatorInput {
     static func parse(_ args: [String]) throws -> Self? {
         guard args.count >= 3, args[0] == "simulator" else { return nil }
         let operation = args[2]
+        if operation == "paste" {
+            // simctl pbcopy did not reach the pasteboard the simulator pastes
+            // from (docs/simulator-input.md), so Command+V could insert text
+            // the caller never supplied.
+            throw CommandFailure.unsupported("Simulator paste is refused: simctl pbcopy did not change the simulator's pasteboard in testing, so a paste could insert other text. For Unicode text use set-value-id or set-value-label, which replace a named element's value without the clipboard. No input sent.")
+        }
         if unimplemented.contains(operation) {
-            throw CommandFailure.unsupported("Simulator \(operation) is not implemented yet; simulator input covers tap, long-press, swipe, drag, pinch, two-path multi-drag, button, key and type. Three-to-five-contact gestures, paste and wake remain physical-only. No input sent.")
+            throw CommandFailure.unsupported("Simulator \(operation) is not implemented yet; simulator input covers tap, long-press, swipe, drag, pinch, two-path multi-drag, button, key and type. Three-to-five-contact gestures and wake remain physical-only. No input sent.")
         }
         if operation == "multi-drag", args.count != 12 {
             try PhysicalInputOperands.validate(operation, Array(args.dropFirst(3)), subject: "Simulator")
@@ -52,6 +58,8 @@ struct SimulatorInput {
             }
         case let value where selectorActions.contains(value):
             _ = try DirectAccessibilityAction(probe)
+        case let value where DirectAccessibilitySetValue.operations.contains(value):
+            _ = try DirectAccessibilitySetValue(probe)
         case let value where AccessibilityWait.operations.contains(value):
             _ = try AccessibilityWait(probe)
         case "long-press":
@@ -75,7 +83,7 @@ struct SimulatorInput {
             guard operands.count == 1 else { throw CommandFailure.usage("Simulator typing expects one text operand.") }
             let bytes = Array(operands[0].utf8)
             guard (1...512).contains(bytes.count), bytes.allSatisfy({ DirectPhysicalTyping.stroke($0) != nil }) else {
-                throw CommandFailure.usage("Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline. Unicode entry is not implemented on the simulator yet. No input sent.")
+                throw CommandFailure.usage("Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value-id or set-value-label, which replace a named element's whole value. No input sent.")
             }
         default:
             throw CommandFailure.unsupported("Unsupported simulator operation: \(operation).")
@@ -101,6 +109,15 @@ struct SimulatorInput {
             plan["pid"] = action.pid.map { Int($0) as Any } ?? NSNull()
             plan["deviceLease"] = "simulator UUID"
             plan["execution"] = "\(route) Foreground selection (frontmost application, else the screen-centre process), two unique snapshots and live state/frame guards before one action, as on physical devices. Press checks an exact hit (client type 2) at the target centre; scroll follows with fresh visibility/frame/hit and selection checks. No fallback or replay."
+        } else if DirectAccessibilitySetValue.operations.contains(operation) {
+            let action = try DirectAccessibilitySetValue(coreDeviceInput)
+            plan["backend"] = AccessibilityPlatform.simulator.backend
+            plan["operation"] = action.operation
+            plan["selector"] = ["by": action.guards.by, "text": action.guards.text]
+            plan["pid"] = action.guards.pid.map { Int($0) as Any } ?? NSNull()
+            plan["requestedUTF8Bytes"] = action.value.utf8.count
+            plan["deviceLease"] = "simulator UUID"
+            plan["execution"] = "\(route) Foreground selection, two unique snapshots, live state/frame guards and an exact centre hit as for press; then a settable query (request type 3, attribute 53) that must answer true, one set-value request (type 8, attribute 53) replacing the element's whole value, and one read-back of the value. No keyboard, clipboard, fallback or replay."
         } else if AccessibilityWait.operations.contains(operation) {
             let wait = try AccessibilityWait(coreDeviceInput)
             plan.merge(wait.plan(identityArguments: [])) { _, shared in shared }
@@ -176,12 +193,23 @@ enum DirectSimulatorAccessibility {
             return try SimulatorDevice.requireBooted(input.device, operation: input.operation, lookup: environment.lookup).display
         }
         let action = SimulatorInput.selectorActions.contains(input.operation) ? try DirectAccessibilityAction(input.coreDeviceInput) : nil
+        let setValue = DirectAccessibilitySetValue.operations.contains(input.operation) ? try DirectAccessibilitySetValue(input.coreDeviceInput) : nil
         let wait = AccessibilityWait.operations.contains(input.operation) ? try AccessibilityWait(input.coreDeviceInput) : nil
         let session: any AccessibilityExchange
         do { session = try environment.accessibility(input.device, wait?.sessionLimits.lifetime ?? AccessibilitySession.Limits.standard.lifetime) }
         catch let failure as CommandFailure { throw failure.noInputSent() }
         let bytes: Data
-        if let action {
+        if let setValue {
+            guard let setter = session as? any AccessibilityValueSetting else {
+                session.close()
+                throw CommandFailure(.internal, "The simulator accessibility session cannot set values; nothing was sent.", inputSent: .none)
+            }
+            bytes = try setValue.execute(session: setter, display: display)
+            if Task.isCancelled {
+                FileHandle.standardError.write(Data("Simulator AX set-value completed, but cancellation withheld its receipt. Inspect before retrying. No automatic replay.\n".utf8))
+            }
+            try Task.checkCancellation()
+        } else if let action {
             // The action classifies its own failures by submission state.
             bytes = try action.execute(session: session, display: display)
             if Task.isCancelled {

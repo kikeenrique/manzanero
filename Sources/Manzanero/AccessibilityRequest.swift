@@ -73,13 +73,29 @@ enum AccessibilityRequest {
         try archive(kind: 7, parameters: nil, token: token, action: action.rawValue)
     }
 
+    /// The value attribute (53), for the settable query and set-value below.
+    static let valueAttribute = 53
+
+    /// Whether the element's value can be set (request type 3, attribute 53).
+    /// Observed in AccessibilityPlatformTranslation's own simulator traffic;
+    /// sent only by the simulator route.
+    static func settable(_ token: Token) throws -> Data {
+        try archive(kind: 3, parameters: nil, token: token, attribute: valueAttribute)
+    }
+
+    /// Sets the element's value (request type 8, attribute 53, `value`).
+    /// Sent only by the simulator route; unverified on physical devices.
+    static func setValue(_ token: Token, text: String) throws -> Data {
+        try archive(kind: 8, parameters: ["value": text], token: token, attribute: valueAttribute)
+    }
+
     private static func archive(kind: Int, parameters: [String: Any]?, token: Token?, pointQuery: Bool = false, action: Int = 0,
-                                clientType: Int = 0) throws -> Data {
+                                clientType: Int = 0, attribute: Int? = nil) throws -> Data {
         let coder = NSKeyedArchiver(requiringSecureCoding: true)
         coder.setClassName("AXPTranslatorRequest", for: RequestObject.self)
         coder.setClassName("AXPTranslationObject", for: TranslationObject.self)
         coder.encode(RequestObject(kind: kind, parameters: parameters as NSDictionary?, token: token, pointQuery: pointQuery, action: action,
-                                   clientType: clientType), forKey: NSKeyedArchiveRootObjectKey)
+                                   clientType: clientType, attribute: attribute ?? (kind == 2 ? 52 : 0)), forKey: NSKeyedArchiveRootObjectKey)
         coder.finishEncoding()
         if let error = coder.error { throw error }
         let bytes = coder.encodedData
@@ -98,14 +114,16 @@ enum AccessibilityRequest {
         let pointQuery: Bool
         let action: Int
         let clientType: Int
+        let attribute: Int
 
-        init(kind: Int, parameters: NSDictionary?, token: Token?, pointQuery: Bool, action: Int, clientType: Int) {
+        init(kind: Int, parameters: NSDictionary?, token: Token?, pointQuery: Bool, action: Int, clientType: Int, attribute: Int) {
             self.kind = kind
             self.parameters = parameters
             self.token = token
             self.pointQuery = pointQuery
             self.action = action
             self.clientType = clientType
+            self.attribute = attribute
         }
 
         required init?(coder: NSCoder) { return nil }
@@ -114,7 +132,7 @@ enum AccessibilityRequest {
             coder.encode(kind, forKey: "requestType")
             coder.encode(clientType, forKey: "clientType")
             coder.encode(action, forKey: "actionType")
-            coder.encode(kind == 2 ? 52 : 0, forKey: "attributeType")
+            coder.encode(attribute, forKey: "attributeType")
             coder.encode(parameters, forKey: "parameters")
             coder.encode(pointQuery ? TranslationObject(pointQuery: ()) : token.map(TranslationObject.init), forKey: "translation")
         }

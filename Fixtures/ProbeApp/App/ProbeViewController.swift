@@ -70,6 +70,8 @@ final class ProbeSurfaceView: UIView {
     private let gestureElement: ProbeReadoutElement
     private let recentElement: ProbeReadoutElement
     private let resetElement: ProbeResetElement
+    /// The separate text probe (probe.text.*); see ProbeTextProbe.swift.
+    private var textProbe: ProbeTextProbe!
 
     init(model: ProbeModel) {
         self.model = model
@@ -107,8 +109,9 @@ final class ProbeSurfaceView: UIView {
         resetElement.read = { [unowned model] in model.recorder.session }
         resetElement.reset = { [unowned model] in model.reset() }
 
+        textProbe = ProbeTextProbe(container: self)
         isAccessibilityElement = false
-        accessibilityElements = [summaryElement, gestureElement, recentElement, resetElement]
+        accessibilityElements = [summaryElement, gestureElement, recentElement, resetElement, textProbe.field, textProbe.readout]
         model.onChange = { [weak self] in self?.setNeedsDisplay() }
     }
 
@@ -121,6 +124,9 @@ final class ProbeSurfaceView: UIView {
     private var gestureRect: CGRect { CGRect(x: 16, y: 164, width: bounds.width - 32, height: 120) }
     private var recentRect: CGRect { CGRect(x: 16, y: 292, width: bounds.width - 32, height: 92) }
     private var resetRect: CGRect { CGRect(x: bounds.midX - 90, y: bounds.maxY - 132, width: 180, height: 52) }
+    // Below every point the built-in touch plan uses (y <= 0.65) and above reset.
+    private var textFieldRect: CGRect { CGRect(x: 16, y: resetRect.minY - 100, width: bounds.width - 32, height: 40) }
+    private var textValueRect: CGRect { CGRect(x: 16, y: resetRect.minY - 56, width: bounds.width - 32, height: 20) }
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -130,6 +136,8 @@ final class ProbeSurfaceView: UIView {
         gestureElement.accessibilityFrameInContainerSpace = gestureRect
         recentElement.accessibilityFrameInContainerSpace = recentRect
         resetElement.accessibilityFrameInContainerSpace = resetRect
+        textProbe.field.frame = textFieldRect
+        textProbe.readout.accessibilityFrameInContainerSpace = textValueRect
         if let window {
             model.interfaceDidChange(size: window.bounds.size, scale: window.screen.scale)
         }

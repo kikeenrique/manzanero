@@ -12,11 +12,17 @@ struct AccessibilityResponse: Sendable {
         case action
         /// Simulator route only: the frontmost application translation.
         case frontmost
+        /// Simulator route only: whether the value attribute can be set.
+        case settable
+        /// Simulator route only: the reply to a set-value request.
+        case setValue
 
         var requestType: UInt64 {
             switch self {
             case .application: 1
             case .snapshot: 2
+            case .settable: 3
+            case .setValue: 8
             case .frontmost: 4
             case .attributes: 5
             case .hit: 6
@@ -60,6 +66,18 @@ struct AccessibilityResponse: Sendable {
         guard requestType == kind else { return nil }
         guard notification == 0, error == 0 else { throw Self.invalid("semantic refusal or notification in request response (error \(error))") }
         switch expected {
+        case .settable:
+            // Observed: no translation, attribute 0, result 0 or 1.
+            guard translation == .null, attribute == 0, Self.booleanResult(result) != nil else {
+                throw Self.invalid("settable reply target, attribute or Boolean result shape")
+            }
+        case .setValue:
+            // Observed: no translation, attribute 0 and a nil result. The
+            // reply acknowledges the request, not the value; read it back.
+            guard translation == .null, attribute == 0, result == .null || Self.booleanResult(result) != nil else {
+                throw Self.invalid("set-value reply target, attribute or result shape")
+            }
+            return result
         case .action:
             // Captured action replies have no translation/sequence identity.
             // Correlation relies on this session's one-outstanding-request rule.

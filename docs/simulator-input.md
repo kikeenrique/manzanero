@@ -8,6 +8,7 @@ Simulator trees, element actions, waits, single-contact touch, Home and lock, na
 manzanero simulator <UUID> tree [pid]
 manzanero simulator <UUID> press-id|press-label [pid] <exact-selector>
 manzanero simulator <UUID> scroll-id|scroll-label [pid] <exact-selector>
+manzanero simulator <UUID> set-value-id|set-value-label [pid] <exact-selector> <text>
 manzanero simulator <UUID> wait-id|wait-label [pid] <exact-selector> [--until …] [--value …] [--timeout …] [--interval …]
 manzanero simulator <UUID> tap <x> <y>
 manzanero simulator <UUID> long-press <x> <y> <seconds>
@@ -21,7 +22,19 @@ manzanero simulator <UUID> type <text>
 
 Arguments, ranges, coordinate space (normalized `0...1`, origin top left), receipts, dry-run plans, exit codes and error categories are those of the physical commands in [physical input](native-input.md), [physical typing](physical-typing.md) and [native accessibility](direct-accessibility.md). The selectors, the press and scroll guards, the wait conditions and the tree JSON are the same code. Every command has a `--dry-run` plan that does not look the simulator up.
 
-MCP tools take `platform: simulator` for the same operations: `get_ui_tree`, `press_element`, `scroll_to_element`, `wait_for_element`, `tap`, `drag`, `long_press`, `press_button`, `press_key`, `type_text` and `get_screen`. See [MCP](mcp.md).
+MCP tools take `platform: simulator` for the same operations: `get_ui_tree`, `press_element`, `scroll_to_element`, `wait_for_element`, `set_element_value`, `tap`, `drag`, `long_press`, `pinch`, `multi_drag`, `press_button`, `press_key`, `type_text` and `get_screen`. See [MCP](mcp.md).
+
+## Unicode text: set-value
+
+`set-value-id` and `set-value-label` replace one element's whole value with any Unicode text (1...65536 UTF-8 bytes, no NUL) through the accessibility set-value request (request type 8, attribute 53, parameter `value`). No key event, keyboard layout or clipboard is involved. Selection and guards are those of `press-id`/`press-label`: foreground selection, two fresh unique snapshots, live enabled and visible state and frame, an exact centre hit and application/display rechecks. Before the request the element must answer the settable query (type 3, attribute 53) with true; otherwise the command fails as `ambiguous-or-missing-target` and sends nothing, so select the text field itself, not its label. Afterwards the value is read back once: the receipt has `status: acknowledged`, `valueMatches` (true, false, or null with `readBackFailure`) and the requested and read-back byte counts. An app may transform the value, so a mismatch is reported rather than treated as failure. The command takes the device lease like a press. A failure after the request was sent is `input-outcome-unknown`.
+
+Observed on the probe's text field: the field becomes first responder, as after a tap. With an on-screen keyboard that can cover a field low on the screen, and a covered field reports itself not visible, so a second set-value is refused by the visibility guard until the keyboard is dismissed.
+
+**Physical devices refuse it** (`unsupported-operation`): the same requests would travel over the physical DTX route, but they have never been sent to a phone.
+
+**Why `type` stays ASCII.** `type` sends HID key events to whatever has focus, at the caret, in the US layout. Set-value targets a named element and replaces its whole value. Falling back from one to the other for non-ASCII text would change both the target and the effect without the caller asking, so `type` refuses non-ASCII text and its message points to set-value.
+
+**Why `paste` is refused.** Paste on a phone writes the clipboard, then sends Command+V. On the simulator the clipboard write is the problem: `simctl pbcopy` exited 0 three times out of three, but `simctl pbpaste` then returned other text that was already on the simulator's pasteboard, not the copied text, and `pbinfo` listed an item carrying the type `com.apple.coredevice.dtpasteboardd.sync` with promised data (the research saw an empty pasteboard instead). A paste could therefore insert text the caller never supplied. `paste` is refused with a pointer to set-value. The CoreDevice pasteboard service inside the simulator (`dtpasteboardd`) was not tried.
 
 ## Requirements
 
@@ -56,13 +69,14 @@ The lease, the handoff pause and the CLI signal handling (SIGINT/SIGTERM exit 13
 
 - **Home Screen tree.** SpringBoard's full-depth snapshot came back empty after about three seconds; at depth 4 it took 0.39 s and at depth 10 2.0 s. A tree or wait on the Home Screen therefore fails with "the simulator returned no snapshot data". The lock screen's SpringBoard tree (105 nodes) was read. Presses and waits work in apps.
 - **No frontmost application.** On the first boot the frontmost request answered within seconds; on a second fresh boot it answered with no application for at least 15 minutes, with the Home Screen, the probe app and Settings in front. The centre-hit fallback covers that case; a centre hit can select an overlay or embedded process, as on physical devices.
+- **Snapshots that come back empty at once.** After the probe app's own XCUITest run on the simulator, every snapshot of the probe (and of the relaunched probe) came back empty within a millisecond, while application and frontmost requests answered; a reboot cleared it. In the first minute after that reboot a few snapshots also came back empty, then 20 of 20 trees in a row succeeded. Such a tree or action fails before sending anything; repeat it after inspecting.
 - **Visibility.** Settings' SwiftUI static texts inside a row report the native visibility attribute false while the row reports true. A wait for such a text times out as `not-visible`; select the row.
 
 ## Not implemented
 
-- Unicode text entry (the AX set-value request, type 8 / attribute 53, works in experiments but has no command yet). `type` refuses non-ASCII text.
+- Non-ASCII `type` and `paste` (see [set-value](#unicode-text-set-value) for the reasons and the alternative).
 - Three to five contacts: `multi-tap`, `multi-drag` with three or more paths, and `gesture` are refused with `unsupported-operation`. `pinch` and two-path `multi-drag` send both contacts in each Indigo digitizer event (`pointOne`, `pointTwo`), exactly as on a physical device, with the same refusal of overlapping or crossing paths (checked before the simulator is looked up).
-- Rotation, landscape and iPad geometry, `paste`, `wake`, volume buttons.
+- Rotation, landscape and iPad geometry, `wake`, volume buttons.
 - tvOS, watchOS and visionOS simulators, and runtimes or Xcodes other than the tested ones.
 
 `screen` on a simulator prefers the tree, then OCR, like physical `screen`.

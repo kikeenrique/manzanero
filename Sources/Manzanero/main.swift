@@ -101,6 +101,8 @@ Usage:
   manzanero simulator <UUID> tree [positive-pid]   Omitted PID selects the frontmost app, else the centre one
   manzanero simulator <UUID> <press-id|press-label|scroll-id|scroll-label> [positive-pid] <exact-selector>
   manzanero simulator <UUID> <wait-id|wait-label> [positive-pid] <exact-selector> [wait options as above]
+  manzanero simulator <UUID> <set-value-id|set-value-label> [positive-pid] <exact-selector> <text>
+                                          Replace a settable element's value with Unicode text (AX set-value)
   manzanero simulator <UUID> tap <x> <y>
   manzanero simulator <UUID> long-press <x> <y> <seconds: 0.1...10>
   manzanero simulator <UUID> <swipe|drag> <x1> <y1> <x2> <y2> <seconds>
@@ -111,7 +113,8 @@ Usage:
   manzanero simulator <UUID> type <text>   US-layout ASCII, 1...512 characters
   Simulator input and AX run in process (dtuhidd HID and CoreSimulator AX requests) on a booted
   simulator, addressed by UUID; they never boot it. Coordinates are normalized 0...1, top left, in a
-  portrait interface. Three-to-five-contact gestures, paste, wake and Unicode entry are physical-only for now.
+  portrait interface. Three-to-five-contact gestures and wake are physical-only for now; paste is refused
+  (use set-value), and set-value is simulator-only.
   Prefix a planned command with --dry-run to print its invocation without executing.
   manzanero [--dry-run] --error-format <text|json> <command> ...
   A failure exits 1 and prints its message on stderr; json prints one object instead:

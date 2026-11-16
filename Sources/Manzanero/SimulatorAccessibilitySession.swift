@@ -14,7 +14,7 @@ import Foundation
 ///
 /// Synchronous and single-owner like `AccessibilitySession`; any failure
 /// closes it.
-final class SimulatorAccessibilitySession: AccessibilityExchange {
+final class SimulatorAccessibilitySession: AccessibilityValueSetting {
     /// Sends one request archive and returns the response archive. As with
     /// the DTX session, an action counts as submitted from just before the
     /// carrier runs, so any carrier failure after that is an unknown outcome.
@@ -88,6 +88,16 @@ final class SimulatorAccessibilitySession: AccessibilityExchange {
         let result = try exchange(AccessibilityRequest.action(token, action: action), expected: .action, onSubmission: onSubmission)
         guard let accepted = AccessibilityResponse.booleanResult(result) else { throw invalid("unknown action result") }
         return accepted
+    }
+
+    func isSettable(_ token: AccessibilityRequest.Token) throws -> Bool {
+        let result = try exchange(AccessibilityRequest.settable(token), expected: .settable)
+        guard let settable = AccessibilityResponse.booleanResult(result) else { throw invalid("unknown settable result") }
+        return settable
+    }
+
+    func setValue(_ token: AccessibilityRequest.Token, text: String, onSubmission: () -> Void) throws {
+        _ = try exchange(AccessibilityRequest.setValue(token, text: text), expected: .setValue, onSubmission: onSubmission)
     }
 
     @discardableResult

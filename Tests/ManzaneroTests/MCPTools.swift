@@ -26,7 +26,7 @@ struct MCPToolsTests {
     }
     @Test func catalogHasUniqueNamesAndClosedObjectSchemas() throws {
         let definitions = MCPTools.definitions
-        #expect(definitions.count == 35)
+        #expect(definitions.count == 36)
         #expect(Set(definitions.map(\.name)).count == definitions.count)
         for definition in definitions {
             let schema = try #require(definition.tool.inputSchema.objectValue)
@@ -127,8 +127,25 @@ struct MCPToolsTests {
         ("pinch", ["platform": Value.string("simulator"), "center_x": 0.5, "center_y": 0.5, "start_span": 0.2, "end_span": 0.5, "seconds": 0.6],
          ["pinch", "0.5", "0.5", "0.2", "0.5", "0.6"]),
         ("multi_drag", ["platform": Value.string("simulator"), "seconds": 0.5, "paths": [0.5, 0.25, 0.5, 0.1, 0.5, 0.75, 0.5, 0.9]],
-         ["multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"])
+         ["multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"]),
+        ("set_element_value", ["platform": Value.string("simulator"), "by": "identifier", "text": "probe.text.field", "value": "mañana 🚀 中"],
+         ["set-value-id", "probe.text.field", "mañana 🚀 中"]),
+        ("set_element_value", ["platform": Value.string("simulator"), "by": "label", "text": "Field", "pid": 42, "value": "x"],
+         ["set-value-label", "42", "Field", "x"])
     ]
+
+    @Test func setElementValueOnAPhysicalDeviceIsRefusedPlainly() async throws {
+        let definition = try #require(MCPTools.definitions.first { $0.name == "set_element_value" })
+        let args = try definition.command(["platform": "physical", "device": "fixture", "by": "identifier", "text": "f", "value": "v"])
+        #expect(args == ["physical", "fixture", "set-value-id", "f", "v"])
+        for dryRun in [false, true] {
+            let failure = try #require(await #expect(throws: CommandFailure.self) {
+                _ = try await CommandService(readinessQuery: { _ in Issue.record("queried a device"); return Data() }).execute(args, dryRun: dryRun)
+            })
+            #expect(failure.code == .unsupportedOperation && failure.inputSent == .none && failure.retry == .no)
+            #expect(failure.description == "Physical set-value-id is not enabled: the accessibility set-value request has been verified only on simulators. For Unicode text on a physical device use paste. No input sent.")
+        }
+    }
 
     @Test(arguments: simulatorRoutes)
     func simulatorPlatformRoutesToTheSimulatorCommand(_ name: String, _ arguments: [String: Value], _ operands: [String]) throws {

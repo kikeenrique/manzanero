@@ -23,7 +23,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 ## Tool catalog
 
-`tools/list` is the exact schema reference: 35 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
+`tools/list` is the exact schema reference: 36 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
 
 | Tools | Current purpose |
 | --- | --- |
@@ -32,11 +32,12 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `get_ui_tree` | Native AX hierarchy with optional PID, physical or [simulator](simulator-input.md). |
 | `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Auto mode prefers the tree on both platforms. |
 | `press_element`, `scroll_to_element` | [Fresh exact AX selectors](direct-accessibility.md), guarded native press/scroll, physical or simulator |
+| `set_element_value` | [Unicode entry by AX set-value](simulator-input.md#unicode-text-set-value): replaces one settable element's whole value, with the press guards. Simulator only; physical is refused |
 | `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled or has an exact value, within one AX session. Run on one simulator; not yet verified on physical hardware. |
 | `decode_accessibility_archive` | Offline data-only archive inspection |
 | `record_screen` | [Finite MP4 recording](recording.md) to a new host path |
 | `tap`, `drag`, `long_press` | Direct single-contact input, physical or simulator |
-| `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md); physical only |
+| `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md); `multi_drag` and `pinch` take an optional `platform` (default physical), and a simulator receives `pinch` and two paths; the others are physical only |
 | `type_text`, `paste_text`, `press_key`, `press_button` | US-layout typing, named keys and hardware buttons (physical or simulator; simulator buttons home and lock only), and physical clipboard-replacing paste |
 | `wake_device` | [Guarded wake](native-input.md#waking-a-dark-display) of a dark display: one side-button press only when the display reads off twice |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
@@ -45,17 +46,17 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `build_run` | [Xcode build/install/launch](build-run.md). Optional physical-only booleans `allow_provisioning_updates` and `allow_device_registration` let Xcode change certificates, profiles and device registrations in the user's developer account; ask the user before setting them. |
 | `request_handoff` | [Explicit human completion request](handoff.md) |
 
-Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked at runtime, and neither the catalogue nor the shared CLI command service has any route to them: simulator selector taps, live raw callback archives, finite OS traces, `hid-info`, `pairing_file` and the input `backend` choice are gone. Physical input and trees always use the in-process CoreDevice route; simulator input and trees use the in-process [CoreSimulator route](simulator-input.md) and need a booted simulator addressed by UUID. Simulator operations that are not implemented (multi-contact, paste, wake, Unicode typing) are not reachable from the tools above, and the CLI refuses them as `unsupported-operation`.
+Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked at runtime, and neither the catalogue nor the shared CLI command service has any route to them: simulator selector taps, live raw callback archives, finite OS traces, `hid-info`, `pairing_file` and the input `backend` choice are gone. Physical input and trees always use the in-process CoreDevice route; simulator input and trees use the in-process [CoreSimulator route](simulator-input.md) and need a booted simulator addressed by UUID. Simulator operations that are not implemented (three to five contacts, paste, wake, non-ASCII `type`) are not reachable from the tools above, and the CLI refuses them as `unsupported-operation`.
 
 ## Choose platform and coordinates explicitly
 
-`get_ui_tree`, `type_text`, `press_element`, `scroll_to_element`, `wait_for_element`, `press_key` and `long_press` default to `platform: "physical"`, so calls written before simulator support route as before. Other device tools require an explicit `platform` where they accept one.
+`get_ui_tree`, `type_text`, `press_element`, `scroll_to_element`, `wait_for_element`, `press_key`, `long_press`, `multi_drag` and `pinch` default to `platform: "physical"`, so calls written before simulator support route as before. Other device tools require an explicit `platform` where they accept one.
 
 Touch coordinates are normalized `0...1` on both platforms (a simulator's interface is assumed portrait). AX frames use logical points; screenshots use pixels. OCR text regions are not guaranteed tap targets.
 
 A physical tree without `pid` selects/rechecks the awake portrait primary display-centre process; a simulator tree the frontmost application, or the process under the screen centre when the simulator reports none. An explicit positive PID can inspect a background app. IDs belong only to one non-atomic snapshot, not reusable action handles. Press/scroll selectors resolve fresh identities and apply additional guards.
 
-Physical Unicode paste is `paste_text`; it replaces the clipboard and uses current focus. ASCII `type_text` has a US-layout mapping and does not change the clipboard. Neither approves prompts or verifies insertion.
+Physical Unicode paste is `paste_text`; it replaces the clipboard and uses current focus. ASCII `type_text` has a US-layout mapping and does not change the clipboard. Neither approves prompts or verifies insertion. On a simulator, Unicode text goes through `set_element_value`, which names its target element and replaces its whole value; `type_text` stays ASCII and never switches to it silently.
 
 ## Results and errors
 

@@ -208,6 +208,9 @@ actor CommandService {
             }
             return CommandOutput(data: try DirectPhysicalInput.execute(native, query: query))
         }
+        if args.count >= 3, args[0] == "physical", DirectAccessibilitySetValue.operations.contains(args[2]) {
+            throw CommandFailure.unsupported("Physical \(args[2]) is not enabled: the accessibility set-value request has been verified only on simulators. For Unicode text on a physical device use paste. No input sent.")
+        }
         if let simulator = try SimulatorInput.parse(args) {
             if dryRun { return try json(simulator.plan()) }
             return try await executeSimulator(simulator)
