@@ -37,6 +37,10 @@ int ADCIsRSDDirectoryActive(void *owner);
 /// and separately reports whether release was acknowledged. No device input.
 int ADCValidateTunnelAssertionReply(const void *reply, char *address, size_t addressCapacity,
                                     char *error, size_t errorCapacity);
+/// Status of ADCOpenNativeTunnelAssertion when the pairing daemon's browse
+/// connection reported an error before any endpoint was selected. No assertion
+/// was requested and nothing was sent to the device, so opening again is safe.
+#define ADCTunnelBrowseInterrupted 3
 int ADCOpenNativeTunnelAssertion(const char *expectedUDID, int (^shouldCancel)(void),
                                  char *address, size_t addressCapacity, void **owner,
                                  char *error, size_t errorCapacity);

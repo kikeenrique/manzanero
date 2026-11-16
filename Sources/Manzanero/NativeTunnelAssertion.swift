@@ -10,6 +10,9 @@ final class NativeTunnelAssertion {
         let diagnostic: String?
     }
 
+    /// Browses at most this many times when the browse connection is interrupted.
+    static let browseAttempts = 3
+
     let address: String
     private var owner: UnsafeMutableRawPointer?
     private var released: Release?
@@ -20,7 +23,16 @@ final class NativeTunnelAssertion {
         var address = [CChar](repeating: 0, count: 128)
         var error = [CChar](repeating: 0, count: 1024)
         var owner: UnsafeMutableRawPointer?
-        let status = ADCOpenNativeTunnelAssertion(device, { Task.isCancelled ? 1 : 0 }, &address, address.count, &owner, &error, error.count)
+        var status = ADCOpenNativeTunnelAssertion(device, { Task.isCancelled ? 1 : 0 }, &address, address.count, &owner, &error, error.count)
+        // The pairing daemon's browse connection occasionally reports an error
+        // before it announces the device. Nothing has been requested at that
+        // point, so browse again, a bounded number of times.
+        var attempts = 1
+        while status == ADCTunnelBrowseInterrupted, owner == nil, attempts < Self.browseAttempts, !Task.isCancelled {
+            attempts += 1
+            Thread.sleep(forTimeInterval: 0.25)
+            status = ADCOpenNativeTunnelAssertion(device, { Task.isCancelled ? 1 : 0 }, &address, address.count, &owner, &error, error.count)
+        }
         if Task.isCancelled {
             let release = Self.release(owner)
             if status != 0 {
