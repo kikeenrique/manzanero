@@ -62,6 +62,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
 | A step that needs a person | [Human handoff](docs/handoff.md) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
+| Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical console unverified) |
 
 Physical input, accessibility and native video need no separate device helper. The CLI has no routes to AXe, idevice or ipb executables, and the process runners refuse them at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator trees, element actions, waits, single-contact touch, Home/lock, keys and typing run in process on a booted simulator ([simulator input](docs/simulator-input.md)).
 
@@ -114,7 +115,7 @@ Host configuration formats vary. Set a suitable working directory: relative file
 
 Run `mise run test` for local checks and `mise tasks validate` for task definitions. Device tests are opt-in and may mutate the selected device; read their help first.
 
-Start with [architecture and dependencies](docs/dependencies.md), [development tasks](docs/development-tasks.md), [roadmap](docs/roadmap.md) and [verification](docs/verification.md). Protocol and implementation references are collected in [accessibility notes](docs/accessibility-protocol.md), [transport notes](docs/transport.md) and the [AXe review](docs/axe-physical-review.md). The [probe app](docs/probe-app.md) is a fixture iOS app for measuring physical touch delivery, driven by the [touch measurement runner](docs/probe-touch-runner.md). Repository workflow rules are in [AGENTS.md](AGENTS.md).
+Start with [architecture and dependencies](docs/dependencies.md), [development tasks](docs/development-tasks.md), [roadmap](docs/roadmap.md) and [verification](docs/verification.md). Protocol and implementation references are collected in [accessibility notes](docs/accessibility-protocol.md), [transport notes](docs/transport.md) and the [AXe review](docs/axe-physical-review.md). The [probe app](docs/probe-app.md) is a fixture iOS app for measuring physical touch delivery, driven by the [touch measurement runner](docs/probe-touch-runner.md), and for checking [app log capture](docs/app-logs.md) against known lines ([research](docs/app-logs-research.md)). Repository workflow rules are in [AGENTS.md](AGENTS.md).
 
 
 ## License

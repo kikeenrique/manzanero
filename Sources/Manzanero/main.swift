@@ -34,6 +34,21 @@ Usage:
   Handoff asks for a human action on the device, then waits for explicit completion.
   manzanero physical <device> reports [relative-directory]
   manzanero physical <device> report <relative-report-path> <local-destination>
+  manzanero simulator <UUID> logs (--seconds 1...60 | --last 1...3600 | --start <ISO-8601> [--end <ISO-8601>])
+      (--bundle <id> | --pid N | --process <name>) [--subsystem S [--category C]] [--level default|info|debug]
+      [--max-entries N (2000, max 10000)] [--max-bytes N (1 MiB, max 8 MiB)] [--output <new.ndjson>]
+  Logs runs Apple's log tool in the simulator with a predicate built from these fields (no raw predicate),
+  stops at the duration or a limit, and reaps the child. --last/--start read persisted entries: no debug.
+  manzanero <physical|simulator> <device> console <bundle-id> --seconds 1...60 [--max-bytes N] [--os-log]
+      [--terminate] [-- app-args...]
+  Console relaunches the app and returns stdout/stderr tails; --os-log mirrors its os_log lines (info and
+  above) to stderr. Simulator: output goes to files under tmp/; the app keeps running unless --terminate.
+  Physical (UNVERIFIED on hardware): devicectl --console; the app is ended by SIGINT at the duration, and
+  an empty capture does not prove the app printed nothing.
+  manzanero <physical|simulator> <device> last-crash (--bundle <id> | --process <name>) [--since <ISO-8601>]
+      [--download <existing-dir>]
+  Last-crash parses the newest matching crash report: simulator reports from the Mac's DiagnosticReports,
+  device reports through the reports/report route (download unverified). Physical logs are not implemented.
   manzanero physical <device> terminate <pid>
   manzanero physical <device> open-url <url>
   manzanero physical <device> files <bundle-id> <relative-path>

@@ -12,7 +12,7 @@ Run from the repository root with the device paired and unlocked. Replace `<UDID
 - `handoff` with a real prompt, and the `disabled` and `value` wait conditions.
 - `wake_device`, `wait_for_element`, the inline image options and the JSON error object through a live MCP session.
 - Buttons and keys measured after the connection-drain fix; only touch was measured.
-- App console output: launch the probe with `devicectl`'s console option once it prints known lines (see [app logs research](app-logs-research.md)).
+- App console output and the last crash on the phone: `physical <UDID> console` with the probe app's log probe, and `last-crash` after `-probeCrash abort` (see [app logs](app-logs.md); the probe now prints known lines).
 - Landscape, an iPad, and anything on a second device.
 
 ## Questions still open

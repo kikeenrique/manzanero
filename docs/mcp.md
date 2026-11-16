@@ -23,7 +23,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 ## Tool catalog
 
-`tools/list` is the exact schema reference: 32 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
+`tools/list` is the exact schema reference: 35 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
 
 | Tools | Current purpose |
 | --- | --- |
@@ -41,6 +41,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `wake_device` | [Guarded wake](native-input.md#waking-a-dark-display) of a dark display: one side-button press only when the display reads off twice |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report` | Saved physical report listing/download |
+| `capture_logs`, `capture_console`, `latest_crash` | [App output and crashes](app-logs.md): a bounded unified-log capture for one app (simulator only, read-only), launch with stdout/stderr tails (physical console unverified; launches an app, so not read-only), and the newest crash report parsed (read-only) |
 | `build_run` | [Xcode build/install/launch](build-run.md). Optional physical-only booleans `allow_provisioning_updates` and `allow_device_registration` let Xcode change certificates, profiles and device registrations in the user's developer account; ask the user before setting them. |
 | `request_handoff` | [Explicit human completion request](handoff.md) |
 

@@ -50,7 +50,7 @@ Some commands report an unsuccessful outcome as a JSON answer on stdout with its
 | `possible` | Something was sent or attempted; its effect is unknown |
 | `unknown` | The failure site cannot tell (every unclassified failure, and an Apple tool that may or may not have acted) |
 
-A read-only command (`tree`, `wait-id`/`wait-label`, `screen`, `screenshot`, `details`, `apps`, `processes`, `files`, `pull`, `reports`, `report`, `readiness`, `media-status`, `devices`, `doctor`, `ocr`, `decode-ax-archive`) and every `--dry-run` report `none` for any failure, because they send nothing whatever stage failed. Recording sends no input either.
+A read-only command (`tree`, `wait-id`/`wait-label`, `screen`, `screenshot`, `details`, `apps`, `processes`, `files`, `pull`, `reports`, `report`, `logs`, `last-crash`, `readiness`, `media-status`, `devices`, `doctor`, `ocr`, `decode-ax-archive`) and every `--dry-run` report `none` for any failure, because they send nothing whatever stage failed. Recording sends no input either. `console` launches an app: a failed `simctl`/`devicectl` launch reports `unknown`, and a failure after the launch `possible` ([app logs](app-logs.md)).
 
 **`retry`**
 
@@ -105,7 +105,7 @@ The set is deliberately small and closed; a new value would be a change to this 
 
 ## Unclassified sites
 
-`Sources/Manzanero` constructs `CommandFailure` in 230 places (a helper such as `failure(_:)` counts once, however many guards call it). 224 are classified, 11 of them by keeping a wrapped failure's category. Six remain `unclassified`:
+`Sources/Manzanero` constructs `CommandFailure` in 279 places (a helper such as `failure(_:)` counts once, however many guards call it; the 49 added with `logs`, `console` and `last-crash` are all classified). 273 are classified, 11 of them by keeping a wrapped failure's category. Six remain `unclassified`:
 
 - `KeyedArchiveInspector`'s invalid-archive failure: it serves both offline `decode-ax-archive` files (a usage problem) and device replies (a transport problem), and cannot tell which.
 - `NativeHEVCDecoder` (three sites, one of them its `failure(_:)` helper), `NativeVideoFrame` and native movie finalization: host-side VideoToolbox/AVFoundation failures whose cause (stream data or host) is not known at the site. They occur only during recording, so they still report `inputSent: none`.

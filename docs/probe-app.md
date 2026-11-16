@@ -1,6 +1,6 @@
 # Probe fixture app
 
-The probe app is a small iOS app of this project's own that reports what the device actually received, so Manzanero's operations can be checked against ground truth instead of screenshots. It is meant to hold several probes. The first, and so far the only one, is the touch probe described here; its accessibility identifiers are namespaced `probe.touch.*` so later probes can add their own.
+The probe app is a small iOS app of this project's own that reports what the device actually received, so Manzanero's operations can be checked against ground truth instead of screenshots. It holds two probes: the touch probe described first, whose accessibility identifiers are namespaced `probe.touch.*`, and the [log probe](#log-probe), namespaced `probe.log.*`, which writes known lines for [`logs` and `console`](app-logs.md).
 
 ## Touch probe
 
@@ -16,8 +16,8 @@ The app is a test fixture. It is not part of the `manzanero` product and has no 
 | --- | --- |
 | `Fixtures/ProbeApp/Project.swift`, `Tuist.swift` | Tuist manifests (local generation only) |
 | `Fixtures/ProbeApp/Config/ProbeApp.xcconfig` | Neutral bundle identifier and signing defaults, with an optional untracked include |
-| `Fixtures/ProbeApp/ProbeCore/` | UIKit-independent Swift package: recorder, readout formats (summary, last gesture, recent gestures) and log format (encoding and decoding), log writer, Swift Testing tests; also the host-only [measurement runner](probe-touch-runner.md) targets, which the app does not link |
-| `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing |
+| `Fixtures/ProbeApp/ProbeCore/` | UIKit-independent Swift package: recorder, readout formats (summary, last gesture, recent gestures) and log format (encoding and decoding), log writer, the log probe's plan (`LogProbe`), Swift Testing tests; also the host-only [measurement runner](probe-touch-runner.md) targets, which the app does not link |
+| `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing, log probe emitter |
 | `Fixtures/ProbeApp/UITests/` | XCUITest checks of the recording path in the simulator |
 
 Requirements: iOS 18.0 or later, iPhone only, portrait only. Swift 6 language mode with complete strict concurrency. Built and tested with Xcode 27.2 and Tuist 4.214.0.
@@ -270,6 +270,35 @@ Cannot show:
 - whether a missing touch was dropped by Manzanero, by the transport or by iOS. Only that it did not arrive here;
 - coalesced sub-frame samples, which are not recorded;
 - behaviour in landscape or on iPad. The probe is portrait-only and iPhone-only.
+
+## Log probe
+
+The log probe writes known lines so that [`logs`, `console` and `last-crash`](app-logs.md) can be checked against ground truth. Its plan is `LogProbe` in ProbeCore (UIKit-free, unit-tested); `App/LogProbeEmitter.swift` writes it. It shares nothing with the touch probe's state.
+
+**One set** of lines, each carrying a token and the set's number `#n` (1 for the launch set, counting up per process):
+
+| Where | Text |
+| --- | --- |
+| `Logger(subsystem: <bundle id>, category: "probe")` at debug, info, notice, error and fault, `privacy: .public` | `probe.log <token> #<n> level=<debug\|info\|default\|error\|fault>` (notice is the log's `default`) |
+| The same logger at notice, with a `.private` interpolation | `probe.log <token> #<n> private=` followed by `secret-<token>` as the private value |
+| stdout, then `fflush(stdout)` | `stdout <token> #<n> flushed` |
+| stdout, not flushed | `stdout <token> #<n> unflushed` |
+| `FileHandle.standardError` | `stderr <token> #<n>` |
+
+**Triggers**, none of which needs a touch:
+
+- Every launch writes one set. The token is the value after the launch argument `-probeLogToken` (1...64 ASCII letters, digits, `.`, `_`, `-`), else `launch`.
+- Activating the accessibility element `probe.log.emit` writes another set with the token `emit`: `manzanero <platform> <device> press-id probe.log.emit`. The element is a button-trait `UIAccessibilityElement` (label `Emit probe logs`, value `{"sets":N}`), added to the touch surface's accessibility elements at x 16, y 400, 180×52 points, clear of the touch probe's elements. It is not a view, so it never receives touches. A custom URL scheme was tried first and dropped: iOS asks "Open in “Probe”?" before delivering it, which needs a touch.
+- `-probeCrash abort|trap` crashes deliberately one second after the launch set, after logging `probe.log <token> about to crash mode=<mode>` at error and printing it to stdout with a flush (which also flushes the unflushed line). `abort` calls `abort()` (SIGABRT); `trap` calls `fatalError` (SIGTRAP). Only that launch argument crashes the app; nothing in the measurement runner or the UI passes it.
+
+```sh
+manzanero simulator <UUID> console com.lemambo.manzanero.probeapp --seconds 5 --os-log -- -probeLogToken T1
+manzanero simulator <UUID> logs --seconds 10 --bundle com.lemambo.manzanero.probeapp --level debug   # press-id probe.log.emit meanwhile
+manzanero simulator <UUID> console com.lemambo.manzanero.probeapp --seconds 6 -- -probeLogToken K1 -probeCrash abort
+manzanero simulator <UUID> last-crash --bundle com.lemambo.manzanero.probeapp --since <ISO-8601 before the launch>
+```
+
+Results on one iPhone Air simulator are in [verification](verification.md#app-logs-console-and-crashes).
 
 ## Verification status
 

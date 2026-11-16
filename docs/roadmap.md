@@ -24,13 +24,13 @@ These are implementation priorities, not evidence that a feature is complete or 
 | Accessibility | Overlay/embedded-process and rotated-display handling, broad selectors/actions, stable session semantics and recovery |
 | Screens/OCR | Broader accuracy and targeting evidence; OCR text regions do not establish hittability |
 | App development | Physical signing/deployment, scheme discovery, progress/cancellation, crash/source integration |
-| Data/diagnostics | Actual app-container coverage, `.xcappdata` workflows, report downloads/parsing/symbolication, direct finite logs |
+| Data/diagnostics | Actual app-container coverage, `.xcappdata` workflows, live check of physical `console` and `last-crash` (report download), symbolication, physical `logs` through the native `os_trace_relay` only if `console` proves insufficient ([app logs](app-logs.md)) |
 | Agents | Durable sessions/activity, live verification of the bounded exact-selector AX wait and assertions beyond it, automatic human-prompt detection and notifications |
 | Interface | Classify the remaining unclassified failure sites and non-`CommandFailure` errors ([errors](errors.md#unclassified-sites)), later protocol versions where justified, optional HTTP if needed |
 
 Readiness now distinguishes CoreDevice prerequisites from UI observations. It still cannot verify the Enable UI Automation switch or prove current UI unlock. A transient side-button wake observation does not establish unattended wake.
 
-Two research notes size agent-facing work: [simulator input and UI tree](simulator-input-research.md) (milestones 1 to 5 implemented; 6 to 8 remain) and [app logs](app-logs-research.md).
+Two research notes size agent-facing work: [simulator input and UI tree](simulator-input-research.md) (milestones 1 to 5 implemented; 6 to 8 remain) and [app logs](app-logs-research.md) (milestones 1 to 6 implemented, 6 unverified on hardware; 7, the native relay, not built).
 
 Several recent changes have local tests only. The [next live check plan](live-check-plan.md) orders their first run on a phone.
 

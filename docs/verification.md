@@ -16,7 +16,7 @@ Checkpoint hashes below refer to the rewritten public history. The publication c
 
 ## Current local validation
 
-The latest implementation checkpoint (simulator input, 2026-11-15) passed 451 default Swift tests through xcsift with zero errors/warnings, three times normally and three times with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`; `mise run probe-app:test` passed 94; all 40 mise tasks validated. Default tests are local regression checks, not hardware runs. Live checks are explicitly enabled and may have device effects.
+The latest implementation checkpoint (app logs, console and crashes, 2026-11-16) passed 516 default Swift tests through xcsift with zero errors/warnings, three times normally and three times with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` (one earlier strict run failed an existing streaming-runner wall-clock bound while new blocking tests shared the single pool thread; those suites now run on a dedicated thread); `mise run probe-app:test` passed 98; all 40 mise tasks validated; `mise run test:probe-touch <UDID> --dry-run` exited 0. Default tests are local regression checks, not hardware runs. Live checks are explicitly enabled and may have device effects.
 
 Coverage includes argument validation, literal subprocess arguments, bounded output/deadlines/reaping, DTX/archive parsing, identity/geometry guards, report encoding, timing/cleanup attempts, MCP routing/lifetime and recording artifacts. It does not establish the Apple service's delivery, exact scheduling, device-side cleanup or broad device compatibility.
 
@@ -303,11 +303,43 @@ Not observed: rotation or landscape, iPad or other families, other runtimes or X
 
 Because the accessibility code shared with the phone was refactored, the iPhone 13 mini was re-checked with the same build: `tree` (137 nodes, both cleanups acknowledged), `press-label`, `wait-id` met and timed out with exit 124, `scroll-id` with its postcondition verified (a row moved from y 793 to 416), `screen auto`, `swipe`, a 2-second native recording (39 frames) and `button home` all behaved as before. A `scroll-id` for a row that the lazy Settings list had not yet created was refused before sending with "no match", which is the documented limit, not a change.
 
+## App logs, console and crashes
+
+First run of [`logs`, `console` and `last-crash`](app-logs.md), 2026-11-16: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), devicectl 651.32, one iPhone Air simulator on iOS 27.2 (24B8117), booted for the run and shut down afterwards, with the probe app's [log probe](probe-app.md#log-probe) installed through `simulator <UUID> build-run`. Every command went through the real CLI. Captured output stayed under `tmp/`; only shapes and counts are recorded here. No physical device was contacted.
+
+| Check | Result |
+| --- | --- |
+| `logs --seconds 10 --bundle <probe> --level debug`, with `press-id probe.log.emit` three seconds in | Exit 0, `stopReason: duration`, 6 entries kept, 1 filtered out (not a log event), `toolReportedCount` 7. Debug, info, default, error and fault tokens each arrived once with the probe's subsystem and category `probe`; the private-interpolated value arrived in clear text. Every entry came from `ProbeApp` |
+| Same, earlier, when the emit did not land | 9 entries, all from `ProbeApp` (UIKit, RunningBoard and other frameworks logging inside the app's process) |
+| `logs --last 120 --bundle <probe> --level debug` | `stopReason: complete`, 422 entries kept of 439 reported. The emitted set was there at info, default (twice, with the private line), error and fault; **no debug**, as the research predicted |
+| `logs --start <5 min ago> --bundle … --subsystem … --category probe` | 8 entries, levels default, error and fault only (no `--level`). The first attempt failed with exit 64: `log show --start` parses with `%z` (`+0000`), not the `+00:00` the man page shows; fixed |
+| Bounds on SpringBoard at debug: `--max-entries 3`, then `--max-bytes 1024` | `entryLimit` after 2.2 s and `byteLimit` after 1.2 s of a 30-second request, both `truncated: true`; 3 entries (1,013 bytes) kept in the byte case |
+| Q7: `logs --seconds 10 --bundle <probe>` across two `simctl launch --terminate-running-process` relaunches | Entries from both new processes (2 PIDs, both tokens) |
+| `console <probe> --seconds 5 --os-log -- -probeLogToken C1` | `stopReason: duration`, app still running. stdout had the flushed token only (21 bytes); stderr had the stderr token and the DT-mode lines for info, default, error, fault and the private line, in the form `[probe] probe.log …` |
+| `console … --seconds 3 --terminate -- -probeLogToken C2` | `terminatedByTool: true`, `stillRunning: false`; still only the flushed stdout token, and no `os_log` lines on stderr without `--os-log` |
+| `console … --seconds 6 -- -probeLogToken K1 -probeCrash abort` | `stopReason: exited` when the app aborted; stdout had both stdout tokens and the `about to crash` line (the crash path flushes stdout) |
+| `last-crash --bundle <probe> --since <before launch>` | Called at once: `found: false` (the report was written about two seconds later). Again a few seconds later: `found: true`, `EXC_CRASH`/`SIGABRT`, `Abort trap: 6`, `deviceMatch: procPath`, top frames `__pthread_kill`, `pthread_kill`, `abort`, then the probe's closure in `LogProbeEmitter.launched`, symbolised in the Debug build |
+| `-probeCrash trap`, then `last-crash --process ProbeApp --since …` | `EXC_BREAKPOINT`/`SIGTRAP`, `Trace/BPT trap: 5`, top frame `_assertionFailure` then the probe's closure; `crashMessages` empty (no application-specific information in the report) |
+| Physical dry runs | `console` planned `devicectl device process launch --device <UDID> --console --terminate-existing --timeout 70 --json-output <tmp>/launch.json <bundle> <app args>` with `DEVICECTL_CHILD_OS_ACTIVITY_DT_MODE=enable`; `last-crash` planned the `systemCrashLogs` listing and `copy from`; physical `logs` failed as `unsupported-operation`, `inputSent: none` |
+
+**Open questions settled** (research section 6):
+
+- **Q3.** Unflushed `print` output was lost with `simctl launch --stdout=<file>` both while the app ran and after `simctl terminate`, and with `--console` (simctl's stdout redirected to a file) after SIGTERM to simctl. With `--console-pty` the unflushed line arrived at once. `console` keeps file mode and documents the loss.
+- **Q7.** `processImagePath BEGINSWITH "<installed .app>/"` matched a user app's entries in the simulator (entries carry host paths) and kept matching across two relaunches. Extensions were not tested; the probe has none.
+- **Q8.** With `OS_ACTIVITY_DT_MODE=enable` alone, info, default, error and fault lines were mirrored to stderr and debug was not. Adding `OS_ACTIVITY_MODE=debug` (set directly through `simctl launch`) mirrored debug too, once each.
+- **Q9.** Yes for a user app: the simulator crash report's `procPath` is the host path under `CoreSimulator/Devices/<simulator UUID>/data/Containers/Bundle/Application/…`, so `last-crash` excludes other simulators' reports.
+
+**Process hygiene.** After a normal end, after an entry or byte limit, after SIGINT (exit 130) and after SIGTERM (exit 143) to `manzanero logs`, no `simctl spawn` process and no in-simulator `log stream` process was left (during the capture both were visible, the latter as a child of the simulator's launchd). An unrelated host `log stream` belonging to other work was present before and after and was not touched.
+
+**Probe trigger.** A `manzanero-probe://` URL opened with `open-url` showed "Open in “Probe”?" and needed a touch, so the trigger became the accessibility element `probe.log.emit`, which `press-id` activated (`status: accepted`).
+
+Not established: anything on a physical device (physical `console` and `last-crash` have only unit tests and dry runs), `log show` over long windows, extensions, other runtimes or Xcode versions, and MCP calls against a live simulator (the tools' routing and schemas are unit-tested).
+
 ## Apps, files, reports and development
 
 Physical Settings launch and app inventory succeeded. The launch option-order fix (`4c47998`) ensures devicectl options precede the bundle operand. One Safari URL preflight failed; broad physical URL/lifecycle claims are not made.
 
-App-data command plans and an Apple-tool-owned temporary-domain synthetic copy round trip were checked. This is not actual app-container access/round-trip evidence. Physical saved-report listing passed. Download is implemented but hardware-unverified; parsing, symbolication, filtering and deletion are missing. See [feature status](feature-status.md).
+App-data command plans and an Apple-tool-owned temporary-domain synthetic copy round trip were checked. This is not actual app-container access/round-trip evidence. Physical saved-report listing passed. Download is implemented but hardware-unverified. Filtering and parsing now exist as [`last-crash`](#app-logs-console-and-crashes), verified on a simulator only; symbolication and deletion are missing. See [feature status](feature-status.md).
 
 The [probe app](probe-app.md) fixture and its touch probe passed its core unit tests, a warning-free simulator build, a simulator launch, XCUITest recording checks and a simulator `build-run` (2026-11-15, iPhone 17e simulator, iOS 27.2). It has not been run on hardware, so it has produced no delivery evidence yet. Its [touch measurement runner](probe-touch-runner.md) passed offline tests against canned tree output, receipts and logs, and its dry run's commands were accepted by `manzanero --dry-run`; it has not been run against a device.
 
