@@ -580,6 +580,10 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `tree` on Settings, then `remote down`, `tree` | `focus.label` Profiles and Accounts, then Video and Audio; `wait --label "Video and Audio" --until focused` met |
 | `tree` on the Duo and on the watch | No `focus` key and no `focused` field |
 
+### Apple TV remote touch surface (not built)
+
+**2026-11-16**, `manzanero-research-tv`, raw XPC from a scratch copy of the research probe; no product code. `universalhidservice` refused `connect`, `report` and `supportedDevices` as unknown requests. The `universalhid` feature (`LegacyUniversalHIDServer`) answered `supportedDevices` (`appleTVRemote`, `digitizer`, `mouse`, three more) and, from its decoding errors, takes `connect {_0: {vendorID (Int), productID (Int), product, usages [{page, code} (UInt16)]}}` and `report {_0: UInt64, _1: Data}`. A `connect` with usages 12/1 and with 13/5 each activated a virtual service logged as `unknown(0x0)`, but the reply failed with `NSCocoaErrorDomain` 4866 ("in-place encode must encode to a dictionary at the top level") and the service was cancelled when the connection closed. No swipe was delivered; details and what is missing are in [other families](other-families.md#remote-touch-surface-not-built).
+
 ### Digital Crown and side button
 
 **2026-11-16**, `manzanero-research-watch`. Apps: Watch Settings and a throwaway SwiftUI probe (built for the watchOS 27.2 simulator SDK with `swiftc`, installed with `simctl install`; a `digitalCrownRotation` binding at low sensitivity and a change counter, read through the tree). Raw events were first sent with a copy of the research probe, then through `crown`.

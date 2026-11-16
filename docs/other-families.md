@@ -38,7 +38,7 @@ manzanero remote <select|menu|home|play-pause|up|down|left|right> --simulator <U
 
 Buttons are held 80 ms, like the phone's. `remote` takes the simulator lease, sends no touch and is refused as `unsupported-operation` before any input on a simulator whose CoreSimulator product family is not Apple TV, and before any device contact with `--device`. The product family comes from the simulator's device type.
 
-Apple TV has no touch screen: `tap`, `long-press`, `swipe`, `drag`, `pinch`, `multi-tap`, `multi-drag` and `gesture` on an Apple TV simulator are refused as `unsupported-operation` with a pointer to `remote`, before the display is read. Swipes on the remote's touch surface are not implemented. `key`, `type`, `button home`, trees, waits and `press` work as on a phone.
+Apple TV has no touch screen: `tap`, `long-press`, `swipe`, `drag`, `pinch`, `multi-tap`, `multi-drag` and `gesture` on an Apple TV simulator are refused as `unsupported-operation` with a pointer to `remote`, before the display is read. Swipes on the remote's touch surface are [not implemented](#remote-touch-surface-not-built). `key`, `type`, `button home`, trees, waits and `press` work as on a phone.
 
 MCP: `press_remote`.
 
@@ -49,6 +49,15 @@ On an Apple TV simulator, `tree` (and `screen`'s tree) asks the application for 
 `wait … --until focused` is met when exactly one visible element matches and its live focused attribute is true; the reason is `not-focused` or `focus-unknown` otherwise. It reads the focused attribute together with the enabled and visible attributes it already reads; other conditions send exactly the requests they did before. It is accepted on every platform, but has only been checked on the Apple TV simulator. On tvOS, `remote` moves focus and `select` activates the focused item, so a `wait --until focused` between them confirms the target before the click.
 
 How the attributes were found: the snapshot's attributes and the traits of the focused and unfocused buttons were identical. `-[AXPMacPlatformElement _attributeTypeForMacAttribute:]` in AccessibilityPlatformTranslation maps `AXFocused` to attribute 28 and `AXFocusedUIElement` to 19 (`AXFrame` 21, `AXIdentifier` 25, `AXEnabled` 27 and `AXValue` 53 match the attributes Manzanero already used). On the tvOS probe, 28 answered true for the focused button and false for the others, and 19 on the application answered the focused button's element.
+
+### Remote touch surface: not built
+
+Swipes on the Siri Remote's touch surface (and its clickpad ring) are not implemented. What was tried on the tvOS 27.2 simulator, with a scratch copy of the research probe sending raw XPC to the simulator's `dtuhidd`, and what is missing:
+
+- `com.apple.coredevice.feature.remote.universalhidservice` (the route multi-touch uses on phones) lists only `mainTouchscreen` (`CoreDevice touchscreen(nil)`, usage page 13/4), `mainKeyboard`, `mainScreenButtons` and `avpCustom`. Its `Request` enum has no `connect`, `report` or `supportedDevices` case: each was refused as `DecodingError.typeMismatch … Request … Invalid number of keys found`.
+- A second feature, `com.apple.coredevice.feature.remote.universalhid` (logged as `LegacyUniversalHIDServer`), does have them. `{supportedDevices: {}}` answered six device kinds, beginning `appleTVRemote`, `digitizer`, `mouse`. Its decoding errors gave the request shapes: `connect: {_0: {vendorID: Int, productID: Int, product: String, usages: [{page: UInt16, code: UInt16}]}}` and `report: {_0: UInt64 service ID, _1: Data}` (a raw HID report).
+- `connect` with usages page 12/1 (consumer control) or page 13/5 (touch pad) created and activated a virtual HID service, named `unknown(0x0)` in the log, but the reply failed on the daemon's side (`NSCocoaErrorDomain` 4866, "The source for an in-place encode must encode to a dictionary at the top level"), so the new service's ID never came back, and the service was cancelled when the connection closed.
+- Missing: which usages make the daemon create an `appleTVRemote` (or `trackpad`) service rather than `unknown`, the service ID to address (the reply cannot carry it; it might be discoverable on the same connection), and the raw report layout the remote's descriptor expects. Each needs its own experiment; until then there is no verified swipe. The `com.apple.coredevice.feature.remote.hid.tvremote` service accepted button events in the research but was not explored for touches. XCUITest's `XCUIRemote` is Apple's supported alternative for scripted remote input and would need a test runner.
 
 ## Digital Crown and side button (Apple Watch)
 
