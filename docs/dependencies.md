@@ -71,13 +71,13 @@ Shared groups:
 
 | Capability (doctor `name`) | Commands | Requires | Optional |
 | --- | --- | --- | --- |
-| `physical-input` | `button`, `key`, `type`, `detect-layout` (with `rsd-accessibility`), `paste`, `tap`, `long-press`, `drag`, `swipe`, `pinch`, two-contact `multi-drag` (Indigo HID) | CoreDevice preparation, descriptor control, `xpc_remote_connection_send_message`, `xpc_remote_connection_send_message_with_reply` | — |
+| `physical-input` | `button`, `wake`, `key`, `type`, `detect-layout` (with `rsd-accessibility`), `paste`, `tap`, `long-press`, `drag`, `swipe`, `pinch`, two-contact `multi-drag` (Indigo HID) | CoreDevice preparation, descriptor control, `xpc_remote_connection_send_message`, `xpc_remote_connection_send_message_with_reply` | — |
 | `multi-contact-input` | `gesture`, `multi-tap`, three-to-five-path `multi-drag` (Universal HID) | Same as `physical-input` | — |
 | `tunnel-assertion` | Native AX, native recording and `frames` | Nothing dynamic: public XPC to the pairing daemon, which doctor does not contact | — |
-| `rsd-accessibility` | `tree`, `press`, `scroll`, `wait` | CoreDevice preparation, `xpc_remote_connection_create_with_nw_connection`, `_setup_nw_parameters`, `_get_failsafe_version_flags`, `_cancel`, `_set_event_handler`, `_activate`, `_send_message` | — |
+| `rsd-accessibility` | `tree`, `press`, `scroll`, `wait`, `set-value` | CoreDevice preparation, `xpc_remote_connection_create_with_nw_connection`, `_setup_nw_parameters`, `_get_failsafe_version_flags`, `_cancel`, `_set_event_handler`, `_activate`, `_send_message` | — |
 | `media-inspection` | `media-status` | Media control | — |
 | `native-recording` (macOS 26+) | `record --backend coredevice` and `frames` (packet mode) | Media control, AVConference negotiation | `-[AVCMediaStreamNegotiator mediaNegotiator]`, `VCMediaNegotiatorBase` and `-negotiatedScreenSettings`, `VCMediaNegotiatorResultsVideo` and `-isRTCPFBEnabled` (RTCP feedback stays unknown without them) |
-| `simulator-input` | Simulator `tap`, `long-press`, `swipe`, `drag`, `button`, `key`, `type`, `detect-layout` (with `simulator-accessibility`) | CoreSimulator device lookup, `xpc_endpoint_create_mach_port_4sim`, `xpc_connection_create_from_endpoint`, `xpc_connection_enable_sim2host_4sim`, and the existence of CoreSimulator's `Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtuhidd.plist` | `-[SimDevice name]` |
+| `simulator-input` | Simulator `tap`, `long-press`, `swipe`, `drag`, `pinch`, `multi-tap`, `multi-drag`, `gesture`, `button`, `remote`, `crown`, `key`, `type`, `detect-layout` (with `simulator-accessibility`) | CoreSimulator device lookup, `xpc_endpoint_create_mach_port_4sim`, `xpc_connection_create_from_endpoint`, `xpc_connection_enable_sim2host_4sim`, and the existence of CoreSimulator's `Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtuhidd.plist` | `-[SimDevice name]` |
 | `simulator-hinge` | Simulator `fold`, `unfold`, `hinge` (iPhone Duo; the read uses CoreDevice's `streamhingeangle` action on `dtdeviceinfod`) | CoreSimulator device lookup, the three `_4sim`/endpoint symbols as for `simulator-input`, `-[SimDevice UDID]`, and the existence of the `dtuhidd` and `dtdeviceinfod` launchd plists. `IOCFSerialize` is linked public IOKit API | `-[SimDevice name]` |
 | `simulator-accessibility` | Simulator `tree`, `press`, `scroll`, `wait`, `set-value` | CoreSimulator device lookup, `-[SimDevice sendAccessibilityRequestAsync:completionQueue:completionHandler:]`, framework `/System/Library/PrivateFrameworks/AccessibilityPlatformTranslation.framework/AccessibilityPlatformTranslation` (`RTLD_NOW | RTLD_LOCAL`), classes `AXPTranslatorRequest`, `AXPTranslatorResponse`, `AXPTranslationObject`, each with `+supportsSecureCoding` | `-[SimDevice name]` |
 | `keyed-archive-uid` | AX archives, `decode-ax-archive` | `_CFKeyedArchiverUIDGetTypeID`, `_CFKeyedArchiverUIDGetValue` (linked CoreFoundation) | — |
@@ -118,7 +118,7 @@ The AXe, Rust idevice and ipb helper backends have been removed: first their CLI
 
 - independent `pair wifi` and `--pairing-file` device operations (no longer recognised as commands);
 - `--physical-backend idevice` (the backend option itself is gone: `coredevice` is the only physical backend);
-- `hid-info`, raw live `ax-snapshot` with its archive saving, and finite physical `logs` (now unsupported physical-device operations);
+- `hid-info` and raw live `ax-snapshot` with its archive saving (no longer commands), and the helper-based finite physical `logs` (physical `logs` is now refused as `unsupported-operation`; see [app logs](app-logs.md));
 - AXe-backed simulator input and hierarchy (replaced by the in-process [simulator route](simulator-input.md));
 - the old ipb input helper plans (`coredevice-ipb` dry runs) and its video helper with the ADV1 JPEG pipe.
 

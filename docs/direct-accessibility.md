@@ -1,6 +1,6 @@
 # Native physical accessibility
 
-Physical AX trees, exact-selector presses, scroll-to-visible and bounded selector waits run in `manzanero` against Apple interfaces. No device helper is required. Trees, presses and scrolls have scoped CLI/MCP evidence in Settings on iPhone 13 mini. Waits are tested locally only. Broad app and device coverage is unfinished.
+Physical AX trees, exact-selector presses, scroll-to-visible and bounded selector waits run in `manzanero` against Apple interfaces. No device helper is required. Trees, presses, scrolls and waits have scoped CLI/MCP evidence in Settings and the probe app on iPhone 13 mini. Broad app and device coverage is unfinished. `set-value`, which uses the same selection and guards, is described in [physical typing](physical-typing.md) and [simulator input](simulator-input.md#unicode-text-set-value).
 
 The same trees, selector actions and waits run on a booted simulator through CoreSimulator; see [simulator input and accessibility](simulator-input.md) for how process selection and cleanup differ there. For wire contracts and decoder limits, see [protocol reference](accessibility-protocol.md). For the paired tunnel and directory bootstrap, see [transport](transport.md).
 
@@ -78,7 +78,7 @@ manzanero wait --label 'Loading' --until gone --timeout 20 --device <UDID>
 manzanero wait --id com.example.field --pid <pid> --until value --value 'Done' --interval 1 --device <UDID>
 ```
 
-MCP `wait_for_element` takes `device`, `by: identifier|label`, `text` and optional `pid`, `until`, `value`, `timeout_seconds` and `interval_seconds`. It is annotated read-only. This route is implemented and covered by local fake-session tests only; it has not been run on hardware.
+MCP `wait_for_element` takes `device`, `by: identifier|label`, `text` and optional `pid`, `until`, `value`, `timeout_seconds` and `interval_seconds`. It is annotated read-only. On the iPhone 13 mini, `visible`, `gone`, `enabled`, `disabled` and `value` were each met in Settings, and timeouts exited 124 ([verification](verification.md#remaining-phone-checks-keys-files-waits-prompts-and-a-live-mcp-session)); `focused` has been checked on an Apple TV simulator only ([other families](other-families.md#focus-in-the-tree-and-in-waits)).
 
 The wait polls inside one AX session until a condition holds or the timeout expires. It sends no input, takes no per-device lease and is not paused by a pending handoff, the same as `tree`. Each poll is a fresh, non-atomic, bounded snapshot evaluated with the exact selector matcher that press and scroll use.
 
@@ -88,6 +88,7 @@ The wait polls inside one AX session until a condition holds or the timeout expi
 | `gone` | No path matches, or every matching path is explicitly not visible. |
 | `enabled` / `disabled` | `visible`, plus the live enabled attribute (27) is true / false. |
 | `value` | `visible`, plus the snapshot value is exactly the `--value` string. `--value` alone implies `--until value`. |
+| `focused` | `visible`, plus the live focused attribute (28) is true. Accepted on every platform; checked only on an Apple TV simulator, where focus moves with `remote`. |
 
 Visibility is the native snapshot attribute, not hittability or pixel evidence. A missing visibility or enabled attribute never satisfies a condition, including `gone`. Non-string values never match `--value`.
 
@@ -129,16 +130,15 @@ Repeated requests in one `AccessibilitySession` are supported: press already rea
 
 The command service runs on its own serial queue. A wait holds that queue only while a poll's blocking requests run, which is at most a few seconds for each request. The interval between polls is an asynchronous sleep, so other calls to the same MCP server or service can run between polls instead of queueing for the whole wait.
 
-### Unverified
+### Observed and still unverified
 
-None of the following has been observed on a device yet:
+Observed on the iPhone 13 mini: a wait for a visible Settings row was met on its first poll in about 1 s, and a `tree` of the Home screen (245 nodes) took about 5 s. A label wait on a row whose label includes its value matched only the hidden inner text and reported `not-visible`; use the identifier for such rows. One wait reported `subscriptionStop: unconfirmed` while its tunnel release was acknowledged; the cause is unknown.
 
-- how long a snapshot takes;
+Not yet observed on a device:
+
 - whether the phone sends unsolicited callbacks while a subscription idles between polls, which would consume the frame and byte budgets;
 - how the application request fails for an exited PID;
 - whether snapshot visibility tracks on-screen state during animations.
-
-The first live check should cover each of these.
 
 ## Ownership, deadlines and failures
 
@@ -152,7 +152,7 @@ Cancellation propagates after cleanup attempts. No operation is replayed. Blocki
 
 ## Evidence and earlier failures
 
-The current Network route returned Settings trees through diagnostic, CLI and real MCP, including omitted-PID foreground selection and PNG/tree inspection. Exact identifier/label presses navigated General ↔ Información. Scroll moved a Settings row; a later MCP already-visible check returned native false with a passing postcondition and unconfirmed unsubscribe.
+The current Network route returned Settings trees through diagnostic, CLI and real MCP, including omitted-PID foreground selection and PNG/tree inspection. Exact identifier/label presses navigated General ↔ Información. Scroll moved a Settings row; a later MCP already-visible check returned native false with a passing postcondition and unconfirmed unsubscribe. With a paste-permission prompt showing, `tree` returned the prompt's title and buttons (owned by SpringBoard) and `press --label` on its decline button dismissed it; the earlier refusal there (error 8) came from the hit test at an empty display centre, now asked with the container client type.
 
 Earlier CoreDevice named-socket, raw RSD inventory and Apple relay attempts failed before subscription; their code has since been removed. Error 4000/underlying POSIX 83 did not identify a missing UI Automation setting or establish a private entitlement requirement. The later Network route succeeded; those earlier failures were not converted into evidence for the new route.
 

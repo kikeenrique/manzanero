@@ -46,10 +46,10 @@ Receipts report dispatch, not application recognition: `verified: false` and `re
 
 ## What has been verified
 
-Two-contact spread and inward movement visibly zoomed Maps on iPhone 13 mini; a direct MCP simultaneous multi-tap also changed Maps zoom. Three- and five-path calls completed dispatch/barriers, but their screenshots did not establish independent tracking or the intended gesture. Four-contact effects remain unverified.
+Two-contact spread and inward movement visibly zoomed Maps on iPhone 13 mini; a direct MCP simultaneous multi-tap also changed Maps zoom. With the [probe app](probe-app.md) on that phone, two-, three-, four- and five-contact actions each arrived as that many simultaneous contacts (part of the 70 of 70 built-in-plan actions in [verification](verification.md#touch-delivery-measured-with-the-probe-app)). That measures delivery to a UIKit view; what an app's gesture recognizers make of three or more contacts is not established.
 
 On one iPhone 17e simulator the probe app recorded every two-contact pinch and two-path drag as two simultaneous contacts (20 of 20 over five rounds), and every three-, four- and five-contact multi-tap and three-path drag as that many simultaneous contacts (20 of 20 over five rounds of the built-in plan) ([runner results](probe-touch-runner.md#simulator-runs)).
 
-Local tests cover two-to-five-slot encoding, rotation, interpolation, endpoint/timing bounds and input rejection before device queries. Exact delivered timing, broad gesture semantics, hardware failure release, other apps/orientations and other Apple families remain unverified.
+Local tests cover two-to-five-slot encoding, rotation, interpolation, endpoint/timing bounds and input rejection before device queries. Broad gesture semantics, release after a hardware failure, other apps, landscape on a phone and other Apple families' hardware remain unverified.
 
 Earlier ipb/idevice implementations have been removed (git history keeps them). Their tests and receipts do not establish behavior of the current direct backend.

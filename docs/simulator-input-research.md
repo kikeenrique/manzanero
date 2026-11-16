@@ -1,6 +1,6 @@
 # Simulator input and accessibility: research
 
-> **Status (2026-11-16):** milestones 1 to 8 of the plan below are implemented; see [simulator input](simulator-input.md) and [verification](verification.md#simulator-input-and-accessibility). Settled open questions are annotated in place.
+> **Status (2026-11-16):** milestones 1 to 8 of the plan below are implemented; the current guide is [simulator input](simulator-input.md), and results are in [verification](verification.md#simulator-input-and-accessibility). Settled open questions are annotated in place. Commands below are spelled in the grammar of the time (`press-id`, `simulator <UUID> …`); the operation-first forms are in the guide.
 
 This page decides how `manzanero` should get simulator input (`tap`, `swipe`, `drag`, `type`, `button`, gestures) and the simulator UI tree and element actions (`tree`, `press-id`/`-label`, `scroll-id`/`-label`, `wait-id`/`-label`) back without the retired AXe helper. It compares the Apple interfaces that can do it, recommends one route for input and one for the tree, and plans the work. No product code has changed.
 

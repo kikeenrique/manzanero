@@ -7,14 +7,15 @@ The documentation separates four kinds of information:
 3. **Historical evidence:** earlier implementations, successes and failed probes.
 4. **Implementation references:** Apple interfaces and attributed open-source protocol research.
 
-This distinction matters because the project replaced several helper-backed paths while retaining their source and test records.
+This distinction matters because the project replaced several helper-backed paths. Their sources are gone (git history keeps them); their results stay in [verification](verification.md#retired-implementations) as history.
 
 ## Reader paths
 
 - Start with [README](../readme.md), [beta setup](beta-testing.md) and [readiness](readiness.md).
-- Use focused guides for [input](native-input.md), [screens](screen-understanding.md), [AX](direct-accessibility.md), [recording](recording.md), [Build & Run](build-run.md) and [MCP](mcp.md).
-- Maintain the project using [dependencies](dependencies.md), [tasks](development-tasks.md), [releasing](releasing.md) and [roadmap](roadmap.md).
-- Consult [verification](verification.md), [transport](transport.md) and [AX wire contracts](accessibility-protocol.md) for evidence/design detail.
+- Use focused guides for [input](native-input.md), [typing](physical-typing.md), [screens](screen-understanding.md), [AX](direct-accessibility.md), [recording](recording.md), [Build & Run](build-run.md), [app logs](app-logs.md), [simulators](simulator-input.md), [other families](other-families.md), [errors](errors.md) and [MCP](mcp.md).
+- Maintain the project using [dependencies](dependencies.md), [tasks](development-tasks.md), [releasing](releasing.md) and the [roadmap](roadmap.md).
+- Three pages track progress and must agree: [feature status](feature-status.md) (inventory), the [roadmap](roadmap.md) (achieved and pending) and the [live check plan](live-check-plan.md) (hardware runs still owed). [Verification](verification.md) is the dated record they rest on.
+- Consult [verification](verification.md), [transport](transport.md) and [AX wire contracts](accessibility-protocol.md) for evidence/design detail. Research notes (`*-research.md`, [keyboard layouts](keyboard-layouts.md)) and the [argument parser proposal](cli-argument-parser-proposal.md) are historical records with a status line at the top.
 
 ## Corrections made in the readability pass
 
@@ -25,6 +26,10 @@ Repeated “now implemented” chronology and intermediate test-count/artifact-U
 The accompanying help-text correction removes stale AX restrictions and retired pairing setup from current guidance. Source routing and scoped verification remain necessary: a command planner or MCP catalog entry alone is not availability proof.
 
 Validation for this pass checked 135 local links/anchors, 41 current command forms through query-free `--dry-run`, and 36 local verification checkpoint references. The CLI built without errors/warnings and its help smoke check passed. Gitleaks found no detected secrets in the rewritten README/docs. No physical-device operation was run for this documentation task.
+
+## Consistency pass, 2026-11-16
+
+After two days of features that each updated only their nearest docs, every page was checked against the built CLI's help, dry runs and the MCP tool list rather than against other pages. The roadmap was rewritten as achieved and pending work. Corrections included waits, the device lease, container files, physical Build & Run, physical `console`/`last-crash` and the probe app, all described as unverified on hardware although [verification](verification.md) records phone runs; simulator `screen` described as having no tree; physical `set-value` described as refused; and retired helper sources described as kept. All relative links resolved, every documented `manzanero` command line parsed with `--dry-run` or was checked against `--help`, and no device or simulator was contacted.
 
 ## Reviewing a future change
 

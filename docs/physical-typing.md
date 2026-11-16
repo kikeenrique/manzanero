@@ -67,7 +67,7 @@ Cancellation or transport failure stops future typing and attempts release of th
 
 The receipt contains counts, `layout` (the name), `layoutIdentifier` (the macOS identifier) and `deviceLayout`, not the supplied text. `verified`, `insertionVerified` and `releaseVerified` remain false. The dry-run plan has the same layout fields and `deviceLayoutCheck`.
 
-CLI and real MCP mixed-case/digit/punctuation strings were visually checked in Settings search on iPhone 13 mini with the former US table, then cleared. This is scoped evidence, not complete punctuation/layout/field coverage or maximum-length delivery.
+CLI and real MCP mixed-case/digit/punctuation strings were visually checked in Settings search on iPhone 13 mini with the former US table, then cleared. Letters, digits and `!` are the same in US and in Spanish – ISO, which that phone uses, which is the likely reason those checks looked right. With `--layout spanish-iso`, a 76-character punctuation string and texts with Shift, Option and dead keys read back exactly from the probe's field ([verification](verification.md#keyboard-layouts-on-the-phone)). This is scoped evidence, not complete layout/field coverage or maximum-length delivery; MCP `type_text` with a layout has not been run against a phone.
 
 ```sh
 mise run test:mcp-type <UDID> 'mCp2!x'

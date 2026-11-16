@@ -26,7 +26,7 @@ manzanero type [--layout <name>] <text> --simulator <UUID>
 
 Arguments, ranges, coordinate space (normalized `0...1`, origin top left), receipts, dry-run plans, exit codes and error categories are those of the physical commands in [physical input](native-input.md), [physical typing](physical-typing.md) and [native accessibility](direct-accessibility.md). The selectors, the press and scroll guards, the wait conditions and the tree JSON are the same code. Every command has a `--dry-run` plan that does not look the simulator up.
 
-MCP tools take `platform: simulator` for the same operations: `get_ui_tree`, `press_element`, `scroll_to_element`, `wait_for_element`, `set_element_value`, `tap`, `drag`, `long_press`, `pinch`, `multi_drag`, `multi_tap`, `perform_gesture`, `press_button`, `press_key`, `type_text` and `get_screen`. See [MCP](mcp.md).
+MCP tools take `platform: simulator` for the same operations: `get_ui_tree`, `press_element`, `scroll_to_element`, `wait_for_element`, `set_element_value`, `tap`, `drag`, `long_press`, `pinch`, `multi_drag`, `multi_tap`, `perform_gesture`, `press_button`, `press_key`, `type_text`, `detect_keyboard_layout` and `get_screen`. See [MCP](mcp.md).
 
 ## Unicode text: set-value
 
@@ -36,7 +36,7 @@ MCP tools take `platform: simulator` for the same operations: `get_ui_tree`, `pr
 
 Observed on the probe's text field: the field becomes first responder, as after a tap. With an on-screen keyboard that can cover a field low on the screen, and a covered field reports itself not visible, so a second set-value is refused by the visibility guard until the keyboard is dismissed.
 
-**Physical devices refuse it** (`unsupported-operation`): the same requests would travel over the physical DTX route, but they have never been sent to a phone.
+**On a physical device** the same requests travel over the DTX accessibility session. They answered with the shapes seen on the simulator on the iPhone 13 mini, in the probe's field only ([verification](verification.md#unicode-entry-by-set-value-on-the-phone)); other apps and the MCP tool against a phone are unchecked.
 
 **Why `type` never falls back to set-value.** `type` sends HID key events to whatever has focus, at the caret, in the named keyboard layout. Set-value targets a named element and replaces its whole value. Falling back from one to the other for text the layout cannot type would change both the target and the effect without the caller asking, so `type` refuses such text and its message points to set-value.
 

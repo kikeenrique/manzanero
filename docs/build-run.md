@@ -60,6 +60,12 @@ Dry-run returns the planned argument arrays without resolving an app, creating t
 
 ## Verification and limits
 
-Simulator project/Debug and workspace/Release flows were checked. A standalone Settings launch verified physical option ordering; complete physical signing/build/install/launch remains unverified, including the provisioning options, CoreDevice UUID resolution and the signing hints. These were checked only against `xcodebuild -help`, `man xcodebuild` and `devicectl help` (Xcode 27.2, 27B52), dry runs and unit tests.
+Simulator project/Debug and workspace/Release flows were checked. On the iPhone 13 mini (Xcode 27.2, 27B52), with the [probe app](probe-app.md):
+
+- The first `--allow-provisioning-updates` build failed at signing (no Xcode account, and the existing wildcard profile did not include the phone), and the appended hint named both causes.
+- After the owner registered the phone with the team, the same command built, signed, installed and launched the app in about 12 seconds.
+- Later, after an `uninstall`, a build without the option reinstalled and launched it with the existing profile.
+
+`--allow-device-registration` and CoreDevice UUID resolution have not been run on hardware; they were checked against `xcodebuild -help`, `man xcodebuild` and `devicectl help`, dry runs and unit tests. See [verification](verification.md#touch-delivery-measured-with-the-probe-app).
 
 Streaming progress, general cancellation coordination, a build deadline, reuse of earlier build directories, automatic symbolication and crash monitoring are unfinished. MCP `build_run` shares these limits. See [verification](verification.md) and the [roadmap](roadmap.md).

@@ -47,4 +47,4 @@ This does not coordinate a second CLI/server process, manual device use or arbit
 
 ## Evidence
 
-Synthetic terminal/MCP exchanges verify completion handling and mutation pause. No actual biometric, passcode, purchase or permission action is claimed. See [verification](verification.md) for project evidence.
+Synthetic terminal/MCP exchanges verify completion handling and mutation pause; a synthetic `request_handoff` also ran in a live MCP session against a simulator. No actual biometric, passcode, purchase or permission action is claimed. A live test with a real prompt waits for the owner to say when ([roadmap](roadmap.md#waiting-for-the-owner)). See [verification](verification.md) for project evidence.

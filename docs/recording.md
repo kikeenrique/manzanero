@@ -18,7 +18,7 @@ manzanero media-status --device <device>
 
 Existing destinations are refused, including a path created while capture runs. Display preflight distinguishes off, unknown power and invalid geometry. Wake/unlock guidance is not proof that the host can detect current UI unlock.
 
-MCP `record_screen` uses `platform: physical`, `recording_backend: coredevice`, `device`, `path`, `seconds` and optional `codec`. It returns saved-path metadata, not inline video. There is no automatic fallback, audio capture or live-mirroring session.
+MCP `record_screen` uses `platform`, `device`, `path`, `seconds`, optional `codec`, `recording_backend: coredevice` on a physical device, and optional `display` on a simulator ([iPhone Duo](other-families.md#displays-iphone-duo)). It returns saved-path metadata, not inline video. There is no automatic fallback, audio capture or live-mirroring session.
 
 ## The macOS firewall can drop the video
 
@@ -62,7 +62,7 @@ Receipts report:
 
 `deviceStopConfirmed` means owned stop acknowledgement plus fresh server absence; it does not prove destruction of every native resource. Cancellation/failure publishes no successful movie receipt. Failed/staged artifacts may remain privately for investigation.
 
-Independent processes/controllers are uncoordinated. Synchronous Apple calls have no independently enforced hard deadline.
+A native recording holds the per-device lease, so another `manzanero` process's input or native capture is refused while it runs ([ownership](native-input.md#ownership-across-processes)); within one process input is allowed alongside it. Xcode and other tools are not coordinated. Synchronous Apple calls have no independently enforced hard deadline.
 
 ## RTCP and keyframe limits
 
@@ -72,7 +72,7 @@ The media owner sends bounded compound Receiver Reports plus a random per-sessio
 
 `rtcp.negotiatedFeedback` is `enabled`, `disabled` or `unknown` from Apple's negotiated screen result after answer acceptance. Class/selector/return-ABI guards preserve unknown for unsupported contracts. It does not infer feedback from ordinary RTCP enablement, alter an offer or send feedback. Installed getter signatures are verified; the live value remains unverified because the phone was off during the attempted probe. Even enabled would not establish PLI/FIR compatibility.
 
-Keyframe requests, reliable startup and loss recovery remain unfinished.
+Keyframe requests and loss recovery remain unfinished. Startup failures with zero packets on the test Mac were traced to the firewall (above); whether every earlier startup failure had that cause was not checked.
 
 ## Frames: repeated screenshots from one stream
 

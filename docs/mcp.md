@@ -36,7 +36,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `list_displays` | A simulator's displays: screen ID, name, size, backlight, active and primary state, the display the interface is on, and on a foldable simulator the hinge angle with a derived posture ([other families](other-families.md#displays-iphone-duo)); read-only |
 | `press_element`, `scroll_to_element` | [Fresh exact AX selectors](direct-accessibility.md), guarded native press/scroll, physical or simulator |
 | `set_element_value` | [Unicode entry by AX set-value](simulator-input.md#unicode-text-set-value): replaces one settable element's whole value, with the press guards, on a physical device (the default) or a simulator |
-| `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled, has an exact value or ([Apple TV](other-families.md#focus-in-the-tree-and-in-waits)) has focus, within one AX session. Run on one simulator; not yet verified on physical hardware. |
+| `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled, has an exact value or ([Apple TV](other-families.md#focus-in-the-tree-and-in-waits)) has focus, within one AX session. A timeout over MCP was checked on the iPhone 13 mini and the met case on simulators; the CLI wait is verified on that phone. |
 | `decode_accessibility_archive` | Offline data-only archive inspection |
 | `record_screen` | [Finite MP4 recording](recording.md) to a new host path; optional `display` on a simulator |
 | `capture_frames` | [Live screen frames as JPEG files](recording.md#frames-repeated-screenshots-from-one-stream) from one native stream on a physical device: `count`, `seconds`, `interval_ms`, `overwrite`; returns the index and the last frame inline (the `image_*` options apply). Cancellation keeps the frames written so far |
@@ -51,7 +51,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `wake_device` | [Guarded wake](native-input.md#waking-a-dark-display) of a dark display: one side-button press only when the display reads off twice |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report` | Saved physical report listing/download |
-| `capture_logs`, `capture_console`, `latest_crash` | [App output and crashes](app-logs.md): a bounded unified-log capture for one app (simulator only, read-only), launch with stdout/stderr tails (physical console unverified; launches an app, so not read-only), and the newest crash report parsed (read-only) |
+| `capture_logs`, `capture_console`, `latest_crash` | [App output and crashes](app-logs.md): a bounded unified-log capture for one app (simulator only, read-only), launch with stdout/stderr tails (launches an app, so not read-only; the CLI form is verified on a simulator and the iPhone 13 mini, the MCP tools by unit tests only), and the newest crash report parsed (read-only) |
 | `build_run` | [Xcode build/install/launch](build-run.md). Optional physical-only booleans `allow_provisioning_updates` and `allow_device_registration` let Xcode change certificates, profiles and device registrations in the user's developer account; ask the user before setting them. |
 | `request_handoff` | [Explicit human completion request](handoff.md) |
 

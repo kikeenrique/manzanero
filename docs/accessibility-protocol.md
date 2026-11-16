@@ -14,10 +14,15 @@ After attempting `clientNeedsAccessibility: true`, requests are keyed archives p
 | --- | --- | --- |
 | Application root | Type 1, positive PID | Get the application's translation token |
 | Descendant snapshot | Type 2, attribute 52 | Read native snapshot data |
-| Live attributes | Type 5, IDs 21/25/27/32 | Frame, identifier, enabled and visible state |
-| Point selection | Type 6 | Select a native identity/process at a logical point |
+| Settable query | Type 3, attribute 53 | Whether an element's value can be set (`set-value`) |
+| Frontmost application | Type 4 | Foreground selection on a simulator only |
+| Live attributes | Type 5, IDs 21/25/27/32, plus 28 for `wait --until focused` | Frame, identifier, enabled, visible and focused state |
+| Point selection | Type 6 | Select a native identity/process at a logical point; client type 2 (container) for the display-centre process hit, 0 for element hits |
 | Press | Type 7, action 5 | One native press |
 | Scroll-to-visible | Type 7, action 11 | One native scroll request |
+| Set value | Type 8, attribute 53, parameter `value` | Replace an element's whole value |
+
+On an Apple TV simulator the tree also reads attribute 19 (focused UI element) on the application to mark the focused node ([other families](other-families.md#focus-in-the-tree-and-in-waits)). The same requests go to a simulator through CoreSimulator instead of DTX ([simulator input](simulator-input.md#how-it-works)).
 
 Snapshot options request attributes `[2001,2002,2003,2004,5019,2006,2025,5003,5004,3003]`, parent-to-child traversal, depth 48 and child/array caps 512. Host normalization separately caps the returned tree at 512 nodes/depth 32.
 

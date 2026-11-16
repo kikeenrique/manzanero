@@ -4,9 +4,9 @@ The probe app is a small iOS app of this project's own that reports what the dev
 
 ## Touch probe
 
-A direct physical input receipt says Manzanero dispatched a touch; it does not say iOS delivered it. Until now delivery was judged from screenshots of Settings and Maps. Some taps returned success with no visible effect, three-to-five-contact gestures were never shown to arrive as that many contacts, and hold duration and release were unverified.
+A direct physical input receipt says Manzanero dispatched a touch; it does not say iOS delivered it. Before the probe, delivery was judged from screenshots of Settings and Maps: some taps returned success with no visible effect, three-to-five-contact gestures were never shown to arrive as that many contacts, and hold duration and release were unverified.
 
-The touch probe records every touch UIKit delivers to the app and lets Manzanero read that record back. The [touch measurement runner](probe-touch-runner.md) (`mise run test:probe-touch <UDID>`) sends known touches and compares them with what the app received: delivery rate, coordinate error, contact count, hold duration and release. It has been tested offline only; no live run has happened yet.
+The touch probe records every touch UIKit delivers to the app and lets Manzanero read that record back. The [touch measurement runner](probe-touch-runner.md) (`mise run test:probe-touch <UDID>`) sends known touches and compares them with what the app received: delivery rate, coordinate error, contact count, hold duration and release. It has run on the iPhone 13 mini, where it found and measured the fix for lost short gestures, and on iPhone and iPad simulators ([verification](verification.md#touch-delivery-measured-with-the-probe-app)).
 
 The app is a test fixture. It is not part of the `manzanero` product and has no third-party dependencies.
 
@@ -77,7 +77,7 @@ manzanero build-run tmp/probe-app/generated/ProbeApp.xcworkspace ProbeApp --devi
 
 These options let Xcode use your developer account: it may create a development certificate, register the bundle identifier, create or update a development profile, and add the phone to the team's device list. Leave out `--allow-device-registration` if the phone is already registered, and both options once a profile that includes the phone exists. Use the hardware UDID (`00008…-…`) for `<UDID>`; a CoreDevice UUID also works but costs an extra device query. If signing fails, the error names the likely cause after the raw log path. See [Build & Run](build-run.md#signing-and-provisioning-physical-only).
 
-Physical signing and deployment of this app have not been tried.
+On the iPhone 13 mini this signed, installed and launched the app once the phone was registered with the team; a later build without the options reused the profile ([Build & Run](build-run.md#verification-and-limits)).
 
 ## Capture
 
@@ -167,7 +167,7 @@ The three readouts carry the `staticText` and `updatesFrequently` traits.
 manzanero tree --device <UDID>
 ```
 
-Find the nodes whose `identifier` is `probe.touch.summary`, `probe.touch.last-gesture` or `probe.touch.recent-gestures` and parse their `value` as JSON. The tree route requires the probe to be the foreground app at the display centre and the device in native portrait orientation (`rot0`). The probe locks portrait.
+Find the nodes whose `identifier` is `probe.touch.summary`, `probe.touch.last-gesture` or `probe.touch.recent-gestures` and parse their `value` as JSON. The physical tree route requires the probe to be the foreground app at the display centre and the device in native portrait orientation (`rot0`). The probe stays in portrait unless launched with `-ProbeAllowRotation YES`.
 
 The probe's identifiers say which elements to read, not which app owns them. On one phone and iOS version, a node's `nativeAttributes["3003"]` carried the owning app's bundle identifier (`com.apple.Preferences` for Settings). The [measurement runner](probe-touch-runner.md#foreground-identity) compares it with the bundle identifier it pulls from when the attribute is present. That rests on one observation, so its absence is reported as "not checked", not as a failure. The probe app itself does nothing to set it.
 
@@ -267,7 +267,7 @@ The screen shows the session identifier, the running counts, the last gesture's 
 
 ## What the probe can and cannot show
 
-Can show, once run on hardware:
+Can show:
 
 - whether a dispatched touch reached this app's UIKit view, and with what phases;
 - the position UIKit reported, in points and normalised, for comparison with the requested coordinates;
@@ -280,7 +280,7 @@ Cannot show:
 - hardware or digitizer timing. Timestamps are UIKit's, after any system processing, and the probe cannot tell transport latency apart from UIKit delivery;
 - whether a missing touch was dropped by Manzanero, by the transport or by iOS. Only that it did not arrive here;
 - coalesced sub-frame samples, which are not recorded;
-- behaviour in landscape or on iPad. The probe is portrait-only and iPhone-only.
+- behaviour in Split View or a windowed iPad app: the probe requires full screen. Landscape needs `-ProbeAllowRotation YES`; it was measured on simulators, not on a phone.
 
 ## Log probe
 
@@ -312,6 +312,8 @@ manzanero last-crash --bundle com.lemambo.manzanero.probeapp --since <ISO-8601 b
 Results on one iPhone Air simulator are in [verification](verification.md#app-logs-console-and-crashes).
 
 ## Verification status
+
+The records below are dated; those before 2026-11-16 spell commands in the earlier grammar (`simulator <UUID> build-run`, `press-id`).
 
 Verified on 2026-11-15 with Xcode 27.2 (27B52), Tuist 4.214.0 and an iPhone 17e simulator running iOS 27.2 (24B8117):
 

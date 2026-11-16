@@ -59,9 +59,9 @@ Single-contact touch and two-contact movement use Indigo digitizer events. Timed
 
 ## Direct named keyboard keys
 
-Supported names are `return`, `escape`, `backspace`, `tab`, `space`, `up`, `down`, `left` and `right`. Keys act at the current focus and do not change the clipboard. Backspace has visual evidence in Settings search; broader key/layout/field coverage remains unverified.
+Supported names are `return`, `escape`, `backspace`, `tab`, `space`, `up`, `down`, `left` and `right`. Keys act at the current focus and do not change the clipboard. On the iPhone 13 mini, twelve separate `key backspace` calls removed twelve letters and two separate `key space` calls arrived; other keys and fields have scoped or no evidence.
 
-For a string, use [typing in a named keyboard layout](physical-typing.md). Unicode entry uses the separate clipboard operation below.
+For a string, use [typing in a named keyboard layout](physical-typing.md). For Unicode text, use `set-value`, which replaces a named element's value through accessibility ([physical typing](physical-typing.md)), or the clipboard operation below.
 
 ## Direct Unicode paste
 
@@ -93,13 +93,13 @@ Socket setup can wait up to 15 seconds, discovery/readiness barriers up to three
 
 ## Ownership across processes
 
-Physical input, accessibility press/scroll and native recording take a per-device lease before dispatch. A second `manzanero` process that tries to send input to, or natively record, the same device is refused immediately with `Device is controlled by another manzanero process`, naming the holder's process ID and operation; it never waits or queues. Observations (`tree`, `screen`, `screenshot`, `readiness`, app and file commands) take no lease. The `devicectl` recording backend takes none either.
+Physical input (including `wake`), accessibility press/scroll, `set-value`, `detect-layout`, native recording and `frames` take a per-device lease before dispatch. A second `manzanero` process that tries to send input to, or natively record, the same device is refused immediately with `Device is controlled by another manzanero process`, naming the holder's process ID and operation; it never waits or queues. Observations (`tree`, `screen`, `screenshot`, `readiness`, app and file commands) take no lease. The `devicectl` recording backend takes none either.
 
 Within one process the lease is shared, so an MCP server can record and send input at the same time. The lease is an advisory lock on a file under `~/Library/Application Support/manzanero/leases/`, keyed by the resolved CoreDevice identifier so every alias of a device maps to one lease. The kernel releases it when the owning process exits for any reason, including a crash or SIGKILL.
 
 [Simulator input](simulator-input.md) and simulator press/scroll take the same lease, keyed by the simulator UUID; on one simulator a second process's tap during a long press was refused this way.
 
-The lease establishes host-side exclusivity only. It does not show that an earlier owner released its contacts, keys or stream on the device, and it does not restrain Xcode or other tools. Local tests cover refusal, sharing and release; no live two-process check has been run.
+The lease establishes host-side exclusivity only. It does not show that an earlier owner released its contacts, keys or stream on the device, and it does not restrain Xcode or other tools. Local tests cover refusal, sharing and release. On the iPhone 13 mini, a second process's `tap` during an 8-second `long-press` was refused at once and a `tree` from it succeeded; after the hold a `tap` was accepted ([verification](verification.md#first-live-run-of-the-queue-lease-wait-and-trimmed-bridge)). That is one pair of processes and one timing.
 
 ## CLI signals
 

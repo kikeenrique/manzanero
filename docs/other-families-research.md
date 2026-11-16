@@ -1,6 +1,6 @@
 # Other simulator families: tvOS, watchOS and iPhone Duo
 
-> **Status (2026-11-16):** quick research pass, no product code changed. Answers open question 8 of [the simulator research](simulator-input-research.md#open-questions-and-the-experiment-that-settles-each) for tvOS, watchOS and the foldable iPhone Duo. visionOS was not tried.
+> **Status (2026-11-16):** quick research pass, kept as written; it changed no product code. Answers open question 8 of [the simulator research](simulator-input-research.md#open-questions-and-the-experiment-that-settles-each) for tvOS, watchOS and the foldable iPhone Duo. visionOS was not tried. Built from it the same day: Duo display choice, fold and hinge, tvOS `remote` and focus, watchOS `crown` and `button side`, and the hit-test fix behind the duplicate-label refusals; the Apple TV remote's touch surface is blocked. The current guide is [other simulator families](other-families.md); the folding route is in [the fold research](duo-fold-research.md).
 
 The existing simulator commands were run unchanged against one new simulator per family to see what already works, what fails and what is missing. Where something was missing, the simulator's own daemons were probed with a throwaway program to find the likely route.
 

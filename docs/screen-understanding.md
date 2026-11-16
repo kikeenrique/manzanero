@@ -10,7 +10,7 @@ manzanero screen auto --simulator <UUID>
 manzanero ocr tmp/existing.png
 ```
 
-Simulator screen inspection requires an explicit UUID. Physical capture uses Xcode and its preparation checks. The current physical hierarchy provider is native Apple AX. Simulators have no hierarchy provider yet: simulator `screen auto` records that in its diagnostics and uses OCR, and simulator `screen tree` is refused before capture.
+Simulator screen inspection requires an explicit UUID. Physical capture uses Xcode and its preparation checks. The hierarchy comes from native Apple AX on both platforms: over the device's accessibility session on a phone, and through CoreSimulator on a simulator ([simulator input](simulator-input.md)). On a simulator with several displays (iPhone Duo), `--display` chooses the captured display; the tree describes only the display the interface is on, so with another display `auto` uses OCR and `tree` is refused before capture ([other families](other-families.md#displays-iphone-duo)).
 
 ## Choosing a method
 
@@ -28,7 +28,7 @@ The screenshot precedes the hierarchy query. These are different observations of
 
 Images are saved under a new `tmp/screen-<UUID>/` directory. JSON includes image path, decoded pixel dimensions, capture time, selected method, coordinate space and diagnostics. Successful analysis reports `status: captured`; automatic image-only fallback reports `status: partial`. An empty OCR result has an explicit diagnostic.
 
-MCP `get_screen` accepts `platform`, `device` and optional `method`. JSON appears under `structuredContent.result`; the saved PNG stays full resolution, and a reduced copy (longest edge 1568 pixels by default) is included as image content, adjustable per call (see [inline image options](mcp.md#inline-image-options)).
+MCP `get_screen` accepts `platform`, `device` and optional `method` and `display`. JSON appears under `structuredContent.result`; the saved PNG stays full resolution, and a reduced copy (longest edge 1568 pixels by default) is included as image content, adjustable per call (see [inline image options](mcp.md#inline-image-options)).
 
 ## Coordinate spaces
 

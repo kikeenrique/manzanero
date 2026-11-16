@@ -1,8 +1,8 @@
 # Next live check plan
 
-This page lists what still has to be run on a physical device. It is a plan, not a record: results go in [verification](verification.md), and items are removed from here once they are recorded there.
+This page lists what still has to be run on hardware. It is a plan, not a record: results go in [verification](verification.md), and items are removed from here once they are recorded there. The [roadmap](roadmap.md#pending) puts these runs in order with the work that is not about hardware.
 
-Done on the iPhone 13 mini so far: wake, the command service queue, the device lease, interruption, the accessibility tree, press, scroll and every wait condition, touch delivery measured with the probe app, keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, `frames` in portrait, app console output and the last crash, system-prompt handling through the tree, and a live MCP session. See [verification](verification.md).
+Done on the iPhone 13 mini so far: wake, the command service queue, the device lease across two processes, interruption, the accessibility tree, press, scroll and every wait condition except `focused`, touch delivery measured with the probe app (one to five contacts), keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, `frames` in portrait, app console output and the last crash, system-prompt handling through the tree, the operation-first grammar, `set-value` and Spanish – ISO typing and detection in the probe's field, and live MCP sessions. See [verification](verification.md).
 
 Run from the repository root with the device paired and unlocked. Replace `<UDID>` with the hardware UDID from `mise run cli devices`. If the display is off, `mise run cli wake --device <UDID>` turns it on. Take a screenshot before choosing where to touch, and inspect the screen after every action; a receipt is not an effect. Do not replay an input automatically.
 
@@ -22,7 +22,9 @@ If every query to a connected device times out, capture the state of Apple's dev
   - The same once through MCP: `mise run test:mcp-type <UDID> 'Año ¿qué?' spanish-iso`.
   - Record whether Settings shows a Hardware Keyboard section while nothing but Manzanero's events have been sent, and whether the layout chosen there changes the result without relaunching the app.
 - Landscape on a phone, an iPad, and anything on a second device. The simulator side of rotation and iPad is measured.
+- The 200 ms input drain on another device and with the Mac under load (on the iPhone 13 mini, 50 ms lost short gestures and 100 ms did not).
 - Debug-level log lines and a large output through `console`.
+- Pipelined MCP calls to a physical device, to confirm the [per-device call order](mcp.md#calls-sent-without-waiting) there (checked on one simulator only).
 
 ## Not yet run on Apple TV, Apple Watch or iPhone Duo hardware
 
@@ -32,12 +34,15 @@ Everything in [other families](other-families.md) has run on simulators only. On
 - Apple TV: every `remote` button against an app that reacts to play-pause, touch refused, focus in the tree, `wait --until focused`.
 - Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), and `button side`.
 
+## Not yet run on simulators
+
+These need no hardware and no owner decision; they were left out of the simulator runs.
+
+- On the Duo's inner display: `gesture`, three-to-five-path `multi-drag`, and the centre-hit fallback when no frontmost application is reported; only the `rot90` orientation was seen.
+- Pipelined `fold_device` and `set_hinge_angle` over MCP on the Duo since the per-device call order was added. Checked so far on `iPhone 17e` with taps, a long press and trees only.
+- The watch's left side button (page 0xFF01, usage 512 in the `watch6` chrome) and `key`/`type` on watchOS.
+
 ## Questions still open
-
-- On the Duo simulator's inner display: `gesture`, three-to-five-path `multi-drag`, and the centre-hit fallback when no frontmost application is reported were not run; only the `rot90` orientation was seen.
-- Does the per-device [MCP call order](mcp.md#calls-sent-without-waiting) hold for pipelined `fold_device` and `set_hinge_angle` on the Duo, and for a physical device? Checked so far on `iPhone 17e` with taps, a long press and trees only.
-
-- Does the 200 ms connection drain hold on other devices and under load? On the iPhone 13 mini, 50 ms lost short gestures and 100 ms did not.
 - Why did one tap on the Settings search field have no effect, when the next 36 taps there did?
 - What made Apple's device services stop answering for the phone on 2026-11-16?
 - What do apps' gesture recognizers make of three or more contacts?

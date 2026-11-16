@@ -193,7 +193,7 @@ Verified on 2026-11-15 on macOS 27.2.1 with Xcode 27.2 (27B52) and Swift 6.4.2, 
 
 The recent-gestures evidence and the identity check were added afterwards and checked the same way, without any device: `mise run probe-app:test` passed 93 tests with zero warnings. The 19 new measurement tests cover the log staying first, a two-gesture action and errors and shortfalls measured from the recent readout, a window whose gestures were partly dropped, gestures dropped before the window, inconsistent numbering, a readout that disagrees with the summary's gesture count or phase counters or session, a contact down at the window's end, an absent readout, a shared window split by order, the built-in plan's readout size, per-readback identity in the report, tree parsing of the attribute and the readout, and the runner end to end with the identity present and equal, absent, and different at preflight, at the baseline and after an action, plus `--readback end` without a log for one and three rounds. `mise run test:probe-touch <UDID> --dry-run` again exited 0 with 17/17 commands accepted.
 
-Not verified: anything on hardware. In particular, that `tree` returns the probe's readouts on a phone (including an 8 KB recent-gestures value), that `nativeAttributes["3003"]` carries the probe's bundle identifier, that `press-id probe.touch.reset` resets it, that the settle time is long enough for UIKit to deliver the last events, the file layout `devicectl device copy from` produces at the destination (the runner accepts a file or a directory holding `touch-log.jsonl`), and every delivery figure.
+At that point nothing had run on hardware. The phone runs that followed are under [phone runs](#phone-runs) below. Not verified then: that `tree` returns the probe's readouts on a phone (including an 8 KB recent-gestures value), that `nativeAttributes["3003"]` carries the probe's bundle identifier, that `press-id probe.touch.reset` resets it, that the settle time is long enough for UIKit to deliver the last events, the file layout `devicectl device copy from` produces at the destination (the runner accepts a file or a directory holding `touch-log.jsonl`), and every delivery figure.
 
 ### Simulator runs
 
@@ -218,6 +218,10 @@ On 2026-11-16, after simulator multi-contact input was added (same simulator and
 - **Landscape and iPad** (after rotation support, `--any-orientation`): the built-in plan, five rounds each, delivered 70 of 70 actions and 145 of 145 contacts on the iPhone 17e in landscape left and right, and on an iPad mini (A17 Pro) in portrait and landscape left; per-contact-count figures are in [verification](verification.md#rotation-and-ipad-on-the-simulator).
 
 Not shown by these runs: anything about a phone, and anything the probe log would add (per-event order), since there is no simulator pull.
+
+### Phone runs
+
+On 2026-11-15/16 the runner ran against the probe on the iPhone 13 mini (iOS 27.2.1, wired). `tree` returned the three readouts, `nativeAttributes["3003"]` carried the probe's bundle identifier, `press --id probe.touch.reset` reset it without recording a touch, and the log pull wrote a single file. The built-in plan delivered 14 of 14 actions in one round, but 66 of 70 over five rounds, and a tap-versus-hold plan showed short gestures lost whole. That led to the input drain after the completion barrier; with it the tap-versus-hold plan delivered 80 of 80 and the built-in plan 70 of 70 actions and 145 of 145 contacts. After the move to the operation-first grammar, two rounds delivered 28 of 28 actions and 58 of 58 contacts. Details and timing figures: [verification](verification.md#touch-delivery-measured-with-the-probe-app). A recent-gestures value near its 8 KB bound has not been read on a phone.
 
 ## Known limits
 

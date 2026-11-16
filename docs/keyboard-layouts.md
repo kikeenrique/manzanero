@@ -1,5 +1,7 @@
 # Keyboard layouts for `type`
 
+> **Status (2026-11-16):** research note, kept as written. Built from it: `type --layout`, `keyboard-layouts` and `detect-layout`; the current guide is [physical typing](physical-typing.md#layouts). After it was written, the iPhone 13 mini typed Spanish – ISO exactly, including Shift, Option and dead keys, and the key left of Z arrived, so that phone uses the ISO keyboard type like the simulator ([verification](verification.md#keyboard-layouts-on-the-phone)). Other layouts on a phone remain unchecked.
+
 `type` sends HID key usages; the device turns them into characters with its own hardware-keyboard layout. A table that assumes US therefore types wrong text whenever the device uses another layout. This note records what was found about where that layout lives, whether it can be read or set, and whether a character table for any layout can be built with Apple frameworks only. Each finding is marked **observed** (seen on this machine) or **inferred** (concluded, not seen).
 
 Machine and versions: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), iOS 27.2 simulator runtime (build 24B8117), an `iPhone 17e` simulator. No physical device was used. The scratch programs are under the untracked `tmp/keyboard-layouts/`. What `type` does with these findings is in [physical typing](physical-typing.md#layouts); the live checks are in [verification](verification.md#keyboard-layouts-on-the-simulator).

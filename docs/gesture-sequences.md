@@ -45,7 +45,7 @@ Receipts include counts, requested duration, display rotation and `coordinateSpa
 
 On iPhone 13 mini, a sampled swipe moved Home to App Library, repeated taps zoomed Maps, and a seven-frame two-contact spread with staggered arrivals/lifts visibly zoomed Maps. These establish scoped effects, not delivered timestamps or every individual contact transition.
 
-Five-slot encoding and independent contact timing have local test coverage. Three-to-five-contact recognition, failure release, other orientations/devices and general unattended behavior remain hardware-unverified.
+Five-slot encoding and independent contact timing have local test coverage. The probe app's measurement runner sent its two timed sequences on that phone and they arrived as scheduled, within the built-in plan's 70 of 70 actions ([verification](verification.md#touch-delivery-measured-with-the-probe-app)). Three-to-five-contact recognition in apps, failure release, other orientations/devices and general unattended behavior remain hardware-unverified.
 
 ```sh
 mise run test:mcp-gesture <UDID> <local-sequence.json>
@@ -57,4 +57,4 @@ This opt-in test sends the supplied sequence, saves a receipt/screenshot and che
 
 [Multitouch](multitouch.md) generates linear two-to-five-path schedules. Generated drags may release at 10001 ms to preserve a full ten-second movement interval; user-supplied JSON remains capped at 10000 ms.
 
-The earlier patched-helper implementation is disabled. Its source is a migration reference, not required setup or proof of the current engine's hardware behavior.
+The earlier patched-helper implementation has been removed (git history keeps it). Its results are not proof of the current engine's hardware behavior.

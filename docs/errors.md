@@ -108,9 +108,9 @@ The set is deliberately small and closed; a new value would be a change to this 
 
 ## Unclassified sites
 
-`Sources/Manzanero` constructs `CommandFailure` in 279 places (a helper such as `failure(_:)` counts once, however many guards call it; the 49 added with `logs`, `console` and `last-crash` are all classified). 273 are classified, 11 of them by keeping a wrapped failure's category. Six remain `unclassified`:
+At the app-logs checkpoint, `Sources/Manzanero` constructed `CommandFailure` in 279 places (a helper such as `failure(_:)` counts once, however many guards call it; the 49 added with `logs`, `console` and `last-crash` were all classified), 273 of them classified, 11 by keeping a wrapped failure's category. Those totals were not recounted after later features. The sites that remain `unclassified` (those built with `CommandFailure(description:)`) are now seven:
 
 - `KeyedArchiveInspector`'s invalid-archive failure: it serves both offline `decode-ax-archive` files (a usage problem) and device replies (a transport problem), and cannot tell which.
-- `NativeHEVCDecoder` (three sites, one of them its `failure(_:)` helper), `NativeVideoFrame` and native movie finalization: host-side VideoToolbox/AVFoundation failures whose cause (stream data or host) is not known at the site. They occur only during recording, so they still report `inputSent: none`.
+- `NativeHEVCDecoder` (four sites, one of them its `failure(_:)` helper, and one the JPEG-output check that `frames` added), `NativeVideoFrame` and native movie finalization: host-side VideoToolbox/AVFoundation failures whose cause (stream data or host) is not known at the site. They occur only during recording and `frames`, so they still report `inputSent: none`.
 - Errors that are not `CommandFailure` at all: Foundation and POSIX errors (a missing file for `ocr` or `decode-ax-archive`, malformed JSON from an Apple tool, socket errors), decoding errors and AVFoundation errors. They print exactly as before and are `unclassified` with `inputSent: unknown`, except that the accessibility action and tree paths, which know their stage, report `none` before the action.
 - A wrapped failure keeps the inner category, so a wrapper around one of the above stays unclassified.

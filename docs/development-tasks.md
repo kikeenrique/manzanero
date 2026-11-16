@@ -21,8 +21,9 @@ mise tasks validate
 | `build`, `test`, `cli`, `completions` | Main executable, local regression checks and shell completion scripts |
 | `package`, `test:package`, `release:formula` | [Beta packaging](releasing.md), archive smoke and tap formula generation |
 | `release <version>` | Check version/worktree/tag, then push the tag to publish a beta through CI |
-| `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device |
+| `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device. `test:mcp-live <UUID>` runs against a booted simulator |
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*` | Opt-in native transport/media diagnostics |
+| `test:cli-interrupt`, `test:ocr` | CLI signal handling during a physical hold; Vision OCR on a local image (no device) |
 | `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core and measurement-runner tests on macOS; Tuist workspace generation under `tmp/probe-app/generated` |
 | `test:probe-touch <UDID>` | Opt-in [touch measurement](probe-touch-runner.md) against the foreground probe app; `--dry-run` contacts no device |
 
@@ -43,7 +44,8 @@ mise run test:mcp-shutdown --help
 | `test:mcp-foreground <UDID>` | Foreground AX plus screen inspection |
 | `test:mcp-press <UDID> <identifier|label> <text>` | One native press, screenshots |
 | `test:mcp-scroll <UDID> <identifier>` | One scroll-to-visible action and observed postcondition |
-| `test:mcp-type <UDID> <text>` | Types into the current focus |
+| `test:mcp-type <UDID> <text> [layout]` | Types into the current focus in the named keyboard layout (default `us`) |
+| `test:mcp-live <UUID>` | A booted simulator: tree, screenshot, recording and a synthetic handoff; presses, taps and waits when the probe app is frontmost |
 | `test:mcp-gesture <UDID> <file>` | Sends the complete supplied touch sequence |
 | `test:probe-touch <UDID> --dry-run` | Prints the measurement plan and commands; no device contact |
 | `test:probe-touch <UDID>` | Resets the probe app through AX, sends the plan's touches and pulls its log; stops if the probe is not foreground |

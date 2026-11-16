@@ -4,7 +4,11 @@ This is the evidence summary for the current implementation and the material fai
 
 **Commands recorded before 2026-11-16 use the earlier grammar**, with the platform and device first (`physical <UDID> tap 0.5 0.5`, `simulator <UUID> press-id <id>`). From that date the CLI names the operation first and the target as an option (`tap 0.5 0.5 --device <UDID>`, `press --id <id> --simulator <UUID>`); see the [argument parser proposal](cli-argument-parser-proposal.md). The records below are kept as they were run.
 
-**A build, fixture or dispatch receipt is not a hardware assertion.** Each result below applies to its stated backend/device/environment. Retired helper results are labeled separately. [Feature status](feature-status.md) describes current availability; [development tasks](development-tasks.md) explains repeatable checks.
+**A build, fixture or dispatch receipt is not a hardware assertion.** Each result below applies to its stated backend/device/environment. Retired helper results are labeled separately. [Feature status](feature-status.md) describes current availability, the [roadmap](roadmap.md) summarises what is achieved and pending, the [live check plan](live-check-plan.md) lists the hardware runs still owed, and [development tasks](development-tasks.md) explains repeatable checks.
+
+**Entries are not rewritten.** A few undated summary paragraphs were written before later dated sections; where they differ, the dated section is the later record, and a "Later:" note points to it.
+
+Where to find the physical results: [discovery and readiness](#discovery-and-readiness) through [app console and last crash](#app-console-and-last-crash-on-the-phone) (the newest phone runs, 2026-11-15/16), then [direct physical input](#direct-physical-input), [physical accessibility](#physical-accessibility-and-screen-understanding), [native media](#native-media-and-recording) and [frames](#frames-on-the-phone). Simulator results: [simulator input](#simulator-input-and-accessibility), [keyboard layouts](#keyboard-layouts-on-the-simulator), [layout detection](#layout-detection), [app logs](#app-logs-console-and-crashes) and [other simulator families](#other-simulator-families). MCP ordering: [calls sent without waiting](#mcp-calls-sent-without-waiting).
 
 ## Environment and evidence handling
 
@@ -335,7 +339,7 @@ Key checkpoints: `68beb1f`, `504ca28`, `d8aba6f`, `f88327f`, `d0c3e30`, `2ed88bc
 | Content | Frames opened as images: the probe app upright and readable (text-field caret visible in some, not others), then the Home screen after `button home`, then the probe app again after `launch`. The first Home frame showed a black 11-pixel strip on the right and 12 rows at the bottom: the stream is 1136×2448 for a 1125×2436 screen. After cropping to the display's bounds the frame matched a `screenshot` taken just after it in size and icon positions |
 | Status bar | The first frame of a run showed the clock; later frames and a `screenshot` taken right after a run showed the screen-sharing indicator in its place. The home indicator and rounded corners are not in the stream |
 | One image | `frames --count 1`: 1.78–1.86 s over three runs; `screenshot`: 0.69–0.72 s over three runs |
-| MCP `capture_frames`, 5 frames at 200 ms, `image_max_edge: 400` | `isError: false`, 5 frames, inline 185×400 JPEG of 23 kB, scale 6.08. The same call sent right after `notifications/initialized` got no response (the known [open question](live-check-plan.md#questions-still-open)); sent a second later it answered |
+| MCP `capture_frames`, 5 frames at 200 ms, `image_max_edge: 400` | `isError: false`, 5 frames, inline 185×400 JPEG of 23 kB, scale 6.08. The same call sent right after `notifications/initialized` got no response (the known [open question](live-check-plan.md#questions-still-open)); sent a second later it answered. Later: fixed ([MCP calls sent without waiting](#mcp-calls-sent-without-waiting)) |
 | MCP cancellation (`notifications/cancelled`) 4 s into a 30-second capture | No response for the request, as MCP requires; 10 frames kept, `frames.json` `interrupted`, cleanup acknowledged, 0 sessions afterwards |
 
 Not covered: landscape or upside-down displays, another device, runs longer than five seconds, the 1 GiB budget and the first-frame timeout on hardware, and two processes competing for the stream.
@@ -569,11 +573,11 @@ Not established: anything on a physical device (physical `console` and `last-cra
 
 Physical Settings launch and app inventory succeeded. The launch option-order fix (`4c47998`) ensures devicectl options precede the bundle operand. One Safari URL preflight failed; broad physical URL/lifecycle claims are not made.
 
-App-data command plans and an Apple-tool-owned temporary-domain synthetic copy round trip were checked. This is not actual app-container access/round-trip evidence. Physical saved-report listing passed. Download is implemented but hardware-unverified. Filtering and parsing now exist as [`last-crash`](#app-logs-console-and-crashes), verified on a simulator only; symbolication and deletion are missing. See [feature status](feature-status.md).
+App-data command plans and an Apple-tool-owned temporary-domain synthetic copy round trip were checked. This is not actual app-container access/round-trip evidence. Physical saved-report listing passed. Download is implemented but hardware-unverified. Filtering and parsing now exist as [`last-crash`](#app-logs-console-and-crashes), verified on a simulator only; symbolication and deletion are missing. See [feature status](feature-status.md). Later: a report was downloaded on the phone ([wider command run](#wider-command-run-on-the-phone-and-a-simulator)), physical `last-crash` found and downloaded a crash ([console and last crash](#app-console-and-last-crash-on-the-phone)), and the probe app's container was listed, pushed and pulled ([remaining phone checks](#remaining-phone-checks-keys-files-waits-prompts-and-a-live-mcp-session)).
 
-The [probe app](probe-app.md) fixture and its touch probe passed its core unit tests, a warning-free simulator build, a simulator launch, XCUITest recording checks and a simulator `build-run` (2026-11-15, iPhone 17e simulator, iOS 27.2). It has not been run on hardware, so it has produced no delivery evidence yet. Its [touch measurement runner](probe-touch-runner.md) passed offline tests against canned tree output, receipts and logs, and its dry run's commands were accepted by `manzanero --dry-run`; it has not been run against a device.
+The [probe app](probe-app.md) fixture and its touch probe passed its core unit tests, a warning-free simulator build, a simulator launch, XCUITest recording checks and a simulator `build-run` (2026-11-15, iPhone 17e simulator, iOS 27.2). It has not been run on hardware, so it has produced no delivery evidence yet. Its [touch measurement runner](probe-touch-runner.md) passed offline tests against canned tree output, receipts and logs, and its dry run's commands were accepted by `manzanero --dry-run`; it has not been run against a device. Later: both ran on the phone ([touch delivery](#touch-delivery-measured-with-the-probe-app)).
 
-Simulator screenshot and finite H.264/HEVC movie checks passed. Build & Run passed simulator project/Debug and workspace/Release flows with product validation/install/launch; complete physical signing/deployment remains unverified.
+Simulator screenshot and finite H.264/HEVC movie checks passed. Build & Run passed simulator project/Debug and workspace/Release flows with product validation/install/launch; complete physical signing/deployment remains unverified. Later: physical signing, install and launch of the probe app passed ([touch delivery](#touch-delivery-measured-with-the-probe-app), [remaining phone checks](#remaining-phone-checks-keys-files-waits-prompts-and-a-live-mcp-session)).
 
 Human handoff has synthetic terminal/form completion and per-device mutation-pause coverage. No actual biometric/passcode/purchase action, automatic prompt detection or native notification is claimed.
 
@@ -711,7 +715,7 @@ These results are preserved as history, not current runtime availability:
 
 | Former route | Historical evidence | Current implication |
 | --- | --- | --- |
-| AXe simulator adapter | SpringBoard tree → Settings label tap → Settings tree succeeded | Executable blocked; direct simulator input/AX replacement pending |
+| AXe simulator adapter | SpringBoard tree → Settings label tap → Settings tree succeeded | Executable blocked; direct simulator input/AX replacement pending. Later: replaced ([simulator input](#simulator-input-and-accessibility)) |
 | idevice HID | Early phone unavailable through usbmuxd; later read-only HID discovery passed; Home/tap receipts lacked visible effect | Cause unresolved; not proof of current native input |
 | idevice independent pairing | Protocol/build/validation existed | Live initial pairing/reconnection/input unverified; executable route blocked |
 | idevice AX | Raw callback/offline decoding, Settings trees and selector navigation passed | Separate from unsuccessful idevice HID; replaced by native AX route |
@@ -732,6 +736,6 @@ The earlier source/history privacy review used Gitleaks 8.30.1 against the pre-c
 
 ## What these records do not establish
 
-No result here completes all Apple-family coverage or reliable unattended testing. Important gaps include cross-process ownership, uncertain-release quarantine, crash/cable-loss recovery, broad app/overlay/orientation behavior, simulator input migration and dedicated iPad/Watch/TV/Duo validation.
+No result here completes all Apple-family coverage or reliable unattended testing. Important gaps include cross-process ownership, uncertain-release quarantine, crash/cable-loss recovery, broad app/overlay/orientation behavior, simulator input migration and dedicated iPad/Watch/TV/Duo validation. Later: the device lease and the simulator route now exist and have scoped live checks; iPad, Watch, TV and Duo have simulator results only. The [roadmap](roadmap.md#pending) lists what remains.
 
 When repeating a check, record the current versions/target/backend, separate transport acceptance from visible effect and cleanup, and retain failures rather than automatically retrying an input action.
