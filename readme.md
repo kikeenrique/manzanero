@@ -6,7 +6,7 @@ The project is in beta.
 
 Physical iPhone control is the current priority, and reliable unattended testing is still unfinished. iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope, with support varying by device and operation.
 
-Most live evidence comes from one iPhone 13 mini; see [feature status](docs/feature-status.md) before relying on another device or operation.
+Most live evidence comes from one iPhone 13 mini; Apple TV, Apple Watch, iPad and iPhone Duo have been run on simulators only. See [feature status](docs/feature-status.md) before relying on another device or operation, and the [roadmap](docs/roadmap.md) for what is achieved and what is pending.
 
 <img src="docs/assets/manzanero-clay.png" alt="A cheerful orchard worker biting an apple beside a tree growing a phone, a foldable iPhone Duo, a tablet, a watch and an Apple TV with its remote." width="560">
 
@@ -55,7 +55,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | --- | --- |
 | Buttons, tap, swipe, drag, long press | [Physical input](docs/native-input.md) |
 | Pinch or coordinated contacts | [Multitouch](docs/multitouch.md), [timed sequences](docs/gesture-sequences.md) |
-| Text entry | [Typing in a named keyboard layout](docs/physical-typing.md) ([layout research](docs/keyboard-layouts.md), [finding the device's layout](docs/physical-typing.md#finding-the-layout-detect-layout)), [Unicode paste](docs/native-input.md#direct-unicode-paste) |
+| Text entry | [Typing in a named keyboard layout](docs/physical-typing.md) ([layout research](docs/keyboard-layouts.md), [finding the device's layout](docs/physical-typing.md#finding-the-layout-detect-layout)), [Unicode text by set-value](docs/simulator-input.md#unicode-text-set-value), [Unicode paste](docs/native-input.md#direct-unicode-paste) |
 | Screen, hierarchy, OCR | [Screen inspection](docs/screen-understanding.md), [accessibility](docs/direct-accessibility.md) |
 | Exact accessibility press or scroll | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
 | Video, or many screenshots in a row | [Recording](docs/recording.md), [frames](docs/recording.md#frames-repeated-screenshots-from-one-stream) |
@@ -63,9 +63,10 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | A step that needs a person | [Human handoff](docs/handoff.md) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
 | Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown | [Other simulator families](docs/other-families.md) |
-| Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical console unverified) |
+| Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical `logs` is not implemented) |
+| What a failure means and whether to retry | [Errors and exit codes](docs/errors.md) |
 
-Physical input, accessibility and native video need no separate device helper. The CLI has no routes to AXe, idevice or ipb executables, and the process runners refuse them at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator trees, element actions, waits, single-contact touch, Home/lock, keys and typing run in process on a booted simulator ([simulator input](docs/simulator-input.md)).
+Physical input, accessibility and native video need no separate device helper. The CLI has no routes to AXe, idevice or ipb executables, and the process runners refuse them at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator trees, element actions, waits, touch with one to five contacts, gesture sequences, buttons, keys, typing and `set-value` run in process on a booted simulator ([simulator input](docs/simulator-input.md)). Simulator `wake` and `paste` are refused.
 
 ## Apps, files and reports
 
@@ -85,7 +86,7 @@ mise run cli reports get 'My App.ips' 'tmp/My App.ips' --device <device>
 
 Container paths are relative; `.` means the selected domain's root. Listings are nonrecursive. Access depends on the app/device's authorization. Copies can overwrite destinations; these commands do not provide `.xcappdata` export, symbolication or whole-container replacement. Physical termination takes a PID; simulator termination takes a bundle identifier.
 
-Add `--dry-run` to a planned command to inspect its arguments without executing it. Most physical wrappers preserve `devicectl` JSON; some simulator commands return plain text. A failure prints its message on stderr and exits 1, or 64 when the call itself is wrong; with `--error-format json` (or `MANZANERO_ERROR_FORMAT=json`) it prints one JSON object instead, with a category, whether input may have reached the device, and whether a retry is safe. See [errors](docs/errors.md).
+Add `--dry-run` to a device command to print its plan as JSON without contacting the device; `devices`, `doctor`, `keyboard-layouts`, `ocr` and `mcp` refuse it as a usage error, although their help lists the option. Most physical wrappers preserve `devicectl` JSON; some simulator commands return plain text. A failure prints its message on stderr and exits 1, or 64 when the call itself is wrong; with `--error-format json` (or `MANZANERO_ERROR_FORMAT=json`) it prints one JSON object instead, with a category, whether input may have reached the device, and whether a retry is safe. See [errors](docs/errors.md).
 
 ## MCP
 
@@ -107,7 +108,7 @@ Host configuration formats vary. Set a suitable working directory: relative file
 ## Limits that matter
 
 - Native input and AX actions are experimental. Successful transport acknowledgements are not UI assertions.
-- Native video has scoped CLI/MCP verification, including one five-minute capture and one recording with AX inspection and Home control. Startup remains intermittent; keyframe, crash and disconnect recovery are unfinished.
+- Native video has scoped CLI/MCP verification, including one five-minute capture and one recording with AX inspection and Home control. With the macOS firewall on, the executable needs an allow rule or recordings get no video; `doctor` reports it ([recording](docs/recording.md#the-macos-firewall-can-drop-the-video)). Keyframe, crash and disconnect recovery are unfinished.
 - SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Forced exits and failed transports do not have a release guarantee. A second `manzanero` process is refused input to a device another one is controlling.
 - Live screen mirroring, stable reusable element handles, broad Apple-family coverage and several simulator/diagnostic paths remain incomplete.
 - Screenshots, app lists, logs, clipboard data and artifacts under `tmp/` can contain private information. Do not commit or share them without review.
@@ -116,7 +117,9 @@ Host configuration formats vary. Set a suitable working directory: relative file
 
 Run `mise run test` for local checks and `mise tasks validate` for task definitions. Device tests are opt-in and may mutate the selected device; read their help first.
 
-Start with [architecture and dependencies](docs/dependencies.md), [development tasks](docs/development-tasks.md), [roadmap](docs/roadmap.md) and [verification](docs/verification.md). Protocol and implementation references are collected in [accessibility notes](docs/accessibility-protocol.md), [transport notes](docs/transport.md) and the [AXe review](docs/axe-physical-review.md). The [probe app](docs/probe-app.md) is a fixture iOS app for measuring physical touch delivery, driven by the [touch measurement runner](docs/probe-touch-runner.md), and for checking [app log capture](docs/app-logs.md) against known lines ([research](docs/app-logs-research.md)). Repository workflow rules are in [AGENTS.md](AGENTS.md).
+Start with [architecture and dependencies](docs/dependencies.md), [development tasks](docs/development-tasks.md), the [roadmap](docs/roadmap.md) and [verification](docs/verification.md). The [live check plan](docs/live-check-plan.md) lists what still has to be run on hardware. Protocol and implementation references are collected in [accessibility notes](docs/accessibility-protocol.md), [transport notes](docs/transport.md) and the [AXe review](docs/axe-physical-review.md). The [probe app](docs/probe-app.md) is a fixture iOS app for measuring touch delivery, driven by the [touch measurement runner](docs/probe-touch-runner.md), and for checking [app log capture](docs/app-logs.md) and text entry against known values. Repository workflow rules are in [AGENTS.md](AGENTS.md); how the docs are kept consistent is in [documentation maintenance](docs/documentation-review.md), and CI history in the [CI review](docs/ci-review.md).
+
+Research notes and proposals, kept as historical records with a status line at the top: [simulator input](docs/simulator-input-research.md), [app logs](docs/app-logs-research.md), [keyboard layouts](docs/keyboard-layouts.md), [other simulator families](docs/other-families-research.md), [folding the iPhone Duo](docs/duo-fold-research.md) and the [argument parser proposal](docs/cli-argument-parser-proposal.md).
 
 
 ## License
