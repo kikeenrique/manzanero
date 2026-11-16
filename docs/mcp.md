@@ -25,7 +25,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 ## Tool catalog
 
-`tools/list` is the exact schema reference: 36 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
+`tools/list` is the exact schema reference: 37 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
 
 | Tools | Current purpose |
 | --- | --- |
@@ -40,7 +40,8 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `record_screen` | [Finite MP4 recording](recording.md) to a new host path |
 | `tap`, `drag`, `long_press` | Direct single-contact input, physical or simulator |
 | `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md); optional `platform` (default physical); a booted simulator receives all of them |
-| `type_text`, `paste_text`, `press_key`, `press_button` | US-layout typing, named keys and hardware buttons (physical or simulator, the same four buttons), and physical clipboard-replacing paste |
+| `type_text`, `paste_text`, `press_key`, `press_button` | [Typing in a named keyboard layout](physical-typing.md#layouts) (`layout`, default `us`), named keys and hardware buttons (physical or simulator, the same four buttons), and physical clipboard-replacing paste |
+| `list_keyboard_layouts` | The layout names `type_text` accepts: the Mac's own layouts, read-only, no device contact |
 | `wake_device` | [Guarded wake](native-input.md#waking-a-dark-display) of a dark display: one side-button press only when the display reads off twice |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report` | Saved physical report listing/download |
@@ -48,7 +49,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `build_run` | [Xcode build/install/launch](build-run.md). Optional physical-only booleans `allow_provisioning_updates` and `allow_device_registration` let Xcode change certificates, profiles and device registrations in the user's developer account; ask the user before setting them. |
 | `request_handoff` | [Explicit human completion request](handoff.md) |
 
-Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked at runtime, and neither the catalogue nor the shared CLI command service has any route to them: simulator selector taps, live raw callback archives, finite OS traces, `hid-info`, `pairing_file` and the input `backend` choice are gone. Physical input and trees always use the in-process CoreDevice route; simulator input and trees use the in-process [CoreSimulator route](simulator-input.md) and need a booted simulator addressed by UUID. Simulator operations that are not implemented (paste, wake, non-ASCII `type`) are not reachable from the tools above, and the CLI refuses them as `unsupported-operation`.
+Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked at runtime, and neither the catalogue nor the shared CLI command service has any route to them: simulator selector taps, live raw callback archives, finite OS traces, `hid-info`, `pairing_file` and the input `backend` choice are gone. Physical input and trees always use the in-process CoreDevice route; simulator input and trees use the in-process [CoreSimulator route](simulator-input.md) and need a booted simulator addressed by UUID. Simulator operations that are not implemented (paste, wake) are not reachable from the tools above, and the CLI refuses them as `unsupported-operation`.
 
 ## Choose platform and coordinates explicitly
 
@@ -58,7 +59,7 @@ Touch coordinates are normalized `0...1` in the current interface on both platfo
 
 A physical tree without `pid` selects/rechecks the awake portrait primary display-centre process; a simulator tree the frontmost application, or the process under the screen centre when the simulator reports none. An explicit positive PID can inspect a background app. IDs belong only to one non-atomic snapshot, not reusable action handles. Press/scroll selectors resolve fresh identities and apply additional guards.
 
-Unicode text goes through `set_element_value` on both platforms: it names its target element and replaces its whole value, without the keyboard or the clipboard. Physical `paste_text` is the alternative at the current focus; it replaces the clipboard. ASCII `type_text` has a US-layout mapping, does not change the clipboard, and never switches to either silently. None of them approves prompts or verifies insertion.
+Unicode text goes through `set_element_value` on both platforms: it names its target element and replaces its whole value, without the keyboard or the clipboard. Physical `paste_text` is the alternative at the current focus; it replaces the clipboard. `type_text` types at the current focus in the keyboard layout given in `layout` (default `us`; names from `list_keyboard_layouts`), does not change the clipboard, refuses the whole text at the first character that layout cannot produce, and never switches to either silently. Give the layout the device actually uses: a phone's cannot be read (receipt `deviceLayout.status: not-read`); a simulator's setting is read first, a different explicit layout is refused and `hw=Automatic` is reported as `not-checked`. The server's `MANZANERO_KEYBOARD_LAYOUT` is not used, as targets are not. None of them approves prompts or verifies insertion.
 
 ## Results and errors
 

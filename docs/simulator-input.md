@@ -1,6 +1,6 @@
 # Simulator input and accessibility
 
-Simulator trees, element actions, waits, touch with one to five contacts and timed gesture sequences, Home and lock, named keys, US-layout typing and Unicode entry by accessibility set-value run in the `manzanero` process against Apple frameworks. No helper executable, Simulator.app window or permission is needed. The design and the experiments behind it are in [the research](simulator-input-research.md); live results are in [verification](verification.md#simulator-input-and-accessibility).
+Simulator trees, element actions, waits, touch with one to five contacts and timed gesture sequences, Home and lock, named keys, typing in a named keyboard layout and Unicode entry by accessibility set-value run in the `manzanero` process against Apple frameworks. No helper executable, Simulator.app window or permission is needed. The design and the experiments behind it are in [the research](simulator-input-research.md); live results are in [verification](verification.md#simulator-input-and-accessibility).
 
 ## Commands
 
@@ -19,7 +19,7 @@ manzanero multi-tap <x1> <y1> <x2> <y2> ... --simulator <UUID>                # 
 manzanero gesture '<JSON frames>' --simulator <UUID>
 manzanero button home|lock|volume-up|volume-down --simulator <UUID>
 manzanero key return|escape|backspace|tab|space|up|down|left|right --simulator <UUID>
-manzanero type <text> --simulator <UUID>
+manzanero type [--layout <name>] <text> --simulator <UUID>
 ```
 
 `MANZANERO_SIMULATOR=<UUID>` in the environment stands in for `--simulator` when no target option is given.
@@ -38,9 +38,20 @@ Observed on the probe's text field: the field becomes first responder, as after 
 
 **Physical devices refuse it** (`unsupported-operation`): the same requests would travel over the physical DTX route, but they have never been sent to a phone.
 
-**Why `type` stays ASCII.** `type` sends HID key events to whatever has focus, at the caret, in the US layout. Set-value targets a named element and replaces its whole value. Falling back from one to the other for non-ASCII text would change both the target and the effect without the caller asking, so `type` refuses non-ASCII text and its message points to set-value.
+**Why `type` never falls back to set-value.** `type` sends HID key events to whatever has focus, at the caret, in the named keyboard layout. Set-value targets a named element and replaces its whole value. Falling back from one to the other for text the layout cannot type would change both the target and the effect without the caller asking, so `type` refuses such text and its message points to set-value.
 
 **Why `paste` is refused.** Paste on a phone writes the clipboard, then sends Command+V. On the simulator the clipboard write is the problem: `simctl pbcopy` exited 0 three times out of three, but `simctl pbpaste` then returned other text that was already on the simulator's pasteboard, not the copied text, and `pbinfo` listed an item carrying the type `com.apple.coredevice.dtpasteboardd.sync` with promised data (the research saw an empty pasteboard instead). A paste could therefore insert text the caller never supplied. `paste` is refused with a pointer to set-value. The CoreDevice pasteboard service inside the simulator (`dtpasteboardd`) was not tried.
+
+## Keyboard layouts
+
+`type` uses the layout the caller names (`--layout`, `MANZANERO_KEYBOARD_LAYOUT`, MCP `layout`; default `us`), with the same table, limits and refusals as on a phone ([physical typing](physical-typing.md#layouts), [research](keyboard-layouts.md)). Unlike a phone, the simulator's own setting can be read, and is, before anything is sent:
+
+- `xcrun simctl spawn <UUID> defaults export com.apple.keyboard.preferences -` (about half a second), then the current input mode (`KeyboardLastUsed`, else the first of `KeyboardsCurrentAndNext`), such as `es_ES@sw=QWERTY-Spanish;hw=Spanish - ISO`.
+- An explicit `hw=` naming another layout is refused with `usage` and nothing sent; the message names the simulator's layout and the `--layout` that would match. A matching one gives `deviceLayout.status: matches`.
+- `hw=Automatic` (the default: a fresh simulator is `en_US@sw=QWERTY;hw=Automatic` and types US), a layout macOS does not ship, or a failed read gives `status: not-checked` with the reason; iOS's resolution of `Automatic` is not predicted.
+- An app that was running when the setting changed kept its old layout until it was relaunched; the receipt's `note` says so.
+
+Manzanero does not change the simulator's layout. For tests it can be set with `xcrun simctl spawn <UUID> defaults write -g AppleKeyboards -array … <mode>`, the same mode in `com.apple.keyboard.preferences` `KeyboardLastUsed` and `KeyboardsCurrentAndNext`, and a relaunch of the app ([research](keyboard-layouts.md#where-the-layout-comes-from)). Settings shows no Hardware Keyboard section on a simulator.
 
 ## Requirements
 
@@ -92,7 +103,7 @@ The lease, the handoff pause and the CLI signal handling (SIGINT/SIGTERM exit 13
 
 ## Not implemented
 
-- Non-ASCII `type` and `paste` (see [set-value](#unicode-text-set-value) for the reasons and the alternative).
+- `paste`, and `type` of text the named layout cannot produce (see [set-value](#unicode-text-set-value) for the reasons and the alternative).
 - `wake`. Changing the orientation (a test turns the simulator itself).
 - tvOS, watchOS and visionOS simulators, and runtimes or Xcodes other than the tested ones.
 

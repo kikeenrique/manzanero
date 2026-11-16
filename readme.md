@@ -55,7 +55,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | --- | --- |
 | Buttons, tap, swipe, drag, long press | [Physical input](docs/native-input.md) |
 | Pinch or coordinated contacts | [Multitouch](docs/multitouch.md), [timed sequences](docs/gesture-sequences.md) |
-| Text entry | [ASCII typing](docs/physical-typing.md), [Unicode paste](docs/native-input.md#direct-unicode-paste) |
+| Text entry | [Typing in a named keyboard layout](docs/physical-typing.md) ([layout research](docs/keyboard-layouts.md)), [Unicode paste](docs/native-input.md#direct-unicode-paste) |
 | Screen, hierarchy, OCR | [Screen inspection](docs/screen-understanding.md), [accessibility](docs/direct-accessibility.md) |
 | Exact accessibility press or scroll | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
 | Video | [Recording](docs/recording.md) |

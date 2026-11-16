@@ -13,7 +13,13 @@ If every query to a connected device times out, capture the state of Apple's dev
 - `handoff` with a real prompt. Wait for the owner to say when.
 - Setting an element's value in apps other than the probe (SwiftUI, secure, search and web fields), and through the MCP tool.
 - The bridge's decoded-JPEG video mode. The owner wants it kept and tested; no command reaches it yet.
-- Typing with a keyboard layout other than the US one, once `type` supports it.
+- Typing in keyboard layouts other than US ([physical typing](physical-typing.md#layouts); simulator results in [verification](verification.md#keyboard-layouts-on-the-simulator)). The phone's layout cannot be read, so set it by hand first in Settings › General › Keyboard › Hardware Keyboard (if that section appears without a real keyboard attached, which is itself unknown) or note what it is, then open the probe app and focus `probe.text.field` (`set-value --id probe.text.field x --device <UDID>`, `key backspace`). Read the result from `probe.text.value` in `tree`. Suggested runs, each with its own layout set on the phone:
+  - `type 'Ab9!z;[ ~"<>? mañana café über ß €' --device <UDID>` with the phone on US: US ASCII plus Option dead keys, which were only seen on a simulator.
+  - `type --layout spanish-iso 'Año Ñandú ¿Qué? ¡Sí! €5 ç <º> @#' --device <UDID>`.
+  - `type --layout german 'Grüße, Straße! @ € ê ÄÖÜ y<z>' --device <UDID>`.
+  - `type --layout latin-american '<>≤ |°¬' --device <UDID>`, or another of the 13 layouts whose key left of 1 and key left of Z differ between the ISO and ANSI keyboard types: the simulator used ISO; whether a phone's Indigo keyboard does is the main open question.
+  - The same once through MCP: `mise run test:mcp-type <UDID> 'Año ¿qué?' spanish-iso`.
+  - Record whether Settings shows a Hardware Keyboard section while nothing but Manzanero's events have been sent, and whether the layout chosen there changes the result without relaunching the app.
 - Landscape on a phone, an iPad, and anything on a second device. The simulator side of rotation and iPad is measured.
 - Debug-level log lines and a large output through `console`.
 
@@ -23,6 +29,7 @@ If every query to a connected device times out, capture the state of Apple's dev
 - Why did one tap on the Settings search field have no effect, when the next 36 taps there did?
 - What made Apple's device services stop answering for the phone on 2026-11-16?
 - What do apps' gesture recognizers make of three or more contacts?
+- Which keyboard type (ANSI or ISO) does a phone apply to Indigo keyboard events, and does a phone's iOS version ship the same layouts as the Mac?
 - Was the firewall also behind the earlier intermittent recording startup failures?
 - Why did one wait report its subscription stop as unconfirmed?
 

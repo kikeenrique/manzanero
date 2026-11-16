@@ -61,7 +61,7 @@ Single-contact touch and two-contact movement use Indigo digitizer events. Timed
 
 Supported names are `return`, `escape`, `backspace`, `tab`, `space`, `up`, `down`, `left` and `right`. Keys act at the current focus and do not change the clipboard. Backspace has visual evidence in Settings search; broader key/layout/field coverage remains unverified.
 
-For a string, use [US-layout ASCII typing](physical-typing.md). Unicode entry uses the separate clipboard operation below.
+For a string, use [typing in a named keyboard layout](physical-typing.md). Unicode entry uses the separate clipboard operation below.
 
 ## Direct Unicode paste
 

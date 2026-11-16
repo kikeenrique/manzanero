@@ -2,12 +2,13 @@
 
 `type` sends HID key usages; the device turns them into characters with its own hardware-keyboard layout. A table that assumes US therefore types wrong text whenever the device uses another layout. This note records what was found about where that layout lives, whether it can be read or set, and whether a character table for any layout can be built with Apple frameworks only. Each finding is marked **observed** (seen on this machine) or **inferred** (concluded, not seen).
 
-Machine and versions: macOS 27.2 (Darwin 27.2), Xcode 27.2, iOS 27.2 simulator runtime (build 24B8117), an `iPhone 17e` simulator. No physical device was used. The scratch programs are under the untracked `tmp/keyboard-layouts/`.
+Machine and versions: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), iOS 27.2 simulator runtime (build 24B8117), an `iPhone 17e` simulator. No physical device was used. The scratch programs are under the untracked `tmp/keyboard-layouts/`. What `type` does with these findings is in [physical typing](physical-typing.md#layouts); the live checks are in [verification](verification.md#keyboard-layouts-on-the-simulator).
 
 ## Summary
 
 - **A table for any layout can be built from macOS's own layouts.** The Text Input Sources API (`TISCreateInputSourceList`, `kTISPropertyUnicodeKeyLayoutData`) gives each layout's `uchr` data; `UCKeyTranslate` turns (key, modifiers, dead-key state) into text. Mapping the Mac virtual key codes back to HID usages gives the strokes `type` sends. (observed)
-- **The iOS 27.2 runtime ships the same layouts.** Its `USBKeyboardLayouts.bundle` holds 253 `uchr` files indexed by HID usage instead of Mac key code. For every one of the 252 that has a macOS counterpart, the table of typeable characters and their strokes (plain, Shift, Option, Shift+Option, and one dead key followed by one key) was identical to the macOS table built through the HID mapping below. (observed)
+- **The iOS 27.2 runtime ships the same layouts.** Its `USBKeyboardLayouts.bundle` holds 253 `uchr` files indexed by HID usage instead of Mac key code. For every one of the 252 that has a macOS counterpart, the table of typeable characters and their strokes (plain, Shift, Option, Shift+Option, and one dead key followed by one key) was identical to the macOS table built through the HID mapping below, with the same keyboard type on both sides. (observed)
+- **The simulator translates with the ISO keyboard type.** In Latin American, whose ANSI and ISO tables differ, HID 53 typed `<` (ISO), not `|` (ANSI). (observed, after this note was first written)
 - **Simulator: the layout is a preference that can be read and set.** It is the `hw=` part of the current input mode in `com.apple.keyboard.preferences`. An explicit value (`hw=German`) is honoured; `hw=Automatic`, the default, is resolved by iOS in a way that could not be predicted. (observed)
 - **Physical device: no Apple tool reads it.** `devicectl` exposes no preferences domain; the layout cannot be read. (inferred from `devicectl` help; no phone was used)
 
@@ -40,7 +41,7 @@ What changed typing (always after relaunching the app):
 
 ## Building the table
 
-`TISCreateInputSourceList({type: keyboard layout}, includeAllInstalled: true)` returned 264 layouts on this Mac, all with `kTISPropertyUnicodeKeyLayoutData`. Their identifiers (`com.apple.keylayout.Spanish-ISO`) are stable; their localized names follow the host language (`Spanish-ISO` is shown as "Spanish", and `Spanish` as "Spanish – Legacy"). The calls returned the same data from the main thread, a detached thread, a global queue and a detached task. (observed)
+`TISCreateInputSourceList({type: keyboard layout}, includeAllInstalled: true)` returned 264 layouts on this Mac (262 distinct identifiers), all with `kTISPropertyUnicodeKeyLayoutData`. Their identifiers (`com.apple.keylayout.Spanish-ISO`) are stable; their localized names follow the host language (`Spanish-ISO` is shown as "Spanish", and `Spanish` as "Spanish – Legacy"). The calls returned the same data from the main thread, a detached thread, a global queue and a detached task, one after another. **Concurrent** calls from parallel tests aborted the test process, so Manzanero makes every Text Input Sources and `UCKeyTranslate` call under one lock and caches the list and built tables for the life of the process. (observed)
 
 For each HID usage in the main block, the table asks `UCKeyTranslate(layout, macKeyCode, kUCKeyActionDown, modifiers, keyboardType, 0, &deadState, …)` with modifiers none, Shift, Option and Shift+Option:
 
@@ -49,7 +50,7 @@ For each HID usage in the main block, the table asks `UCKeyTranslate(layout, mac
 
 Shortest sequences win, and among equals no modifier, then Shift, then Option, then Shift+Option, then the lower usage. Characters are compared by Unicode canonical equivalence, so a decomposed `é` asks for the same strokes as a precomposed one; the device types the precomposed form.
 
-HID usage → Mac virtual key code used (main block only; the right-hand side is the ANSI code):
+HID usage → Mac virtual key code used (main block only; the codes are the Mac's ANSI names, translated with keyboard type 41, ISO):
 
 | HID | Keys | Mac |
 | --- | --- | --- |
@@ -60,21 +61,28 @@ HID usage → Mac virtual key code used (main block only; the right-hand side is
 
 Tab (43) and Return (40, for LF) are sent as today. Keypad keys, the Non-US # key (50), the JIS keys and Caps Lock are not used: their output depends on Num Lock, on the keyboard type or on state `type` does not manage.
 
-**The comparison (observed).** `tmp/keyboard-layouts/compare.swift` built both tables for every iOS layout: from the macOS `uchr` through the mapping above, and from the iOS `uchr` indexed by HID usage directly. With keyboard type 40 (ANSI) on both sides all 252 were identical. With type 41 (ISO) on the macOS side, 13 layouts differed, only in which of HID 53 and 100 gives which character (Latin American, Turkish – Standard, Canadian French – PC, Russian – PC, Arabic – PC and others); with type 42 (JIS) 116 differed. Which keyboard type iOS applies to Indigo keyboard events is not known; the tables use ANSI, which reproduces the iOS files exactly. For the 13 layouts, the characters on those two keys are the ones to check on a device.
+**The comparison (observed).** `tmp/keyboard-layouts/compare.swift` built both tables for every iOS layout: from the macOS `uchr` through the mapping above, and from the iOS `uchr` indexed by HID usage directly. With the same keyboard type on both sides (40 ANSI, 41 ISO or 42 JIS) all 252 were identical. Between ANSI and ISO, 13 layouts differ, only in which of HID 53 and 100 gives which character (Latin American, Turkish – Standard, Canadian French – PC, Russian – PC, Arabic – PC, Lithuanian, Uzbek – Cyrillic and others); JIS differs from ANSI in 116. Which type iOS applies was settled live: on the simulator, Latin American HID 53 typed `<`, `>` and `≤` (the ISO table) where ANSI predicts `|`, so the tables use type 41. Spanish – ISO, German and US are the same in both types. A phone was not checked; for those 13 layouts the two keys are what to check there.
 
 Only one iOS layout name, `Arabic-North_Africa`, had no macOS file by the file-name rules of the comparison; it does match `com.apple.keylayout.Arabic-North_Africa` by the normalized name. Macs also list layouts that iOS lacks (Chinese and Korean input-method layouts such as `PinyinKeyboard`, `3SetHangul`, `ZhuyinEten`).
 
 ## Where iOS can differ from the macOS layout of the same name
 
 - **Different iOS versions (inferred).** The comparison covers iOS 27.2 against macOS 27.2. A phone on another version can ship different files; Apple rarely changes a layout, but nothing checks it.
-- **Keyboard type (inferred).** HID 53 and 100 differ between the ANSI and ISO tables of 13 layouts, as above.
+- **Keyboard type.** HID 53 and 100 differ between the ANSI and ISO tables of 13 layouts, as above. The simulator used ISO (observed); a phone's Indigo keyboard may not (inferred risk).
 - **Input methods (inferred).** Layouts used under an input method (Japanese Kana, Chinese, Korean) produce marked text that the input method converts; the table types the layout's characters, not the method's result.
-- **Option and dead keys.** That iOS applies the Option layer and composes dead keys from Indigo keyboard events is not assumed from the files; it has to be checked live (see [verification](verification.md)).
+- **Option and dead keys.** The simulator applied the Option layer and composed dead keys from Indigo keyboard events in US, Spanish – ISO, German, French and Latin American (observed; see [verification](verification.md#keyboard-layouts-on-the-simulator)). Not checked on a phone.
 - **Caps Lock and app behaviour.** Caps Lock state changes the case of letters; secure fields, autocorrection and apps that filter input can still change the result.
 
 ## Consequences for the design
 
-- The caller names the layout (`--layout`, `MANZANERO_KEYBOARD_LAYOUT`, MCP `layout`), default `us`. Names are the macOS identifiers in lowercase with hyphens (`spanish-iso`, `german`, `french`, `us`); any spelling that reduces to the same letters and digits is accepted, including the iOS names.
-- The table is built from the host's layouts; the strokes are validated by translating the complete sequence again before anything is sent.
+- The caller names the layout (`--layout`, `MANZANERO_KEYBOARD_LAYOUT`, MCP `layout`), default `us`. Names are the macOS identifiers in lowercase with hyphens (`spanish-iso`, `german`, `french`, `us`); any spelling that reduces to the same letters and digits is accepted, including the iOS names. `keyboard-layouts` (MCP `list_keyboard_layouts`) lists them.
+- The table is built from the host's layouts; each character's strokes are translated again, from the dead-key state the previous ones left, before anything is sent.
 - On a simulator the current input mode is read first. An explicit `hw=` that names another layout is refused before input; `Automatic`, an unreadable preference, or a value without a macOS counterpart is reported in the receipt as not checked. On a physical device the receipt says the layout was not read.
-- The `us` table must give exactly today's strokes for ASCII, so existing schedules do not change.
+- The `us` table gives exactly the former strokes for ASCII, so existing schedules do not change (a test compares all 95 printable characters, tab and LF with the former table).
+- The schedule limit stays at 2048 events (20.47 s at 10 ms), the former worst case. Option and dead keys need more events per character, so 512 such characters can exceed it and are refused with the count.
+
+## Options that were not taken
+
+- **Reading the iOS runtime's own `uchr` files** instead of the macOS layouts. They are exactly what the simulator uses, but exist only where an iOS simulator runtime is installed, and a phone may run another version anyway. The macOS tables were identical for 27.2.
+- **Resolving `hw=Automatic`** from the runtime's `InputMode_<lang>.plist`. It predicted German and Spanish – ISO but not the multilingual `es_419` mode, so the receipt reports it unresolved instead.
+- **Setting the simulator's layout from Manzanero.** It works through `defaults` (and needs an app relaunch), but writes private preference keys of the simulated device; Manzanero only reads them. The verification set them by hand.

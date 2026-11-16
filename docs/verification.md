@@ -18,7 +18,7 @@ Checkpoint hashes below refer to the rewritten public history. The publication c
 
 ## Current local validation
 
-The latest implementation checkpoint (app logs, console and crashes, 2026-11-16) passed 516 default Swift tests through xcsift with zero errors/warnings, three times normally and three times with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` (one earlier strict run failed an existing streaming-runner wall-clock bound while new blocking tests shared the single pool thread; those suites now run on a dedicated thread); `mise run probe-app:test` passed 98; all 40 mise tasks validated; `mise run test:probe-touch <UDID> --dry-run` exited 0. Default tests are local regression checks, not hardware runs. Live checks are explicitly enabled and may have device effects.
+The latest implementation checkpoint (typing in a named keyboard layout, 2026-11-16) passed 571 default Swift tests through xcsift with zero errors/warnings, normally and once with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1`, and all 41 mise tasks validated. The checkpoint before it (app logs, console and crashes, 2026-11-16) passed 516 default Swift tests through xcsift with zero errors/warnings, three times normally and three times with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` (one earlier strict run failed an existing streaming-runner wall-clock bound while new blocking tests shared the single pool thread; those suites now run on a dedicated thread); `mise run probe-app:test` passed 98; all 40 mise tasks validated; `mise run test:probe-touch <UDID> --dry-run` exited 0. Default tests are local regression checks, not hardware runs. Live checks are explicitly enabled and may have device effects.
 
 Coverage includes argument validation, literal subprocess arguments, bounded output/deadlines/reaping, DTX/archive parsing, identity/geometry guards, report encoding, timing/cleanup attempts, MCP routing/lifetime and recording artifacts. It does not establish the Apple service's delivery, exact scheduling, device-side cleanup or broad device compatibility.
 
@@ -427,6 +427,33 @@ Refusals: a `set-value-id` on the summary readout (a static text) was refused at
 Paste: `printf … | simctl pbcopy <UUID>` exited 0 three times, and `simctl pbpaste` each time returned 13 characters of other text, not the copied text (the content was not recorded). `simctl pbinfo` listed one item with promised `public.utf8-plain-text`, `public.html`, RTF types and `com.apple.coredevice.dtpasteboardd.sync`. Simulator `paste` stays refused.
 
 Also observed: after the probe's XCUITest suite ran on this simulator (6 of 6 tests passed, including a new text-field test), every snapshot of the probe came back empty within 1 ms, also after relaunching the probe; frontmost and application requests answered. A reboot cleared it. In about the first minute after the reboot, four snapshots came back empty; then 20 of 20 trees in a row succeeded.
+
+### Keyboard layouts on the simulator
+
+**2026-11-16**, the build committed as `a525c03`; the German row and the first Latin American row ran on the same code before its keyboard type changed from ANSI to ISO (German's table is the same in both), one iPhone 17e simulator, iOS 27.2 runtime (24B8117), headless (no Simulator or DeviceHub window opened). Host macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2; host input source Spanish – ISO. The simulator was booted for the run with `manzanero boot` and shut down afterwards; no other simulator was touched. No physical device was contacted. Research and design: [keyboard layouts](keyboard-layouts.md).
+
+Method: the simulator's hardware layout was set by writing an input mode with an explicit `hw=` into `AppleKeyboards` (global domain) and into `KeyboardLastUsed` and `KeyboardsCurrentAndNext` of `com.apple.keyboard.preferences` with `xcrun simctl spawn <UUID> defaults write`, then the probe app was relaunched. The probe's field was focused with `set-value-id probe.text.field x` and emptied with `key backspace`; the text was sent with `type --layout <name> --simulator <UUID> -- '<text>'`, and the readout `probe.text.value` was read from `tree`. "Exact" means the readout's `text` equalled the requested string code point for code point.
+
+| Simulator input mode | Command | Readout | Receipt `deviceLayout` |
+| --- | --- | --- | --- |
+| `es_ES@sw=QWERTY-Spanish;hw=Spanish - ISO` | `type --layout spanish-iso 'Año Ñandú ¿Qué? ¡Sí! €5 ç <º> @# à ü'` (106 events) | Exact: dead acute and grave (`ú é í à`), dead diaeresis (`ü`), Shift (`Ñ ¿ Q`), Option (`€ @ #`), `<` on HID 53 and `º` on HID 100 | `matches` |
+| same | `type --layout spanish-iso 'ok → no'` | Unchanged; refused with exit 64: "cannot type '→' (U+2192), character 4 …", pointing to set-value | — |
+| `de_DE@sw=QWERTZ-German;hw=German` | `type 'hello'` (no layout, so `us`) | Unchanged; refused with exit 64: "uses the german hardware keyboard layout, not us. Pass --layout german …" | — |
+| same | `type --layout german 'Grüße, Straße! @ € ê ÄÖÜ y<z> {[\|]} ~'` | Exact: `ß` and umlauts on their own keys, `y`/`z` swapped back, Option `@ € { [ \| ] } ~`, dead circumflex `ê` | `matches` |
+| `es_419@sw=QWERTY-Spanish;hw=Latin American` | first build (ANSI keyboard type): `type --layout latin-american '\|°¬ ñÑ ¿? á'` | `<>≤ ñÑ ¿? á`: HID 53 typed the ISO table's `<`, `>`, `≤` instead of the ANSI `\|`, `°`, `¬` | `matches` |
+| same | after switching the tables to the ISO type: `type --layout latin-american '<>≤ \|°¬ ñÑ ¿? á'` | Exact | `matches` |
+| `fr_FR@sw=AZERTY-French;hw=French` | `type --layout french 'Ça va? àéèùç ê ë 1234 @#€ AZERTY qw'` | Exact: AZERTY letters, Shift digits, dead circumflex and diaeresis, Option `€` | `matches` |
+| `en_US@sw=QWERTY;hw=Automatic` (the simulator's default) | ``type 'Ab9!z;[ ~`"<>?'``, then `type ' mañana café über ß €'` | Exact: US ASCII, Option dead keys (`ñ é ü`), Option `ß` and Shift+Option `€` | `not-checked` (`hw=Automatic`) |
+| `de_DE@sw=QWERTZ-German;hw=Automatic` | MCP `type_text` over a real stdio session, `platform: simulator`, `layout: german`, `Grüße @ ê` | Exact; `isError: false` | `not-checked` (`hw=Automatic`) |
+
+Other observations, from the research on the same simulator (details in [keyboard layouts](keyboard-layouts.md#where-the-layout-comes-from)):
+
+- With `hw=Automatic`, `de_DE` typed German and `es_ES` Spanish – ISO, but the multilingual `es_419@…;hw=Automatic;ml=120` typed US.
+- A layout change reached the probe only after it was relaunched; a running probe kept the previous layout.
+- An explicit `hw=German` in an `es_ES` mode typed German: the explicit value wins over the language.
+- The host's Spanish – ISO input source did not change what the simulator typed.
+
+Not verified: any physical device (only US ASCII has ever been typed on a phone); layouts other than the five above; Shift+Option dead keys outside US; input-method layouts (Japanese, Chinese, Korean); Caps Lock on; texts near the 2048-event limit; other runtimes and Xcodes. The simulator's keyboard preferences were restored to their earlier values (`en_US@sw=QWERTY;hw=Automatic`, no `AppleKeyboards`) after the run.
 
 ## App logs, console and crashes
 
