@@ -35,7 +35,7 @@ mise run test:probe-touch <UDID> --plan <plan.json>   # your own plan
 mise run test:probe-touch <UDID> --readback end       # readback only before and after the whole plan
 ```
 
-Other flags: `--settle <seconds>` (pause before each readback, default 0.5), `--out <dir>`, `--no-reset`, `--no-pull`, `--platform physical|simulator` (default physical).
+Other flags: `--settle <seconds>` (pause before each readback, default 0.5), `--out <dir>`, `--no-reset`, `--no-pull`, `--platform physical|simulator` (default physical), `--any-orientation` (accept a landscape probe at preflight; launch the probe with `-ProbeAllowRotation YES` and turn the device first).
 
 With `--platform simulator` the device argument must be the simulator's UUID, and every command vector starts with `simulator <UUID>` instead of `physical <UDID>`. Manzanero has no simulator app-data pull, so the pull is skipped and the recent-gestures and last-gesture readouts are the evidence. Every action kind of the built-in plan, including the two-to-five-contact ones, runs on a simulator ([results](#simulator-runs)). The pull uses `PROBE_APP_BUNDLE_ID` when it is set (for example in `.env.local`), else the tracked default. The UDID is required; there is no default device.
 
@@ -56,7 +56,7 @@ Exit status: 0 when every action was sent; 3 when the run stopped early (the rep
 ## How a run proceeds
 
 1. **Validate the plan** against Manzanero's documented limits ([physical input](native-input.md), [multitouch](multitouch.md), [sequences](gesture-sequences.md)). An invalid plan sends nothing. Points within 0.05 of an edge, or on the probe's reset box, produce warnings.
-2. **Preflight readback:** `manzanero physical <UDID> tree`. The tree must contain exactly one `probe.touch.summary` whose value parses as a v1 summary, the [foreground identity](#foreground-identity) must not contradict the expected bundle identifier, the size must be portrait, and no contact may be down. Otherwise the run stops before any input. The tree selects the app at the display centre, so a missing summary means the probe is not the foreground app.
+2. **Preflight readback:** `manzanero physical <UDID> tree`. The tree must contain exactly one `probe.touch.summary` whose value parses as a v1 summary, the [foreground identity](#foreground-identity) must not contradict the expected bundle identifier, the size must be portrait (unless `--any-orientation`), and no contact may be down. Otherwise the run stops before any input. The tree selects the app at the display centre, so a missing summary means the probe is not the foreground app.
 3. **Reset:** `manzanero physical <UDID> press-id probe.touch.reset`. This is an accessibility activation, not a touch. The receipt must say `accepted`.
 4. **Baseline readback:** the session must have changed, the identity must not be contradicted, and no contact may be down. Events recorded after the reset and before the first action (for example a reset press delivered as a tap) are counted as unattributed and excluded from every window.
 5. **For each action:** send `manzanero physical <UDID> <command ...>`, wait the settle time, then read the tree again (`--readback each`, the default). With `--readback end`, only the settle pause separates actions and one readback follows the last.
@@ -214,6 +214,8 @@ On 2026-11-16, after simulator multi-contact input was added (same simulator and
 | 3 | 10/10 | 30/30 | 0.0001 / 0.0002 | 0.7 / 4.0 ms |
 | 4 | 5/5 | 20/20 | 0.0001 / 0.0001 | 1.0 / 4.1 ms |
 | 5 | 5/5 | 25/25 | 0.0004 / 0.0004 | 2.1 / 4.8 ms |
+
+- **Landscape and iPad** (after rotation support, `--any-orientation`): the built-in plan, five rounds each, delivered 70 of 70 actions and 145 of 145 contacts on the iPhone 17e in landscape left and right, and on an iPad mini (A17 Pro) in portrait and landscape left; per-contact-count figures are in [verification](verification.md#rotation-and-ipad-on-the-simulator).
 
 Not shown by these runs: anything about a phone, and anything the probe log would add (per-event order), since there is no simulator pull.
 

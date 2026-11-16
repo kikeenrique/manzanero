@@ -55,6 +55,10 @@ final class SimulatorAXFixture: @unchecked Sendable {
     /// unless `transform` changes it first.
     var currentValue: String?
     var transform: (String) -> String = { $0 }
+    /// The display information every read returns.
+    var displayInfo = SimulatorInputTests.displayJSON()
+    /// Hit points as sent (after the interface-to-native mapping).
+    private(set) var hitPoints: [NSPoint] = []
 
     var kinds: [UInt64] { requests.map(\.kind) }
 
@@ -109,9 +113,10 @@ final class SimulatorAXFixture: @unchecked Sendable {
         case 6:
             guard case .dictionary(let parameters) = fields["parameters"], case .object(_, let point) = parameters["point"] ?? .null,
                   case .string(let text) = point["NS.pointval"] ?? .null else { throw CommandFailure(description: "Bad fixture hit") }
+            hitPoints.append(NSPointFromString(text))
+            // Elements are hit in native portrait points, as the simulator does.
             let hit = elements.first { element in
-                let value = NSPointFromString(text)
-                return NSPointInRect(value, element.frame)
+                NSPointInRect(NSPointFromString(text), nativeFrame(element.frame))
             }
             response = Response(kind: 6, result: Token(hit?.id ?? 1, pid: pid, application: hit == nil))
         case 7:
@@ -127,6 +132,16 @@ final class SimulatorAXFixture: @unchecked Sendable {
         coder.encode(response, forKey: NSKeyedArchiveRootObjectKey)
         coder.finishEncoding()
         return coder.encodedData
+    }
+
+    /// An interface frame (the tree's) in native portrait points of a 390 × 844
+    /// screen, for the fixture's display rotation.
+    private func nativeFrame(_ frame: NSRect) -> NSRect {
+        guard let display = try? SimulatorDisplay(displayInfo), display.rotation != 0 else { return frame }
+        let mapping = SimulatorHitMapping()
+        mapping.update(display, SimulatorDeviceTests.info())
+        let a = mapping.native(frame.minX, frame.minY), b = mapping.native(frame.maxX, frame.maxY)
+        return NSRect(x: min(a.0, b.0), y: min(a.1, b.1), width: abs(a.0 - b.0), height: abs(a.1 - b.1))
     }
 
     private func record(_ token: Token, label: String?, identifier: String?, value: String? = nil, visible: Bool?,
@@ -155,8 +170,10 @@ struct SimulatorAccessibilityTests {
 
     static func environment(_ fixture: SimulatorAXFixture, state: String = "Booted",
                             sessions: SessionCounter = SessionCounter()) -> SimulatorEnvironment {
-        SimulatorEnvironment(lookup: { _ in SimulatorDeviceTests.info(state) },
+        var environment = SimulatorEnvironment(lookup: { _ in SimulatorDeviceTests.info(state) },
                              accessibility: { _, lifetime in sessions.count += 1; sessions.lifetimes.append(lifetime); return fixture.session(lifetime: lifetime) })
+        environment.displayInfo = { _ in fixture.displayInfo }
+        return environment
     }
 
     final class SessionCounter: @unchecked Sendable { var count = 0; var lifetimes: [Duration] = [] }
@@ -245,14 +262,34 @@ struct SimulatorAccessibilityTests {
         #expect((tree["application"] as? [String: Any])?["selection"] as? String == "frontmost-or-centre-hit")
         #expect((tree["application"] as? [String: Any])?["pid"] as? Int == 42)
         #expect((tree["cleanup"] as? [String: Any])?["subscriptionStop"] as? String == "not-applicable")
-        #expect((tree["display"] as? [String: Any])?["orientation"] as? String == "portrait-assumed")
+        #expect((tree["display"] as? [String: Any])?["orientation"] as? String == "rot0")
         #expect((tree["screen"] as? [String: Any])?["widthPoints"] as? Int == 390)
+        #expect((tree["screen"] as? [String: Any])?["orientation"] as? String == "rot0")
         let nodes = try #require(tree["nodes"] as? [[String: Any]])
         #expect(nodes.count == 2 && tree["nodeCount"] as? Int == 2)
         #expect(nodes[1]["identifier"] as? String == "probe.touch.summary" && nodes[1]["value"] as? String == "{\"v\":1}")
         #expect((nodes[1]["nativeAttributes"] as? [String: String])?["3003"] == "com.example.fixture")
         #expect((nodes[1]["frame"] as? [String: Any])?["width"] as? Int == 80)
         #expect(fixture.timeouts.allSatisfy { $0 <= .seconds(5) })
+    }
+
+    @Test(arguments: [("rot90", "landscapeRight"), ("rot270", "landscapeLeft")])
+    func landscapeUsesTheInterfaceForFramesAndNativePointsForHits(_ current: String, _ sensor: String) async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.displayInfo = SimulatorInputTests.displayJSON(current: current, sensor: sensor)
+        // A landscape-only position: wholly outside the 390-point native width.
+        fixture.elements = [.init(identifier: "fixture.target", label: "Target", frame: NSRect(x: 600, y: 200, width: 80, height: 40))]
+        let tree = try Self.json(await Self.service(fixture).execute(["simulator", Self.uuid, "tree"]))
+        let display = try #require(tree["display"] as? [String: Any])
+        #expect(display["orientation"] as? String == current)
+        #expect((display["bounds"] as? [String: Any])?["width"] as? Int == 844 && (display["bounds"] as? [String: Any])?["height"] as? Int == 390)
+        #expect((tree["screen"] as? [String: Any])?["interfaceWidthPoints"] as? Int == 844)
+        // The press guard accepts the frame and hits its centre in native points.
+        let press = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-id", "fixture.target"]))
+        #expect(press["status"] as? String == "accepted")
+        let hit = try #require(fixture.hitPoints.last)
+        let expected = current == "rot90" ? NSPoint(x: 220, y: 204) : NSPoint(x: 170, y: 640)
+        #expect(abs(hit.x - expected.x) < 1e-9 && abs(hit.y - expected.y) < 1e-9)
     }
 
     @Test func treeWithAPIDSkipsForegroundSelection() async throws {

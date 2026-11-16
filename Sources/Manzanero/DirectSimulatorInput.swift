@@ -10,12 +10,26 @@ import Foundation
 enum DirectSimulatorInput {
     static let backend = "coresimulator-dtuhid"
 
-    /// Touch samples in the digitizer's normalized portrait space. The
-    /// simulator interface is assumed portrait, so these are the requested
-    /// normalized current-interface coordinates unchanged.
-    static func touchSamples(_ input: SimulatorInput, info: SimulatorDeviceInfo) throws -> [DirectPhysicalTouch.Sample] {
-        try DirectPhysicalTouch.plan(input.coreDeviceInput, display: DirectTouchDisplay(
-            portraitPoints: info.widthPoints, height: info.heightPoints, scale: info.scale))
+    /// Touch samples in the digitizer's normalized portrait-native space: the
+    /// requested current-interface coordinates rotated with the physical
+    /// `DirectTouchDisplay.portrait` (measured: the simulator's digitizer is
+    /// portrait-native in landscape, as a phone's is).
+    static func touchSamples(_ input: SimulatorInput, display: DirectTouchDisplay) throws -> [DirectPhysicalTouch.Sample] {
+        try DirectPhysicalTouch.plan(input.coreDeviceInput, display: display)
+    }
+
+    /// Reads the display twice around planning, as the physical touch and
+    /// gesture paths do; a change in between refuses the input.
+    static func planned<Plan>(_ input: SimulatorInput, environment: SimulatorEnvironment,
+                              _ plan: (DirectTouchDisplay) throws -> Plan) throws -> (SimulatorDisplay, DirectTouchDisplay, Plan) {
+        let display = try SimulatorDisplay.read(input.device, environment: environment)
+        let touch = try display.touch()
+        let result = try plan(touch)
+        let again = try SimulatorDisplay.read(input.device, environment: environment)
+        guard again == display, try again.touch() == touch else {
+            throw CommandFailure(.preconditionChanged, "Simulator display changed before touch dispatch; no input sent.", inputSent: .none)
+        }
+        return (display, touch, result)
     }
 
     static func execute(_ input: SimulatorInput, info: SimulatorDeviceInfo, environment: SimulatorEnvironment) throws -> Data {
@@ -28,11 +42,10 @@ enum DirectSimulatorInput {
             // The physical gesture path: display read twice around planning,
             // the same complete-state frames, then the Universal HID service.
             _ = try DirectPhysicalGesture.sequence(for: input.coreDeviceInput)
-            let display = try SimulatorDisplay.read(input.device, environment: environment)
-            let sequence = try DirectPhysicalGesture.sequence(for: input.coreDeviceInput, transform: display.touch.portrait)
-            guard try SimulatorDisplay.read(input.device, environment: environment) == display else {
-                throw CommandFailure(.preconditionChanged, "Simulator display changed before gesture dispatch; no input sent.", inputSent: .none)
+            let (display, touch, sequence) = try planned(input, environment: environment) {
+                try DirectPhysicalGesture.sequence(for: input.coreDeviceInput, transform: $0.portrait)
             }
+            result["screen"] = display.screenJSON(info)
             try Task.checkCancellation()
             let surface = try environment.digitizerReports(input.device, display.primaryUUID,
                                                            sequence.times.map { UInt64($0) * 1_000_000 }, sequence.reports.flatMap { $0 })
@@ -41,9 +54,11 @@ enum DirectSimulatorInput {
             result["contactSlots"] = sequence.contactCount
             result["durationMilliseconds"] = sequence.times.last ?? 0
             result["coordinateSpace"] = "normalized-current-interface"
-            result["displayRotationDegrees"] = display.touch.rotation
+            result["displayRotationDegrees"] = touch.rotation
         case let operation where SimulatorInput.touchOperations.contains(operation):
-            let samples = try touchSamples(input, info: info)
+            let (display, touch, samples) = try planned(input, environment: environment) { try touchSamples(input, display: $0) }
+            result["screen"] = display.screenJSON(info)
+            result["displayRotationDegrees"] = touch.rotation
             let wire = samples.map { ADCTouchSample(nanoseconds: $0.nanoseconds, x: $0.x, y: $0.y, phase: $0.phase) }
             let second = samples.compactMap(\.second).map { ADCTouchPoint(x: $0.x, y: $0.y) }
             try Task.checkCancellation()

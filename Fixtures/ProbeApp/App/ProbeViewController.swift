@@ -22,7 +22,10 @@ final class ProbeViewController: UIViewController {
     override var prefersHomeIndicatorAutoHidden: Bool { true }
     // System edge gestures then need a second swipe; the first reaches the probe.
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
-    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
+    /// Portrait unless launched with `-ProbeAllowRotation YES`, which lets the
+    /// interface follow the device into landscape for rotation measurements.
+    static var allowsRotation: Bool { UserDefaults.standard.bool(forKey: "ProbeAllowRotation") }
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { Self.allowsRotation ? .all : .portrait }
 }
 
 /// Element whose accessibility value is read live from the model on every query.
@@ -124,9 +127,16 @@ final class ProbeSurfaceView: UIView {
     private var gestureRect: CGRect { CGRect(x: 16, y: 164, width: bounds.width - 32, height: 120) }
     private var recentRect: CGRect { CGRect(x: 16, y: 292, width: bounds.width - 32, height: 92) }
     private var resetRect: CGRect { CGRect(x: bounds.midX - 90, y: bounds.maxY - 132, width: 180, height: 52) }
-    // Below every point the built-in touch plan uses (y <= 0.65) and above reset.
-    private var textFieldRect: CGRect { CGRect(x: 16, y: resetRect.minY - 100, width: bounds.width - 32, height: 40) }
-    private var textValueRect: CGRect { CGRect(x: 16, y: resetRect.minY - 56, width: bounds.width - 32, height: 20) }
+    // Outside every point the built-in touch plan uses (x 0.25...0.75, y 0.3...0.65):
+    // below them and above reset in portrait, in the bottom-right corner in landscape.
+    private var textFieldRect: CGRect {
+        bounds.width > bounds.height ? CGRect(x: bounds.maxX - 216, y: 16, width: 200, height: 40)
+            : CGRect(x: 16, y: resetRect.minY - 100, width: bounds.width - 32, height: 40)
+    }
+    private var textValueRect: CGRect {
+        bounds.width > bounds.height ? CGRect(x: bounds.maxX - 432, y: 16, width: 200, height: 20)
+            : CGRect(x: 16, y: resetRect.minY - 56, width: bounds.width - 32, height: 20)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()

@@ -143,20 +143,62 @@ struct SimulatorInputTests {
 
     // MARK: - Geometry and schedules
 
-    @Test func normalizedCoordinatesReachTheDigitizerUnchanged() throws {
-        let info = SimulatorDeviceTests.info()
-        let tap = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "tap", "0.5", "0.711"])), info: info)
+    static func touch(_ current: String = "rot0") throws -> DirectTouchDisplay {
+        try SimulatorDisplay(displayJSON(current: current)).touch()
+    }
+
+    @Test func portraitCoordinatesReachTheDigitizerUnchanged() throws {
+        let tap = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "tap", "0.5", "0.711"])), display: Self.touch())
         #expect(tap.first?.x == 0.5 && tap.first?.y == 0.711 && tap.first?.phase == 0 && tap.last?.phase == 2)
         #expect(tap.last?.nanoseconds == 80_000_000 && tap.allSatisfy { $0.second == nil })
         // Another screen size changes nothing: the space is the interface's 0...1.
         let large = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "tap", "0.5", "0.711"])),
-                                                          info: SimulatorDeviceTests.info(width: 1032, height: 1376, scale: 2))
+                                                          display: SimulatorDisplay(Self.displayJSON(width: 1488, height: 2266)).touch())
         #expect(large == tap)
-        let swipe = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "swipe", "0.2", "0.8", "0.8", "0.2", "0.5"])), info: info)
+        let swipe = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "swipe", "0.2", "0.8", "0.8", "0.2", "0.5"])), display: Self.touch())
         #expect(swipe.count == 32 && swipe.first?.x == 0.2 && swipe.last?.x == 0.8 && swipe.last?.y == 0.2)
         #expect(swipe.last?.nanoseconds == 501_000_000)
-        let hold = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "long-press", "0.4", "0.55", "0.8"])), info: info)
+        let hold = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "long-press", "0.4", "0.55", "0.8"])), display: Self.touch())
         #expect(hold.last?.nanoseconds == 800_000_000 && Set(hold.map(\.x)) == [0.4])
+    }
+
+    /// The measured mapping: an interface point (0.2, 0.3) lands where the
+    /// digitizer's portrait-native coordinates are DirectTouchDisplay.portrait's.
+    @Test(arguments: [("rot0", 0.2, 0.3), ("rot90", 0.3, 0.8), ("rot180", 0.8, 0.7), ("rot270", 0.7, 0.2)])
+    func interfaceCoordinatesAreRotatedIntoTheNativeDigitizer(_ current: String, _ x: Double, _ y: Double) throws {
+        let tap = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "tap", "0.2", "0.3"])), display: Self.touch(current))
+        #expect(abs(tap[0].x - x) < 1e-9 && abs(tap[0].y - y) < 1e-9)
+        let pinch = try DirectSimulatorInput.touchSamples(#require(try SimulatorInput.parse(["simulator", Self.uuid, "pinch", "0.5", "0.4", "0.2", "0.5", "0.4"])), display: Self.touch(current))
+        let expected = DirectTouchDisplay(rotation: Int(current.dropFirst(3))!).portrait(0.4, 0.4)
+        #expect(abs(pinch[0].x - expected.0) < 1e-9 && abs(pinch[0].y - expected.1) < 1e-9)
+    }
+
+    @Test(arguments: ["rot90", "rot270"])
+    func landscapeTouchReportsTheRotationAndInterface(_ current: String) async throws {
+        let sent = Sent()
+        sent.displays = [Self.displayJSON(current: current, sensor: current == "rot90" ? "landscapeRight" : "landscapeLeft")]
+        let receipt = try Self.json(await Self.service(sent).execute(["simulator", Self.uuid, "tap", "0.2", "0.3"]))
+        #expect(receipt["displayRotationDegrees"] as? Int == Int(current.dropFirst(3)) && sent.displayReads == 2)
+        let screen = try #require(receipt["screen"] as? [String: Any])
+        #expect(screen["orientation"] as? String == current && screen["interfaceWidthPoints"] as? Double == 844)
+        #expect(screen["interfaceHeightPoints"] as? Double == 390 && screen["widthPoints"] as? Double == 390)
+        let first = try #require(sent.touches.first?.first)
+        #expect(abs(first.x - (current == "rot90" ? 0.3 : 0.7)) < 1e-9)
+    }
+
+    @Test func aRotationBetweenTheReadsRefusesTouch() async throws {
+        let sent = Sent()
+        sent.displays = [Self.displayJSON(), Self.displayJSON(current: "rot90", sensor: "landscapeRight")]
+        let failure = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(sent).execute(["simulator", Self.uuid, "tap", "0.5", "0.5"])
+        })
+        #expect(failure.code == .preconditionChanged && failure.inputSent == .none && sent.touches.isEmpty)
+        let dark = Sent()
+        dark.displays = [Self.displayJSON(backlight: "off")]
+        let off = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(dark).execute(["simulator", Self.uuid, "swipe", "0.5", "0.9", "0.5", "0.4", "0.3"])
+        })
+        #expect(off.code == .displayOff && off.inputSent == .none && dark.touches.isEmpty)
     }
 
     // MARK: - Execution
@@ -177,7 +219,8 @@ struct SimulatorInputTests {
         #expect(receipt["platform"] as? String == "simulator" && receipt["contactCount"] as? Int == 1)
         #expect(receipt["sampleCount"] as? Int == sent.touches[0].count)
         #expect(receipt["coordinateSpace"] as? String == "normalized-current-interface")
-        #expect((receipt["screen"] as? [String: Any])?["orientation"] as? String == "portrait-assumed")
+        #expect((receipt["screen"] as? [String: Any])?["orientation"] as? String == "rot0")
+        #expect(receipt["displayRotationDegrees"] as? Int == 0 && sent.displayReads == 2)
         #expect((receipt["holdSeconds"] as? Double) == (operands[0] == "long-press" ? 0.8 : nil))
         #expect(sent.touches[0].first?.phase == 0 && sent.touches[0].last?.phase == 2)
     }

@@ -307,7 +307,7 @@ public final class TouchRunner {
         case .success(let observation):
             record.preflight = observation.readback
             let summary = observation.readback.summary
-            if !observation.portrait {
+            if !observation.portrait && !options.anyOrientation {
                 stop("preflight: the probe reports a non-portrait size \(summary.size). Nothing was sent.")
             } else if summary.active > 0 {
                 stop("preflight: \(summary.active) contact(s) are down on the probe. Nothing was sent.")

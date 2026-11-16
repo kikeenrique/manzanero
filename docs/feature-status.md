@@ -25,12 +25,12 @@ This page describes current product availability, not historical helper capabili
 | Build & Run | Explicit iOS project/workspace + scheme + target | Simulator project/workspace flows verified; physical signing/deployment and general progress/cancellation incomplete. |
 | Human handoff | Terminal responses, MCP form completion, process-local mutation pause | Synthetic terminal/MCP checks only; no automatic prompt detection or native notifications. |
 | Simulator lifecycle/capture | simctl apps, boot/shutdown, screenshot, recording | Scoped capture/lifecycle/development checks exist. |
-| Simulator input and AX | [In-process](simulator-input.md) tree, press/scroll by id or label, waits, tap, long press, swipe/drag, pinch, multi-tap and multi-drag with two to five contacts, timed gesture sequences, Home/lock, named keys, US-layout typing, Unicode entry by AX set-value, on a booted simulator by UUID | One iPhone 17e simulator, iOS 27.2, probe app and Settings: 48/48 single-contact touches, 20/20 two-contact actions and 70/70 built-in-plan actions (145/145 contacts, up to five at once) delivered, presses, scroll, waits, Home/lock/unlock swipe, typing and 14 Unicode set-values observed. Home Screen trees come back empty; rotation, iPad, other runtimes and families untested. |
+| Simulator input and AX | [In-process](simulator-input.md) tree, press/scroll by id or label, waits, tap, long press, swipe/drag, pinch, multi-tap and multi-drag with two to five contacts, timed gesture sequences, Home/lock, named keys, US-layout typing, Unicode entry by AX set-value, on a booted simulator by UUID | One iPhone 17e simulator, iOS 27.2, probe app and Settings: 48/48 single-contact touches, 20/20 two-contact actions and 70/70 built-in-plan actions (145/145 contacts, up to five at once) delivered, presses, scroll, waits, Home/lock/unlock swipe, typing and 14 Unicode set-values observed. Landscape and iPad: touch mapped like a phone's and AX frames and hit points mapped by orientation; 70/70 built-in-plan actions in landscape on the iPhone and in portrait and landscape on an iPad mini simulator. Home Screen trees come back empty; other runtimes and families untested. |
 | CLI/MCP interface | Shared command service; 36 stdio tools; classified failures as opt-in CLI JSON (`--error-format json`) and MCP `structuredContent.error` ([errors](errors.md)) | Error classification is unit-tested only; a few host-side recording and archive failures and non-`CommandFailure` errors remain unclassified. No HTTP, durable sessions or coordinated activity view. Host controls approvals. |
 
 ## Unavailable or missing
 
-- Simulator `wake`: refused as not implemented (`unsupported-operation`). Simulator `paste` is refused because `simctl pbcopy` did not reach the pasteboard; non-ASCII `type` is refused in favour of set-value. Volume buttons and rotation are not implemented.
+- Simulator `wake`: refused as not implemented (`unsupported-operation`). Simulator `paste` is refused because `simctl pbcopy` did not reach the pasteboard; non-ASCII `type` is refused in favour of set-value. Volume buttons are not implemented.
 - Physical `set-value-id`/`set-value-label`: refused (`unsupported-operation`) until the request has been tried on a phone.
 - Physical `hid-info` and live raw `ax-snapshot`: no direct Apple replacement yet; they fail as an unsupported physical-device operation. Physical `logs` is refused as `unsupported-operation` until the native `os_trace_relay` route exists ([app logs](app-logs.md)). Offline `decode-ax-archive` still works.
 - Independent Wi-Fi pairing (`pair wifi`) and `--pairing-file`: not recognised as commands. Pair through Xcode/CoreDevice.
@@ -48,7 +48,7 @@ User-facing live mirroring, reusable semantic element handles, automatic permiss
 | Apple Watch | In scope; dedicated control and hardware verification missing |
 | Apple TV | In scope; dedicated tvOS control and verification missing |
 | iPhone Duo | In scope; posture/display/control verification missing |
-| Simulators | Lifecycle/capture/development support; one-to-five-contact input, keys, AX and set-value checked on one iPhone simulator runtime; rotation, iPad and other families unfinished |
+| Simulators | Lifecycle/capture/development support; one-to-five-contact input, keys, AX and set-value checked on one iOS simulator runtime, on an iPhone in portrait and landscape and an iPad mini; other families unfinished |
 
 Accepting an identifier or passing a build does not establish support for a new family.
 

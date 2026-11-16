@@ -27,6 +27,9 @@ public struct RunOptions: Sendable, Equatable {
     public var reset = true
     public var pull = true
     public var dryRun = false
+    /// Accept a landscape probe (launched with `-ProbeAllowRotation YES`) at
+    /// preflight. Off by default: a portrait-only run stops on a landscape size.
+    public var anyOrientation = false
 
     public init(device: String) { self.device = device }
 }
@@ -63,6 +66,8 @@ public enum RunnerArguments {
       --platform physical|simulator
                              Address a physical device (default) or a booted simulator by UUID.
                              The simulator has no log pull; the readouts are the evidence.
+      --any-orientation      Accept a landscape probe at preflight (rotation measurements);
+                             coordinates stay normalized to the current interface.
 
     The UDID is required; there is no default device. The probe must already be the
     foreground app. Inputs are never retried or replayed.
@@ -106,6 +111,7 @@ public enum RunnerArguments {
             case "--dry-run": options.dryRun = true
             case "--no-reset": options.reset = false
             case "--no-pull": options.pull = false
+            case "--any-orientation": options.anyOrientation = true
             case "--plan": options.planPath = try value(flag)
             case "--out": options.outputDirectory = try value(flag)
             case "--manzanero": options.manzanero = try value(flag)

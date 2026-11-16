@@ -20,7 +20,7 @@ The app is a test fixture. It is not part of the `manzanero` product and has no 
 | `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing, log probe emitter, text probe |
 | `Fixtures/ProbeApp/UITests/` | XCUITest checks of the recording path in the simulator |
 
-Requirements: iOS 18.0 or later, iPhone only, portrait only. Swift 6 language mode with complete strict concurrency. Built and tested with Xcode 27.2 and Tuist 4.214.0.
+Requirements: iOS 18.0 or later, iPhone or iPad (full screen through `UIRequiresFullScreen`; Xcode 27.2's test runs warn that the key "will soon be ignored", so a later iPadOS may window the probe). Portrait only, unless launched with the argument `-ProbeAllowRotation YES` (for example `xcrun simctl launch <UUID> <bundle-id> -ProbeAllowRotation YES`), which lets the interface follow the device into landscape for rotation measurements; positions stay normalized to the current interface. Swift 6 language mode with complete strict concurrency. Built and tested with Xcode 27.2 and Tuist 4.214.0.
 
 ## Generate, test and build
 
@@ -236,10 +236,10 @@ One editable `UITextField` and a readout of exactly what it holds, to check text
 
 | Identifier | Label | Value | Frame |
 | --- | --- | --- | --- |
-| `probe.text.field` | `Probe text field` | The field's text (the placeholder `text probe` while empty); a text field, so its value is settable | Full width minus 16-point margins, 40 high, 100 points above the reset box |
-| `probe.text.value` | `Probe text value` | `{"edits":…,"focused":…,"scalars":…,"text":…,"utf8":…,"v":1}`, keys sorted: the text, its UTF-8 byte and Unicode scalar counts, the number of changes the field reported, and whether it is first responder | A 20-point strip just below the field |
+| `probe.text.field` | `Probe text field` | The field's text (the placeholder `text probe` while empty); a text field, so its value is settable | Portrait: full width minus 16-point margins, 40 high, 100 points above the reset box. Landscape: 200 × 40 at the top right, 16 points from the edges |
+| `probe.text.value` | `Probe text value` | `{"edits":…,"focused":…,"scalars":…,"text":…,"utf8":…,"v":1}`, keys sorted: the text, its UTF-8 byte and Unicode scalar counts, the number of changes the field reported, and whether it is first responder | Portrait: a 20-point strip just below the field. Landscape: 200 × 20 to the field's left |
 
-The field has an empty input view, so no on-screen keyboard appears and covers it; hardware keyboard events (Manzanero's HID typing) still reach it. It is a subview of the touch surface: touches inside its frame go to the field and are not recorded by the touch probe. On a 390 × 844 screen it spans y 0.725...0.773, below every point of the built-in touch plan (y at most 0.65). The touch probe's readouts, log and formats are unchanged; the tree simply has two more elements.
+The field has an empty input view, so no on-screen keyboard appears and covers it; hardware keyboard events (Manzanero's HID typing) still reach it. It is a subview of the touch surface: touches inside its frame go to the field and are not recorded by the touch probe. On a 390 × 844 screen it spans y 0.725...0.773, below every point of the built-in touch plan (y at most 0.65); in landscape it lies above them (y below 0.15 on an iPhone). Lower in a landscape screen, where it overlapped the recent-gestures readout's area, it reported itself not visible to accessibility, which is why it moves. The touch probe's readouts, log and formats are unchanged; the tree simply has two more elements.
 
 ## Readback path 2: file
 

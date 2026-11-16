@@ -52,8 +52,14 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
     }
 
     func hit(x: Double, y: Double) throws -> AccessibilityRequest.Token {
-        try AccessibilityResponse.token(exchange(AccessibilityRequest.hit(x: x, y: y), expected: .hit))
+        let point = hitMapping?.native(x, y) ?? (x, y)
+        return try AccessibilityResponse.token(exchange(AccessibilityRequest.hit(x: point.0, y: point.1), expected: .hit))
     }
+
+    /// Hit points arrive in interface points (the tree's frames); the
+    /// simulator answers hit tests in native portrait points (measured in
+    /// landscape). Set from the latest display read; nil sends them unchanged.
+    var hitMapping: SimulatorHitMapping?
 
     /// The frontmost application, or nil when the simulator reports none.
     func frontmost() throws -> AccessibilityRequest.Token? {
@@ -169,6 +175,33 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
             return response
         }
         return SimulatorAccessibilitySession(carrier: carrier, lifetime: lifetime)
+    }
+}
+
+/// Converts interface points to the simulator's native portrait points for
+/// hit tests, following the latest display read of one command.
+final class SimulatorHitMapping: @unchecked Sendable {
+    private let lock = NSLock()
+    private var rotation = 0
+    private var interface = (width: 1.0, height: 1.0)
+    private var native = (width: 1.0, height: 1.0)
+
+    func update(_ display: SimulatorDisplay, _ info: SimulatorDeviceInfo) {
+        let bounds = display.accessibility(info).bounds
+        lock.withLock {
+            rotation = display.rotation
+            interface = (bounds.width, bounds.height)
+            native = (info.widthPoints, info.heightPoints)
+        }
+    }
+
+    /// The physical `DirectTouchDisplay.portrait` mapping, in points.
+    func native(_ x: Double, _ y: Double) -> (Double, Double) {
+        lock.withLock {
+            let display = DirectTouchDisplay(rotation: rotation)
+            let point = display.portrait(x / interface.width, y / interface.height)
+            return (point.0 * native.width, point.1 * native.height)
+        }
     }
 }
 

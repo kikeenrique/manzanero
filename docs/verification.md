@@ -311,6 +311,28 @@ Because the accessibility code shared with the phone was refactored, the iPhone 
 
 **2026-11-16**, same simulator and versions. The simulator's `universalhidservice` answered the phone's Universal HID requests; it lists two touchscreens, one per display, and only the primary display's delivered (details in [research open question 1](simulator-input-research.md#open-questions-and-the-experiment-that-settles-each)). `multi-tap 0.3 0.45 0.5 0.45 0.7 0.45` reached the probe as three simultaneous contacts at (0.3, 0.44984), (0.5, 0.44984) and (0.7, 0.44984), held 0.082 s, through service 257. The built-in measurement plan over five rounds: 70 of 70 actions and 145 of 145 contacts delivered, every scheduled contact count (one to five) reached; start error at most 0.0005; absolute hold error median 0.7 to 3.0 ms per contact count, max 20.5 ms ([table](probe-touch-runner.md#simulator-runs)). The display information request (`getdisplayinfo`) needs the device identifier and the host CoreDevice version (651.32 here); without either it answered with a `CoreDevice.ActionError` naming the missing key.
 
+### Rotation and iPad on the simulator
+
+**2026-11-16**, iPhone 17e (390 × 844 points at 3×) and iPad mini (A17 Pro) (744 × 1133 points at 2×), both on the iOS 27.2 runtime (24B8117), headless; same host and Xcode. The probe app was rebuilt for iPhone and iPad (full screen) and launched with `-ProbeAllowRotation YES`; the device orientation was changed through the simulator's `devicecontrol.orientation` service (`changeOrientation`). Route and mapping: [simulator input](simulator-input.md#how-it-works).
+
+Findings, each from direct readback of the probe:
+
+- `getdisplayinfo` reported `nativeOrientation: rot0` on both models and `currentOrientation` `rot270` (landscape left), `rot90` (landscape right), `rot180` (iPad upside down). With the iPhone turned upside down, the interface stayed `rot90`.
+- Before mapping, a raw digitizer tap at (0.2, 0.3) in landscape left landed at (0.30016, 0.8) of the 844 × 390 interface and (0.7, 0.6) at (0.59992, 0.3): the digitizer is portrait-native. After mapping, `tap 0.2 0.3` landed at (0.19984, 0.3) in landscape left and right on the iPhone and at (0.2, 0.3) ± 0.0003 in all four orientations on the iPad; multi-tap, pinch and swipe likewise.
+- The tree's frames were interface points in landscape. `press-id probe.touch.reset` failed at the centre-hit guard with error 8 until hit points were mapped to native points; afterwards it was accepted in every orientation on both models. `set-value-id probe.text.field` matched in landscape on both models (after the probe's field moved to the top of the screen in landscape; lower down it reported itself not visible).
+
+Measurement runner, built-in plan, five rounds each (70 actions, 145 contacts per run), all through the recent-gestures readout with identity matched on every readback:
+
+| Simulator | Orientation | Delivered | Contacts | Start error median / max per contact count 1, 2, 3, 4, 5 | Absolute hold error max per contact count (ms) |
+| --- | --- | --- | --- | --- | --- |
+| iPhone 17e | portrait | 70/70 | 145/145 | 0.0002/0.0002, 0.0004/0.0005, 0.0001/0.0002, 0.0001/0.0001, 0.0004/0.0004 | 20.5, 19.3, 4.0, 4.1, 4.8 |
+| iPhone 17e | landscape left | 70/70 | 145/145 | 0.0004/0.0005, 0.0001/0.0004, 0.0002/0.0004, 0.0002/0.0002, 0.0001/0.0004 | 4.2, 13.3, 3.6, 4.2, 4.7 |
+| iPhone 17e | landscape right | 70/70 | 145/145 | 0.0004/0.0005, 0.0001/0.0004, 0.0002/0.0004, 0.0002/0.0002, 0.0001/0.0004 | 14.9, 3.2, 2.0, 1.9, 2.4 |
+| iPad mini | portrait | 70/70 | 145/145 | 0.0001/0.0003, 0.0001/0.0002, 0.0003/0.0003, 0.0003/0.0003, 0.0002/0.0002 | 12.3, 12.3, 7.8, 1.9, 2.2 |
+| iPad mini | landscape left | 70/70 | 145/145 | 0.0003/0.0003, 0.0002/0.0003, 0.0002/0.0003, 0.0002/0.0002, 0.0001/0.0003 | 3.7, 4.1, 2.3, 1.9, 2.6 |
+
+Every scheduled contact count was reached in every action. Median absolute hold errors were 0.7 to 3.0 ms. Not run: the runner in upside-down and landscape-right on the iPad (single taps, multi-taps, swipes and presses were checked there by hand), other iPad models, Split View or windowed iPad apps (the probe requires full screen), and orientation changes during an action (the two display reads would refuse a change between them, not one during sending).
+
 ### Unicode entry by set-value on the simulator
 
 **2026-11-16**, same simulator and versions, with the probe's new text field (`probe.text.field`, readout `probe.text.value`). `set-value-id probe.text.field 'mañana 🚀 中 héllo'` returned `acknowledged` with `valueMatches: true`, and the readout showed exactly that text (23 UTF-8 bytes, 16 scalars). Then ten values in a row (one ASCII letter, accented Latin, emoji, CJK, Greek, Hebrew, Devanagari, a skin-tone ZWJ emoji sequence, and 301 characters) each matched in the receipt and in the readout's byte count; three more by label (`set-value-label "Probe text field" …`, including Japanese and a family emoji) also matched. `type ' ok 5'` and `key backspace` afterwards appended at the caret of the focused field, so HID typing and set-value combine as documented.

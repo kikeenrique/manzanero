@@ -12,6 +12,7 @@
 #USAGE flag "--out <dir>" help="New run directory (default tmp/probe-touch/<timestamp>)"
 #USAGE flag "--no-reset" help="Do not press probe.touch.reset before the first action"
 #USAGE flag "--no-pull" help="Do not pull Documents/touch-log.jsonl at the end"
+#USAGE flag "--any-orientation" help="Accept a landscape probe (launched with -ProbeAllowRotation YES) at preflight"
 
 # Builds the probe-touch runner from Fixtures/ProbeApp/ProbeCore and runs it against
 # the built .build/debug/manzanero. The pull uses PROBE_APP_BUNDLE_ID when set (for
@@ -29,6 +30,7 @@ if [ "${usage_platform:-physical}" != "physical" ]; then args+=(--platform "$usa
 if [ "${usage_dry_run:-false}" = "true" ]; then args+=(--dry-run); fi
 if [ "${usage_no_reset:-false}" = "true" ]; then args+=(--no-reset); fi
 if [ "${usage_no_pull:-false}" = "true" ]; then args+=(--no-pull); fi
+if [ "${usage_any_orientation:-false}" = "true" ]; then args+=(--any-orientation); fi
 if [ -n "${usage_plan:-}" ]; then args+=(--plan "$usage_plan"); fi
 if [ -n "${usage_settle:-}" ]; then args+=(--settle "$usage_settle"); fi
 if [ -n "${usage_out:-}" ]; then args+=(--out "$usage_out"); fi

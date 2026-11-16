@@ -151,8 +151,8 @@ struct SimulatorInput {
             plan["deviceLease"] = "simulator UUID"
             plan["sampleCount"] = samples.count
             plan["contactCount"] = samples.first?.second == nil ? 1 : 2
-            plan["coordinateSpace"] = "normalized-current-interface (portrait assumed)"
-            plan["execution"] = "In-process host XPC to the simulator's dtuhidd (com.apple.coredevice.feature.remote.hid.digitizer): readiness barrier, the physical Indigo digitizer schedule\(samples.first?.second == nil ? "" : " with both contacts in each event (pointOne, pointTwo)"), release on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
+            plan["coordinateSpace"] = "normalized-current-interface"
+            plan["execution"] = "Read the simulator's display information (dtdeviceinfod) twice around planning: awake primary display and its orientation, which rotates the coordinates into the portrait-native digitizer as on a phone. Then in-process host XPC to the simulator's dtuhidd (com.apple.coredevice.feature.remote.hid.digitizer): readiness barrier, the physical Indigo digitizer schedule\(samples.first?.second == nil ? "" : " with both contacts in each event (pointOne, pointTwo)"), release on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
         } else if Self.inputOperations.contains(operation) {
             plan["backend"] = DirectSimulatorInput.backend
             plan["operands"] = operands
@@ -214,9 +214,15 @@ enum DirectSimulatorAccessibility {
     static func execute(_ input: SimulatorInput, info: SimulatorDeviceInfo, environment: SimulatorEnvironment,
                         isolation: isolated (any Actor)? = #isolation) async throws -> Data {
         try Task.checkCancellation()
+        // The current interface: frames, hit points and the centre are in
+        // interface points, which a rotation swaps (docs/simulator-input.md).
+        let mapping = SimulatorHitMapping()
         let display = {
             try Task.checkCancellation()
-            return try SimulatorDevice.requireBooted(input.device, operation: input.operation, lookup: environment.lookup).display
+            let booted = try SimulatorDevice.requireBooted(input.device, operation: input.operation, lookup: environment.lookup)
+            let current = try SimulatorDisplay.read(input.device, environment: environment)
+            mapping.update(current, booted)
+            return current.accessibility(booted)
         }
         let action = SimulatorInput.selectorActions.contains(input.operation) ? try DirectAccessibilityAction(input.coreDeviceInput) : nil
         let setValue = DirectAccessibilitySetValue.operations.contains(input.operation) ? try DirectAccessibilitySetValue(input.coreDeviceInput) : nil
@@ -224,6 +230,7 @@ enum DirectSimulatorAccessibility {
         let session: any AccessibilityExchange
         do { session = try environment.accessibility(input.device, wait?.sessionLimits.lifetime ?? AccessibilitySession.Limits.standard.lifetime) }
         catch let failure as CommandFailure { throw failure.noInputSent() }
+        (session as? SimulatorAccessibilitySession)?.hitMapping = mapping
         let bytes: Data
         if let setValue {
             guard let setter = session as? any AccessibilityValueSetting else {
@@ -249,16 +256,17 @@ enum DirectSimulatorAccessibility {
             bytes = try DirectPhysicalAccessibility.capture(device: input.device, resolved: info.uuid, pid: pid,
                                                             session: session, display: display)
         }
-        return try annotate(bytes, info: info, selections: (session as? SimulatorAccessibilitySession)?.selections ?? [])
+        let screen = (try? SimulatorDisplay.read(input.device, environment: environment))?.screenJSON(info)
+        return try annotate(bytes, info: info, screen: screen, selections: (session as? SimulatorAccessibilitySession)?.selections ?? [])
     }
 
-    static func annotate(_ bytes: Data, info: SimulatorDeviceInfo, selections: [String] = []) throws -> Data {
+    static func annotate(_ bytes: Data, info: SimulatorDeviceInfo, screen: [String: Any]? = nil, selections: [String] = []) throws -> Data {
         guard var root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
             throw CommandFailure(.internal, "Invalid internal simulator AX result.", inputSent: .unknown)
         }
         root["platform"] = "simulator"
         root["transport"] = "coresimulator"
-        root["screen"] = info.screenJSON
+        root["screen"] = screen ?? info.screenJSON
         // How many foreground selections and rechecks used the frontmost
         // request (type 4) and how many the centre hit, when it reported none.
         if !selections.isEmpty {
@@ -266,14 +274,5 @@ enum DirectSimulatorAccessibility {
                                            "centre-hit": selections.filter { $0 == "centre-hit" }.count]
         }
         return try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
-    }
-}
-
-extension SimulatorDeviceInfo {
-    /// The simulator's interface as the shared accessibility guards see it:
-    /// the whole screen in logical points, display 0, portrait assumed.
-    var display: AccessibilityDisplay {
-        AccessibilityDisplay(bounds: .init(x: 0, y: 0, width: widthPoints, height: heightPoints),
-                             displayId: 0, pointScale: scale, orientation: SimulatorDevice.orientation)
     }
 }

@@ -258,6 +258,11 @@ import ProbeCore
         #expect(throws: RunnerError.self) { try RunnerArguments.parse(["run", device, "--platform", "simulator"]) }
         #expect(throws: RunnerError.self) { try RunnerArguments.parse(["run", simulator, "--platform", "tvos"]) }
         #expect(try RunnerArguments.parse(["run", device]) == .run(RunOptions(device: device)))
+        #expect(!options.anyOrientation)
+        guard case .run(let rotated) = try RunnerArguments.parse(["run", simulator, "--platform", "simulator", "--any-orientation"]) else {
+            Issue.record("expected run"); return
+        }
+        #expect(rotated.anyOrientation && rotated.platform == "simulator")
 
         let fs = MemoryFileSystem()
         options.outputDirectory = "tmp/probe-touch/simulator-run"

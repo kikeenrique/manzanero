@@ -32,7 +32,8 @@ let project = Project(
     targets: [
         .target(
             name: "ProbeApp",
-            destinations: [.iPhone],
+            // iPad as well, for coordinate measurements on an iPad simulator.
+            destinations: [.iPhone, .iPad],
             product: .app,
             bundleId: "$(PROBE_APP_BUNDLE_ID)",
             deploymentTargets: .iOS("18.0"),
@@ -50,7 +51,14 @@ let project = Project(
                 "UILaunchScreen": [:],
                 "UIApplicationSceneManifest": ["UIApplicationSupportsMultipleScenes": false],
                 "UIStatusBarHidden": true,
-                "UISupportedInterfaceOrientations": ["UIInterfaceOrientationPortrait"],
+                // The probe normalizes by its window; keep that window the whole screen on iPad.
+                "UIRequiresFullScreen": true,
+                // The view controller allows only portrait unless the probe is
+                // launched with -ProbeAllowRotation YES (rotation measurements).
+                "UISupportedInterfaceOrientations": ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft",
+                                                     "UIInterfaceOrientationLandscapeRight"],
+                "UISupportedInterfaceOrientations~ipad": ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
+                                                          "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"],
                 // Lets the Documents directory (and touch-log.jsonl) be browsed and copied.
                 "UIFileSharingEnabled": true,
             ]),
@@ -63,7 +71,7 @@ let project = Project(
         ),
         .target(
             name: "ProbeAppUITests",
-            destinations: [.iPhone],
+            destinations: [.iPhone, .iPad],
             product: .uiTests,
             bundleId: "com.lemambo.manzanero.probeapp.uitests",
             deploymentTargets: .iOS("18.0"),

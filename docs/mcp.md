@@ -52,7 +52,7 @@ Device operations use Apple executables or in-process Apple interfaces. AXe/idev
 
 `get_ui_tree`, `type_text`, `press_element`, `scroll_to_element`, `wait_for_element`, `press_key`, `long_press`, `multi_tap`, `multi_drag`, `pinch` and `perform_gesture` default to `platform: "physical"`, so calls written before simulator support route as before. Other device tools require an explicit `platform` where they accept one.
 
-Touch coordinates are normalized `0...1` on both platforms (a simulator's interface is assumed portrait). AX frames use logical points; screenshots use pixels. OCR text regions are not guaranteed tap targets.
+Touch coordinates are normalized `0...1` in the current interface on both platforms; a simulator's orientation is read and mapped like a phone's. AX frames use logical points; screenshots use pixels. OCR text regions are not guaranteed tap targets.
 
 A physical tree without `pid` selects/rechecks the awake portrait primary display-centre process; a simulator tree the frontmost application, or the process under the screen centre when the simulator reports none. An explicit positive PID can inspect a background app. IDs belong only to one non-atomic snapshot, not reusable action handles. Press/scroll selectors resolve fresh identities and apply additional guards.
 
