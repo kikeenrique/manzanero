@@ -152,6 +152,7 @@ struct StreamingCaptureTests {
     }
 }
 
+@Suite(.dedicatedThread)
 struct ToolRunnerEnvironmentTests {
     @Test func overlaysEnvironmentWithoutShellEvaluation() throws {
         let output = try ToolRunner().run(["-c", "printf %s \"$RUNNER_FIXTURE\""], executable: "/bin/sh",

@@ -293,6 +293,9 @@ actor CommandService {
                 try runner.run($0.arguments, executable: $0.executable)
             }, build: { try runner.build($0, log: $1) }))
         }
+        if let diagnostics = try AppDiagnosticsCommand.parse(args) {
+            return try await executeDiagnostics(diagnostics, dryRun: dryRun)
+        }
         if let command = try DeviceCommand.parse(args) {
             if dryRun { return try json(["executable": command.executable, "arguments": command.arguments]) }
             if args[0] == "physical", ["launch", "terminate", "processes", "open-url", "screenshot"].contains(args[2]) {
@@ -351,7 +354,39 @@ actor CommandService {
 
     /// Device operations that only read: not paused by a pending handoff.
     static let observationOperations = ["readiness", "details", "apps", "processes", "screen", "screenshot", "files", "pull", "reports", "report"]
-        + nativeObservations
+        + nativeObservations + AppDiagnosticsCommand.observations
+
+    /// `logs`, `console` and `last-crash` (docs/app-logs.md). The handoff
+    /// pause has already applied to `console`; none of them takes a lease.
+    private func executeDiagnostics(_ command: AppDiagnosticsCommand, dryRun: Bool) async throws -> CommandOutput {
+        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        switch command {
+        case .logs(let capture):
+            if dryRun { return try json(capture.plan()) }
+            let runner = self.runner
+            return CommandOutput(data: try await UnifiedLogExecution.execute(capture, environment: simulator,
+                run: { try runner.run($0, timeout: 15) }))
+        case .console(let capture):
+            let target = directory.appendingPathComponent("tmp/console-\(UUID().uuidString)")
+            if dryRun { return try json(capture.plan(directory: target)) }
+            if capture.physical {
+                try preflight(capture.device, operation: "console")
+                return CommandOutput(data: try await AppConsole.executePhysical(capture, directory: target))
+            }
+            let runner = self.runner
+            let environment = ConsoleEnvironment(lookup: simulator.lookup, run: { try runner.run($0, timeout: 30, environment: $1) })
+            return CommandOutput(data: try await AppConsole.executeSimulator(capture, directory: target, environment: environment))
+        case .lastCrash(let query):
+            if dryRun { return try json(query.plan()) }
+            if query.physical {
+                try preflight(query.device, operation: "last-crash")
+                return CommandOutput(data: try CrashReportSelection.executePhysical(query,
+                    directory: directory.appendingPathComponent("tmp/crash-\(UUID().uuidString)"),
+                    run: { try self.runner.run($0.arguments, executable: $0.executable, timeout: 90) }))
+            }
+            return CommandOutput(data: try CrashReportSelection.executeSimulator(query, environment: simulator))
+        }
+    }
 
     private func json(_ value: Any) throws -> CommandOutput {
         CommandOutput(data: try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]))

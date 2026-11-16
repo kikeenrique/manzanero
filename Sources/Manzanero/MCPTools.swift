@@ -2,7 +2,7 @@ import Foundation
 import MCP
 
 struct MCPField: Sendable {
-    enum Kind: String, Sendable { case string, number, integer, boolean, array }
+    enum Kind: String, Sendable { case string, number, integer, boolean, array, stringArray }
     let name: String
     var kind: Kind = .string
     var description: String = ""
@@ -10,9 +10,10 @@ struct MCPField: Sendable {
     var choices: [String] = []
 
     var schema: Value {
-        var value: [String: Value] = ["type": .string(kind.rawValue), "description": .string(description)]
+        var value: [String: Value] = ["type": .string(kind == .stringArray ? "array" : kind.rawValue), "description": .string(description)]
         if !choices.isEmpty { value["enum"] = .array(choices.map(Value.string)) }
         if kind == .array { value["items"] = .object(["type": "number"]) }
+        if kind == .stringArray { value["items"] = .object(["type": "string"]) }
         return .object(value)
     }
 
@@ -28,6 +29,8 @@ struct MCPField: Sendable {
         case (.number, .double(let number)): valid = number.isFinite
         case (.array, .array(let values)):
             valid = values.allSatisfy { if case .int = $0 { return true }; if case .double(let n) = $0 { return n.isFinite }; return false }
+        case (.stringArray, .array(let values)):
+            valid = values.count <= 64 && values.allSatisfy { if case .string(let text) = $0 { return !text.contains("\0") }; return false }
         default: valid = false
         }
         guard valid else { throw MCPError.invalidParams("Invalid parameter type or value: \(name)") }
@@ -174,6 +177,50 @@ enum MCPTools {
         },
         .init(name: "simulator_state", description: "Boot or shut down a selected simulator. Shutdown interrupts running apps; no erase or delete operation is exposed.", fields: [device, .init(name: "operation", choices: ["boot", "shutdown"])]) { $0.deviceCommand([$0.text("operation")], platform: "simulator") },
         .init(name: "ocr_image", description: "Recognize text in a local image using Vision. Normalized top-left bounds. Recognition verified on one simulator fixture; broad accuracy remains unverified.", fields: [.init(name: "path")], readOnly: true) { ["ocr", $0.text("path")] }
+    ] + appDiagnostics
+
+    /// `logs`, `console` and `last-crash` (docs/app-logs.md).
+    static let appDiagnostics: [MCPToolDefinition] = [
+        .init(name: "capture_logs", description: "Simulator only: a finite capture of one app's unified-log (os_log/Logger) entries through Apple's log tool inside a booted simulator (simctl spawn … log stream|show --style ndjson). Give exactly one time selection: seconds (1...60, stream from now), last_seconds (1...3600, persisted entries; debug entries are not persisted, so capture debug live) or start [end] (ISO-8601). Give exactly one target: bundle_id (matched by its installed .app path, which survives relaunches), pid or process. Optional subsystem, category (needs subsystem) and level default|info|debug (default: default). Bounded by max_entries (default 2000, at most 10000) and max_bytes (default 1 MiB, at most 8 MiB); stopReason says duration, complete, entryLimit or byteLimit, and truncated says whether entries were dropped. The tool builds the predicate; no raw predicate is accepted. Optional output writes every kept entry as NDJSON to a new host file and returns only the newest 50 inline. Captured messages can contain private data in clear text. Physical devices are not supported. Verified on one iPhone Air simulator (iOS 27.2).", fields: [
+            device,
+            .init(name: "seconds", kind: .integer, description: "Stream from now for 1...60 seconds.", required: false),
+            .init(name: "last_seconds", kind: .integer, description: "Query the last 1...3600 seconds of persisted entries.", required: false),
+            .init(name: "start", description: "ISO-8601 start of a persisted window.", required: false),
+            .init(name: "end", description: "ISO-8601 end of the window; needs start.", required: false),
+            .init(name: "bundle_id", required: false), .init(name: "pid", kind: .integer, required: false), .init(name: "process", required: false),
+            .init(name: "subsystem", required: false), .init(name: "category", required: false),
+            .init(name: "level", required: false, choices: LogCapture.Level.allCases.map(\.rawValue)),
+            .init(name: "max_entries", kind: .integer, required: false), .init(name: "max_bytes", kind: .integer, required: false),
+            .init(name: "output", description: "New host .ndjson path; its parent must exist.", required: false)], readOnly: true) { arguments in
+            var args = arguments.deviceCommand(["logs"], platform: "simulator")
+            for (field, option) in [("seconds", "--seconds"), ("last_seconds", "--last"), ("pid", "--pid"), ("max_entries", "--max-entries"), ("max_bytes", "--max-bytes")]
+                where arguments[field] != nil { args += [option, arguments.number(field)] }
+            for (field, option) in [("start", "--start"), ("end", "--end"), ("bundle_id", "--bundle"), ("process", "--process"), ("subsystem", "--subsystem"),
+                                    ("category", "--category"), ("level", "--level"), ("output", "--output")]
+                where arguments[field] != nil { args += [option, arguments.text(field)] }
+            return args
+        },
+        .init(name: "capture_console", description: "Launch (relaunching if running) an app and return byte-bounded tails of its stdout and stderr. seconds 1...60; max_bytes per stream 1024...1048576 (default 65536). os_log true sets OS_ACTIVITY_DT_MODE so the app's own os_log lines at info level and above are mirrored to its stderr (one line each, category but no level or subsystem; debug lines are not mirrored). app_arguments are passed to the app. Simulator: simctl launch with stdout/stderr redirected to host files under tmp/ (paths returned); waits until the app exits or seconds pass; the app keeps running unless terminate is true. Print output that the app never flushes is lost in this mode. exitStatus is null because simctl does not report how the app ended; use latest_crash. Physical (UNVERIFIED on hardware): devicectl launch --console; at seconds the app is always ended by a forwarded SIGINT; output includes devicectl's own status lines, appOutputObserved/captured say whether anything else arrived, and an empty capture does not prove the app printed nothing. Launches an app, so it is not read-only.", fields: [
+            platform, device, .init(name: "bundle_id"), .init(name: "seconds", kind: .integer),
+            .init(name: "max_bytes", kind: .integer, required: false), .init(name: "os_log", kind: .boolean, required: false),
+            .init(name: "terminate", kind: .boolean, required: false),
+            .init(name: "app_arguments", kind: .stringArray, description: "Arguments passed to the app, at most 64.", required: false)]) { arguments in
+            var args = arguments.deviceCommand(["console", arguments.text("bundle_id"), "--seconds", arguments.number("seconds")])
+            if arguments["max_bytes"] != nil { args += ["--max-bytes", arguments.number("max_bytes")] }
+            if arguments["os_log"]?.boolValue == true { args.append("--os-log") }
+            if arguments["terminate"]?.boolValue == true { args.append("--terminate") }
+            let appArguments = (arguments["app_arguments"]?.arrayValue ?? []).compactMap(\.stringValue)
+            if !appArguments.isEmpty { args += ["--"] + appArguments }
+            return args
+        },
+        .init(name: "latest_crash", description: "The newest crash report (bug type 309) for one app, as a parsed summary: exception type, signal, termination reason, crash messages, the crashed thread's top 12 frames (image, offset, symbol when the report has one; no further symbolication) and the report path. Give exactly one of bundle_id or process; since (ISO-8601) excludes older reports. Simulator: reads the reports the simulator left on the Mac (platform 7), excluding ones whose process path names another simulator; a report can take a few seconds to appear after the crash. Physical: lists the device's crash logs, downloads at most the newest 5 candidates into tmp/ until one matches (download route not yet verified on hardware). Optional download copies the report into an existing host directory. Returns found false when nothing matches.", fields: [
+            platform, device, .init(name: "bundle_id", required: false), .init(name: "process", required: false),
+            .init(name: "since", required: false), .init(name: "download", description: "Existing host directory to copy the report into.", required: false)], readOnly: true) { arguments in
+            var args = arguments.deviceCommand(["last-crash"])
+            for (field, option) in [("bundle_id", "--bundle"), ("process", "--process"), ("since", "--since"), ("download", "--download")]
+                where arguments[field] != nil { args += [option, arguments.text(field)] }
+            return args
+        },
     ]
 
     /// Per-request control of the inline image on tools that return one. The

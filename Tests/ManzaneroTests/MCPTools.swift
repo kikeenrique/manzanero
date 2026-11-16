@@ -26,7 +26,7 @@ struct MCPToolsTests {
     }
     @Test func catalogHasUniqueNamesAndClosedObjectSchemas() throws {
         let definitions = MCPTools.definitions
-        #expect(definitions.count == 32)
+        #expect(definitions.count == 35)
         #expect(Set(definitions.map(\.name)).count == definitions.count)
         for definition in definitions {
             let schema = try #require(definition.tool.inputSchema.objectValue)
@@ -72,7 +72,9 @@ struct MCPToolsTests {
 
     @Test func helperOnlyToolsAndFieldsAreNotAdvertised() throws {
         let names = Set(MCPTools.definitions.map(\.name))
-        for removed in ["tap_element", "capture_logs", "get_accessibility_archive"] { #expect(!names.contains(removed)) }
+        // capture_logs was the retired idevice helper's tool; the name now
+        // belongs to the simctl-based capture, which has no helper fields.
+        for removed in ["tap_element", "get_accessibility_archive"] { #expect(!names.contains(removed)) }
         for definition in MCPTools.definitions {
             let properties = try #require(definition.tool.inputSchema.objectValue?["properties"]?.objectValue)
             #expect(properties["pairing_file"] == nil)

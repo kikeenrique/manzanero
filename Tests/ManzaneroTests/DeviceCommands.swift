@@ -34,11 +34,22 @@ struct DeviceCommandsTests {
         }
     }
 
-    @Test(arguments: [["hid-info"], ["ax-snapshot"], ["ax-snapshot", "tmp/fixture.plist"], ["logs", "30"], ["logs", "1", "123"]])
+    @Test(arguments: [["hid-info"], ["ax-snapshot"], ["ax-snapshot", "tmp/fixture.plist"]])
     func removedPhysicalObservationsAreUnsupportedOperations(_ operands: [String]) async throws {
         for dryRun in [false, true] {
             let message = try #require(await failure(["physical", "fixture"] + operands, dryRun: dryRun))
             #expect(message == "Unsupported physical-device operation: \(operands[0]).")
+        }
+    }
+
+    // The retired helper's `physical <UDID> logs <seconds> [pid]` form, and any
+    // other physical logs call, stays unsupported: there is no native relay yet.
+    @Test(arguments: [["logs", "30"], ["logs", "1", "123"], ["logs", "--seconds", "5", "--pid", "1"]])
+    func physicalLogsRemainUnsupported(_ operands: [String]) async throws {
+        for dryRun in [false, true] {
+            await #expect { _ = try await CommandService().execute(["physical", "fixture"] + operands, dryRun: dryRun) } throws: {
+                ($0 as? CommandFailure)?.code == .unsupportedOperation && ($0 as? CommandFailure)?.description.contains("os_trace_relay") == true
+            }
         }
     }
 
