@@ -10,6 +10,9 @@ enum DirectPhysicalAccessibility {
 
     /// Remain on the caller's actor while retaining non-Sendable native owners.
     /// Only local discovery subprocess work suspends; no owner crosses tasks.
+    /// Attempts at the read-only connection setup before giving up.
+    static let connectionAttempts = 3
+
     static func executeNativeRSD(_ input: CoreDeviceInput, isolation: isolated (any Actor)? = #isolation,
                                  query: (DeviceCommand) throws -> Data) async throws -> Data {
         try Task.checkCancellation()
@@ -40,11 +43,27 @@ enum DirectPhysicalAccessibility {
         // classifies its own failures, and after it the input has been sent.
         var actionStage = 0
         do {
-            let port = try await RSDPortDiscovery.discover(tunnelAddress: address)
-            try Task.checkCancellation()
-            let directory = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: udid)
+            // Port discovery, the RSD directory handshake and opening the AX
+            // service occasionally fail on a healthy device ("Connection
+            // invalid"). No accessibility request has been made at that point,
+            // so the setup is repeated a bounded number of times.
+            var connected: (directory: RSDDirectoryConnection, transport: any AccessibilitySessionTransport)?
+            var attempt = 1
+            while connected == nil {
+                do {
+                    let port = try await RSDPortDiscovery.discover(tunnelAddress: address)
+                    try Task.checkCancellation()
+                    let candidate = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: udid)
+                    do { connected = (candidate, try candidate.openAccessibility()) }
+                    catch { candidate.close(); throw error }
+                } catch {
+                    guard !(error is CancellationError), !Task.isCancelled, attempt < Self.connectionAttempts else { throw error }
+                    attempt += 1
+                    try await Task.sleep(for: .milliseconds(300))
+                }
+            }
+            guard let (directory, transport) = connected else { throw CancellationError() }
             defer { directory.close() }
-            let transport = try directory.openAccessibility()
             let session = AccessibilitySession(transport: transport, limits: wait?.sessionLimits ?? .standard)
             let display = {
                     try Task.checkCancellation()
