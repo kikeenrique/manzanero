@@ -131,6 +131,10 @@ actor CommandService {
         case .record(let recording):
             if !dryRun { try checkHandoffPause(request) }
             return try await executeRecording(recording, dryRun: dryRun)
+        case .frames(let frames):
+            if dryRun { return try json(frames.plan()) }
+            try checkHandoffPause(request)
+            return try await executeFrames(frames)
         case .buildRun(let command):
             if !dryRun { try checkHandoffPause(request) }
             return try executeBuildRun(command, dryRun: dryRun)
@@ -354,6 +358,24 @@ actor CommandService {
             } catch let failure as CommandFailure {
                 throw failure.noInputSent()
             }
+    }
+
+    /// `frames`: the directory is checked before the device is contacted; the
+    /// lease is held for the whole stream, as for a native recording.
+    private func executeFrames(_ frames: FramesCommand) async throws -> CommandOutput {
+        do {
+            guard #available(macOS 26.0, *) else {
+                throw CommandFailure(.hostRequirement, "frames requires macOS 26 or later.", inputSent: .none)
+            }
+            try frames.prepareDirectory()
+            try preflight(frames.device, operation: "capture frames")
+            let lease = try leases.acquire(device: CoreDeviceInput.resolve(readinessQuery(frames.device), requested: frames.device), operation: "frames")
+            defer { lease.release() }
+            return CommandOutput(data: try await NativeFrameCapture.execute(frames, runner: runner))
+        } catch let failure as CommandFailure {
+            // Frame capture sends no input, so none of its failures can have.
+            throw failure.noInputSent()
+        }
     }
 
     private func executeBuildRun(_ command: BuildRunCommand, dryRun: Bool) throws -> CommandOutput {

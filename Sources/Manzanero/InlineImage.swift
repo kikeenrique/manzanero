@@ -3,7 +3,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// The image block an MCP result carries for a saved PNG.
+/// The image block an MCP result carries for a saved PNG (or a `frames` JPEG).
 ///
 /// The saved file is always the full-resolution PNG: it is the evidence. What
 /// travels inline is a separate decision, because it is paid for in response
@@ -82,23 +82,28 @@ enum InlineImage {
         }
     }
 
+    /// The saved file is a PNG (screenshots) or, named .jpg or .jpeg, a JPEG
+    /// (`frames`); a JPEG is never re-encoded as PNG under `auto`.
     static func attachment(for url: URL, options: Options = Options()) throws -> Outcome {
-        guard options.include else { return .omitted("PNG saved; inline image omitted as requested.") }
+        let saved: Encoding = ["jpg", "jpeg"].contains(url.pathExtension.lowercased()) ? .jpeg : .png
+        let kind = saved.rawValue.uppercased()
+        guard options.include else { return .omitted("\(kind) saved; inline image omitted as requested.") }
         let megabytes = String(format: "%.3g", Double(options.byteLimit) / (1024 * 1024))
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = properties[kCGImagePropertyPixelWidth] as? Int, let height = properties[kCGImagePropertyPixelHeight] as? Int,
               width > 0, height > 0 else {
-            return .omitted("PNG saved; inline image omitted because the file could not be read as an image.")
+            return .omitted("\(kind) saved; inline image omitted because the file could not be read as an image.")
         }
         let full = max(width, height)
         let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        // The saved file itself, when no reduction is asked for or needed.
-        if options.maximumEdge >= full, options.format != .jpeg, size <= options.byteLimit {
-            return .attached(Attachment(data: try Data(contentsOf: url), encoding: .png, width: width, height: height, scale: 1))
+        // The saved file itself, when no reduction or other format is asked for or needed.
+        let sameFormat = saved == .png ? options.format != .jpeg : options.format != .png
+        if options.maximumEdge >= full, sameFormat, size <= options.byteLimit {
+            return .attached(Attachment(data: try Data(contentsOf: url), encoding: saved, width: width, height: height, scale: 1))
         }
         let encodings: [Encoding] = switch options.format {
-        case .auto: [.png, .jpeg]
+        case .auto: saved == .jpeg ? [.jpeg] : [.png, .jpeg]
         case .png: [.png]
         case .jpeg: [.jpeg]
         }
@@ -121,7 +126,7 @@ enum InlineImage {
                         changes.append("downscaled from \(width)x\(height) to \(image.width)x\(image.height) pixels")
                     }
                     if encoding == .jpeg { changes.append("encoded as JPEG at quality \(String(format: "%.2g", options.quality))") }
-                    var note = "Inline image \(changes.joined(separator: " and ")) (\(output.length) bytes; limit \(megabytes) MiB). The saved file is the full-resolution PNG. Normalized coordinates are unaffected"
+                    var note = "Inline image \(changes.joined(separator: " and ")) (\(output.length) bytes; limit \(megabytes) MiB). The saved file is the full-resolution \(kind). Normalized coordinates are unaffected"
                     note += image.width != width
                         ? "; pixel positions read from the inline image must be multiplied by \(String(format: "%.4g", scale))."
                         : "."
@@ -131,6 +136,6 @@ enum InlineImage {
             }
             target /= 2
         }
-        return .omitted("PNG saved; inline image omitted because it could not be reduced to fit \(megabytes) MiB.")
+        return .omitted("\(kind) saved; inline image omitted because it could not be reduced to fit \(megabytes) MiB.")
     }
 }

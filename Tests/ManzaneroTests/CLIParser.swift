@@ -57,6 +57,9 @@ struct CLIParserTests {
         (["record", "tmp/a.mp4", "5", "--device", device], ["physical", device, "record", "tmp/a.mp4", "5"]),
         (["record", "tmp/a.mp4", "5", "hevc", "--backend", "coredevice", "--device", device],
          ["physical", device, "record", "tmp/a.mp4", "5", "hevc", "--backend", "coredevice"]),
+        (["frames", "tmp/f", "--device", device], ["physical", device, "frames", "tmp/f"]),
+        (["frames", "tmp/f", "--count", "5", "--seconds", "2", "--interval", "250", "--overwrite", "--device", device],
+         ["physical", device, "frames", "tmp/f", "--count", "5", "--seconds", "2", "--interval", "250", "--overwrite"]),
         (["apps", "--simulator", simulator], ["simulator", simulator, "apps"]),
         (["launch", "com.example.app", "--device", device], ["physical", device, "launch", "com.example.app"]),
         (["terminate", "123", "--device", device], ["physical", device, "terminate", "123"]),
@@ -116,7 +119,7 @@ struct CLIParserTests {
 
     @Test func commandsCoverEveryOperationOnce() {
         let names = Self.forms.map { $0.0[0] == "files" || $0.0[0] == "reports" ? "\($0.0[0]) \($0.0[1])" : $0.0[0] }
-        #expect(Set(names).count == 48)
+        #expect(Set(names).count == 49)
     }
 
     @Test func dryRunAndErrorFormatAreAcceptedInAnyPosition() throws {

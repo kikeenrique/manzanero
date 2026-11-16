@@ -2,7 +2,7 @@
 
 This page lists what still has to be run on a physical device. It is a plan, not a record: results go in [verification](verification.md), and items are removed from here once they are recorded there.
 
-Done on the iPhone 13 mini so far: wake, the command service queue, the device lease, interruption, the accessibility tree, press, scroll and every wait condition, touch delivery measured with the probe app, keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, app console output and the last crash, system-prompt handling through the tree, and a live MCP session. See [verification](verification.md).
+Done on the iPhone 13 mini so far: wake, the command service queue, the device lease, interruption, the accessibility tree, press, scroll and every wait condition, touch delivery measured with the probe app, keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, `frames` in portrait, app console output and the last crash, system-prompt handling through the tree, and a live MCP session. See [verification](verification.md).
 
 Run from the repository root with the device paired and unlocked. Replace `<UDID>` with the hardware UDID from `mise run cli devices`. If the display is off, `mise run cli wake --device <UDID>` turns it on. Take a screenshot before choosing where to touch, and inspect the screen after every action; a receipt is not an effect. Do not replay an input automatically.
 
@@ -12,7 +12,7 @@ If every query to a connected device times out, capture the state of Apple's dev
 
 - `handoff` with a real prompt. Wait for the owner to say when.
 - Setting an element's value in apps other than the probe (SwiftUI, secure, search and web fields), and through the MCP tool.
-- The bridge's decoded-JPEG video mode. The owner wants it kept and tested; no command reaches it yet.
+- `frames` with the display rotated, on another device, for a long run (minutes, toward the 1000-frame and 1 GiB limits), and with a second process trying to capture or send input meanwhile. Portrait runs on the iPhone 13 mini are [recorded](verification.md#frames-on-the-phone).
 - Typing in keyboard layouts other than Spanish – ISO, which the iPhone 13 mini uses on its own and which typed exactly ([verification](verification.md#keyboard-layouts-on-the-phone)). The runs below remain for other layouts, each needing the phone's layout changed by hand ([physical typing](physical-typing.md#layouts); simulator results in [verification](verification.md#keyboard-layouts-on-the-simulator)). The phone's layout cannot be read, so set it by hand first in Settings › General › Keyboard › Hardware Keyboard (if that section appears without a real keyboard attached, which is itself unknown) or note what it is, then open the probe app and focus `probe.text.field` (`set-value --id probe.text.field x --device <UDID>`, `key backspace`). Read the result from `probe.text.value` in `tree`. Suggested runs, each with its own layout set on the phone:
   - `type 'Ab9!z;[ ~"<>? mañana café über ß €' --device <UDID>` with the phone on US: US ASCII plus Option dead keys, which were only seen on a simulator.
   - `type --layout spanish-iso 'Año Ñandú ¿Qué? ¡Sí! €5 ç <º> @#' --device <UDID>`.

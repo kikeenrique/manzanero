@@ -189,7 +189,7 @@ struct ManzaneroCLI: ParsableCommand {
                 Gesture.self, Button.self, Key.self, TypeText.self, Paste.self, Wake.self, Remote.self, Crown.self,
                 Fold.self, Unfold.self, Hinge.self]),
             CommandGroup(name: "Accessibility", subcommands: [Tree.self, Press.self, Scroll.self, Wait.self, SetValue.self]),
-            CommandGroup(name: "Screen", subcommands: [Screenshot.self, Screen.self, Record.self, Displays.self]),
+            CommandGroup(name: "Screen", subcommands: [Screenshot.self, Screen.self, Record.self, Frames.self, Displays.self]),
             CommandGroup(name: "Apps and files", subcommands: [
                 Apps.self, Launch.self, Terminate.self, Install.self, Uninstall.self, OpenURL.self,
                 Files.self, Reports.self, BuildRun.self]),

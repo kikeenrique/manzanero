@@ -309,6 +309,25 @@ The interaction check establishes one AX-read/Home workflow during recording, no
 
 Key checkpoints: `68beb1f`, `504ca28`, `d8aba6f`, `f88327f`, `d0c3e30`, `2ed88bc`, `3b5727b`.
 
+### Frames on the phone
+
+**2026-11-16**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52), CoreDevice 651.32, AVConference 2260.15.1, debug build run from this checkout (the firewall rule covers it; `doctor` reported `allowed`). The probe app was in front unless noted.
+
+| Check | Observed |
+| --- | --- |
+| `frames` against the bridge's decoded-JPEG mode (the first version) | Refused at once: `Installed AVCStreamOutput denies access to this process; no stream started`, tunnel release acknowledged. The installed `AVCStreamOutputAccess.plist` admits only named processes; `manzanero` is not one. `frames` was then built on the standard-RTP stream |
+| `frames <dir> --count 10`, twice | 10 frames of 1125×2436, about 381 kB each (3.8 MB in all), stop reason `count`; setup 752–758 ms, first frame 506–526 ms after the stream request, 67 ms between frames on average; 2.4 s for the whole command. Owned stop, stream absence and tunnel release acknowledged |
+| `frames <dir> --seconds 5 --interval 500` | 10 frames at 0, 567, 1037, 1560, 2029, 2562, 3028, 3527, 4037 and 4531 ms (mean 503.5 ms), stop reason `duration`, 7.3 s for the command. Before the interval grid, frames drifted to a 530–536 ms mean |
+| `--seconds 30 --interval 200`, SIGINT after 4 s | Exit 130; 10 frames kept, `frames.json` `interrupted`, stderr summary with cleanup acknowledged; `media-status` afterwards: not running, 0 sessions |
+| `--seconds 60 --interval 100`, SIGTERM after 4 s | Exit 143; 18 frames kept, `interrupted`, cleanup acknowledged, 0 sessions afterwards |
+| Content | Frames opened as images: the probe app upright and readable (text-field caret visible in some, not others), then the Home screen after `button home`, then the probe app again after `launch`. The first Home frame showed a black 11-pixel strip on the right and 12 rows at the bottom: the stream is 1136×2448 for a 1125×2436 screen. After cropping to the display's bounds the frame matched a `screenshot` taken just after it in size and icon positions |
+| Status bar | The first frame of a run showed the clock; later frames and a `screenshot` taken right after a run showed the screen-sharing indicator in its place. The home indicator and rounded corners are not in the stream |
+| One image | `frames --count 1`: 1.78–1.86 s over three runs; `screenshot`: 0.69–0.72 s over three runs |
+| MCP `capture_frames`, 5 frames at 200 ms, `image_max_edge: 400` | `isError: false`, 5 frames, inline 185×400 JPEG of 23 kB, scale 6.08. The same call sent right after `notifications/initialized` got no response (the known [open question](live-check-plan.md#questions-still-open)); sent a second later it answered |
+| MCP cancellation (`notifications/cancelled`) 4 s into a 30-second capture | No response for the request, as MCP requires; 10 frames kept, `frames.json` `interrupted`, cleanup acknowledged, 0 sessions afterwards |
+
+Not covered: landscape or upside-down displays, another device, runs longer than five seconds, the 1 GiB budget and the first-frame timeout on hardware, and two processes competing for the stream.
+
 ### Material media failures
 
 - The installed `AVCStreamOutput` access validator denied this process. The probe now fails before starting media; no allowlist override, process spoof or framework hook was applied.

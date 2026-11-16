@@ -122,7 +122,7 @@ struct NativeRecordingReceipt: Sendable {
 
 @available(macOS 26.0, *)
 @MainActor enum NativeRecording {
-    private static let sessions = NativeRecordingSessions()
+    private static var sessions: NativeRecordingSessions { .shared }
 
     static func execute(_ command: RecordingCommand, staging: URL, runner: ToolRunner) async throws
         -> NativeRecordingReceipt
@@ -252,13 +252,15 @@ extension CommandFailure {
 
 /// Resolve aliases to the CoreDevice UUID before reserving a stream. This covers
 /// concurrent MCP requests in this process; separate CLI processes do not share it.
+/// Native recording and `frames` share one reservation: one stream per device.
 actor NativeRecordingSessions {
+    static let shared = NativeRecordingSessions()
     private var devices: Set<String> = []
 
     func begin(_ uuid: String) throws {
         try Task.checkCancellation()
         guard devices.insert(uuid.lowercased()).inserted else {
-            throw CommandFailure(.deviceBusy, "A native recording is already active for this device in this process.", inputSent: .none)
+            throw CommandFailure(.deviceBusy, "A native recording or frame capture is already active for this device in this process.", inputSent: .none)
         }
     }
 

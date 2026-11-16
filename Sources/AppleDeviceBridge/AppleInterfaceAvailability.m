@@ -175,6 +175,8 @@ static const ADCRequirementSpec ADCKeyedArchiveUID[] = {
 // Bridge path that no CLI or MCP command reaches today.
 // ADCCreateVideoSession (decoded-JPEG mode). Its runtime access check,
 // -[AVCStreamOutput validateAccess], needs an instance and is not run here.
+// It admits only the process names in AVConference's AVCStreamOutputAccess.plist
+// and refused manzanero (2026-11-16), so frames decodes the packet stream instead.
 static const ADCRequirementSpec ADCNativeRecordingJPEG[] = {
     ADC_MEDIA_CONTROL, ADC_AVCONFERENCE_NEGOTIATION,
     ADC_CLASS("AVCVideoStream"),
@@ -201,7 +203,7 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCRSDAccessibility, ADC_COUNT(ADCRSDAccessibility) },
     { "media-inspection", "Read-only native media support and status through a CoreDevice RemoteXPC media socket", 0, 1,
       ADCMediaInspectionRequirements, ADC_COUNT(ADCMediaInspectionRequirements) },
-    { "native-recording", "record-screen --recording-backend coredevice: AVConference negotiation over the media socket", 26, 1,
+    { "native-recording", "record --backend coredevice and frames: AVConference negotiation over the media socket, standard-RTP packets decoded in process", 26, 1,
       ADCNativeRecording, ADC_COUNT(ADCNativeRecording) },
     { "simulator-input", "Simulator touch (one to five contacts, timed gestures), button, key and type through host XPC to the simulator's dtuhidd Indigo and Universal HID services, with display information from dtdeviceinfod", 0, 1,
       ADCSimulatorInput, ADC_COUNT(ADCSimulatorInput) },
@@ -211,7 +213,7 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCSimulatorAccessibility, ADC_COUNT(ADCSimulatorAccessibility) },
     { "keyed-archive-uid", "Reading keyed-archive UID values in AX archives and decode-ax-archive", 0, 1,
       ADCKeyedArchiveUID, ADC_COUNT(ADCKeyedArchiveUID) },
-    { "native-recording-jpeg", "Decoded-JPEG native video session (bridge path not used by commands)", 26, 0,
+    { "native-recording-jpeg", "Decoded-JPEG native video session; not used by commands: Apple's AVCStreamOutput access list admits only named processes and refuses manzanero, so frames decodes the packet stream instead", 26, 0,
       ADCNativeRecordingJPEG, ADC_COUNT(ADCNativeRecordingJPEG) },
 };
 

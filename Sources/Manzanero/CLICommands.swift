@@ -345,6 +345,37 @@ extension ManzaneroCLI {
         }
     }
 
+    struct Frames: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "frames", abstract: "Save live screen frames as numbered JPEG files (physical devices).",
+            discussion: """
+            Opens one in-process video stream (as record --backend coredevice does, macOS 26+) and saves frames as \
+            frame-0001.jpg, frame-0002.jpg, … with an index, \(FramesCommand.indexName): file, time offset from the first \
+            frame, pixel size and bytes of each. Repeated screenshots without a devicectl run per image. Stops at --count \
+            frames (default \(FramesCommand.defaultCount); at most \(FramesCommand.maximumCount)), after --seconds from the \
+            first frame, or when \(FramesCommand.byteLimit / (1024 * 1024)) MiB have been written, whichever comes first. \
+            --interval saves the first frame that arrives at or after each multiple of that many milliseconds from \
+            the first frame, so a late frame does not delay the rest; saved frames are never closer than \
+            \(FramesCommand.minimumSpacingMilliseconds) ms, and a still screen still delivers frames. The directory is created if missing (its parent must exist); \
+            a non-empty one is refused unless --overwrite. The first frame must arrive within \
+            \(FramesCommand.firstFrameBudgetSeconds) s. SIGINT or SIGTERM stops the stream, keeps the frames saved so far \
+            and writes the index. Frames are in the display's native orientation. Simulators: use screenshot.
+            """)
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Directory for the frames and the index.", completion: .directory) var directory: String
+        @Option(help: ArgumentHelp("Frames to save, 1...\(FramesCommand.maximumCount) (default \(FramesCommand.defaultCount), or \(FramesCommand.maximumCount) with --seconds alone).", valueName: "n")) var count: String?
+        @Option(help: ArgumentHelp("Stop this long after the first frame, 0.5...300 seconds.", valueName: "seconds")) var seconds: String?
+        @Option(help: ArgumentHelp("Save one frame per this many milliseconds, 0...60000 (default 0: every frame, at most 30 per second).", valueName: "ms")) var interval: String?
+        @Flag(help: "Write into a non-empty directory, replacing same-named frames and the index.") var overwrite = false
+        func request(_ target: Target) throws -> CommandRequest {
+            guard target.platform == .physical else {
+                throw CommandFailure.unsupported("frames reads a physical device's video stream; for a simulator use screenshot. No device was contacted.")
+            }
+            return .frames(try FramesCommand(device: target.identifier, directory: directory, count: count, seconds: seconds,
+                                             interval: interval, overwrite: overwrite))
+        }
+    }
+
     // MARK: Apps and files
 
     struct Apps: TargetedCommand {

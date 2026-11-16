@@ -58,7 +58,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Text entry | [Typing in a named keyboard layout](docs/physical-typing.md) ([layout research](docs/keyboard-layouts.md)), [Unicode paste](docs/native-input.md#direct-unicode-paste) |
 | Screen, hierarchy, OCR | [Screen inspection](docs/screen-understanding.md), [accessibility](docs/direct-accessibility.md) |
 | Exact accessibility press or scroll | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
-| Video | [Recording](docs/recording.md) |
+| Video, or many screenshots in a row | [Recording](docs/recording.md), [frames](docs/recording.md#frames-repeated-screenshots-from-one-stream) |
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
 | A step that needs a person | [Human handoff](docs/handoff.md) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |

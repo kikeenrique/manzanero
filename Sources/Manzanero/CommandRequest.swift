@@ -13,6 +13,8 @@ enum CommandRequest: Sendable, Equatable {
     case handoff(HandoffCommand)
     case screen(ScreenCommand)
     case record(RecordingCommand)
+    /// `frames`: native video frames saved as JPEG files (physical).
+    case frames(FramesCommand)
     case buildRun(BuildRunCommand)
     case diagnostics(AppDiagnosticsCommand)
     /// A `devicectl` or `simctl` wrapper.
@@ -70,6 +72,7 @@ extension CommandRequest {
         case .handoff(let handoff): (handoff.platform, handoff.device, "handoff")
         case .screen(let screen): (screen.platform, screen.device, "screen")
         case .record(let recording): (recording.physical ? "physical" : "simulator", recording.device, "record")
+        case .frames(let frames): ("physical", frames.device, "frames")
         case .buildRun(let build): (build.physical ? "physical" : "simulator", build.device, "build-run")
         case .diagnostics(let diagnostics): (diagnostics.physical ? "physical" : "simulator", diagnostics.device, diagnostics.operation)
         case .tool(let tool): (tool.platform.rawValue, tool.device, tool.operation)
@@ -86,14 +89,16 @@ extension CommandRequest {
         return (CommandService.observationOperations + ["media-status"]).contains(addressed.operation)
     }
 
-    /// Operations that own a child process or send input run under the CLI's
-    /// signal scope (`CLIInputSignals`): SIGINT/SIGTERM cancel them and wait
-    /// for cleanup. The value names what is stopped in the diagnostic.
+    /// Operations that own a child process, send input or (`frames`) save
+    /// work as they go run under the CLI's signal scope (`CLIInputSignals`):
+    /// SIGINT/SIGTERM cancel them and wait for cleanup. The value names what
+    /// is stopped in the diagnostic.
     var signalContext: String? {
         switch self {
         case .diagnostics(.logs), .diagnostics(.console): "app output capture"
         case .simulatorInput: "simulator input"
         case .physicalInput: "physical input"
+        case .frames: "frame capture"
         default: nil
         }
     }

@@ -2,6 +2,7 @@ import CoreImage
 import CoreMedia
 import CoreVideo
 import Foundation
+import ImageIO
 import Synchronization
 import VideoToolbox
 
@@ -48,6 +49,29 @@ final class NativeHEVCDecoder {
             guard emitJPEG else { return nil }
             guard let jpeg = context.jpegRepresentation(of: CIImage(cvPixelBuffer: image), colorSpace: CGColorSpaceCreateDeviceRGB(), options: [:]),
                   jpeg.count <= 8 * 1024 * 1024 else {
+                throw CommandFailure(description: "Native HEVC decoder produced invalid JPEG output.")
+            }
+            return jpeg
+        }
+    }
+
+    /// Decodes one access unit (every unit must be decoded to keep references)
+    /// and, when `emit`, returns the top-left `crop` pixels of the picture as
+    /// JPEG at `quality`. The stream pads the screen to its negotiated size on
+    /// the right and bottom (1125×2436 to 1136×2448 on an iPhone 13 mini), and
+    /// the coded picture adds rows below that.
+    func decodeFrameJPEG(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int), quality: Double) throws -> Data? {
+        let context = context
+        let width = min(crop.width, width), height = min(crop.height, height)
+        return try decodeOutput(unit) { image in
+            guard emit else { return nil }
+            let picture = CIImage(cvPixelBuffer: image)
+            // Core Image's origin is the bottom left, so the top rows are kept.
+            let visible = picture.cropped(to: CGRect(x: 0, y: picture.extent.height - CGFloat(height),
+                                                     width: CGFloat(width), height: CGFloat(height)))
+            let options = [CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): quality]
+            guard let jpeg = context.jpegRepresentation(of: visible, colorSpace: CGColorSpaceCreateDeviceRGB(), options: options),
+                  !jpeg.isEmpty, jpeg.count <= 8 * 1024 * 1024 else {
                 throw CommandFailure(description: "Native HEVC decoder produced invalid JPEG output.")
             }
             return jpeg

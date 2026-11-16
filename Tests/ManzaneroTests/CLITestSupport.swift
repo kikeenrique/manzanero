@@ -48,6 +48,12 @@ func summary(_ request: CommandRequest) -> [String] {
         return [platform(recording.physical), recording.device, "record", recording.destination.relativePath,
                 String(format: "%g", recording.seconds)]
             + (recording.codec == "h264" ? [] : [recording.codec]) + (recording.native ? ["--backend", "coredevice"] : [])
+    case .frames(let frames):
+        return ["physical", frames.device, "frames", frames.directory.relativePath]
+            + option("--count", frames.count == (frames.seconds == nil ? FramesCommand.defaultCount : FramesCommand.maximumCount) ? nil : String(frames.count))
+            + option("--seconds", frames.seconds.map { String(format: "%g", $0) })
+            + option("--interval", frames.intervalMilliseconds == 0 ? nil : String(frames.intervalMilliseconds))
+            + flag("--overwrite", frames.overwrite)
     case .buildRun(let build):
         return [platform(build.physical), build.device, "build-run", build.project, build.scheme]
             + option("--configuration", build.configuration == "Debug" ? nil : build.configuration)
