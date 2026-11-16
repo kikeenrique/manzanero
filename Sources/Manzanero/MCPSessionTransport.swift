@@ -15,20 +15,33 @@ import MCP
 /// first answer loses the call. This transport therefore holds every message
 /// after an `initialize` request, except `ping`, until the server has sent
 /// that request's response, and then passes them on in arrival order.
+///
+/// The same dispatch leaves tool calls in no fixed order, so this is also
+/// where arrival order is recorded: each `tools/call` after initialization is
+/// registered with `MCPCallOrdering` as it is read and carries its ticket to
+/// the handler in `params._meta`, and `notifications/cancelled` withdraws a
+/// call that has not started.
 actor MCPSessionTransport: Transport {
     nonisolated let logger: Logger
     private let inner: any Transport
+    private let ordering: MCPCallOrdering
     private let stream: AsyncThrowingStream<Data, any Error>
     private let continuation: AsyncThrowingStream<Data, any Error>.Continuation
     private var pump: Task<Void, Never>?
     /// The `initialize` request whose response has not been sent yet.
     private var initializing: ID?
+    /// Whether an `initialize` request has been answered with a result. The
+    /// SDK refuses tool calls before that and never runs their handlers, so
+    /// they are not registered.
+    private var initialized = false
     private var held: [Data] = []
     /// Set once the host's transport has ended; delivered after `held`.
     private var ended: Result<Void, any Error>?
 
-    init(_ inner: any Transport, logger: Logger = Logger(label: "manzanero.mcp.transport")) {
+    init(_ inner: any Transport, ordering: MCPCallOrdering = MCPCallOrdering(),
+         logger: Logger = Logger(label: "manzanero.mcp.transport")) {
         self.inner = inner
+        self.ordering = ordering
         self.logger = logger
         (stream, continuation) = AsyncThrowingStream.makeStream()
     }
@@ -58,8 +71,10 @@ actor MCPSessionTransport: Transport {
 
     func send(_ data: Data) async throws {
         defer {
-            if let initializing, Self.response(in: data) == initializing {
+            if let initializing, let message = Self.object(data), message["method"] == nil,
+               Self.id(message["id"]) == initializing {
                 self.initializing = nil
+                if message["result"] != nil { initialized = true }
                 flush()
             }
         }
@@ -67,7 +82,7 @@ actor MCPSessionTransport: Transport {
     }
 
     private func accept(_ data: Data) {
-        if initializing != nil, Self.method(of: data) != "ping" {
+        if initializing != nil, Self.object(data)?["method"]?.stringValue != "ping" {
             held.append(data)
             return
         }
@@ -75,10 +90,46 @@ actor MCPSessionTransport: Transport {
     }
 
     private func deliver(_ data: Data) {
-        if let request = Self.request(in: data), request.method == "initialize" {
-            initializing = request.id
+        let value = try? JSONDecoder().decode(Value.self, from: data)
+        if let message = value?.objectValue {
+            if message["method"]?.stringValue == "initialize", let id = Self.id(message["id"]) { initializing = id }
+            continuation.yield(order(message).flatMap { Self.encode(.object($0)) } ?? data)
+        } else if let items = value?.arrayValue {
+            let ordered = items.map { item in item.objectValue.flatMap(order).map(Value.object) }
+            continuation.yield(ordered.contains { $0 != nil }
+                ? Self.encode(.array(zip(items, ordered).map { $1 ?? $0 })) ?? data : data)
+        } else {
+            continuation.yield(data)
         }
-        continuation.yield(data)
+    }
+
+    /// Registers a `tools/call` in arrival order and stamps its ticket, or
+    /// withdraws a cancelled call. Returns the message to pass on when it
+    /// changed.
+    private func order(_ message: [String: Value]) -> [String: Value]? {
+        switch message["method"]?.stringValue {
+        case "notifications/cancelled":
+            if let id = Self.id(message["params"]?.objectValue?["requestId"]) { ordering.abandon(request: id) }
+            return nil
+        case "tools/call":
+            guard let id = Self.id(message["id"]), var params = message["params"]?.objectValue else { return nil }
+            var meta = params["_meta"]?.objectValue ?? [:]
+            let stamped = meta[MCPCallOrdering.ticketKey] != nil
+            // A ticket is only ever this transport's: one a client sent is removed.
+            meta[MCPCallOrdering.ticketKey] = nil
+            if initialized, let parsed = Self.decode(CallTool.Parameters.self, .object(params)),
+               let ticket = ordering.register(MCPCallLane.of(parsed), request: id) {
+                meta[MCPCallOrdering.ticketKey] = .int(ticket)
+            } else if !stamped {
+                return nil
+            }
+            params["_meta"] = .object(meta)
+            var ordered = message
+            ordered["params"] = .object(params)
+            return ordered
+        default:
+            return nil
+        }
     }
 
     /// Passes on held messages in order until another `initialize` holds them.
@@ -114,17 +165,9 @@ actor MCPSessionTransport: Transport {
         }
     }
 
-    static func method(of data: Data) -> String? { object(data)?["method"]?.stringValue }
+    static func encode(_ value: Value) -> Data? { try? JSONEncoder().encode(value) }
 
-    /// A request: a method and an id.
-    static func request(in data: Data) -> (method: String, id: ID)? {
-        guard let message = object(data), let method = message["method"]?.stringValue, let id = id(message["id"]) else { return nil }
-        return (method, id)
-    }
-
-    /// The id a response answers: an id and no method.
-    static func response(in data: Data) -> ID? {
-        guard let message = object(data), message["method"] == nil else { return nil }
-        return id(message["id"])
+    static func decode<T: Decodable>(_ type: T.Type, _ value: Value) -> T? {
+        encode(value).flatMap { try? JSONDecoder().decode(type, from: $0) }
     }
 }

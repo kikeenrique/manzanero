@@ -1,9 +1,21 @@
 import MCP
 
 enum AppleMCPServer {
+    typealias HandoffConfirmation = @Sendable (HandoffCommand) async throws -> HandoffStatus
+    /// Runs one tool's command line; `CommandService.run` outside tests.
+    typealias Execute = @Sendable ([String], @escaping HandoffConfirmation) async throws -> CommandOutput
+
     static func make(service: CommandService) async -> AppleMCPServerSession {
+        await make { arguments, confirmation in
+            // The tool's command line goes through the CLI's parser.
+            try await service.run(arguments, handoffConfirmation: confirmation)
+        }
+    }
+
+    static func make(execute: @escaping Execute) async -> AppleMCPServerSession {
         let handoff = MCPHandoffChannel()
         let operations = MCPToolOperations()
+        let ordering = MCPCallOrdering()
         let server = Server(name: "manzanero", version: manzaneroVersion,
             instructions: "Apple device CLI operations. Physical input/accessibility are experimental. Inspect fresh state after input. Paths are relative to the server working directory. No built-in approval policy: the MCP host controls approvals.",
             capabilities: .init(tools: .init(listChanged: false)), configuration: .strict)
@@ -12,16 +24,24 @@ enum AppleMCPServer {
         }
         await server.withMethodHandler(CallTool.self) { [weak server] params in
             guard let server else { throw MCPError.internalError("Server unavailable") }
+            let ticket = params._meta?[MCPCallOrdering.ticketKey]?.intValue
             return try await operations.perform {
-                try await MCPTools.call(name: params.name, arguments: params.arguments ?? [:]) {
-                    // The tool's command line goes through the CLI's parser.
-                    try await service.run($0, handoffConfirmation: { command in
-                        try await handoff.confirm(command, server: server)
-                    })
+                // Waiting for the device's earlier mutations is part of the
+                // owned operation, so cancellation and shutdown reach it.
+                let slot = try await ordering.admit(ticket)
+                defer { slot.release() }
+                try Task.checkCancellation()
+                return try await MCPTools.call(name: params.name, arguments: params.arguments ?? [:]) {
+                    try await execute($0) { command in
+                        // The handoff is pending now: later mutations of the
+                        // device run and meet the handoff pause.
+                        slot.release()
+                        return try await handoff.confirm(command, server: server)
+                    }
                 }
             }
         }
-        return AppleMCPServerSession(server: server, handoff: handoff, operations: operations)
+        return AppleMCPServerSession(server: server, handoff: handoff, operations: operations, ordering: ordering)
     }
 
     static func run() async throws {
@@ -51,12 +71,13 @@ struct AppleMCPServerSession: Sendable {
     let server: Server
     let handoff: MCPHandoffChannel
     let operations: MCPToolOperations
+    let ordering: MCPCallOrdering
 
     /// `initializing` runs inside the `initialize` request, before the SDK
     /// records the session as initialized; tests use it to widen that window.
     func start(transport: any Transport, initializing: (@Sendable () async -> Void)? = nil) async throws {
         try await operations.checkOpen()
-        try await server.start(transport: MCPSessionTransport(transport), initializeHook: { _, capabilities in
+        try await server.start(transport: MCPSessionTransport(transport, ordering: ordering), initializeHook: { _, capabilities in
             await handoff.configure(supportsForm: capabilities.elicitation?.form != nil)
             await initializing?()
         })

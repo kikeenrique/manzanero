@@ -8,9 +8,11 @@ import Testing
 struct RawMCPClient {
     let transport: InMemoryTransport
     private var messages: AsyncThrowingStream<Data, any Error>.Iterator
-    /// Responses and server requests read so far, by id.
+    /// Responses read so far, by id, and their ids in arrival order.
     private(set) var responses: [Int: [String: Any]] = [:]
     private(set) var arrival: [Int] = []
+    /// Requests from the server read so far.
+    private var serverRequests: [[String: Any]] = []
 
     init(_ transport: InMemoryTransport) async throws {
         self.transport = transport
@@ -41,17 +43,32 @@ struct RawMCPClient {
         try await request(id, "tools/call", ["name": name, "arguments": arguments])
     }
 
-    /// Reads until a message with this id has arrived; returns it.
+    /// Reads until the response with this id has arrived; returns it.
     @discardableResult
     mutating func response(_ id: Int) async throws -> [String: Any] {
-        while responses[id] == nil {
-            guard let data = try await messages.next() else { throw MCPError.connectionClosed }
-            guard let message = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let messageID = message["id"] as? Int else { continue }
-            responses[messageID] = message
-            arrival.append(messageID)
-        }
+        while responses[id] == nil { try await read() }
         return responses[id]!
+    }
+
+    /// Reads until the server has sent a request for this method; returns it.
+    mutating func request(method: String) async throws -> [String: Any] {
+        while true {
+            if let index = serverRequests.firstIndex(where: { $0["method"] as? String == method }) {
+                return serverRequests.remove(at: index)
+            }
+            try await read()
+        }
+    }
+
+    private mutating func read() async throws {
+        guard let data = try await messages.next() else { throw MCPError.connectionClosed }
+        guard let message = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        if message["method"] != nil {
+            serverRequests.append(message)
+        } else if let id = message["id"] as? Int {
+            responses[id] = message
+            arrival.append(id)
+        }
     }
 }
 
