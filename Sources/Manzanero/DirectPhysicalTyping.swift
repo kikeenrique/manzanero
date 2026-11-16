@@ -1,68 +1,45 @@
 import AppleDeviceBridge
 import Foundation
 
+/// `type`: text as Indigo keyboard events at the current focus, in the
+/// keyboard layout the caller names (docs/physical-typing.md,
+/// docs/keyboard-layouts.md). Shared by the physical and simulator routes.
 enum DirectPhysicalTyping {
-    struct Stroke: Equatable {
-        let usage: UInt64
-        let shift: Bool
+    /// The text and its layout from `type`'s operands: `[text]` or `[text, layout]`.
+    static func request(_ operands: [String], subject: String) throws -> (text: String, layout: KeyboardLayout) {
+        guard (1...2).contains(operands.count) else {
+            throw CommandFailure.usage("\(subject) typing expects one text operand and an optional layout; no input sent.")
+        }
+        let layout = try KeyboardLayout.named(operands.count == 2 ? operands[1] : KeyboardLayout.defaultName)
+        _ = try layout.samples(operands[0])
+        return (operands[0], layout)
     }
 
-    static func stroke(_ byte: UInt8) -> Stroke? {
-        switch byte {
-        case 97...122: return Stroke(usage: UInt64(byte - 97 + 4), shift: false)
-        case 65...90: return Stroke(usage: UInt64(byte - 65 + 4), shift: true)
-        case 49...57: return Stroke(usage: UInt64(byte - 49 + 30), shift: false)
-        case 48: return Stroke(usage: 39, shift: false)
-        case 9: return Stroke(usage: 43, shift: false)
-        case 10: return Stroke(usage: 40, shift: false)
-        case 32: return Stroke(usage: 44, shift: false)
-        default: break
-        }
-        if let index = Array("!@#$%^&*()".utf8).firstIndex(of: byte) {
-            return Stroke(usage: UInt64(30 + index), shift: true)
-        }
-        let codes: [UInt64] = [45, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56]
-        for (characters, shift) in [("-=[]\\;'`,./", false), ("_+{}|:\"~<>?", true)] {
-            if let index = Array(characters.utf8).firstIndex(of: byte) {
-                return Stroke(usage: codes[index], shift: shift)
-            }
-        }
-        return nil
+    /// The validated operands, with the layout's canonical name: `[text, layout]`.
+    static func operands(_ operands: [String], subject: String) throws -> [String] {
+        let (text, layout) = try request(operands, subject: subject)
+        return [text, layout.source.name]
     }
 
-    static func samples(_ text: String) throws -> [ADCKeyboardSample] {
-        let bytes = Array(text.utf8)
-        guard (1...512).contains(bytes.count) else {
-            throw CommandFailure.usage("Physical typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; no input sent.")
-        }
-        var result: [ADCKeyboardSample] = []
-        func append(_ usage: UInt64, _ state: UInt64) {
-            result.append(ADCKeyboardSample(nanoseconds: UInt64(result.count) * 10_000_000, usage: usage, state: state))
-        }
-        for byte in bytes {
-            guard let key = stroke(byte) else {
-                throw CommandFailure.usage("Physical typing requires printable US-layout ASCII, tab or LF newline. For Unicode use explicit paste, which replaces the clipboard. No input sent.")
-            }
-            if key.shift { append(225, 1) }
-            append(key.usage, 1)
-            append(key.usage, 2)
-            if key.shift { append(225, 2) }
-        }
-        return result
+    /// The fields typing plans and receipts share.
+    static func fields(_ text: String, layout: KeyboardLayout, samples: [ADCKeyboardSample]) -> [String: Any] {
+        layout.receiptFields.merging(["characterCount": text.count, "sampleCount": samples.count]) { _, new in new }
     }
 
     static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
                         send: (DirectPhysicalKeyboard.Sequence) throws -> Void = DirectPhysicalKeyboard.dispatchSequence) throws -> Data {
-        guard input.operation == "type", input.operands.count == 1 else {
+        guard input.operation == "type" else {
             throw CommandFailure.usage("Physical typing expects one text operand; no input sent.")
         }
-        let schedule = try samples(input.operands[0])
+        let (text, layout) = try request(input.operands, subject: "Physical")
+        let schedule = try layout.samples(text)
         let identity = try DirectPhysicalInput.identity(input, query: query)
         try Task.checkCancellation()
         try send(.init(uuid: identity.uuid, version: identity.version, samples: schedule))
-        return try JSONSerialization.data(withJSONObject: ["backend": "coredevice-direct", "operation": "type",
-            "status": "dispatched", "verified": false, "insertionVerified": false, "releaseVerified": false,
-            "layout": "US", "characterCount": input.operands[0].utf8.count, "sampleCount": schedule.count,
-            "device": input.device, "resolvedCoreDeviceUUID": identity.uuid], options: [.prettyPrinted, .sortedKeys])
+        var receipt = fields(text, layout: layout, samples: schedule)
+        receipt.merge(["backend": "coredevice-direct", "operation": "type", "status": "dispatched", "verified": false,
+                       "insertionVerified": false, "releaseVerified": false, "deviceLayout": DeviceKeyboardLayout.physical(layout),
+                       "device": input.device, "resolvedCoreDeviceUUID": identity.uuid]) { _, new in new }
+        return try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
     }
 }

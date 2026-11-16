@@ -986,7 +986,10 @@ int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t count, 
     BOOL pressed[256] = {NO};
     for (size_t i = 0; i < count; i++) {
         ADCKeyboardSample key = samples[i];
-        BOOL supported = (key.usage >= 4 && key.usage <= 56) || (key.usage >= 79 && key.usage <= 82) || key.usage == 225 || key.usage == 227;
+        // Keyboard/Keypad main block, arrows, Non-US backslash (100), Left
+        // Shift, Left Option (layout characters) and Left Command (paste).
+        BOOL supported = (key.usage >= 4 && key.usage <= 56) || (key.usage >= 79 && key.usage <= 82) || key.usage == 100 ||
+            key.usage == 225 || key.usage == 226 || key.usage == 227;
         if (!supported || (key.state != 1 && key.state != 2) ||
             key.nanoseconds > 31ULL * NSEC_PER_SEC ||
             (i == 0 ? key.nanoseconds != 0 : key.nanoseconds <= samples[i - 1].nanoseconds) ||

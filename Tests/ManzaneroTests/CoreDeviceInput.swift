@@ -20,7 +20,8 @@ struct CoreDeviceInputTests {
         #expect(try input(["drag", "0", "1", "1", "0", "0.5"]).operands == ["0", "1", "1", "0", "0.5"])
         #expect(try input(["button", "lock"]).operands == ["lock"])
         #expect(try input(["type", "text"]).operation == "type")
-        for op in [["tap", "nan", "0"], ["tap", "1.1", "0"], ["drag", "0", "0", "1", "1", "0"], ["type", "é"], ["button", "unknown"]] {
+        #expect(try input(["type", "é"]).operands == ["é", "us"])
+        for op in [["tap", "nan", "0"], ["tap", "1.1", "0"], ["drag", "0", "0", "1", "1", "0"], ["type", "→"], ["button", "unknown"]] {
             #expect(throws: CommandFailure.self) { try input(op) }
         }
     }

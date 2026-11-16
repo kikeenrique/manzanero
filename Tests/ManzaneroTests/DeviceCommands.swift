@@ -29,7 +29,7 @@ struct DeviceCommandsTests {
     /// Each command with the target inserted after the operation name.
     @Test(arguments: [["tap", "10", "10"], ["tap", "--", "--help", "0.5"], ["swipe", "0", "0", "10", "10", "1"],
                       ["drag", "0", "0", "10", "10", "1"], ["tree", "--pid", "0"], ["press", "--id", ""],
-                      ["type", "mañana"], ["button", "side"], ["key", "f1"]])
+                      ["type", "a→b"], ["button", "side"], ["key", "f1"]])
     func invalidSimulatorInputFailsAsUsageWithoutAPlan(_ command: [String]) async throws {
         func targeted(_ simulator: String) -> [String] { [command[0], "--simulator", simulator] + command.dropFirst() }
         for dryRun in [false, true] {

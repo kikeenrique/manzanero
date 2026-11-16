@@ -117,6 +117,11 @@ actor CommandService {
         case .doctor:
             guard !dryRun else { throw CommandFailure.usage(CLI.noPlanMessage) }
             return try Doctor.run { try runner.run($0) }
+        case .keyboardLayouts:
+            guard !dryRun else { throw CommandFailure.usage(CLI.noPlanMessage) }
+            return try json(KeyboardLayout.available().map {
+                ["name": $0.name, "identifier": $0.identifier, "localizedName": $0.localizedName]
+            })
         case .screen(let screen):
             if !dryRun { try checkHandoffPause(request) }
             return try await executeScreen(screen, dryRun: dryRun)
@@ -186,10 +191,12 @@ actor CommandService {
                         "execution": "Apple devicectl clipboard write followed by in-process Indigo Command+V; no helper executable."])
                 }
                 if native.operation == "type" {
-                    return try json(["backend": "coredevice-direct", "operation": "type", "identityArguments": identity.arguments,
-                        "layout": "US", "characterCount": native.operands[0].utf8.count,
-                        "sampleCount": try DirectPhysicalTyping.samples(native.operands[0]).count,
-                        "execution": "In-process Apple Indigo keyboard at current focus; no clipboard operation or helper executable."])
+                    let (text, layout) = try DirectPhysicalTyping.request(native.operands, subject: "Physical")
+                    var plan = DirectPhysicalTyping.fields(text, layout: layout, samples: try layout.samples(text))
+                    plan.merge(["backend": "coredevice-direct", "operation": "type", "identityArguments": identity.arguments,
+                                "deviceLayoutCheck": DeviceKeyboardLayout.physical(layout),
+                                "execution": "In-process Apple Indigo keyboard at current focus; no clipboard operation or helper executable."]) { _, new in new }
+                    return try json(plan)
                 }
                 guard (["button", "key"] + DirectPhysicalTouch.operations).contains(native.operation) else {
                     throw CommandFailure.unsupported("Unsupported native physical operation: \(native.operation).")

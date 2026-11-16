@@ -429,10 +429,12 @@ struct MCPStdioTests {
             if let text = ProcessInfo.processInfo.environment["MANZANERO_MCP_TEST_PASTE"] ?? ProcessInfo.processInfo.environment["MANZANERO_MCP_TEST_TYPE"] {
                 let paste = ProcessInfo.processInfo.environment["MANZANERO_MCP_TEST_PASTE"] != nil
                 let operation = paste ? "paste" : "type"
-                _ = try #require(try physicalInput([operation, "--device", physical, "--", text]))
+                let layout = ProcessInfo.processInfo.environment["MANZANERO_MCP_TEST_LAYOUT"].flatMap { $0.isEmpty ? nil : $0 } ?? "us"
+                _ = try #require(try physicalInput([operation, "--device", physical] + (paste ? [] : ["--layout", layout]) + ["--", text]))
                 let before = try request(4, "tools/call", ["name": "screenshot", "arguments": ["platform": "physical", "device": physical, "path": directory.appendingPathComponent("direct-\(operation)-before.png").path]])
                 try #require((before["result"] as? [String: Any])?["isError"] as? Bool == false)
-                let response = try request(5, "tools/call", ["name": paste ? "paste_text" : "type_text", "arguments": ["platform": "physical", "device": physical, "text": text].filter { paste ? $0.key != "platform" : true }])
+                let arguments = paste ? ["device": physical, "text": text] : ["platform": "physical", "device": physical, "text": text, "layout": layout]
+                let response = try request(5, "tools/call", ["name": paste ? "paste_text" : "type_text", "arguments": arguments])
                 let result = try #require(response["result"] as? [String: Any])
                 try #require(result["isError"] as? Bool == false)
                 let structured = try #require(result["structuredContent"] as? [String: Any])
@@ -440,7 +442,9 @@ struct MCPStdioTests {
                 #expect(receipt["backend"] as? String == "coredevice-direct" && receipt["operation"] as? String == operation)
                 if paste { #expect(receipt["clipboard"] as? String == "replaced") }
                 else {
-                    #expect(receipt["layout"] as? String == "US" && receipt["characterCount"] as? Int == text.utf8.count)
+                    #expect(receipt["layout"] as? String == KeyboardLayout.match(layout, in: KeyboardLayout.available())?.name)
+                    #expect(receipt["characterCount"] as? Int == text.count)
+                    #expect((receipt["deviceLayout"] as? [String: Any])?["status"] as? String == "not-read")
                     #expect(receipt["clipboard"] == nil)
                 }
                 #expect(receipt["insertionVerified"] as? Bool == false && receipt["releaseVerified"] as? Bool == false)

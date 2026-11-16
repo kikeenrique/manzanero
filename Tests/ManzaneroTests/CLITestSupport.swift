@@ -90,6 +90,8 @@ func summary(_ request: CommandRequest) -> [String] {
         return ["devices", simulators ? "simulators" : "physical"]
     case .doctor:
         return ["doctor"]
+    case .keyboardLayouts:
+        return ["keyboard-layouts"]
     }
 }
 

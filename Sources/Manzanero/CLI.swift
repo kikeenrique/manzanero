@@ -195,7 +195,7 @@ struct ManzaneroCLI: ParsableCommand {
             CommandGroup(name: "Diagnostics", subcommands: [Logs.self, Console.self, LastCrash.self]),
             CommandGroup(name: "Device state", subcommands: [
                 Devices.self, Details.self, Processes.self, Readiness.self, MediaStatus.self, Boot.self, Shutdown.self, Handoff.self]),
-            CommandGroup(name: "Host", subcommands: [Doctor.self, OCR.self, DecodeAXArchive.self, MCPServe.self]),
+            CommandGroup(name: "Host", subcommands: [Doctor.self, KeyboardLayouts.self, OCR.self, DecodeAXArchive.self, MCPServe.self]),
         ])
 
     @OptionGroup var common: CommonOptions

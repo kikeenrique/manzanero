@@ -34,7 +34,8 @@ struct CLIParserTests {
         (["gesture", gesture, "--device", device], ["physical", device, "gesture", gesture]),
         (["button", "home", "--simulator", simulator], ["simulator", simulator, "button", "home"]),
         (["key", "return", "--device", device], ["physical", device, "key", "return"]),
-        (["type", "Hello", "--device", device], ["physical", device, "type", "Hello"]),
+        (["type", "Hello", "--device", device], ["physical", device, "type", "Hello", "us"]),
+        (["type", "--layout", "Spanish - ISO", "año", "--simulator", simulator], ["simulator", simulator, "type", "año", "spanish-iso"]),
         (["paste", "mañana", "--device", device], ["physical", device, "paste", "mañana"]),
         (["wake", "--device", device], ["physical", device, "wake"]),
         (["wake", "--no-dismiss", "--device", device], ["physical", device, "wake", "--no-dismiss"]),
@@ -97,6 +98,7 @@ struct CLIParserTests {
         (["handoff", "Approve the prompt", "--simulator", simulator], ["simulator", simulator, "handoff", "Approve the prompt"]),
         (["handoff", "Approve the prompt", "60", "--device", device], ["physical", device, "handoff", "Approve the prompt", "60"]),
         (["doctor"], ["doctor"]),
+        (["keyboard-layouts"], ["keyboard-layouts"]),
         (["ocr", "tmp/a.png"], ["ocr", "tmp/a.png"]),
         (["decode-ax-archive", "tmp/a.plist"], ["decode-ax-archive", "tmp/a.plist"]),
     ]
@@ -114,7 +116,7 @@ struct CLIParserTests {
 
     @Test func commandsCoverEveryOperationOnce() {
         let names = Self.forms.map { $0.0[0] == "files" || $0.0[0] == "reports" ? "\($0.0[0]) \($0.0[1])" : $0.0[0] }
-        #expect(Set(names).count == 47)
+        #expect(Set(names).count == 48)
     }
 
     @Test func dryRunAndErrorFormatAreAcceptedInAnyPosition() throws {
@@ -146,6 +148,24 @@ struct CLIParserTests {
         #expect(twice.description == "Give exactly one of --device or --simulator.")
         // Commands without a target ignore the variables.
         #expect(try invocation(["doctor"], environment: both).request == .doctor)
+        #expect(try invocation(["keyboard-layouts"], environment: both).request == .keyboardLayouts)
+    }
+
+    @Test func typingLayoutComesFromTheOptionThenTheEnvironment() throws {
+        let environment = [KeyboardLayout.environmentVariable: "german"]
+        let fromEnvironment = try invocation(["type", "ß", "--device", Self.device], environment: environment).request
+        #expect(summary(fromEnvironment) == ["physical", Self.device, "type", "ß", "german"])
+        let explicit = try invocation(["type", "ñ", "--layout", "spanish-iso", "--device", Self.device], environment: environment).request
+        #expect(summary(explicit) == ["physical", Self.device, "type", "ñ", "spanish-iso"])
+        let empty = try invocation(["type", "a", "--device", Self.device], environment: [KeyboardLayout.environmentVariable: ""]).request
+        #expect(summary(empty) == ["physical", Self.device, "type", "a", "us"])
+        // A character of the environment's layout is refused in the explicit one.
+        let russian = [KeyboardLayout.environmentVariable: "russian"]
+        #expect(summary(try invocation(["type", "ж", "--device", Self.device], environment: russian).request).last == "russian")
+        let refused = try usageFailure(["type", "ж", "--layout", "us", "--device", Self.device], environment: russian)
+        #expect(refused.description.hasPrefix("The us keyboard layout cannot type 'ж' (U+0436), character 1"))
+        let unknown = try usageFailure(["type", "a", "--device", Self.device], environment: [KeyboardLayout.environmentVariable: "klingon"])
+        #expect(unknown.description.contains("Unknown keyboard layout 'klingon'"))
     }
 
     @Test(arguments: ["press", "scroll", "wait"])
@@ -182,7 +202,7 @@ struct CLIParserTests {
         // A coordinate outside 0...1 reaches the operation's own validation.
         let tap = try usageFailure(["tap", "--device", Self.device, "--", "-0.1", "0.5"])
         #expect(tap.text == nil && tap.description == "Physical input coordinates must be normalized numbers from 0 to 1.")
-        #expect(summary(try invocation(["type", "--simulator", Self.simulator, "--", "--help"]).request) == ["simulator", Self.simulator, "type", "--help"])
+        #expect(summary(try invocation(["type", "--simulator", Self.simulator, "--", "--help"]).request) == ["simulator", Self.simulator, "type", "--help", "us"])
         let console = try invocation(["console", "a.b", "--seconds", "1", "--device", Self.device, "--", "--dry-run", "-x", "plain"])
         #expect(summary(console.request) == ["physical", Self.device, "console", "a.b", "--seconds", "1", "--", "--dry-run", "-x", "plain"])
         #expect(!console.dryRun)

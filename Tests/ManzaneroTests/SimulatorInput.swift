@@ -18,6 +18,9 @@ struct SimulatorInputTests {
         var keys: [UInt64] = []
         var buttons: [(usage: UInt64, hold: UInt32)] = []
         var lookups = 0
+        /// The simulator's keyboard preferences, as `defaults export` prints them.
+        var preferences: Result<Data, CommandFailure> = .success(SimulatorInputTests.keyboardPreferences("en_US@sw=QWERTY;hw=Automatic"))
+        var preferenceReads = 0
         var failure: CommandFailure?
         var onSend: (() -> Void)?
     }
@@ -56,6 +59,11 @@ struct SimulatorInputTests {
             if let failure = sent.failure { throw failure }
             sent.keyboards.append(samples)
         }
+        environment.keyboardPreferences = { device in
+            #expect(device == uuid)
+            sent.preferenceReads += 1
+            return try sent.preferences.get()
+        }
         environment.key = { _, usage in
             sent.onSend?()
             if let failure = sent.failure { throw failure }
@@ -72,6 +80,12 @@ struct SimulatorInputTests {
     static func service(_ sent: Sent, state: String = "Booted", leases: DeviceLeaseRegistry = SimulatorAccessibilityTests.usableLeases()) -> CommandService {
         CommandService(leases: leases, simulator: environment(sent, state: state),
                        readinessQuery: { _ in Issue.record("Simulator input queried CoreDevice"); return Data() })
+    }
+
+    /// An exported `com.apple.keyboard.preferences` with one current input mode.
+    static func keyboardPreferences(_ mode: String) -> Data {
+        (try? PropertyListSerialization.data(fromPropertyList: ["KeyboardLastUsed": mode, "KeyboardsCurrentAndNext": [mode, mode]],
+                                             format: .xml, options: 0)) ?? Data()
     }
 
     static func json(_ output: CommandOutput) throws -> [String: Any] {
@@ -417,9 +431,10 @@ struct SimulatorInputTests {
             (["button", "side"], "Supported simulator buttons: home, lock, volume-up, volume-down; no input sent."),
             (["button"], "Supported simulator buttons: home, lock, volume-up, volume-down; no input sent."),
             (["key", "f1"], "Unknown simulator keyboard key. See --help."),
-            (["type", "mañana"], "Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value with --id or --label, which replaces a named element's whole value. No input sent."),
-            (["type", String(repeating: "a", count: 513)], "Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value with --id or --label, which replaces a named element's whole value. No input sent."),
-            (["type", "a", "b"], "Simulator typing expects one text operand.")
+            (["type", "a→b"], "The us keyboard layout cannot type '→' (U+2192), character 2 of the text: only characters that layout produces with Shift, Option or one dead key can be typed. For other text use set-value with --id or --label, which replaces a named element's whole value without the keyboard. No input sent."),
+            (["type", String(repeating: "a", count: 513)], "Typing requires 1...512 characters; no input sent."),
+            (["type", "a", "b"], "Unknown keyboard layout 'b'. List the available names with `manzanero keyboard-layouts`; no input sent."),
+            (["type", "a", "us", "c"], "Simulator typing expects one text operand and an optional layout; no input sent.")
         ]
         for (operands, message) in invalid {
             let failure = try #require(throws: CommandFailure.self) { try Self.input(operands) }
@@ -449,8 +464,40 @@ struct SimulatorInputTests {
         // Shift down, W down/up, shift up, i down/up: the physical US-layout table.
         #expect(schedule.map(\.usage) == [225, 26, 26, 225, 12, 12] && schedule.map(\.state) == [1, 1, 2, 2, 1, 2])
         #expect(schedule.map(\.nanoseconds) == (0..<6).map { UInt64($0) * 10_000_000 })
-        #expect(typed["insertionVerified"] as? Bool == false && typed["layout"] as? String == "US")
+        #expect(typed["insertionVerified"] as? Bool == false && typed["layout"] as? String == "us")
         #expect(typed["characterCount"] as? Int == 2 && typed["sampleCount"] as? Int == 6)
+        // hw=Automatic is left to iOS and reported, not resolved.
+        let check = try #require(typed["deviceLayout"] as? [String: Any])
+        #expect(check["status"] as? String == "not-checked" && check["inputMode"] as? String == "en_US@sw=QWERTY;hw=Automatic")
+        #expect(sent.preferenceReads == 1)
+    }
+
+    @Test func typingChecksTheSimulatorsExplicitLayoutBeforeSending() async throws {
+        let sent = Sent()
+        let service = Self.service(sent)
+        sent.preferences = .success(Self.keyboardPreferences("de_DE@sw=QWERTZ-German;hw=German"))
+        // ß is HID 45 (the US minus key) in German; the explicit setting matches.
+        let german = try Self.json(await service.run(["type", "--layout", "german", "ß", "--simulator", Self.uuid]))
+        #expect(sent.keyboards.last?.map(\.usage) == [45, 45])
+        let check = try #require(german["deviceLayout"] as? [String: Any])
+        #expect(check["status"] as? String == "matches" && check["deviceLayout"] as? String == "german")
+        #expect(german["layout"] as? String == "german" && german["layoutIdentifier"] as? String == "com.apple.keylayout.German")
+        // A different explicit layout refuses before anything is sent.
+        let failure = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await service.run(["type", "yz", "--simulator", Self.uuid])
+        })
+        #expect(failure.code == .usage && failure.inputSent == .none)
+        #expect(failure.description.contains("uses the german hardware keyboard layout, not us") && failure.description.contains("--layout german"))
+        #expect(sent.keyboards.count == 1)
+        // iOS names match the macOS layout ignoring case and punctuation.
+        sent.preferences = .success(Self.keyboardPreferences("es_ES@sw=QWERTY-Spanish;hw=Spanish - ISO"))
+        let spanish = try Self.json(await service.run(["type", "--layout", "spanish-iso", "ñ", "--simulator", Self.uuid]))
+        #expect((spanish["deviceLayout"] as? [String: Any])?["status"] as? String == "matches")
+        // An unreadable setting is reported, not guessed.
+        sent.preferences = .failure(CommandFailure(.toolFailed, "fixture", inputSent: .none))
+        let unread = try Self.json(await service.run(["type", "a", "--simulator", Self.uuid]))
+        #expect((unread["deviceLayout"] as? [String: Any])?["status"] as? String == "not-checked")
+        #expect(sent.keyboards.count == 3)
     }
 
     @Test func buttonKeyAndTypeDryRunsNameTheirService() async throws {
@@ -460,8 +507,13 @@ struct SimulatorInputTests {
         #expect(button["usage"] as? Int == 48 && button["holdMilliseconds"] as? Int == 400)
         #expect((button["execution"] as? String)?.contains("remote.hid.button") == true)
         let type = try Self.json(await service.run(["type", "hello", "--simulator", Self.uuid], dryRun: true))
-        #expect(type["sampleCount"] as? Int == 10 && type["layout"] as? String == "US")
+        #expect(type["sampleCount"] as? Int == 10 && type["layout"] as? String == "us")
         #expect((type["execution"] as? String)?.contains("remote.hid.keyboard") == true)
+        #expect((type["deviceLayoutCheck"] as? String)?.contains("defaults export com.apple.keyboard.preferences") == true)
+        // Dead key plus key: the acute key (HID 52) then e.
+        let spanish = try Self.json(await service.run(["type", "é", "--layout", "spanish-iso", "--simulator", Self.uuid], dryRun: true))
+        #expect(spanish["layout"] as? String == "spanish-iso" && spanish["sampleCount"] as? Int == 4 && spanish["characterCount"] as? Int == 1)
+        #expect(sent.preferenceReads == 0)
         let key = try Self.json(await service.run(["key", "return", "--simulator", Self.uuid], dryRun: true))
         #expect(key["usage"] as? Int == 40 && key["backend"] as? String == "coresimulator-dtuhid")
         #expect(sent.lookups == 0 && sent.keys.isEmpty && sent.buttons.isEmpty && sent.keyboards.isEmpty)

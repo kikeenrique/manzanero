@@ -40,10 +40,11 @@ struct PhysicalInputOperandsTests {
 
     @Test func physicalTypingPreservesLiteralText() throws {
         let text = "--literal 'text'; $(touch sentinel)\tOK\n"
-        #expect(try native(["type", text]).operands == [text])
+        #expect(try native(["type", text]).operands == [text, "us"])
+        #expect(try native(["type", text, "Spanish - ISO"]).operands == [text, "spanish-iso"])
     }
 
-    @Test(arguments: ["", "é", "🙂", "\0", "\r", "\u{1b}", String(repeating: "a", count: 513)])
+    @Test(arguments: ["", "🙂", "\0", "\r", "\r\n", "\u{1b}", "→", String(repeating: "a", count: 513), String(repeating: "é", count: 512)])
     func rejectsUnsupportedPhysicalTextBeforeDispatch(_ text: String) {
         #expect(throws: CommandFailure.self) { try native(["type", text]) }
     }

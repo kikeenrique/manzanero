@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #MISE extends = "swift"
-#MISE description = "Type synthetic US-layout text through direct MCP without changing clipboard"
+#MISE description = "Type synthetic text in a named keyboard layout through direct MCP without changing clipboard"
 #MISE depends = ["build"]
 #USAGE arg "<device>" help="Explicit physical device UDID"
-#USAGE arg "<text>" help="Synthetic US-layout ASCII; types once at current focus"
+#USAGE arg "<text>" help="Synthetic text the layout can type; types once at current focus"
+#USAGE arg "[layout]" help="Keyboard layout the device uses (manzanero keyboard-layouts)" default="us"
 
 set -e -o pipefail
 
-MANZANERO_MCP_LIVE=1 MANZANERO_MCP_TEST_PHYSICAL="$usage_device" MANZANERO_MCP_TEST_TYPE="$usage_text" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings
+MANZANERO_MCP_LIVE=1 MANZANERO_MCP_TEST_PHYSICAL="$usage_device" MANZANERO_MCP_TEST_TYPE="$usage_text" MANZANERO_MCP_TEST_LAYOUT="$usage_layout" swift test --cache-path tmp/swift-cache --filter MCPStdioTests 2>&1 | xcsift -f toon --warnings

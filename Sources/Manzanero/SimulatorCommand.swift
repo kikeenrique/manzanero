@@ -94,11 +94,7 @@ struct SimulatorInput: Sendable, Equatable {
                 throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down; no input sent.")
             }
         case "type":
-            guard operands.count == 1 else { throw CommandFailure.usage("Simulator typing expects one text operand.") }
-            let bytes = Array(operands[0].utf8)
-            guard (1...512).contains(bytes.count), bytes.allSatisfy({ DirectPhysicalTyping.stroke($0) != nil }) else {
-                throw CommandFailure.usage("Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value with --id or --label, which replaces a named element's whole value. No input sent.")
-            }
+            operands = try DirectPhysicalTyping.operands(operands, subject: "Simulator")
         default:
             throw CommandFailure.unsupported("Unsupported simulator operation: \(operation).")
         }
@@ -174,9 +170,9 @@ struct SimulatorInput: Sendable, Equatable {
                 plan["usage"] = DirectPhysicalKeyboard.usages[operands[0]]
             default:
                 service = "com.apple.coredevice.feature.remote.hid.keyboard"
-                plan["layout"] = "US"
-                plan["characterCount"] = operands[0].utf8.count
-                plan["sampleCount"] = try DirectPhysicalTyping.samples(operands[0]).count
+                let (text, layout) = try DirectPhysicalTyping.request(operands, subject: "Simulator")
+                plan.merge(DirectPhysicalTyping.fields(text, layout: layout, samples: try layout.samples(text))) { _, new in new }
+                plan["deviceLayoutCheck"] = DeviceKeyboardLayout.simulatorPlan(layout)
             }
             plan["execution"] = "In-process host XPC to the simulator's dtuhidd (\(service)): readiness barrier, the physical Indigo \(operation == "button" ? "button press" : "keyboard schedule") with release on stop, completion barrier and a short drain before disconnect. No clipboard, helper executable or automatic replay."
         }
@@ -200,8 +196,13 @@ struct SimulatorEnvironment: Sendable {
     var digitizerReports: @Sendable (String, String, [UInt64], [UInt8]) throws -> UInt64 = DirectSimulatorInput.digitizerReports
     /// The simulator's display information as devicectl-shaped JSON.
     var displayInfo: @Sendable (String) throws -> Data = DirectSimulatorInput.displayInfo
-    /// A complete US-layout keyboard schedule (`type`).
+    /// A complete keyboard schedule (`type`).
     var keyboard: @Sendable (String, [ADCKeyboardSample]) throws -> Void = DirectSimulatorInput.keyboard
+    /// The simulator's `com.apple.keyboard.preferences` as an XML plist, read
+    /// before typing to compare its hardware layout with the requested one.
+    var keyboardPreferences: @Sendable (String) throws -> Data = { uuid in
+        try ToolRunner().run(DeviceKeyboardLayout.simulatorRead(uuid), timeout: 15)
+    }
     /// One named key (`key`).
     var key: @Sendable (String, UInt64) throws -> Void = DirectSimulatorInput.key
     /// One button press: usage and hold in microseconds.

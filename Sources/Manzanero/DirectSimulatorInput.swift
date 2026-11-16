@@ -2,9 +2,9 @@ import AppleDeviceBridge
 import Foundation
 
 /// Simulator touch (one contact, or two for pinch and two-path multi-drag),
-/// buttons, named keys and US-layout typing.
+/// buttons, named keys and typing in a named keyboard layout.
 /// Schedules come from the physical builders (`DirectPhysicalTouch.plan`,
-/// `DirectPhysicalTyping.samples`) and run through the bridge's shared
+/// `KeyboardLayout.samples`) and run through the bridge's shared
 /// schedulers; only the connection (host XPC to the simulator's dtuhidd)
 /// differs. Receipts keep the physical shape with backend `coresimulator-dtuhid`.
 enum DirectSimulatorInput {
@@ -93,14 +93,17 @@ enum DirectSimulatorInput {
             result["key"] = name
             result["usage"] = usage
         case "type":
-            guard input.operands.count == 1 else { throw CommandFailure.usage("Simulator typing expects one text operand; no input sent.") }
-            let schedule = try DirectPhysicalTyping.samples(input.operands[0])
+            let (text, layout) = try DirectPhysicalTyping.request(input.operands, subject: "Simulator")
+            let schedule = try layout.samples(text)
+            // The simulator's own layout setting, read before anything is
+            // sent; an explicit different layout refuses the input.
+            let preferences = Result { try environment.keyboardPreferences(input.device) }
+            let deviceLayout = try DeviceKeyboardLayout.simulator(preferences, layout: layout, sources: KeyboardLayout.available())
             try Task.checkCancellation()
             try environment.keyboard(input.device, schedule)
             result["insertionVerified"] = false
-            result["layout"] = "US"
-            result["characterCount"] = input.operands[0].utf8.count
-            result["sampleCount"] = schedule.count
+            result["deviceLayout"] = deviceLayout
+            result.merge(DirectPhysicalTyping.fields(text, layout: layout, samples: schedule)) { _, new in new }
         default:
             throw CommandFailure.unsupported("Unsupported simulator input operation: \(input.operation); no input sent.")
         }

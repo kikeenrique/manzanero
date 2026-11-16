@@ -38,8 +38,7 @@ struct CoreDeviceInput: Sendable, Equatable {
                 operands = [String(pid)]
             }
         } else if operation == "type" {
-            guard operands.count == 1 else { throw CommandFailure.usage("Physical typing expects one text operand.") }
-            _ = try DirectPhysicalTyping.samples(operands[0])
+            operands = try DirectPhysicalTyping.operands(operands, subject: "Physical")
         } else if operation == "paste" {
             guard operands.count == 1, (1...65536).contains(operands[0].utf8.count), !operands[0].contains("\0") else {
                 throw CommandFailure.usage("Native paste requires 1...65536 UTF-8 bytes without NUL. It replaces the device clipboard and pastes at the focused caret/selection.")

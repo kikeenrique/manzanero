@@ -21,6 +21,8 @@ enum CommandRequest: Sendable, Equatable {
     case ocr(path: String)
     case devices(simulators: Bool)
     case doctor
+    /// The keyboard layouts `type` accepts, read from this Mac.
+    case keyboardLayouts
 }
 
 /// A wrapped Apple tool invocation and the operation it implements.
@@ -69,7 +71,7 @@ extension CommandRequest {
         case .buildRun(let build): (build.physical ? "physical" : "simulator", build.device, "build-run")
         case .diagnostics(let diagnostics): (diagnostics.physical ? "physical" : "simulator", diagnostics.device, diagnostics.operation)
         case .tool(let tool): (tool.platform.rawValue, tool.device, tool.operation)
-        case .decodeArchive, .ocr, .devices, .doctor: nil
+        case .decodeArchive, .ocr, .devices, .doctor, .keyboardLayouts: nil
         }
     }
 

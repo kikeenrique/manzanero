@@ -123,12 +123,30 @@ extension ManzaneroCLI {
     }
 
     struct TypeText: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "type", abstract: "Type US-layout ASCII text at the current focus.",
-            discussion: "1...512 printable ASCII characters, tab or newline, as keyboard events; the clipboard is untouched. For other text use set-value, which replaces a named element's whole value, or paste (physical), which replaces the clipboard. \(receiptCaveat)")
+        static let configuration = CommandConfiguration(commandName: "type", abstract: "Type text at the current focus in a named keyboard layout.",
+            discussion: """
+            Sends 1...512 characters as keyboard events; the clipboard is untouched. The device turns key codes into \
+            characters with its own hardware-keyboard layout, so name that layout: --layout, else \
+            $\(KeyboardLayout.environmentVariable), else us. Any character the layout produces with Shift, Option or one \
+            dead key is accepted, plus tab and newline; the first one it cannot produce refuses the whole text before \
+            anything is sent. List layout names with `manzanero keyboard-layouts`.
+
+            A simulator's layout setting is read first: a different explicit layout is refused, and an automatic one is \
+            reported as not checked. A physical device's layout cannot be read; the receipt says so. For text no layout \
+            types, use set-value, which replaces a named element's whole value, or paste (physical), which replaces the \
+            clipboard. \(receiptCaveat)
+            """)
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
+        @Option(help: ArgumentHelp("Keyboard layout the device uses, such as us, spanish-iso, german or french (default: $\(KeyboardLayout.environmentVariable), else us).",
+                                   valueName: "name")) var layout: String?
         @Argument(help: "The text; put -- before text that begins with '-'.") var text: String
-        func request(_ target: Target) throws -> CommandRequest { try .input(target, "type", [text]) }
+        /// The explicit option wins over the environment; MCP passes no environment.
+        func request(environment: [String: String]) throws -> CommandRequest {
+            let fallback = environment[KeyboardLayout.environmentVariable].flatMap { $0.isEmpty ? nil : $0 } ?? KeyboardLayout.defaultName
+            return try .input(target.resolve(environment), "type", [text, layout ?? fallback])
+        }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "type", [text, layout ?? KeyboardLayout.defaultName]) }
     }
 
     struct Paste: TargetedCommand {
@@ -538,6 +556,13 @@ extension ManzaneroCLI {
                                                         discussion: "Contacts no device.")
         @OptionGroup var common: CommonOptions
         func request(environment: [String: String]) throws -> CommandRequest { .doctor }
+    }
+
+    struct KeyboardLayouts: CLICommand {
+        static let configuration = CommandConfiguration(commandName: "keyboard-layouts", abstract: "List the keyboard layout names type accepts.",
+            discussion: "The layouts this Mac ships, as JSON: name (for --layout), macOS identifier and localized name. Names match ignoring case, spaces and punctuation, so iOS names such as \"Spanish - ISO\" work too. Contacts no device.")
+        @OptionGroup var common: CommonOptions
+        func request(environment: [String: String]) throws -> CommandRequest { .keyboardLayouts }
     }
 
     struct OCR: CLICommand {

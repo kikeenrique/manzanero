@@ -27,7 +27,7 @@ struct MCPToolsTests {
     }
     @Test func catalogHasUniqueNamesAndClosedObjectSchemas() throws {
         let definitions = MCPTools.definitions
-        #expect(definitions.count == 36)
+        #expect(definitions.count == 37)
         #expect(Set(definitions.map(\.name)).count == definitions.count)
         for definition in definitions {
             let schema = try #require(definition.tool.inputSchema.objectValue)
@@ -42,7 +42,7 @@ struct MCPToolsTests {
         let text = "$(touch sentinel); 'hello'\nworld"
         let args = try typing.command(["device": "11111111-2222-3333-4444-555555555555", "text": .string(text)])
         let plan = try #require(try physicalInput(args))
-        #expect(plan.operands == [text])
+        #expect(plan.operands == [text, "us"])
         let tap = try #require(MCPTools.definitions.first { $0.name == "tap" })
         let tapped = try tap.command(["platform": "physical", "device": "phone", "x": 0.5, "y": 1])
         #expect(tapped == ["tap", "--device=phone", "--", "0.5", "1"])
@@ -144,7 +144,8 @@ struct MCPToolsTests {
         ("long_press", ["platform": Value.string("simulator"), "x": 0.5, "y": 0.5, "seconds": 0.8], ["long-press", "0.5", "0.5", "0.8"]),
         ("press_button", ["platform": Value.string("simulator"), "button": "home"], ["button", "home"]),
         ("press_key", ["platform": Value.string("simulator"), "key": "backspace"], ["key", "backspace"]),
-        ("type_text", ["platform": Value.string("simulator"), "text": "Wi-Fi"], ["type", "Wi-Fi"]),
+        ("type_text", ["platform": Value.string("simulator"), "text": "Wi-Fi"], ["type", "Wi-Fi", "us"]),
+        ("type_text", ["platform": Value.string("simulator"), "text": "Grüße", "layout": "german"], ["type", "Grüße", "german"]),
         ("pinch", ["platform": Value.string("simulator"), "center_x": 0.5, "center_y": 0.5, "start_span": 0.2, "end_span": 0.5, "seconds": 0.6],
          ["pinch", "0.5", "0.5", "0.2", "0.5", "0.6"]),
         ("multi_drag", ["platform": Value.string("simulator"), "seconds": 0.5, "paths": [0.5, 0.25, 0.5, 0.1, 0.5, 0.75, 0.5, 0.9]],
@@ -191,7 +192,7 @@ struct MCPToolsTests {
         #expect(parsed.operation == operands[0])
     }
 
-    @Test(arguments: [("type_text", ["device": Value.string("fixture"), "text": "a"], ["physical", "fixture", "type", "a"]),
+    @Test(arguments: [("type_text", ["device": Value.string("fixture"), "text": "a"], ["physical", "fixture", "type", "a", "us"]),
                       ("get_ui_tree", ["device": Value.string("fixture")], ["physical", "fixture", "tree"])])
     func optionalPlatformDefaultsToPhysical(_ name: String, _ arguments: [String: Value], _ expected: [String]) throws {
         let definition = try #require(MCPTools.definitions.first { $0.name == name })
@@ -229,7 +230,10 @@ struct MCPToolsTests {
         let definition = try #require(MCPTools.definitions.first { $0.name == "type_text" })
         let args = try definition.command(["platform": "physical", "device": "fixture", "text": "Hello!"])
         #expect(args == ["type", "--device=fixture", "--", "Hello!"])
-        #expect(try physicalInput(args)?.operands == ["Hello!"])
+        #expect(try physicalInput(args)?.operands == ["Hello!", "us"])
+        let german = try definition.command(["device": "fixture", "text": "Grüße", "layout": "german"])
+        #expect(german == ["type", "--device=fixture", "--layout=german", "--", "Grüße"])
+        #expect(try physicalInput(german)?.operands == ["Grüße", "german"])
     }
 
     @Test func unknownToolsCannotInvokeExecutor() async {
