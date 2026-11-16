@@ -135,6 +135,23 @@ Operator errors during this run, recorded because they changed device state: a 6
 
 These are results from one phone on one iOS version, with the probe in front and nothing else running. They measure what reached a UIKit view, not behaviour in other apps, near screen edges, during animations or in landscape.
 
+### Operation-first grammar on the phone
+
+**2026-11-16, at `f821443`**, after the CLI moved to Swift Argument Parser with typed dispatch. iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52). Every command below was run through the real CLI in the new grammar, most with the target taken from `MANZANERO_DEVICE`.
+
+| Family | Commands run | Observed |
+| --- | --- | --- |
+| State | `wake`, `readiness`, `details`, `apps`, `processes`, `media-status` | All exit 0 |
+| Accessibility | `tree`, `press --id`, `wait --id`, `wait --label` for a missing label | Seven probe identifiers; press accepted; wait met; the missing label exited 124 |
+| Touch | `tap`, `pinch`, three-contact `multi-tap`, `gesture`, `long-press`, `swipe` | The probe recorded six gestures, nine contacts begun and ended, at most three at once, as sent |
+| Capture | `screenshot`, `screen`, `record … --backend coredevice` | Screen used the accessibility method; a 3-second recording had 59 source frames |
+| Apps and files | `launch`, `files list`, `files pull`, `reports list`, `build-run` | The pulled log had 63 lines; Build & Run reinstalled and launched the probe |
+| Diagnostics | `console … -- -probeLogToken N1`, `last-crash --bundle` | The token came back nine times; the earlier abort was found |
+| Keys and buttons | `button home`, `key escape` | Dispatched |
+| Options | `--dry-run` after the operation; explicit `--device` over the environment; both targets together; `tap 2 0.5` | Plan printed; explicit target used; "Give exactly one of --device or --simulator" with exit 64; the coordinate message with exit 64 |
+
+The measurement runner then delivered 28 of 28 actions and 58 of 58 contacts over two rounds, and the opt-in MCP readiness, foreground and button checks passed. `paste`, `type` into a field, `uninstall`, `files push`, `reports get` and `terminate` were not repeated in the new grammar on the phone; their plans were compared with the earlier grammar's by dry run.
+
 ### Remaining phone checks: keys, files, waits, prompts and a live MCP session
 
 **2026-11-16**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52), with the 200 ms input drain.
