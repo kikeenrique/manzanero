@@ -23,7 +23,17 @@ If every query to a connected device times out, capture the state of Apple's dev
 - Landscape on a phone, an iPad, and anything on a second device. The simulator side of rotation and iPad is measured.
 - Debug-level log lines and a large output through `console`.
 
+## Not yet run on Apple TV, Apple Watch or iPhone Duo hardware
+
+Everything in [other families](other-families.md) has run on simulators only. On real devices nothing is known, including whether the commands apply at all:
+
+- Duo: `displays`, `screenshot` with and without `--display`, `record --display`.
+- Apple TV: every `remote` button against an app that reacts to play-pause, touch refused, focus in the tree, `wait --until focused`.
+- Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), and `button side`.
+
 ## Questions still open
+
+- Why does an MCP `tools/call` sent immediately after `notifications/initialized` sometimes get no response? Seen in about half of eight sessions; a one-second pause avoided it.
 
 - Does the 200 ms connection drain hold on other devices and under load? On the iPhone 13 mini, 50 ms lost short gestures and 100 ms did not.
 - Why did one tap on the Settings search field have no effect, when the next 36 taps there did?
