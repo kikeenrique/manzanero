@@ -389,7 +389,7 @@ int ADCSimulatorPressKeyboardKey(void *owner, uint64_t usage, ADCInputShouldStop
 }
 
 int ADCSimulatorPressButton(void *owner, uint64_t usage, unsigned hold, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
-    if ((usage != 64 && usage != 48) || hold > 400000)
+    if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
         return ADCSimulatorFail(error, capacity, @"Invalid simulator button request; no input sent.");
     return ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.hid.button", shouldCancel, NULL,
         ^int(xpc_connection_t connection, ADCInputShouldStop stop) {

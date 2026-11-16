@@ -110,7 +110,7 @@ Usage:
   manzanero simulator <UUID> multi-drag <seconds> <x1> <y1> <x2> <y2> ...   Two to five paths
   manzanero simulator <UUID> multi-tap <x1> <y1> <x2> <y2> ...              Two to five contacts
   manzanero simulator <UUID> gesture <json-sequence>
-  manzanero simulator <UUID> button <home|lock>
+  manzanero simulator <UUID> button <home|lock|volume-up|volume-down>
   manzanero simulator <UUID> key <return|escape|backspace|tab|space|up|down|left|right>
   manzanero simulator <UUID> type <text>   US-layout ASCII, 1...512 characters
   Simulator input and AX run in process (dtuhidd HID and CoreSimulator AX requests) on a booted

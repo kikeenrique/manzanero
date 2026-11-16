@@ -24,7 +24,7 @@ struct DeviceCommandsTests {
 
     @Test(arguments: [["tap", "10", "10"], ["tap", "--help"], ["swipe", "0", "0", "10", "10", "1"],
                       ["drag", "0", "0", "10", "10", "1"], ["tree", "0"], ["press-id"],
-                      ["type", "mañana"], ["button", "volume-up"], ["key", "f1"]])
+                      ["type", "mañana"], ["button", "side"], ["key", "f1"]])
     func invalidSimulatorInputFailsAsUsageWithoutAPlan(_ operands: [String]) async throws {
         for dryRun in [false, true] {
             let message = try #require(await failure(["simulator", simulator] + operands, dryRun: dryRun))

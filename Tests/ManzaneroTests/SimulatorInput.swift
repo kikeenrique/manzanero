@@ -407,8 +407,8 @@ struct SimulatorInputTests {
             #expect(try SimulatorInput.parse(["simulator", Self.uuid] + args)?.operation == args[0])
         }
         let invalid: [([String], String)] = [
-            (["button", "volume-up"], "Supported simulator buttons: home, lock. Volume buttons are untested on the simulator and refused; no input sent."),
-            (["button"], "Supported simulator buttons: home, lock. Volume buttons are untested on the simulator and refused; no input sent."),
+            (["button", "side"], "Supported simulator buttons: home, lock, volume-up, volume-down; no input sent."),
+            (["button"], "Supported simulator buttons: home, lock, volume-up, volume-down; no input sent."),
             (["key", "f1"], "Unknown simulator keyboard key. See --help."),
             (["type", "mañana"], "Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value-id or set-value-label, which replace a named element's whole value. No input sent."),
             (["type", String(repeating: "a", count: 513)], "Simulator typing requires 1...512 printable US-layout ASCII characters, tab or LF newline; it types at the focused caret. For other Unicode text use set-value-id or set-value-label, which replace a named element's whole value. No input sent."),
@@ -425,7 +425,9 @@ struct SimulatorInputTests {
         let service = Self.service(sent)
         let home = try Self.json(await service.execute(["simulator", Self.uuid, "button", "home"]))
         _ = try await service.execute(["simulator", Self.uuid, "button", "lock"])
-        #expect(sent.buttons.map(\.usage) == [64, 48] && sent.buttons.map(\.hold) == [80_000, 400_000])
+        _ = try await service.execute(["simulator", Self.uuid, "button", "volume-up"])
+        _ = try await service.execute(["simulator", Self.uuid, "button", "volume-down"])
+        #expect(sent.buttons.map(\.usage) == [64, 48, 233, 234] && sent.buttons.map(\.hold) == [80_000, 400_000, 80_000, 80_000])
         #expect(home["backend"] as? String == "coresimulator-dtuhid" && home["button"] as? String == "home")
         #expect(home["status"] as? String == "dispatched" && home["verified"] as? Bool == false && home["releaseVerified"] as? Bool == false)
     }

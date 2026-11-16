@@ -78,7 +78,7 @@ enum DirectSimulatorInput {
             if operation == "long-press" { result["holdSeconds"] = Double(input.operands[2]) }
         case "button":
             guard let name = input.operands.first, let usage = SimulatorInput.buttons[name] else {
-                throw CommandFailure.usage("Supported simulator buttons: home, lock; no input sent.")
+                throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down; no input sent.")
             }
             try Task.checkCancellation()
             // The physical holds: 0.4 s for the side button, 80 ms otherwise.

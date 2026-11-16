@@ -5,6 +5,14 @@ import Testing
 /// A scripted simulator AX peer behind the CoreSimulator carrier: it reads the
 /// project's request archives and answers with AXPTranslatorResponse archives,
 /// as the bridge does after archiving the framework's reply. No simulator.
+/// A clock that only the code under test advances, by sleeping.
+final class VirtualClock: @unchecked Sendable {
+    private(set) var instant = ContinuousClock.now
+    private(set) var slept: Duration = .zero
+    var now: () -> ContinuousClock.Instant { { [unowned self] in instant } }
+    var sleep: (Duration) -> Void { { [unowned self] in instant = instant.advanced(by: $0); slept += $0 } }
+}
+
 final class SimulatorAXFixture: @unchecked Sendable {
     typealias Token = AccessibilityWaitTests.Token
 
@@ -43,6 +51,12 @@ final class SimulatorAXFixture: @unchecked Sendable {
     var actionResult: Bool? = true
     var onAction: (() -> Void)?
     var emptySnapshot = false
+    /// Full-depth (48) snapshots come back empty, as SpringBoard's do.
+    var emptyAtFullDepth = false
+    /// Shallow snapshots still empty before one answers.
+    var emptyShallowAnswers = 0
+    /// Depths requested by snapshots, in order.
+    private(set) var snapshotDepths: [UInt64] = []
     /// The frontmost request answers without an application.
     var noFrontmost = false
     var frontmostPIDs: [Int32] = []
@@ -66,8 +80,11 @@ final class SimulatorAXFixture: @unchecked Sendable {
         { [self] request, timeout in try answer(request, timeout: timeout) }
     }
 
+    /// Advanced only by the session's pauses, so tests never wait.
+    let clock = VirtualClock()
+
     func session(lifetime: Duration = .seconds(30)) -> SimulatorAccessibilitySession {
-        SimulatorAccessibilitySession(carrier: carrier(), lifetime: lifetime, cancelled: { false })
+        SimulatorAccessibilitySession(carrier: carrier(), lifetime: lifetime, now: clock.now, cancelled: { false }, sleep: clock.sleep)
     }
 
     private func answer(_ request: Data, timeout: Duration) throws -> Data {
@@ -84,10 +101,21 @@ final class SimulatorAXFixture: @unchecked Sendable {
             response = Response(kind: 1, result: Token(1, pid: pid, application: true))
         case 2:
             let root = Token(1, pid: pid, application: true)
-            response = Response(kind: 2, translation: root, result: emptySnapshot ? nil :
+            guard case .dictionary(let parameters) = fields["parameters"], case .dictionary(let parameter) = parameters["parameter"] ?? .null,
+                  let depth = parameter["maxDepth"]?.unsignedInteger else { throw CommandFailure(description: "Bad fixture snapshot") }
+            snapshotDepths.append(depth)
+            var empty = emptySnapshot || (emptyAtFullDepth && depth == 48)
+            if depth < 48, emptyShallowAnswers > 0 { emptyShallowAnswers -= 1; empty = true }
+            var children = elements.map { record(Token($0.id, pid: pid), label: $0.label, identifier: $0.identifier,
+                                                 value: $0.value, visible: $0.visible, frame: $0.frame) }
+            // A depth-limited snapshot cuts records: their count stays, their children go.
+            if depth < 48 {
+                children.append(record(Token(99, pid: pid), label: "Cut", identifier: nil, visible: true,
+                                       frame: NSRect(x: 0, y: 0, width: 10, height: 10), reportedChildren: 3))
+            }
+            response = Response(kind: 2, translation: root, result: empty ? nil :
                 record(root, label: "App", identifier: nil, visible: true, frame: NSRect(x: 0, y: 0, width: 390, height: 844),
-                       children: elements.map { record(Token($0.id, pid: pid), label: $0.label, identifier: $0.identifier,
-                                                       value: $0.value, visible: $0.visible, frame: $0.frame) }))
+                       children: children))
         case 4:
             let current = frontmostPIDs.isEmpty ? pid : frontmostPIDs.removeFirst()
             response = Response(kind: 4, result: noFrontmost ? nil : Token(1, pid: current, application: true))
@@ -145,7 +173,7 @@ final class SimulatorAXFixture: @unchecked Sendable {
     }
 
     private func record(_ token: Token, label: String?, identifier: String?, value: String? = nil, visible: Bool?,
-                        frame: NSRect, children: [NSDictionary] = []) -> NSDictionary {
+                        frame: NSRect, children: [NSDictionary] = [], reportedChildren: Int? = nil) -> NSDictionary {
         var attributes: [Int: Any] = [3003: "com.example.fixture"]
         attributes[2001] = label
         attributes[5019] = identifier
@@ -153,7 +181,7 @@ final class SimulatorAXFixture: @unchecked Sendable {
         attributes[2025] = visible.map { NSNumber(value: $0) }
         attributes[2003] = NSValue(rect: frame)
         return ["UIAccessibilitySnapshotKeyElement": token, "UIAccessibilitySnapshotKeyChildren": children,
-                "UIAccessibilitySnapshotKeyChildrenCount": children.count,
+                "UIAccessibilitySnapshotKeyChildrenCount": reportedChildren ?? children.count,
                 "UIAccessibilitySnapshotKeyAttributes": attributes as NSDictionary] as NSDictionary
     }
 }
@@ -329,6 +357,42 @@ struct SimulatorAccessibilityTests {
         #expect(failure.description.contains("no snapshot data"))
     }
 
+    @Test func anEmptyFullDepthSnapshotIsReadAgainShallowerAndSaysSo() async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.elements = [.init(identifier: "fixture.target", label: "Settings")]
+        fixture.emptyAtFullDepth = true
+        fixture.emptyShallowAnswers = 2
+        let tree = try Self.json(await Self.service(fixture).execute(["simulator", Self.uuid, "tree"]))
+        // Full depth empty, then depth 10 once a second until it answers.
+        #expect(fixture.snapshotDepths == [48, 10, 10, 10] && fixture.clock.slept == .seconds(2))
+        let shallow = try #require(tree["shallowSnapshot"] as? [String: Any])
+        #expect(shallow["maxDepth"] as? Int == 10 && shallow["pids"] as? [Int] == [42] && shallow["truncatedRecords"] as? Int == 1)
+        #expect(shallow["waitedMilliseconds"] as? Int == 2000)
+        let nodes = try #require(tree["nodes"] as? [[String: Any]])
+        #expect(nodes.contains { $0["label"] as? String == "Settings" } && nodes.contains { $0["label"] as? String == "Cut" })
+        // Later snapshots of the same process in the session go shallow at once.
+        let press = SimulatorAXFixture()
+        press.elements = [.init(identifier: "fixture.target", label: "Settings")]
+        press.emptyAtFullDepth = true
+        let receipt = try Self.json(await Self.service(press, leases: Self.usableLeases()).execute(["simulator", Self.uuid, "press-label", "Settings"]))
+        #expect(receipt["status"] as? String == "accepted" && press.snapshotDepths == [48, 10, 10])
+        // A process with a full answer is never read shallower.
+        let normal = SimulatorAXFixture()
+        let plain = try Self.json(await Self.service(normal).execute(["simulator", Self.uuid, "tree"]))
+        #expect(normal.snapshotDepths == [48] && plain["shallowSnapshot"] == nil && normal.clock.slept == .zero)
+    }
+
+    @Test func truncatedRecordsAreClosedAndCounted() {
+        let leaf: AccessibilityArchiveValue = .dictionary(["UIAccessibilitySnapshotKeyChildren": .array([]), "UIAccessibilitySnapshotKeyChildrenCount": .unsigned(4)])
+        let whole: AccessibilityArchiveValue = .dictionary(["UIAccessibilitySnapshotKeyChildren": .array([]), "UIAccessibilitySnapshotKeyChildrenCount": .unsigned(0)])
+        let root: AccessibilityArchiveValue = .dictionary(["UIAccessibilitySnapshotKeyChildren": .array([leaf, whole]), "UIAccessibilitySnapshotKeyChildrenCount": .unsigned(2)])
+        var count = 0
+        guard case .dictionary(let closed) = SimulatorAccessibilitySession.closingTruncatedRecords(root, count: &count),
+              case .array(let children) = closed["UIAccessibilitySnapshotKeyChildren"] else { Issue.record("shape"); return }
+        #expect(count == 1 && closed["UIAccessibilitySnapshotKeyChildrenCount"] == .unsigned(2))
+        #expect(children == [.dictionary(["UIAccessibilitySnapshotKeyChildren": .array([]), "UIAccessibilitySnapshotKeyChildrenCount": .unsigned(0)]), whole])
+    }
+
     @Test func withoutAFrontmostApplicationTheScreenCentreProcessIsSelected() async throws {
         let fixture = SimulatorAXFixture()
         fixture.noFrontmost = true
@@ -354,12 +418,17 @@ struct SimulatorAccessibilityTests {
         #expect(frontmost.requestType == 4 && frontmost.error == 0 && frontmost.attribute == 0)
         let token = try AccessibilityResponse.token(#require(try frontmost.matchingResult(for: .frontmost)))
         #expect(token.pid == 81599 && token.isApplicationElement && token.didPopulateAppInfo && token.bridgeDelegateToken == nil)
-        // The empty Home Screen snapshot through the simulator session.
-        var replies = [Self.capturedFrontmost, Self.capturedEmptySnapshot]
-        let session = SimulatorAccessibilitySession(carrier: { _, _ in replies.removeFirst() }, cancelled: { false })
+        // The empty Home Screen snapshot through the simulator session: full
+        // depth, then the shallow depth once a second for the retry window.
+        var replies = [Self.capturedFrontmost]
+        let clock = VirtualClock()
+        let session = SimulatorAccessibilitySession(carrier: { _, _ in replies.isEmpty ? Self.capturedEmptySnapshot : replies.removeFirst() },
+                                                    now: clock.now, cancelled: { false }, sleep: clock.sleep)
         try session.start()
         let root = try #require(try session.frontmost())
-        #expect(throws: CommandFailure.self) { try session.snapshot(root) }
+        let failure = try #require(throws: CommandFailure.self) { try session.snapshot(root) }
+        #expect(failure.description.contains("at full depth and at depth 10"))
+        #expect(session.requests == 1 + 1 + 13 && clock.slept == .seconds(12))
         // Any failure closes the session.
         #expect(throws: CommandFailure.self) { try session.frontmost() }
     }

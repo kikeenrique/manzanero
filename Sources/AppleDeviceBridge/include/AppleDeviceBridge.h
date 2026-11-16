@@ -250,7 +250,7 @@ int ADCSimulatorPerformDigitizerReports(void *owner, const char *displayUUID, co
 /// {"info":{"outcome":"success"},"result":{displays, orientation, …}}, borrowed
 /// for the call. Returns zero. Sends no input.
 int ADCSimulatorDisplayInfo(void *owner, void (^sink)(const uint8_t *, size_t), char *error, size_t errorCapacity);
-/// Home (64) and lock/side (48) only.
+/// Home (64), lock/side (48), volume up (233) and volume down (234).
 int ADCSimulatorPressButton(void *owner, uint64_t usage, unsigned holdMicroseconds,
                             ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 

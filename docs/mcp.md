@@ -38,7 +38,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `record_screen` | [Finite MP4 recording](recording.md) to a new host path |
 | `tap`, `drag`, `long_press` | Direct single-contact input, physical or simulator |
 | `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md); optional `platform` (default physical); a booted simulator receives all of them |
-| `type_text`, `paste_text`, `press_key`, `press_button` | US-layout typing, named keys and hardware buttons (physical or simulator; simulator buttons home and lock only), and physical clipboard-replacing paste |
+| `type_text`, `paste_text`, `press_key`, `press_button` | US-layout typing, named keys and hardware buttons (physical or simulator, the same four buttons), and physical clipboard-replacing paste |
 | `wake_device` | [Guarded wake](native-input.md#waking-a-dark-display) of a dark display: one side-button press only when the display reads off twice |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs, raw physical container files, simulator boot/shutdown |
 | `list_reports`, `download_report` | Saved physical report listing/download |

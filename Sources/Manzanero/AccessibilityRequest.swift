@@ -52,10 +52,15 @@ enum AccessibilityRequest {
         try archive(kind: 4, parameters: ["displayId": 0], token: nil, pointQuery: true)
     }
 
-    static func snapshot(_ token: Token) throws -> Data {
+    /// The snapshot depth every physical request uses.
+    static let snapshotDepth = 48
+
+    /// `maxDepth` other than 48 is used only by the simulator route's
+    /// shallower retry (see `SimulatorAccessibilitySession.snapshot`).
+    static func snapshot(_ token: Token, maxDepth: Int = snapshotDepth) throws -> Data {
         try archive(kind: 2, parameters: ["parameter": [
             "attributes": [2001, 2002, 2003, 2004, 5019, 2006, 2025, 5003, 5004, 3003],
-            "maxDepth": 48, "maxChildren": 512, "maxArrayCount": 512,
+            "maxDepth": maxDepth, "maxChildren": 512, "maxArrayCount": 512,
             "traverseFromParentsToChildren": true, "snapshotKeyHonorModalViews": false
         ]], token: token)
     }

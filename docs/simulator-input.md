@@ -17,7 +17,7 @@ manzanero simulator <UUID> pinch <center-x> <center-y> <start-span> <end-span> <
 manzanero simulator <UUID> multi-drag <seconds> <x1> <y1> <x2> <y2> ...   # two to five paths
 manzanero simulator <UUID> multi-tap <x1> <y1> <x2> <y2> ...                # two to five contacts
 manzanero simulator <UUID> gesture '<JSON frames>'
-manzanero simulator <UUID> button home|lock
+manzanero simulator <UUID> button home|lock|volume-up|volume-down
 manzanero simulator <UUID> key return|escape|backspace|tab|space|up|down|left|right
 manzanero simulator <UUID> type <text>
 ```
@@ -72,23 +72,24 @@ Both routes are private interfaces of CoreSimulator, libxpc and AccessibilityPla
 | Foreground process | Hit test at the display centre | Frontmost-application request (type 4); when the simulator reports none, a hit test at the screen centre with client type 2. `application.selection` is `frontmost-or-centre-hit` and `foregroundSelection` counts which was used |
 | AX carrier | Tunnel assertion, RSD directory, raw DTX, subscription enable/disable | One CoreSimulator request per call; no subscription (`cleanup.subscriptionStop: not-applicable`), no `connectionCleanup`, no `deviceAPIVersion` |
 | Result keys | `backend: coredevice-direct`, `resolvedCoreDeviceUUID` | `backend: coresimulator-ax` or `coresimulator-dtuhid`, `resolvedSimulatorUUID`, `platform: simulator`, `screen` |
-| Buttons | home, lock, volume-up, volume-down | home, lock; volume is refused as untested |
+| Buttons | home, lock, volume-up, volume-down | The same four; volume showed the system volume HUD going up and down |
+| Snapshot depth | Always 48 | 48; when that comes back empty, 10 (see the Home Screen below) |
 | Lease | Keyed by the CoreDevice UUID | Keyed by the simulator UUID |
 
 The lease, the handoff pause and the CLI signal handling (SIGINT/SIGTERM exit 130/143 after attempted release) apply to simulator input exactly as to physical input; trees and waits take no lease and are not paused.
 
 ## Observed limits
 
-- **Home Screen tree.** SpringBoard's full-depth snapshot came back empty after about three seconds; at depth 4 it took 0.39 s and at depth 10 2.0 s. A tree or wait on the Home Screen therefore fails with "the simulator returned no snapshot data". The lock screen's SpringBoard tree (105 nodes) was read. Presses and waits work in apps.
+- **Home Screen tree: read shallower, slowly.** SpringBoard's full-depth snapshot (depth 48) comes back empty after about three seconds; depth 6 took 0.6 s, 8 about 0.9 s, 10 about 2 s, and 12 or more came back empty after three seconds. After an empty answer, every snapshot of that process comes back empty at once for several seconds while it finishes the abandoned one. So when a full-depth snapshot comes back empty, the session asks again at depth 10 once a second for up to 12 seconds, and uses depth 10 for that process for the rest of the session. Records cut at the depth limit keep a children count without children; their count is set to zero so the shared normalizer accepts them. The result says so in `shallowSnapshot` (`maxDepth: 10`, `pids`, `truncatedRecords`, `waitedMilliseconds`). On the iPhone 17e Home Screen this gave 123 nodes, including the page's icons and the dock, in about 12 s (8 s of it waiting), with 22 records cut. A wait for a visible icon label was met; a press of the Probe icon was refused by the exact centre-hit guard (the hit answered with another element), so open apps with `launch` or a tap instead. Elements deeper than ten levels are missing from such a tree, not absent.
 - **No frontmost application.** On the first boot the frontmost request answered within seconds; on a second fresh boot it answered with no application for at least 15 minutes, with the Home Screen, the probe app and Settings in front. The centre-hit fallback covers that case; a centre hit can select an overlay or embedded process, as on physical devices.
-- **Snapshots that come back empty at once.** After the probe app's own XCUITest run on the simulator, every snapshot of the probe (and of the relaunched probe) came back empty within a millisecond, while application and frontmost requests answered; a reboot cleared it. In the first minute after that reboot a few snapshots also came back empty, then 20 of 20 trees in a row succeeded. Such a tree or action fails before sending anything; repeat it after inspecting.
+- **Snapshots that come back empty at once.** After the probe app's own XCUITest run on the simulator, every snapshot of the probe (and of the relaunched probe) came back empty within a millisecond, while application and frontmost requests answered; a reboot cleared it. In the first minute after that reboot a few snapshots also came back empty, then 20 of 20 trees in a row succeeded. (These were seen before the shallow retry above existed, which now waits out such a period for up to 12 seconds.) A tree or action that still fails this way fails before sending anything; repeat it after inspecting.
 - **A text field reported not visible in landscape.** In the probe's first landscape layouts, its text field lower on the screen (overlapping the area of the recent-gestures readout) reported the native visibility attribute false, so set-value refused it at the live-state guard; at the top of the screen it reported true and set-value worked. The cause was not isolated.
 - **Visibility.** Settings' SwiftUI static texts inside a row report the native visibility attribute false while the row reports true. A wait for such a text times out as `not-visible`; select the row.
 
 ## Not implemented
 
 - Non-ASCII `type` and `paste` (see [set-value](#unicode-text-set-value) for the reasons and the alternative).
-- `wake`, volume buttons. Changing the orientation (a test turns the simulator itself).
+- `wake`. Changing the orientation (a test turns the simulator itself).
 - tvOS, watchOS and visionOS simulators, and runtimes or Xcodes other than the tested ones.
 
 `screen` on a simulator prefers the tree, then OCR, like physical `screen`.

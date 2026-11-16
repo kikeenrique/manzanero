@@ -30,15 +30,31 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
     private var state = State.new
     private var busy = false
     private(set) var requests = 0
+    /// Blocks for at most the given chunk (10 ms in production); injectable
+    /// so tests never wait.
+    private let sleep: (Duration) -> Void
 
     init(carrier: @escaping Carrier, lifetime: Duration = .seconds(30), requestTimeout: Duration = .seconds(5),
          now: @escaping () -> ContinuousClock.Instant = { ContinuousClock.now },
-         cancelled: @escaping () -> Bool = { Task.isCancelled }) {
+         cancelled: @escaping () -> Bool = { Task.isCancelled },
+         sleep: @escaping (Duration) -> Void = { Thread.sleep(forTimeInterval: Double($0.components.attoseconds) / 1e18 + Double($0.components.seconds)) }) {
         self.carrier = carrier
         self.now = now
         self.cancelled = cancelled
         self.requestTimeout = requestTimeout
+        self.sleep = sleep
         deadline = now().advanced(by: lifetime)
+    }
+
+    /// Waits in 10 ms chunks; cancellation or the session deadline ends it
+    /// and closes the session.
+    private func pause(_ duration: Duration) throws {
+        let end = now().advanced(by: duration)
+        while now() < end {
+            if cancelled() { _ = close(); throw CancellationError() }
+            guard now() < deadline else { _ = close(); throw invalid("deadline exceeded; session must close") }
+            sleep(min(.milliseconds(10), now().duration(to: end)))
+        }
     }
 
     func start() throws {
@@ -82,8 +98,70 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
         return try hit(x: display.center.x, y: display.center.y)
     }
 
+    /// The shallower depth retried when a full-depth snapshot comes back empty.
+    /// Measured on the iPhone 17e Home Screen: depth 10 answered in about 2 s
+    /// and included the page's icons and the dock; depth 12 and deeper came
+    /// back empty after the roughly three-second budget.
+    static let shallowDepth = 10
+    /// After an empty snapshot the app keeps answering every snapshot empty,
+    /// at once, for several seconds (it is still building the abandoned one).
+    /// The shallow request is therefore repeated once a second for at most
+    /// this long; each empty answer costs about a millisecond.
+    static let shallowRetryWindow: Duration = .seconds(12)
+
+    /// Processes whose full-depth snapshot came back empty in this session;
+    /// later snapshots of them use the shallow depth directly.
+    private(set) var shallowPIDs: Set<Int32> = []
+    /// Seconds spent waiting for the shallow retry, in total.
+    private(set) var shallowWait: Duration = .zero
+
     func snapshot(_ token: AccessibilityRequest.Token) throws -> AccessibilityArchiveValue {
-        try exchange(AccessibilityRequest.snapshot(token), expected: .snapshot(token))
+        if !shallowPIDs.contains(token.pid) {
+            do {
+                return try exchange(AccessibilityRequest.snapshot(token), expected: .snapshot(token), keepOpenOnEmptySnapshot: true)
+            } catch SnapshotEmpty.empty {
+                shallowPIDs.insert(token.pid)
+            }
+        }
+        let started = now()
+        while true {
+            do {
+                let result = try exchange(AccessibilityRequest.snapshot(token, maxDepth: Self.shallowDepth), expected: .snapshot(token),
+                                          keepOpenOnEmptySnapshot: true)
+                shallowWait += started.duration(to: now())
+                return Self.closingTruncatedRecords(result, count: &truncatedRecords)
+            } catch SnapshotEmpty.empty {
+                guard started.duration(to: now()) < Self.shallowRetryWindow else {
+                    _ = close()
+                    throw invalid("the simulator returned no snapshot data for this application, at full depth and at depth \(Self.shallowDepth) for \(Self.shallowRetryWindow); a large hierarchy such as the Home Screen's can exceed the simulator's snapshot time budget")
+                }
+                // Short chunks: cancellation and the session deadline end it.
+                try pause(.seconds(1))
+            }
+        }
+    }
+
+    private enum SnapshotEmpty: Error { case empty }
+
+    /// Records at the shallow depth limit that report children the snapshot
+    /// does not include, summed over this session's shallow snapshots.
+    private(set) var truncatedRecords = 0
+
+    /// A depth-limited snapshot keeps each cut record's children count but
+    /// omits the children, which the shared normalizer rightly rejects as
+    /// malformed. Such records (children empty, count above zero) get count
+    /// zero here, and are counted so the result can say how many were cut.
+    static func closingTruncatedRecords(_ value: AccessibilityArchiveValue, count: inout Int) -> AccessibilityArchiveValue {
+        guard case .dictionary(var record) = value else { return value }
+        if case .array(let children) = record["UIAccessibilitySnapshotKeyChildren"] {
+            if children.isEmpty, let reported = record["UIAccessibilitySnapshotKeyChildrenCount"]?.unsignedInteger, reported > 0 {
+                record["UIAccessibilitySnapshotKeyChildrenCount"] = .unsigned(0)
+                count += 1
+            } else {
+                record["UIAccessibilitySnapshotKeyChildren"] = .array(children.map { closingTruncatedRecords($0, count: &count) })
+            }
+        }
+        return .dictionary(record)
     }
 
     func attributes(_ attributes: [Int], of token: AccessibilityRequest.Token) throws -> AccessibilityArchiveValue {
@@ -113,7 +191,7 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
     }
 
     private func exchange(_ archive: Data, expected: AccessibilityResponse.Expected, allowEmpty: Bool = false,
-                          onSubmission: () -> Void = {}) throws -> AccessibilityArchiveValue {
+                          keepOpenOnEmptySnapshot: Bool = false, onSubmission: () -> Void = {}) throws -> AccessibilityArchiveValue {
         guard state == .active, !busy else { throw invalid("session unavailable or request already active") }
         busy = true
         defer { busy = false }
@@ -136,12 +214,16 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
             if case .snapshot = expected, response.error == 0, response.result == .null {
                 // Observed for SpringBoard: its full-depth snapshot exceeds a
                 // roughly three-second budget and comes back empty.
+                if keepOpenOnEmptySnapshot { throw SnapshotEmpty.empty }
                 throw invalid("the simulator returned no snapshot data for this application; a large hierarchy such as the Home Screen's can exceed the simulator's snapshot time budget")
             }
             guard let result = try response.matchingResult(for: expected) else {
                 throw invalid("response does not match the request")
             }
             return result
+        } catch SnapshotEmpty.empty {
+            // The caller retries shallower; the session stays usable.
+            throw SnapshotEmpty.empty
         } catch {
             _ = close()
             throw error

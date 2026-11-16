@@ -26,7 +26,8 @@ struct SimulatorInput {
     /// Whether the input travels as Universal HID reports rather than Indigo
     /// digitizer events; the same rule as physical routing.
     var usesUniversalHID: Bool { DirectPhysicalGesture.handles(coreDeviceInput) }
-    static let buttons: [String: UInt64] = ["home": 64, "lock": 48]
+    /// The physical consumer-page usages; volume shows the system HUD on a simulator.
+    static let buttons: [String: UInt64] = ["home": 64, "lock": 48, "volume-up": 233, "volume-down": 234]
 
     /// Same rule as physical: trees and waits only read, take no lease and are
     /// not paused by a pending handoff.
@@ -87,7 +88,7 @@ struct SimulatorInput {
             _ = try NativeGestureSequence(json: operands[0])
         case "button":
             guard operands.count == 1, buttons[operands[0]] != nil else {
-                throw CommandFailure.usage("Supported simulator buttons: home, lock. Volume buttons are untested on the simulator and refused; no input sent.")
+                throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down; no input sent.")
             }
         case "type":
             guard operands.count == 1 else { throw CommandFailure.usage("Simulator typing expects one text operand.") }
@@ -257,16 +258,28 @@ enum DirectSimulatorAccessibility {
                                                             session: session, display: display)
         }
         let screen = (try? SimulatorDisplay.read(input.device, environment: environment))?.screenJSON(info)
-        return try annotate(bytes, info: info, screen: screen, selections: (session as? SimulatorAccessibilitySession)?.selections ?? [])
+        let simulatorSession = session as? SimulatorAccessibilitySession
+        return try annotate(bytes, info: info, screen: screen, selections: simulatorSession?.selections ?? [],
+                            shallowPIDs: simulatorSession?.shallowPIDs ?? [], shallowWait: simulatorSession?.shallowWait ?? .zero,
+                            truncatedRecords: simulatorSession?.truncatedRecords ?? 0)
     }
 
-    static func annotate(_ bytes: Data, info: SimulatorDeviceInfo, screen: [String: Any]? = nil, selections: [String] = []) throws -> Data {
+    static func annotate(_ bytes: Data, info: SimulatorDeviceInfo, screen: [String: Any]? = nil, selections: [String] = [],
+                         shallowPIDs: Set<Int32> = [], shallowWait: Duration = .zero, truncatedRecords: Int = 0) throws -> Data {
         guard var root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
             throw CommandFailure(.internal, "Invalid internal simulator AX result.", inputSent: .unknown)
         }
         root["platform"] = "simulator"
         root["transport"] = "coresimulator"
         root["screen"] = screen ?? info.screenJSON
+        // A process whose full-depth snapshot came back empty was read at a
+        // shallower depth: deeper elements are missing, not absent.
+        if !shallowPIDs.isEmpty {
+            root["shallowSnapshot"] = ["maxDepth": SimulatorAccessibilitySession.shallowDepth, "pids": shallowPIDs.sorted().map(Int.init),
+                                       "truncatedRecords": truncatedRecords,
+                                       "waitedMilliseconds": shallowWait.components.seconds * 1000 + shallowWait.components.attoseconds / 1_000_000_000_000_000,
+                                       "reason": "The full-depth snapshot (\(AccessibilityRequest.snapshotDepth)) came back empty, as SpringBoard's Home Screen does; elements deeper than \(SimulatorAccessibilitySession.shallowDepth) levels are not listed."]
+        }
         // How many foreground selections and rechecks used the frontmost
         // request (type 4) and how many the centre hit, when it reported none.
         if !selections.isEmpty {
