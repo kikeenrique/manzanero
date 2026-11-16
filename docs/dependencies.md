@@ -99,7 +99,7 @@ Third-party device projects inform protocol understanding; their executables are
 | Reference | Pinned revision | Use |
 | --- | --- | --- |
 | [ipb](https://github.com/ipbtools/ipb) | `8c227a10710dad479852aa0203de729fed57471b` | AX requests, HID and native media research; [MIT notice](../ThirdParty/ipb-LICENSE.txt) |
-| [idevice](https://github.com/jkcoxson/idevice) | `89702099f4d7552f704f93b4526756abda319ceb` | Earlier Rust implementation and HID/DTX references; [MIT notice](../ThirdParty/idevice-LICENSE.txt) |
+| [idevice](https://github.com/jkcoxson/idevice) | `89702099f4d7552f704f93b4526756abda319ceb` | Reference for the earlier Rust bridge and its HID/DTX work, both removed. No code in this repository derives from it, so no notice is shipped; it is MIT-licensed upstream |
 | [AXe](https://github.com/cameroncooke/AXe) | `4b622d4436fc441534e6ee8c7196728cd762dbff` | Physical media/AX review, RTCP layout/statistics and the simulator `dtuhidd`/AX routes; [MIT notice](../ThirdParty/AXe-LICENSE.txt) |
 | [IDB](https://github.com/facebook/idb) (`FBSimulatorControl`, vendored by AXe at the revision above) | AXe's `Packages/IDBKit` | Simulator DTUHID transport reference: the `_4sim` connection setup and the 380 ms drain before disconnect; [MIT notice](../ThirdParty/IDB-LICENSE.txt) |
 | [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) | `03d788d23105c1754c27cc4e6ddc1d7e23835b32` | Native tunnel/RSD interoperability research; no source copied or runtime added |
