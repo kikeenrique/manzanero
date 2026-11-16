@@ -17,7 +17,7 @@ Run from the repository root with the device paired and unlocked. Replace `<UDID
 
 ## Questions still open
 
-- How short can the 400 ms connection drain be before short gestures are lost again? It is a margin, not a measured minimum, and it adds to every input call.
+- Does the 200 ms connection drain hold on other devices and under load? On the iPhone 13 mini, 50 ms lost short gestures and 100 ms did not.
 - Does the container hit test also select the right process when a system prompt is showing?
 - What do apps' gesture recognizers make of three or more contacts?
 - Was the firewall also behind the earlier intermittent recording startup failures?

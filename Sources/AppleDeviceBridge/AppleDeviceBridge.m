@@ -813,7 +813,9 @@ int ADCInspectMedia(const char *uuid, const char *version, int (^shouldCancel)(v
 }
 
 /// How long an input connection stays open after its completion barrier.
-static const uint64_t ADCInputDrainNanoseconds = 400 * NSEC_PER_MSEC;
+/// Measured on an iPhone 13 mini with 80 ms taps and short holds: 50 ms lost
+/// 30 of 80 actions; 100 ms, 200 ms and 400 ms lost none. 200 ms leaves a margin.
+static const uint64_t ADCInputDrainNanoseconds = 200 * NSEC_PER_MSEC;
 
 static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys,

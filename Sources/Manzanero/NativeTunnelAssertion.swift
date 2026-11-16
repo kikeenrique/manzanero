@@ -11,7 +11,7 @@ final class NativeTunnelAssertion {
     }
 
     /// Browses at most this many times when the browse connection is interrupted.
-    static let browseAttempts = 3
+    static let browseAttempts = 5
 
     let address: String
     private var owner: UnsafeMutableRawPointer?
@@ -29,8 +29,9 @@ final class NativeTunnelAssertion {
         // point, so browse again, a bounded number of times.
         var attempts = 1
         while status == ADCTunnelBrowseInterrupted, owner == nil, attempts < Self.browseAttempts, !Task.isCancelled {
+            // 0.25, 0.5, 1 and 2 seconds: three quick attempts were once not enough.
+            Thread.sleep(forTimeInterval: 0.25 * Double(1 << (attempts - 1)))
             attempts += 1
-            Thread.sleep(forTimeInterval: 0.25)
             status = ADCOpenNativeTunnelAssertion(device, { Task.isCancelled ? 1 : 0 }, &address, address.count, &owner, &error, error.count)
         }
         if Task.isCancelled {
