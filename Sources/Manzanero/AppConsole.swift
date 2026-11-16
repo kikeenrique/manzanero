@@ -23,7 +23,8 @@ struct ConsoleCapture: Sendable, Equatable {
     static let physicalGraceSeconds = 20
     static let dtModeVariable = "OS_ACTIVITY_DT_MODE"
     /// Lines devicectl itself prints around `--console`, seen on iOS 27.2.1 with devicectl 651.32.
-    static let devicectlStatusPrefixes = ["Launched application with", "Waiting for the application to terminate",
+    static let launchedPrefix = "Launched application with"
+    static let devicectlStatusPrefixes = [launchedPrefix, "Waiting for the application to terminate",
                                           "App terminated due to", "App exited"]
 
     let physical: Bool
@@ -85,8 +86,8 @@ struct ConsoleCapture: Sendable, Equatable {
             plan["arguments"] = physicalArguments(json: directory.appendingPathComponent("launch.json").path)
             plan["backend"] = "devicectl"
             plan["hardDeadlineSeconds"] = hardDeadlineSeconds
-            plan["liveVerified"] = false
-            plan["execution"] = "Relaunches the app attached to devicectl's console. At the duration devicectl receives SIGINT, which it forwards to the app, so the app always ends then (--terminate changes nothing). UNVERIFIED on hardware: whether the app's stderr and os_log lines reach the host is unknown, so an empty result may mean nothing was bridged."
+            plan["liveVerification"] = "one iPhone 13 mini"
+            plan["execution"] = "Relaunches the app attached to devicectl's console. At the duration devicectl receives SIGINT, which it forwards to the app, so the app always ends then (--terminate changes nothing). On the one phone checked, stdout, stderr and (with --os-log) mirrored log lines at info and above reached the host, and an app that aborted was reported with its output and signal."
         } else {
             plan["arguments"] = simulatorArguments(stdout: directory.appendingPathComponent("stdout.txt").path,
                                                    stderr: directory.appendingPathComponent("stderr.txt").path)
@@ -238,22 +239,30 @@ enum AppConsole {
             throw failure.inputPossiblySent()
         }
         let (out, err) = tails.withLock { $0 }
-        let stopReason: String
-        switch end {
-        case .consumerStopped: stopReason = "byteLimit"
-        case .softDeadline: stopReason = "duration"
-        case .exited(let status):
-            guard status.isSuccess else {
-                throw CommandFailure(.toolFailed, "devicectl failed (\(status)): \(err.text.isEmpty ? out.text : err.text)", inputSent: .unknown)
-            }
-            stopReason = "exited"
-        }
         var pid: Any = NSNull(), exitStatus: Any = NSNull(), outcome: Any = NSNull()
         if let data = try? Data(contentsOf: json), let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
             outcome = (object["info"] as? [String: Any])?["outcome"] ?? NSNull()
             let result = object["result"] as? [String: Any]
             pid = ((result?["process"] as? [String: Any])?["processIdentifier"]) ?? NSNull()
             if let termination = result?["terminationResult"] as? [String: Any] { exitStatus = termination }
+        }
+        let stopReason: String
+        var toolExit: String?
+        switch end {
+        case .consumerStopped: stopReason = "byteLimit"
+        case .softDeadline: stopReason = "duration"
+        case .exited(let status):
+            if !status.isSuccess {
+                // devicectl also exits non-zero when the app it launched ends
+                // abnormally, which is exactly the run a caller wants to read.
+                // Only a launch that never happened is a tool failure.
+                let launched = !(pid is NSNull) || out.text.contains(ConsoleCapture.launchedPrefix)
+                guard launched else {
+                    throw CommandFailure(.toolFailed, "devicectl failed (\(status)): \(err.text.isEmpty ? out.text : err.text)", inputSent: .unknown)
+                }
+                toolExit = "\(status)"
+            }
+            stopReason = "exited"
         }
         let observed = appLines(stdout: out.text, stderr: err.text) > 0
         var result: [String: Any] = [
@@ -262,12 +271,16 @@ enum AppConsole {
             "stdoutBytes": out.total, "stderrBytes": err.total, "truncated": out.truncated || err.truncated || stopReason == "byteLimit",
             "stopReason": stopReason, "terminatedByTool": stopReason != "exited", "exitStatus": exitStatus,
             "devicectlOutcome": outcome, "osLog": capture.osLog, "seconds": capture.seconds,
-            "appOutputObserved": observed, "liveVerified": false, "launchJSON": json.path,
+            "appOutputObserved": observed, "liveVerification": "one iPhone 13 mini", "launchJSON": json.path,
             "note": observed
-                ? "Unverified route: stdout includes devicectl's own status lines; whether stderr and os_log mirroring are bridged from a device is not established."
-                : "No app output was captured: only devicectl's own status lines (if any) arrived. This route is unverified on hardware, so the app may have written output that devicectl did not bridge; do not read this as 'the app printed nothing'.",
+                ? "stdout includes devicectl's own status lines. On the one phone checked, stdout, stderr and (with --os-log) mirrored log lines at info and above were bridged."
+                : "No app output was captured: only devicectl's own status lines (if any) arrived. The app may simply have printed nothing in this window.",
         ]
         if !observed { result["captured"] = false }
+        if let toolExit {
+            result["devicectlExit"] = toolExit
+            result["appEndedAbnormally"] = true
+        }
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
     }
 }

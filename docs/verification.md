@@ -133,6 +133,21 @@ Operator errors during this run, recorded because they changed device state: a 6
 
 These are results from one phone on one iOS version, with the probe in front and nothing else running. They measure what reached a UIKit view, not behaviour in other apps, near screen edges, during animations or in landscape.
 
+### App console and last crash on the phone
+
+**2026-11-16**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52), with the probe app's log probe.
+
+| Check | Observed |
+| --- | --- |
+| `console <bundle> --seconds 10 --os-log -- -probeLogToken P1` | Exit 0. stdout carried the flushed and the unflushed line, stderr the stderr line plus the mirrored log lines; `exitStatus` reported terminating signal 2, the forwarded interrupt |
+| The same without `--os-log` | stdout and stderr lines only; no mirrored log lines |
+| `console … -- -probeCrash abort` | First attempt failed with `devicectl failed (exited(1))` and returned nothing, because `devicectl` exits non-zero when the app it launched aborts. After the change that treats this as the app's outcome, the result carried the output, `appEndedAbnormally: true` and terminating signal 6 |
+| `last-crash --bundle <bundle> --since <time>` a few seconds after the abort | `found: true`, `EXC_CRASH`, `SIGABRT`, "Abort trap: 6", with frames from `libsystem_kernel` upward; the report was downloaded under `tmp/` |
+
+This answers the research note's first two open questions for this phone: `devicectl`'s console does bridge stderr, the mirroring setting does copy the app's log lines on a device, and the termination result is reported. Debug-level lines, a large output, and other iOS versions were not checked.
+
+**The phone stopped answering before this run.** Every `devicectl` query timed out while the phone was still listed as connected; replugging and unlocking did not help. Stopping `CoreDeviceService` and `remotepairingd` on the Mac, which macOS restarts on demand, restored it at once. The services' state was not captured before they were stopped and the system log held no entries for them, so the cause is unknown. It followed a period of very high load on the Mac and two console launches that failed to start.
+
 ## Direct physical input
 
 **2026-11-12 through 2026-11-14 — project-owned in-process Apple backends.**

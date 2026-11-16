@@ -5,8 +5,8 @@ An agent that sees a wrong screen needs to know why. Three commands read what th
 | Command | Simulator | Physical device |
 | --- | --- | --- |
 | `logs` | `simctl spawn <UUID> log stream\|show --style ndjson`. Verified on one simulator | Not implemented: refused as `unsupported-operation` |
-| `console` | `simctl launch --stdout=<file> --stderr=<file>`. Verified on one simulator | `devicectl device process launch --console`. **Unverified on hardware** |
-| `last-crash` | Host `~/Library/Logs/DiagnosticReports`. Verified on one simulator | Existing `reports`/`report` route plus the same parser. Unverified on hardware |
+| `console` | `simctl launch --stdout=<file> --stderr=<file>`. Verified on one simulator | `devicectl device process launch --console`. Checked on one iPhone 13 mini |
+| `last-crash` | Host `~/Library/Logs/DiagnosticReports`. Verified on one simulator | Existing `reports`/`report` route plus the same parser. Checked on one iPhone 13 mini |
 
 ## Commands
 
@@ -79,7 +79,7 @@ An entry that would cross the entry or byte limit is not kept, and the capture s
 
 Output the app does not flush is lost in this mode: an unflushed `print` did not reach the file while the app ran or after it was terminated (Q3). It did arrive with `simctl launch --console-pty`, which the command does not use because that mode blocks and ends the app with the capture.
 
-**Physical (unverified).** `devicectl device process launch --device <UDID> --console --terminate-existing --timeout <seconds + 60> --json-output tmp/console-<uuid>/launch.json <bundle-id> [app-args]`. devicectl stays attached; at the duration the tool sends it SIGINT, which devicectl forwards, so **the app always ends at the duration** (`--terminate` changes nothing). The hard deadline is `seconds + 20`. The duration counts from devicectl's start, so connection and launch time are included. `pid` and `exitStatus` (devicectl's `terminationResult`, for example `{"terminatingSignal":2,"wasCoreDumpCreated":false}`) come from the JSON file when present.
+**Physical.** On an iPhone 13 mini (iOS 27.2.1) the probe's flushed and unflushed stdout lines and its stderr line came back, and with `--os-log` so did its mirrored log lines at info and above. When the app aborts, `devicectl` exits non-zero; the result then carries the captured output with `appEndedAbnormally: true`, `devicectlExit`, and the signal in `exitStatus`, rather than failing. A launch that never happens is still an error. `devicectl device process launch --device <UDID> --console --terminate-existing --timeout <seconds + 60> --json-output tmp/console-<uuid>/launch.json <bundle-id> [app-args]`. devicectl stays attached; at the duration the tool sends it SIGINT, which devicectl forwards, so **the app always ends at the duration** (`--terminate` changes nothing). The hard deadline is `seconds + 20`. The duration counts from devicectl's start, so connection and launch time are included. `pid` and `exitStatus` (devicectl's `terminationResult`, for example `{"terminatingSignal":2,"wasCoreDumpCreated":false}`) come from the JSON file when present.
 
 What reaches the host is not established: in the one phone run with Settings, stdout carried only devicectl's three status lines and stderr nothing. The result therefore carries `liveVerified: false`, and `appOutputObserved` says whether anything other than devicectl's own status lines (`Launched application with…`, `Waiting for the application to terminate…`, `App terminated due to…`) arrived. When nothing did, it adds `captured: false` and a note that this does not mean the app printed nothing. A devicectl failure is `tool-failed` with `inputSent: unknown`.
 

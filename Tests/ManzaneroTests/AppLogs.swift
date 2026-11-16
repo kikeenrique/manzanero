@@ -434,9 +434,32 @@ struct ConsoleCaptureTests {
         let script = "trap 'echo \"App terminated due to signal 2.\"; exit 0' INT; echo 'Launched application with a.b bundle identifier.'; while :; do /bin/sleep 0.05; done"
         let result = try object(await AppConsole.executePhysical(capture, directory: directory, launch: { _ in ("/bin/sh", ["-c", script]) }))
         #expect(result["stopReason"] as? String == "duration" && result["terminatedByTool"] as? Bool == true)
-        #expect(result["appOutputObserved"] as? Bool == false && result["captured"] as? Bool == false && result["liveVerified"] as? Bool == false)
-        #expect((result["note"] as? String)?.contains("do not read this as") == true)
+        #expect(result["appOutputObserved"] as? Bool == false && result["captured"] as? Bool == false)
+        #expect((result["note"] as? String)?.contains("No app output was captured") == true)
         #expect(result["pid"] is NSNull && result["exitStatus"] is NSNull)
+        #expect(result["appEndedAbnormally"] == nil)
+    }
+
+    // Observed on a phone: when the launched app aborts, devicectl exits 1.
+    // That run's output is the answer, not a tool failure.
+    @Test func physicalConsoleReturnsTheOutputOfAnAppThatCrashed() async throws {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let capture = try console(["physical", "phone", "console", "a.b", "--seconds", "5"])
+        let script = "echo 'Launched application with a.b bundle identifier.'; echo 'stdout K1'; echo 'stderr K1' >&2; exit 1"
+        let result = try object(await AppConsole.executePhysical(capture, directory: directory, launch: { _ in ("/bin/sh", ["-c", script]) }))
+        #expect(result["stopReason"] as? String == "exited" && result["terminatedByTool"] as? Bool == false)
+        #expect(result["appEndedAbnormally"] as? Bool == true && (result["devicectlExit"] as? String)?.isEmpty == false)
+        #expect((result["stdoutTail"] as? String)?.contains("stdout K1") == true && (result["stderrTail"] as? String)?.contains("stderr K1") == true)
+        #expect(result["appOutputObserved"] as? Bool == true)
+    }
+
+    // A launch that never happened is still a failure of the tool.
+    @Test func physicalConsoleFailsWhenNothingWasLaunched() async throws {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let capture = try console(["physical", "phone", "console", "a.b", "--seconds", "5"])
+        await #expect(throws: CommandFailure.self) {
+            _ = try await AppConsole.executePhysical(capture, directory: directory, launch: { _ in ("/bin/sh", ["-c", "echo 'no such device' >&2; exit 1"]) })
+        }
     }
 
     @Test func physicalConsoleReportsAppOutputAndAFailedLaunch() async throws {
@@ -612,7 +635,7 @@ struct AppDiagnosticsServiceTests {
         #expect((logsPlan["bounds"] as? [String: Any])?["hardDeadlineSeconds"] as? Double == 15)
         #expect(((logsPlan["targetResolution"] as? [String: Any])?["query"] as? [String: Any])?["arguments"] as? [String] == ["simctl", "get_app_container", uuid, "com.example.app", "app"])
         let consolePlan = try object(await service().execute(["physical", "phone", "console", "com.example.app", "--seconds", "5"], dryRun: true).data)
-        #expect(consolePlan["liveVerified"] as? Bool == false && consolePlan["readOnly"] as? Bool == false && (consolePlan["execution"] as? String)?.contains("UNVERIFIED") == true)
+        #expect(consolePlan["liveVerification"] as? String == "one iPhone 13 mini" && consolePlan["readOnly"] as? Bool == false && (consolePlan["execution"] as? String)?.contains("forwards to the app") == true)
         let simConsole = try object(await service().execute(["simulator", uuid, "console", "com.example.app", "--seconds", "5"], dryRun: true).data)
         #expect((simConsole["arguments"] as? [String])?.prefix(3) == ["simctl", "launch", "--terminate-running-process"])
         let crash = try object(await service().execute(["physical", "phone", "last-crash", "--process", "Example"], dryRun: true).data)

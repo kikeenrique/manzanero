@@ -43,8 +43,8 @@ Usage:
       [--terminate] [-- app-args...]
   Console relaunches the app and returns stdout/stderr tails; --os-log mirrors its os_log lines (info and
   above) to stderr. Simulator: output goes to files under tmp/; the app keeps running unless --terminate.
-  Physical (UNVERIFIED on hardware): devicectl --console; the app is ended by SIGINT at the duration, and
-  an empty capture does not prove the app printed nothing.
+  Physical: devicectl --console (checked on one iPhone); the app is ended by SIGINT at the duration, and
+  an app that crashes is reported with its output and signal.
   manzanero <physical|simulator> <device> last-crash (--bundle <id> | --process <name>) [--since <ISO-8601>]
       [--download <existing-dir>]
   Last-crash parses the newest matching crash report: simulator reports from the Mac's DiagnosticReports,
