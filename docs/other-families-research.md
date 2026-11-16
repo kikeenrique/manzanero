@@ -6,7 +6,7 @@ The existing simulator commands were run unchanged against one new simulator per
 
 ## Environment and labels
 
-- Host: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), CoreDevice 651.32. `manzanero` was the debug build already in `.build/debug/` (commit `f9b6deb`).
+- Host: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), CoreDevice 651.32. `manzanero` was the debug build already in `.build/debug/` (commit `c100292`).
 - Simulators, created for this work with `simctl create` and booted headless with `manzanero boot` (Simulator.app was not opened; Xcode 27 ships no Simulator.app, the device window lives in DeviceHub/DeviceKit):
   - `manzanero-research-tv`: Apple TV 4K (4th generation) (at 1080p), tvOS 27.2 (24K150), 1920 × 1080 points at 1×.
   - `manzanero-research-watch`: Apple Watch Series 12 (46mm), watchOS 27.2 (24S118), 208 × 248 points.

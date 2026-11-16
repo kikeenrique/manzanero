@@ -137,7 +137,7 @@ These are results from one phone on one iOS version, with the probe in front and
 
 ### Operation-first grammar on the phone
 
-**2026-11-16, at `f821443`**, after the CLI moved to Swift Argument Parser with typed dispatch. iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52). Every command below was run through the real CLI in the new grammar, most with the target taken from `MANZANERO_DEVICE`.
+**2026-11-16, at `184d064`**, after the CLI moved to Swift Argument Parser with typed dispatch. iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52). Every command below was run through the real CLI in the new grammar, most with the target taken from `MANZANERO_DEVICE`.
 
 | Family | Commands run | Observed |
 | --- | --- | --- |
@@ -461,7 +461,7 @@ Also observed: after the probe's XCUITest suite ran on this simulator (6 of 6 te
 
 ### Keyboard layouts on the phone
 
-**2026-11-16, at `17a6560`**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52), the probe app's text field. No hardware keyboard has been attached to this phone and its hardware-keyboard setting was not changed or looked at; its interface language is Spanish. Before each run the field was emptied with `set-value … x` and `key backspace`; the result is the probe's own readout.
+**2026-11-16, at `8d0ec20`**, iPhone 13 mini (iOS 27.2.1, wired), macOS 27.2.1, Xcode 27.2 (27B52), the probe app's text field. No hardware keyboard has been attached to this phone and its hardware-keyboard setting was not changed or looked at; its interface language is Spanish. Before each run the field was emptied with `set-value … x` and `key backspace`; the result is the probe's own readout.
 
 | Command | Requested | Read back |
 | --- | --- | --- |
@@ -480,7 +480,7 @@ Not covered: changing the phone's layout in Settings (and whether that section e
 
 ### Keyboard layouts on the simulator
 
-**2026-11-16**, the build committed as `a525c03`; the German row and the first Latin American row ran on the same code before its keyboard type changed from ANSI to ISO (German's table is the same in both), one iPhone 17e simulator, iOS 27.2 runtime (24B8117), headless (no Simulator or DeviceHub window opened). Host macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2; host input source Spanish – ISO. The simulator was booted for the run with `manzanero boot` and shut down afterwards; no other simulator was touched. No physical device was contacted. Research and design: [keyboard layouts](keyboard-layouts.md).
+**2026-11-16**, the build committed as `76a322d`; the German row and the first Latin American row ran on the same code before its keyboard type changed from ANSI to ISO (German's table is the same in both), one iPhone 17e simulator, iOS 27.2 runtime (24B8117), headless (no Simulator or DeviceHub window opened). Host macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2; host input source Spanish – ISO. The simulator was booted for the run with `manzanero boot` and shut down afterwards; no other simulator was touched. No physical device was contacted. Research and design: [keyboard layouts](keyboard-layouts.md).
 
 Method: the simulator's hardware layout was set by writing an input mode with an explicit `hw=` into `AppleKeyboards` (global domain) and into `KeyboardLastUsed` and `KeyboardsCurrentAndNext` of `com.apple.keyboard.preferences` with `xcrun simctl spawn <UUID> defaults write`, then the probe app was relaunched. The probe's field was focused with `set-value-id probe.text.field x` and emptied with `key backspace`; the text was sent with `type --layout <name> --simulator <UUID> -- '<text>'`, and the readout `probe.text.value` was read from `tree`. "Exact" means the readout's `text` equalled the requested string code point for code point.
 
