@@ -12,11 +12,13 @@ struct SimulatorInput {
 
     static let selectorActions = ["press-id", "press-label", "scroll-id", "scroll-label"]
     static let accessibilityOperations = ["tree"] + selectorActions + AccessibilityWait.operations
-    static let touchOperations = ["tap", "long-press", "swipe", "drag"]
+    /// Indigo digitizer schedules: one contact, or two for pinch and a
+    /// two-path multi-drag (pointOne and pointTwo), as on physical devices.
+    static let touchOperations = ["tap", "long-press", "swipe", "drag", "pinch", "multi-drag"]
     static let inputOperations = touchOperations + ["button", "key", "type"]
     static let operations = accessibilityOperations + inputOperations
     /// Operations that exist for physical devices but not yet for simulators.
-    static let unimplemented = ["multi-tap", "multi-drag", "pinch", "gesture", "paste", "wake"]
+    static let unimplemented = ["multi-tap", "gesture", "paste", "wake"]
     static let buttons: [String: UInt64] = ["home": 64, "lock": 48]
 
     /// Same rule as physical: trees and waits only read, take no lease and are
@@ -30,7 +32,11 @@ struct SimulatorInput {
         guard args.count >= 3, args[0] == "simulator" else { return nil }
         let operation = args[2]
         if unimplemented.contains(operation) {
-            throw CommandFailure.unsupported("Simulator \(operation) is not implemented yet; simulator input covers tap, long-press, swipe, drag, button, key and type. Multi-contact gestures, paste and wake remain physical-only. No input sent.")
+            throw CommandFailure.unsupported("Simulator \(operation) is not implemented yet; simulator input covers tap, long-press, swipe, drag, pinch, two-path multi-drag, button, key and type. Three-to-five-contact gestures, paste and wake remain physical-only. No input sent.")
+        }
+        if operation == "multi-drag", args.count != 12 {
+            try PhysicalInputOperands.validate(operation, Array(args.dropFirst(3)), subject: "Simulator")
+            throw CommandFailure.unsupported("Simulator multi-drag with three to five paths is not implemented yet; two paths use the digitizer's two contacts. No input sent.")
         }
         guard operations.contains(operation) else { return nil }
         let device = try SimulatorDevice.requireUUID(args[1], operation: operation)
@@ -57,6 +63,10 @@ struct SimulatorInput {
             operands = [x, y, seconds].map { String($0) }
         case "tap", "swipe", "drag", "key":
             try PhysicalInputOperands.validate(operation, operands, subject: "Simulator")
+        case "pinch", "multi-drag":
+            try PhysicalInputOperands.validate(operation, operands, subject: "Simulator")
+            // Overlapping or crossing paths are refused here, before any lookup.
+            _ = try DirectPhysicalTouch.plan(probe, display: DirectTouchDisplay(portraitPoints: 1, height: 1, scale: 1))
         case "button":
             guard operands.count == 1, buttons[operands[0]] != nil else {
                 throw CommandFailure.usage("Supported simulator buttons: home, lock. Volume buttons are untested on the simulator and refused; no input sent.")
@@ -103,9 +113,9 @@ struct SimulatorInput {
             plan["operands"] = operands
             plan["deviceLease"] = "simulator UUID"
             plan["sampleCount"] = samples.count
-            plan["contactCount"] = 1
+            plan["contactCount"] = samples.first?.second == nil ? 1 : 2
             plan["coordinateSpace"] = "normalized-current-interface (portrait assumed)"
-            plan["execution"] = "In-process host XPC to the simulator's dtuhidd (com.apple.coredevice.feature.remote.hid.digitizer): readiness barrier, the physical Indigo digitizer schedule, release on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
+            plan["execution"] = "In-process host XPC to the simulator's dtuhidd (com.apple.coredevice.feature.remote.hid.digitizer): readiness barrier, the physical Indigo digitizer schedule\(samples.first?.second == nil ? "" : " with both contacts in each event (pointOne, pointTwo)"), release on stop, completion barrier and a short drain before disconnect. No helper executable or automatic replay."
         } else if Self.inputOperations.contains(operation) {
             plan["backend"] = DirectSimulatorInput.backend
             plan["operands"] = operands
@@ -139,6 +149,8 @@ struct SimulatorEnvironment: Sendable {
     var accessibility: @Sendable (String, Duration) throws -> any AccessibilityExchange
     /// Sends one single-contact schedule; throws `CommandFailure.inputDispatch` failures.
     var touch: @Sendable (String, [ADCTouchSample]) throws -> Void = DirectSimulatorInput.touch
+    /// Sends one two-contact digitizer schedule (pinch, two-path multi-drag).
+    var twoContactTouch: @Sendable (String, [ADCTouchSample], [ADCTouchPoint]) throws -> Void = DirectSimulatorInput.twoContactTouch
     /// A complete US-layout keyboard schedule (`type`).
     var keyboard: @Sendable (String, [ADCKeyboardSample]) throws -> Void = DirectSimulatorInput.keyboard
     /// One named key (`key`).

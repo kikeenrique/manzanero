@@ -303,6 +303,10 @@ Not observed: rotation or landscape, iPad or other families, other runtimes or X
 
 Because the accessibility code shared with the phone was refactored, the iPhone 13 mini was re-checked with the same build: `tree` (137 nodes, both cleanups acknowledged), `press-label`, `wait-id` met and timed out with exit 124, `scroll-id` with its postcondition verified (a row moved from y 793 to 416), `screen auto`, `swipe`, a 2-second native recording (39 frames) and `button home` all behaved as before. A `scroll-id` for a row that the lazy Settings list had not yet created was refused before sending with "no match", which is the documented limit, not a change.
 
+### Two contacts on the simulator
+
+**2026-11-16**, same iPhone 17e simulator, iOS 27.2 runtime (24B8117), Xcode 27.2 (27B52), macOS 27.2.1, headless; the probe app in front. `pinch 0.5 0.5 0.2 0.5 0.6` was recorded as two simultaneous contacts (`maxActive` 2) from (0.4, 0.5) and (0.6, 0.5) to (0.2504, 0.5) and (0.7504, 0.5). The measurement runner with `--platform simulator` and a four-action plan (a 0.6 s spread and a 0.4 s inward pinch, two parallel upward paths over 0.5 s, two paths moving apart over 0.8 s), five rounds: 20 of 20 actions and 40 of 40 contacts `delivered`, all through the recent-gestures readout; `maxActive` 2 in every action; start error median 0.0003, max 0.0005; end error median 0.0004, max 0.0082; hold error median +0.5 ms, max +9.2 ms; foreground identity matched on all 21 readbacks.
+
 ## App logs, console and crashes
 
 First run of [`logs`, `console` and `last-crash`](app-logs.md), 2026-11-16: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), devicectl 651.32, one iPhone Air simulator on iOS 27.2 (24B8117), booted for the run and shut down afterwards, with the probe app's [log probe](probe-app.md#log-probe) installed through `simulator <UUID> build-run`. Every command went through the real CLI. Captured output stayed under `tmp/`; only shapes and counts are recorded here. No physical device was contacted.

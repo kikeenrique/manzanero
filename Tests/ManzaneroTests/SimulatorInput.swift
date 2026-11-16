@@ -9,6 +9,7 @@ struct SimulatorInputTests {
 
     final class Sent: @unchecked Sendable {
         var touches: [[ADCTouchSample]] = []
+        var twoContacts: [(first: [ADCTouchSample], second: [ADCTouchPoint])] = []
         var keyboards: [[ADCKeyboardSample]] = []
         var keys: [UInt64] = []
         var buttons: [(usage: UInt64, hold: UInt32)] = []
@@ -26,6 +27,12 @@ struct SimulatorInputTests {
             sent.onSend?()
             if let failure = sent.failure { throw failure }
             sent.touches.append(samples)
+        }
+        environment.twoContactTouch = { device, samples, second in
+            #expect(device == uuid)
+            sent.onSend?()
+            if let failure = sent.failure { throw failure }
+            sent.twoContacts.append((samples, second))
         }
         environment.keyboard = { device, samples in
             #expect(device == uuid)
@@ -126,6 +133,54 @@ struct SimulatorInputTests {
         #expect((receipt["screen"] as? [String: Any])?["orientation"] as? String == "portrait-assumed")
         #expect((receipt["holdSeconds"] as? Double) == (operands[0] == "long-press" ? 0.8 : nil))
         #expect(sent.touches[0].first?.phase == 0 && sent.touches[0].last?.phase == 2)
+    }
+
+    // MARK: - Two contacts
+
+    @Test func pinchAndTwoPathMultiDragAreValidatedLikePhysical() throws {
+        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "pinch", "0.5", "0.5", "0.2", "0.5", "0.6"])?.operation == "pinch")
+        #expect(try SimulatorInput.parse(["simulator", Self.uuid, "multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"]) != nil)
+        let invalid: [([String], CommandFailure.Code, String)] = [
+            (["pinch", "0.5", "0.5", "0.2", "0.2", "0.6"], .usage, "Pinch requires different positive start/end spans and 0.03...10 seconds. Spans are fractions of screen width."),
+            (["pinch", "0.5", "0.5", "0.2", "1.5", "0.6"], .usage, "Simulator input coordinates must be normalized numbers from 0 to 1."),
+            // Crossing paths are refused at parse time, before any lookup.
+            (["multi-drag", "0.6", "0.3", "0.6", "0.7", "0.6", "0.7", "0.6", "0.3", "0.6"], .usage, "Two-contact paths overlap or cross; no input sent."),
+            (["multi-drag", "20", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4"], .usage, "Usage: multi-drag <seconds: 0.03...10> <start-x> <start-y> <end-x> <end-y> ... (two to five contact paths)"),
+            (["multi-drag", "0.6", "0.3", "0.6", "0.3", "0.4", "0.5", "0.6", "0.5", "0.4", "0.7", "0.6", "0.7", "0.4"], .unsupportedOperation,
+             "Simulator multi-drag with three to five paths is not implemented yet; two paths use the digitizer's two contacts. No input sent.")
+        ]
+        for (operands, code, message) in invalid {
+            let failure = try #require(throws: CommandFailure.self) { try SimulatorInput.parse(["simulator", Self.uuid] + operands) }
+            #expect(failure.description == message && failure.code == code && failure.inputSent == .none)
+        }
+    }
+
+    @Test(arguments: [["pinch", "0.5", "0.5", "0.2", "0.5", "0.6"], ["multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"]])
+    func twoContactsTravelInOneDigitizerSchedule(_ operands: [String]) async throws {
+        let sent = Sent()
+        let receipt = try Self.json(await Self.service(sent).execute(["simulator", Self.uuid] + operands))
+        #expect(sent.touches.isEmpty && sent.twoContacts.count == 1)
+        let (first, second) = try #require(sent.twoContacts.first)
+        // The physical paired plan: down, 30 moves, release 1 ms after the duration.
+        #expect(first.count == 32 && second.count == 32 && first.first?.phase == 0 && first.last?.phase == 2)
+        #expect(first.last?.nanoseconds == (operands[0] == "pinch" ? 601_000_000 : 501_000_000))
+        if operands[0] == "pinch" {
+            #expect(abs(first[0].x - 0.4) < 1e-9 && abs(second[0].x - 0.6) < 1e-9 && first[0].y == 0.5 && second[0].y == 0.5)
+            #expect(abs(first[31].x - 0.25) < 1e-9 && abs(second[31].x - 0.75) < 1e-9)
+        } else {
+            #expect(first[0].y == 0.25 && second[0].y == 0.75 && first[31].y == 0.1 && second[31].y == 0.9)
+        }
+        #expect(receipt["contactCount"] as? Int == 2 && receipt["sampleCount"] as? Int == 32)
+        #expect(receipt["backend"] as? String == "coresimulator-dtuhid" && receipt["operation"] as? String == operands[0])
+        #expect(receipt["status"] as? String == "dispatched" && receipt["verified"] as? Bool == false && receipt["releaseVerified"] as? Bool == false)
+    }
+
+    @Test func twoContactDryRunNamesBothContacts() async throws {
+        let sent = Sent()
+        let plan = try Self.json(await Self.service(sent, state: "Shutdown").execute(["simulator", Self.uuid, "pinch", "0.5", "0.5", "0.5", "0.2", "0.4"], dryRun: true))
+        #expect(plan["contactCount"] as? Int == 2 && plan["sampleCount"] as? Int == 32)
+        #expect((plan["execution"] as? String)?.contains("pointTwo") == true)
+        #expect(sent.lookups == 0 && sent.twoContacts.isEmpty)
     }
 
     @Test func unbootedSimulatorSendsNothingAndTakesNoLease() async throws {

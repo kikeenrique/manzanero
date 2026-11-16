@@ -1,7 +1,8 @@
 import AppleDeviceBridge
 import Foundation
 
-/// Simulator single-contact touch, buttons, named keys and US-layout typing.
+/// Simulator touch (one contact, or two for pinch and two-path multi-drag),
+/// buttons, named keys and US-layout typing.
 /// Schedules come from the physical builders (`DirectPhysicalTouch.plan`,
 /// `DirectPhysicalTyping.samples`) and run through the bridge's shared
 /// schedulers; only the connection (host XPC to the simulator's dtuhidd)
@@ -25,13 +26,21 @@ enum DirectSimulatorInput {
         switch input.operation {
         case let operation where SimulatorInput.touchOperations.contains(operation):
             let samples = try touchSamples(input, info: info)
-            guard samples.allSatisfy({ $0.second == nil }) else {
-                throw CommandFailure(.internal, "Simulator touch supports one contact; no input sent.", inputSent: .none)
-            }
+            let wire = samples.map { ADCTouchSample(nanoseconds: $0.nanoseconds, x: $0.x, y: $0.y, phase: $0.phase) }
+            let second = samples.compactMap(\.second).map { ADCTouchPoint(x: $0.x, y: $0.y) }
             try Task.checkCancellation()
-            try environment.touch(input.device, samples.map { ADCTouchSample(nanoseconds: $0.nanoseconds, x: $0.x, y: $0.y, phase: $0.phase) })
+            if second.isEmpty {
+                try environment.touch(input.device, wire)
+            } else {
+                // pinch and two-path multi-drag: pointOne and pointTwo of one
+                // Indigo digitizer schedule, as on a physical device.
+                guard second.count == wire.count else {
+                    throw CommandFailure(.internal, "Incomplete second-contact schedule; no input sent.", inputSent: .none)
+                }
+                try environment.twoContactTouch(input.device, wire, second)
+            }
             result["sampleCount"] = samples.count
-            result["contactCount"] = 1
+            result["contactCount"] = second.isEmpty ? 1 : 2
             result["coordinateSpace"] = "normalized-current-interface"
             if operation == "long-press" { result["holdSeconds"] = Double(input.operands[2]) }
         case "button":
@@ -84,6 +93,16 @@ enum DirectSimulatorInput {
     static func touch(_ uuid: String, _ samples: [ADCTouchSample]) throws {
         try dispatch(uuid) { owner, error in
             samples.withUnsafeBufferPointer { ADCSimulatorPerformTouch(owner, $0.baseAddress, $0.count, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
+        }
+    }
+
+    static func twoContactTouch(_ uuid: String, _ samples: [ADCTouchSample], _ second: [ADCTouchPoint]) throws {
+        try dispatch(uuid) { owner, error in
+            samples.withUnsafeBufferPointer { first in
+                second.withUnsafeBufferPointer {
+                    ADCSimulatorPerformTwoContactTouch(owner, first.baseAddress, $0.baseAddress, first.count, { Task.isCancelled ? 1 : 0 }, &error, error.count)
+                }
+            }
         }
     }
 

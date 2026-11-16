@@ -12,6 +12,8 @@ manzanero simulator <UUID> wait-id|wait-label [pid] <exact-selector> [--until â€
 manzanero simulator <UUID> tap <x> <y>
 manzanero simulator <UUID> long-press <x> <y> <seconds>
 manzanero simulator <UUID> swipe|drag <x1> <y1> <x2> <y2> <seconds>
+manzanero simulator <UUID> pinch <center-x> <center-y> <start-span> <end-span> <seconds>
+manzanero simulator <UUID> multi-drag <seconds> <x1> <y1> <x2> <y2> <x1> <y1> <x2> <y2>   # two paths
 manzanero simulator <UUID> button home|lock
 manzanero simulator <UUID> key return|escape|backspace|tab|space|up|down|left|right
 manzanero simulator <UUID> type <text>
@@ -59,7 +61,7 @@ The lease, the handoff pause and the CLI signal handling (SIGINT/SIGTERM exit 13
 ## Not implemented
 
 - Unicode text entry (the AX set-value request, type 8 / attribute 53, works in experiments but has no command yet). `type` refuses non-ASCII text.
-- Multi-contact input: `multi-tap`, two-path `multi-drag`, `pinch` and `gesture` are refused with `unsupported-operation`. Two contacts arrived in the research's raw experiment; Universal HID for three to five has not been tried.
+- Three to five contacts: `multi-tap`, `multi-drag` with three or more paths, and `gesture` are refused with `unsupported-operation`. `pinch` and two-path `multi-drag` send both contacts in each Indigo digitizer event (`pointOne`, `pointTwo`), exactly as on a physical device, with the same refusal of overlapping or crossing paths (checked before the simulator is looked up).
 - Rotation, landscape and iPad geometry, `paste`, `wake`, volume buttons.
 - tvOS, watchOS and visionOS simulators, and runtimes or Xcodes other than the tested ones.
 

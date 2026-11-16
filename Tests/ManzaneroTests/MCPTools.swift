@@ -94,7 +94,11 @@ struct MCPToolsTests {
         ("wait_for_element", ["device": Value.string("fixture"), "by": "identifier", "text": "x"], ["physical", "fixture", "wait-id", "x"]),
         ("press_key", ["device": Value.string("fixture"), "key": "return"], ["physical", "fixture", "key", "return"]),
         ("long_press", ["device": Value.string("fixture"), "x": 0.5, "y": 0.5, "seconds": 1],
-         ["--physical-backend", "coredevice", "physical", "fixture", "long-press", "0.5", "0.5", "1"])
+         ["--physical-backend", "coredevice", "physical", "fixture", "long-press", "0.5", "0.5", "1"]),
+        ("pinch", ["device": Value.string("fixture"), "center_x": 0.5, "center_y": 0.5, "start_span": 0.2, "end_span": 0.5, "seconds": 0.6],
+         ["physical", "fixture", "pinch", "0.5", "0.5", "0.2", "0.5", "0.6"]),
+        ("multi_drag", ["device": Value.string("fixture"), "seconds": 0.5, "paths": [0.5, 0.25, 0.5, 0.1, 0.5, 0.75, 0.5, 0.9]],
+         ["physical", "fixture", "multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"])
     ]
 
     @Test(arguments: physicalDefaults)
@@ -119,7 +123,11 @@ struct MCPToolsTests {
         ("long_press", ["platform": Value.string("simulator"), "x": 0.5, "y": 0.5, "seconds": 0.8], ["long-press", "0.5", "0.5", "0.8"]),
         ("press_button", ["platform": Value.string("simulator"), "button": "home"], ["button", "home"]),
         ("press_key", ["platform": Value.string("simulator"), "key": "backspace"], ["key", "backspace"]),
-        ("type_text", ["platform": Value.string("simulator"), "text": "Wi-Fi"], ["type", "Wi-Fi"])
+        ("type_text", ["platform": Value.string("simulator"), "text": "Wi-Fi"], ["type", "Wi-Fi"]),
+        ("pinch", ["platform": Value.string("simulator"), "center_x": 0.5, "center_y": 0.5, "start_span": 0.2, "end_span": 0.5, "seconds": 0.6],
+         ["pinch", "0.5", "0.5", "0.2", "0.5", "0.6"]),
+        ("multi_drag", ["platform": Value.string("simulator"), "seconds": 0.5, "paths": [0.5, 0.25, 0.5, 0.1, 0.5, 0.75, 0.5, 0.9]],
+         ["multi-drag", "0.5", "0.5", "0.25", "0.5", "0.1", "0.5", "0.75", "0.5", "0.9"])
     ]
 
     @Test(arguments: simulatorRoutes)

@@ -318,6 +318,18 @@ int ADCSimulatorPerformTouch(void *owner, const ADCTouchSample *samples, size_t 
         }, error, capacity);
 }
 
+int ADCSimulatorPerformTwoContactTouch(void *owner, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,
+                                       size_t count, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    if (!secondPoints) return ADCSimulatorFail(error, capacity, @"Missing second contact; no input sent.");
+    if (ADCValidateTouchSchedule(samples, secondPoints, count, error, capacity)) return 1;
+    return ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.hid.digitizer", shouldCancel,
+        ^int(xpc_connection_t connection, ADCInputShouldStop stop) {
+            return ADCRunTouchSchedule(samples, secondPoints, count, stop, ^(const ADCTouchSample *sample, const ADCTouchPoint *second) {
+                xpc_connection_send_message(connection, ADCTouchEvent(sample->x, sample->y, second, sample->phase, NO));
+            });
+        }, error, capacity);
+}
+
 int ADCSimulatorPerformKeyboard(void *owner, const ADCKeyboardSample *samples, size_t count,
                                 ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     if (ADCValidateKeyboardSchedule(samples, count, error, capacity)) return 1;

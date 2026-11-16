@@ -230,6 +230,10 @@ int ADCSimulatorAXExchange(void *owner, const uint8_t *request, size_t length, d
 /// ADCPerformKeyboard and ADCPressButton. The device must still be Booted.
 int ADCSimulatorPerformTouch(void *owner, const ADCTouchSample *samples, size_t count,
                              ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
+/// Two contacts in one Indigo digitizer schedule (pointOne and pointTwo), as
+/// ADCPerformTwoContactTouch sends them to a physical device.
+int ADCSimulatorPerformTwoContactTouch(void *owner, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,
+                                       size_t count, ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 int ADCSimulatorPerformKeyboard(void *owner, const ADCKeyboardSample *samples, size_t count,
                                 ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 int ADCSimulatorPressKeyboardKey(void *owner, uint64_t usage, ADCInputShouldStop shouldCancel,
