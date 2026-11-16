@@ -178,13 +178,11 @@ int ADCSimulatorAXExchange(void *owner, const uint8_t *request, size_t length, d
         [decoder finishDecoding];
         if (![object isKindOfClass:requestClass])
             return ADCSimulatorFail(error, capacity, [NSString stringWithFormat:@"The accessibility request did not unarchive as AXPTranslatorRequest (%@); nothing was sent.", failure.localizedDescription ?: @"unexpected class"]);
-        // Hit tests need client type 2: with type 0 a point over an empty area
-        // fails instead of returning its container (docs/simulator-input.md).
-        @try {
-            if ([[object valueForKey:@"requestType"] unsignedLongLongValue] == 6) [object setValue:@2 forKey:@"clientType"];
-        } @catch (NSException *exception) {
-            return ADCSimulatorFail(error, capacity, @"Cannot set the hit-test client type on AXPTranslatorRequest; nothing was sent.");
-        }
+        // The request keeps the client type the Swift side archived: 2 for the
+        // container hit that selects the foreground process (a point over an
+        // empty area returns its container instead of failing), 0 for element
+        // hits, where type 2 can answer with an outer container instead of the
+        // element (observed on iPhone Duo and Apple TV; docs/simulator-input.md).
         if (shouldCancel && shouldCancel()) return ADCSimulatorFail(error, capacity, @"Simulator accessibility request cancelled before sending.");
         ADCSimulatorReply *reply = [ADCSimulatorReply new];
         void (^completion)(id) = ^(id response) {

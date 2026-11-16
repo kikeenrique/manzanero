@@ -10,7 +10,9 @@ import Foundation
 ///   `notApplicable`;
 /// - the foreground process is the frontmost application (request type 4),
 ///   because a display-centre hit over an empty area fails on the simulator;
-/// - hit tests carry client type 2 (set by the bridge).
+/// - as on a phone, the centre hit that selects a process asks with client
+///   type 2 (container) and element hits with type 0: type 2 at a row's
+///   centre answered with an outer container on iPhone Duo and Apple TV.
 ///
 /// Synchronous and single-owner like `AccessibilitySession`; any failure
 /// closes it.
@@ -68,8 +70,12 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
     }
 
     func hit(x: Double, y: Double) throws -> AccessibilityRequest.Token {
+        try hit(x: x, y: y, container: false)
+    }
+
+    func hit(x: Double, y: Double, container: Bool) throws -> AccessibilityRequest.Token {
         let point = hitMapping?.native(x, y) ?? (x, y)
-        return try AccessibilityResponse.token(exchange(AccessibilityRequest.hit(x: point.0, y: point.1), expected: .hit))
+        return try AccessibilityResponse.token(exchange(AccessibilityRequest.hit(x: point.0, y: point.1, container: container), expected: .hit))
     }
 
     /// Hit points arrive in interface points (the tree's frames); the
@@ -95,7 +101,7 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
             return token
         }
         selections.append("centre-hit")
-        return try hit(x: display.center.x, y: display.center.y)
+        return try hit(x: display.center.x, y: display.center.y, container: true)
     }
 
     /// The shallower depth retried when a full-depth snapshot comes back empty.

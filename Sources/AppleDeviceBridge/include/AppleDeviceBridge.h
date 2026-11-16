@@ -214,8 +214,8 @@ void ADCCloseSimulatorDevice(void *owner);
 /// unarchivable response). Any other non-zero status means nothing was sent.
 #define ADCSimulatorAXSent 2
 /// One AX request: unarchives the project's AXPTranslatorRequest archive into
-/// the framework's own class (secure coding, allow-listed classes), sets
-/// client type 2 on hit tests (type 6), sends it with
+/// the framework's own class (secure coding, allow-listed classes; the
+/// archived client type is kept), sends it with
 /// -[SimDevice sendAccessibilityRequestAsync:...] and archives the
 /// AXPTranslatorResponse for the data-only Swift decoder. The response bytes
 /// are borrowed only during sink. Waits at most timeoutSeconds, polling

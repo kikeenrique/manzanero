@@ -541,6 +541,18 @@ On `manzanero-research-tv` the first version refused `screenshot` (`no single ca
 
 Not observed: an unfolded Duo (no fold control exists yet), so nothing showed on `LCD-1`, and trees and touch were not tried on it.
 
+### Press refused on the Duo and the Apple TV: the hit-test client type
+
+**2026-11-16**, `manzanero-research-duo` (Settings) and `manzanero-research-tv` (Settings). Reproduced: `press --label General` on the Duo was refused at `stage=target-hit` with `target centre hit is another native element`. With temporary diagnostics, the fresh snapshot had two `General` nodes: the row (visible, 362 × 52 pt) and its static text child (visibility false), so the selector had already chosen the row as the only visible match. The hit test at the row's centre, sent with client type 2 as the simulator bridge then did for every hit, answered with an unrelated zero-size, invisible container near the top of the tree, not the row or its text. Sent with client type 0 (what the physical route sends for element hits) it answered with the row, and the press was accepted and Settings opened General (a wait for `About` was met). After the change (element hits type 0, the process-selection centre hit still type 2):
+
+| Simulator | Command | Observed |
+| --- | --- | --- |
+| Duo | `press --label General`, then `press --label About` | Both accepted; the tree then showed the About page |
+| Duo | `scroll --label "44,15 GB"` on About | Native true, the text moved from y 628 to 590; postcondition `failed` on visibility (the SwiftUI static text reports not visible, as noted in [simulator input](simulator-input.md#observed-limits)) |
+| TV | `press --label "Video and Audio"` | Accepted; the tree then showed the Video and Audio page (`VIDEO`, `AUDIO`, `CALIBRATION`) |
+
+The selector, duplicate-match rule and press guards in `DirectAccessibilityAction` are unchanged and physical requests are unchanged. Not re-checked: the iPhone 17e simulator (in use elsewhere), where type 2 had worked; the Home Screen icon press refused there by the same guard may have the same cause.
+
 ## Retired implementations
 
 These results are preserved as history, not current runtime availability:

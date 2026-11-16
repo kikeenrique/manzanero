@@ -118,7 +118,7 @@ The Duo profile declares two integrated displays, `LCD` (screen 1, `primary`, 13
 1. **Duo screenshot, screen and record display choice** (small): pass the primary screen ID to `simctl io`. Unblocks `screen` on the Duo. **Done:** `displays` and `--display` ([other families](other-families.md#displays-iphone-duo)).
 2. **tvOS remote command** (small): select, menu, home, play-pause and the D-pad over the existing Indigo keyboard and button paths; replace the touch refusal wording on tvOS. Most of tvOS is then usable, since tree, wait, keys and type already work.
 3. **watchOS Digital Crown** (small to medium): `IndigoScrollEvent` to `hid.scroll`, target 0; calibrate units and phases on a list. Then look for the side-button usage.
-4. **Press with duplicate labels** (small, all platforms): prefer the actionable element (button/cell) when a label matches a container and its static text, or report the duplicate. Seen on tvOS and Duo; worth checking on the iPhone.
+4. **Press with duplicate labels** (small, all platforms): prefer the actionable element (button/cell) when a label matches a container and its static text, or report the duplicate. Seen on tvOS and Duo; worth checking on the iPhone. **Done, with a different cause:** the simulator bridge sent every hit test with client type 2, which answered a row's centre with an outer container on these two families; element hits now use type 0 as on a phone ([simulator input](simulator-input.md#observed-limits)).
 5. **tvOS focus in the tree and the touch surface** (medium).
 6. **Duo fold** (unknown): needs the owner to fold the device once in Xcode's device window while logs are captured.
 

@@ -73,6 +73,8 @@ final class SimulatorAXFixture: @unchecked Sendable {
     var displayInfo = SimulatorInputTests.displayJSON()
     /// Hit points as sent (after the interface-to-native mapping).
     private(set) var hitPoints: [NSPoint] = []
+    /// The client type of each hit test as archived (the bridge keeps it).
+    private(set) var hitClientTypes: [UInt64] = []
 
     var kinds: [UInt64] { requests.map(\.kind) }
 
@@ -142,6 +144,7 @@ final class SimulatorAXFixture: @unchecked Sendable {
             guard case .dictionary(let parameters) = fields["parameters"], case .object(_, let point) = parameters["point"] ?? .null,
                   case .string(let text) = point["NS.pointval"] ?? .null else { throw CommandFailure(description: "Bad fixture hit") }
             hitPoints.append(NSPointFromString(text))
+            hitClientTypes.append(fields["clientType"]?.unsignedInteger ?? 99)
             // Elements are hit in native portrait points, as the simulator does.
             let hit = elements.first { element in
                 NSPointInRect(NSPointFromString(text), nativeFrame(element.frame))
@@ -504,6 +507,21 @@ struct SimulatorAccessibilityTests {
         // The lease was released afterwards: another holder can take it.
         let after = try leases.acquire(device: Self.uuid, operation: "check")
         after.release()
+    }
+
+    /// Element hits ask with client type 0, as on a phone: with type 2 an
+    /// iPhone Duo and an Apple TV answered a row's centre with an outer
+    /// container, so press refused the row as "another native element". Only
+    /// the centre hit that selects the process asks for a container (type 2).
+    @Test func elementHitsUseClientTypeZeroAndProcessSelectionTwo() async throws {
+        let fixture = Self.pressable()
+        fixture.noFrontmost = true
+        _ = try await Self.service(fixture, leases: Self.usableLeases()).run(["press", "--id", "probe.touch.reset", "--simulator", Self.uuid])
+        // centre hit (selection), element hit at the target, centre hit (recheck).
+        #expect(fixture.hitClientTypes == [2, 0, 2])
+        let framed = Self.pressable()
+        _ = try await Self.service(framed, leases: Self.usableLeases()).run(["press", "--id", "probe.touch.reset", "--simulator", Self.uuid])
+        #expect(framed.hitClientTypes == [0])
     }
 
     @Test func pressIsRefusedWhenTheSimulatorIsBusyOrUnbooted() async throws {
