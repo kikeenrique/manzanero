@@ -8,9 +8,9 @@ struct SimulatorDisplaysTests {
     static let uuid = SimulatorDeviceTests.uuid
 
     static func display(_ id: Int, _ name: String, device: String, primary: Bool = false, kind: String = "integrated",
-                        size: [Double] = [0, 0], backlight: String = "off", active: Bool = false) -> [String: Any] {
+                        size: [Double] = [0, 0], nativeSize: [Double]? = nil, backlight: String = "off", active: Bool = false) -> [String: Any] {
         ["displayId": id, "name": name, "deviceName": device, "primary": primary, "type": [kind: [String: Any]()],
-         "nativeSize": size, "pointScale": 3, "backlightState": backlight, "active": active, "currentOrientation": "rot0",
+         "nativeSize": nativeSize ?? size, "currentMode": ["size": size, "preferredUIScale": 3], "pointScale": 3, "backlightState": backlight, "active": active, "currentOrientation": "rot0",
          "nativeOrientation": "rot0", "uniqueId": "AAAAAAAA-0000-4000-8000-00000000000\(id)"]
     }
 
@@ -26,9 +26,10 @@ struct SimulatorDisplaysTests {
         display(4, "Wireless", device: "wireless0", kind: "wireless"),
         display(5, "Resizable", device: "resizable", kind: "virtual")])
 
-    /// An Apple TV: one external display with a framebuffer.
-    static let television = json([display(1, "TVOut", device: "primary", primary: true, kind: "external", size: [1920, 1080],
-                                          backlight: "activeOn", active: true)])
+    /// An Apple TV (tvOS 27.2): one external display whose nativeSize is
+    /// 0 × 0 while its current mode is 1920 × 1080, and whose backlight reads off.
+    static let television = json([display(1, "TVOut", device: "external-0", primary: true, kind: "external", size: [1920, 1080],
+                                          nativeSize: [0, 0])])
 
     static func environment(_ data: Data, reads: Counter = Counter()) -> SimulatorEnvironment {
         var environment = SimulatorEnvironment(lookup: { _ in SimulatorDeviceTests.info() },

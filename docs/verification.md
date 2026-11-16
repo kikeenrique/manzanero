@@ -537,6 +537,8 @@ Three simulators created for this work, headless (Simulator.app not opened): `ma
 | `screen tree --display 3` | Refused before capture: the tree describes the primary display only |
 | `record 2` (no option), `record 2 --display primary-1` | 2.02 s H.264 at 1398 × 2034 (display LCD), and 2.02 s at 2006 × 2852 (display LCD-1) |
 
+On `manzanero-research-tv` the first version refused `screenshot` (`no single capturable primary display`): its only display, `TVOut`, reports `nativeSize` 0 × 0 and backlight `off` while its current mode is 1920 × 1080. Capturability now follows the current mode's size; `displays` lists TVOut as capturable and primary, and `screenshot` ran with the unchanged `simctl` arguments (simctl: `Defaulting to display … TVOut`).
+
 Not observed: an unfolded Duo (no fold control exists yet), so nothing showed on `LCD-1`, and trees and touch were not tried on it.
 
 ## Retired implementations

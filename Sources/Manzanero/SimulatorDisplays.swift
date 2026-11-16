@@ -18,8 +18,8 @@ struct SimulatorDisplayEntry: Sendable, Equatable {
     let active: Bool
     let orientation: String
 
-    /// A display with a framebuffer size; simctl can capture only these.
-    /// TVOut, CarPlay and the resizable display of a phone report 0 × 0.
+    /// A display whose current mode has a size; simctl can capture only these.
+    /// A phone's TVOut, CarPlay and resizable displays report 0 × 0.
     var capturable: Bool { widthPixels > 0 && heightPixels > 0 }
 
     var json: [String: Any] {
@@ -70,7 +70,9 @@ enum SimulatorDisplays {
             guard let id = (display["displayId"] as? NSNumber)?.intValue, let name = display["name"] as? String else {
                 throw CommandFailure(.transportFailed, "The simulator's display information lists a display without an ID or name; nothing was sent.", inputSent: .none)
             }
-            let size = display["nativeSize"] as? [Any] ?? []
+            // The current mode's size: an Apple TV's TVOut reports a 0 × 0
+            // nativeSize with a 1920 × 1080 current mode, and is captured.
+            let size = (display["currentMode"] as? [String: Any])?["size"] as? [Any] ?? display["nativeSize"] as? [Any] ?? []
             let kind = (display["type"] as? [String: Any])?.keys.sorted().first ?? "unknown"
             return SimulatorDisplayEntry(id: id, name: name, deviceName: display["deviceName"] as? String ?? "",
                                          primary: display["primary"] as? Bool == true, kind: kind,
