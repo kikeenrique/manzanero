@@ -100,9 +100,31 @@ Other downloads are not embedded, parsed or symbolicated automatically.
 
 Follow actions with fresh observations or app-specific assertions. A completed call can have partial side effects or uncertain cleanup.
 
+## Calls sent without waiting
+
+A client may send requests without waiting for answers, from `initialize` on. Answers can arrive in any order; match them by id.
+
+**Startup.** Messages that arrive after an `initialize` request, except `ping`, are held until that request has been answered, then handled in arrival order. A client that writes `initialize`, `notifications/initialized` and a `tools/call` at once gets an answer to each. (The MCP specification asks clients not to send other requests before the `initialize` response; this server does not rely on it.)
+
+**Order of tool calls.** Each `tools/call` is placed in arrival order as it is read. What it waits for depends on what it does and which device it addresses:
+
+| Call | Waits for | Holds its device |
+| --- | --- | --- |
+| A mutation: anything not read-only, such as input, `press_element`, `fold_device`, `app_action`, `build_run`, `simulator_state` | Every earlier mutation of the same device to end | Until it ends, so later calls to that device wait |
+| An observation: a read-only call such as `get_ui_tree`, `get_screen`, `screenshot`, `wait_for_element`, `list_displays`, `get_hinge_angle`, `device_readiness` | Every earlier mutation of the same device to end | No |
+| A capture: `record_screen`, `capture_frames`, `capture_console` | Every earlier mutation of the same device to end | Only until it begins, so input can follow it while it records. Later calls do not wait for its first frame: input sent right behind a capture can come before recording has started |
+| `request_handoff` | Every earlier mutation of the same device to end | Until the person's response is pending; later mutations then run and are refused by the [handoff pause](#handoff-and-approvals), as before |
+| A call with no device (`doctor`, `list_devices`, `list_keyboard_layouts`, `ocr_image`, `decode_accessibility_archive`), a dry run, or one whose arguments are invalid | Nothing | No |
+
+So mutations of one device run one at a time in the order they were sent, and a later one never overtakes an earlier one; an observation sent after a mutation sees the state after it, and never runs inside it (`fold_device`'s wait included). An observation already running when a mutation arrives does not hold the mutation up: a `wait_for_element` sent before the tap that satisfies it keeps polling while the tap runs. Calls to different devices are not ordered against each other. A device is named by its identifier as given; UDIDs and UUIDs are compared without regard to case, but an alias and the identifier it stands for are two devices here. The per-device lease is unchanged: it is shared within the server process, which is what lets a capture and input run together, and keeps other processes out.
+
+`notifications/cancelled` for a call still waiting for its device removes it: it never runs and gets no answer. Cancelling a running call cancels its task; the next call for the device starts after the cancelled one's cleanup has finished. Waiting is part of the owned operation below, so shutdown ends waiting calls too.
+
+Why the server does this itself: the pinned SDK starts every request in a task of its own, so without it requests run in no fixed order, and a request that reached the SDK's initialization check before `initialize` finished was rejected with no answer at all (the SDK discards that error). `MCPSessionTransport` holds messages behind `initialize`, registers each `tools/call` with `MCPCallOrdering` as it is read, and passes the call's place to its handler in `params._meta` under `manzanero/ticket` (a value a client sends there is removed).
+
 ## Shutdown and operation ownership
 
-Each tool call is registered as an owned task before device work starts. Request cancellation cancels that task and waits for its result/cleanup. Shutdown closes admissions, cancels owned operations, stops the SDK transport and pending elicitation waits, then drains tasks.
+Each tool call is registered as an owned task before device work starts. Request cancellation cancels that task and waits for its result/cleanup. Shutdown closes admissions, cancels owned operations (including calls still waiting for their device), stops the SDK transport and pending elicitation waits, then drains tasks.
 
 | Event | Normal result |
 | --- | --- |
@@ -112,7 +134,7 @@ Each tool call is registered as an owned task before device work starts. Request
 
 The runtime grace is 30 seconds. Interrupted input does not publish an ordinary success receipt. Embedded sessions stop/drain without exiting their host process and cannot restart after shutdown.
 
-This owns tasks, not exclusive access to a device. Independent CLI/server processes remain uncoordinated. Blocking Apple calls can delay cancellation; force exit, crashes and disconnects do not guarantee release or roll back text/clipboard/app changes.
+Within one session, the ordering above serializes each device's mutations. It does not reach other processes: independent CLI/server processes are coordinated only by the per-device lease that input and native capture take, which fails at once rather than waiting. Blocking Apple calls can delay cancellation; force exit, crashes and disconnects do not guarantee release or roll back text/clipboard/app changes.
 
 ## Handoff and approvals
 
