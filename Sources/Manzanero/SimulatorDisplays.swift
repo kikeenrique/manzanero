@@ -219,7 +219,7 @@ enum SimulatorDisplayRequest: Sendable, Equatable {
         switch self {
         case .list(let device):
             return ["platform": "simulator", "device": device, "operation": "displays", "readOnly": true,
-                    "execution": "One read-only display-information request to the simulator's dtdeviceinfod (com.apple.coredevice.feature.getdisplayinfo) over host XPC; no input, no simctl."]
+                    "execution": "One read-only display-information request to the simulator's dtdeviceinfod (com.apple.coredevice.feature.getdisplayinfo) over host XPC; on a foldable simulator (two integrated displays) also one hinge-angle sample (monitormotion streamhingeangle, closed after the first sample) and the posture derived from it. No input, no simctl."]
         case .screenshot(let device, let output, let display):
             let command = try DeviceCommand.plan(physical: false, device: device, operation: "screenshot", operands: [output])
             return ["executable": command.executable, "arguments": command.arguments,
@@ -232,12 +232,24 @@ enum SimulatorDisplayRequest: Sendable, Equatable {
         switch self {
         case .list(let device):
             let selection = try? SimulatorDisplays.select(nil, in: displays)
-            return try JSONSerialization.data(withJSONObject: [
+            var result: [String: Any] = [
                 "platform": "simulator", "device": device, "displays": displays.map(\.json),
                 "defaultCaptureDisplay": selection.map { $0.display.id as Any } ?? NSNull(),
                 "interfaceDisplay": SimulatorDisplays.interface(displays).map { $0.id as Any } ?? NSNull(),
-                "note": "id is the screen ID that --display accepts. Trees, waits, actions, touch and default captures follow interfaceDisplay: the display marked primary, or, when it is off and exactly one other integrated display with a framebuffer is awake, that one (an unfolded iPhone Duo's LCD-1)."],
-                options: [.prettyPrinted, .sortedKeys])
+                "note": "id is the screen ID that --display accepts. Trees, waits, actions, touch and default captures follow interfaceDisplay: the display marked primary, or, when it is off and exactly one other integrated display with a framebuffer is awake, that one (an unfolded iPhone Duo's LCD-1)."]
+            // A foldable simulator also gets one hinge sample and the posture
+            // derived from it; a failed read is reported, not fatal.
+            if SimulatorDisplays.foldable(displays) != nil {
+                do {
+                    let sample = try HingeSample(environment.hingeAngle(device))
+                    result["hinge"] = ["angle": sample.angle, "isAngleValid": sample.angleValid, "unit": "degrees",
+                                       "posture": sample.angleValid ? HingeSample.posture(sample.angle) : "unknown",
+                                       "postureSource": HingeSample.postureSource]
+                } catch let failure as CommandFailure {
+                    result["hinge"] = ["error": failure.description]
+                }
+            }
+            return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         case .screenshot(let device, let output, let display):
             let selection = try SimulatorDisplays.select(display, in: displays)
             var command = try DeviceCommand.plan(physical: false, device: device, operation: "screenshot", operands: [output])

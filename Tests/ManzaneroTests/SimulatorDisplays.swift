@@ -39,6 +39,7 @@ struct SimulatorDisplaysTests {
             reads.value += 1
             return data
         }
+        environment.hingeAngle = { _ in SimulatorHingeTests.sample(angle: 0, mechanical: 0) }
         return environment
     }
 

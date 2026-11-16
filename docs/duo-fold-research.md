@@ -3,7 +3,8 @@
 > **Built (2026-11-16):** `fold`, `unfold` and `hinge <degrees>` use route 1 below, and `hinge` without an
 > angle reads it through route 2 ([other families](other-families.md#fold-iphone-duo)). Touch, trees, actions and
 > default captures follow the active display; the "Still unknown" questions about touch and AX on the inner display
-> are answered in [the inner display](other-families.md#the-inner-display-unfolded).
+> are answered in [the inner display](other-families.md#the-inner-display-unfolded). A posture derived from the
+> angle by manzanero's own thresholds is in `hinge` and `displays`; Apple's posture stream is still not found.
 >
 > **Status (2026-11-16):** research pass, no product code changed. Follows up the "Fold state" section of
 > [the other-families research](other-families-research.md#fold-state). **Result: a working route was found and

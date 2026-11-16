@@ -191,8 +191,19 @@ struct HingeSample: Equatable {
     var json: [String: Any] {
         func optional(_ value: Double?) -> Any { value.map { $0 as Any } ?? NSNull() }
         return ["angle": angle, "mechanicalAngle": optional(mechanicalAngle), "minAngle": optional(minAngle), "maxAngle": optional(maxAngle),
-                "velocity": optional(velocity), "isAngleValid": angleValid, "unit": "degrees", "velocityUnit": "degrees per second"]
+                "velocity": optional(velocity), "isAngleValid": angleValid, "unit": "degrees", "velocityUnit": "degrees per second",
+                "posture": angleValid ? Self.posture(angle) : "unknown", "postureSource": Self.postureSource]
     }
+
+    /// Manzanero's own reading of the angle, not a value the simulator
+    /// reports: closed up to 5 degrees, flat from 175, partially open between.
+    /// The device-motion stream that carries Apple's posture was not found.
+    static func posture(_ angle: Double) -> String {
+        angle <= closedLimit ? "closed" : angle >= flatLimit ? "flat" : "partially-open"
+    }
+    static let closedLimit = 5.0
+    static let flatLimit = 175.0
+    static let postureSource = "derived from angle by manzanero: closed <= 5, flat >= 175 degrees, else partially-open; not reported by the simulator"
 }
 
 extension Duration {

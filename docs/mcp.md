@@ -33,7 +33,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `device_readiness` | CoreDevice prerequisites plus separate display/passcode observations; see [readiness](readiness.md). |
 | `get_ui_tree` | Native AX hierarchy with optional PID, physical or [simulator](simulator-input.md). |
 | `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Auto mode prefers the tree on both platforms. Optional `display` chooses a simulator display ([iPhone Duo](other-families.md#displays-iphone-duo)). |
-| `list_displays` | A simulator's displays: screen ID, name, size, backlight, active and primary state ([other families](other-families.md#displays-iphone-duo)); read-only |
+| `list_displays` | A simulator's displays: screen ID, name, size, backlight, active and primary state, the display the interface is on, and on a foldable simulator the hinge angle with a derived posture ([other families](other-families.md#displays-iphone-duo)); read-only |
 | `press_element`, `scroll_to_element` | [Fresh exact AX selectors](direct-accessibility.md), guarded native press/scroll, physical or simulator |
 | `set_element_value` | [Unicode entry by AX set-value](simulator-input.md#unicode-text-set-value): replaces one settable element's whole value, with the press guards, on a physical device (the default) or a simulator |
 | `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled, has an exact value or ([Apple TV](other-families.md#focus-in-the-tree-and-in-waits)) has focus, within one AX session. Run on one simulator; not yet verified on physical hardware. |

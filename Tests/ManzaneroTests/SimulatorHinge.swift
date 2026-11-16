@@ -176,6 +176,35 @@ struct SimulatorHingeTests {
         #expect(try !request(["hinge", "10", "--simulator", Self.uuid]).isReadOnly)
     }
 
+    @Test(arguments: [(0.0, "closed"), (5.0, "closed"), (5.5, "partially-open"), (94.6, "partially-open"),
+                      (174.9, "partially-open"), (175.0, "flat"), (180.0, "flat")])
+    func postureIsDerivedFromTheAngle(_ angle: Double, _ posture: String) throws {
+        #expect(HingeSample.posture(angle) == posture)
+        let json = try HingeSample(Self.sample(angle: angle, mechanical: angle)).json
+        #expect(json["posture"] as? String == posture && (json["postureSource"] as? String)?.hasPrefix("derived") == true)
+    }
+
+    @Test func displaysAddsTheDerivedPostureOnFoldablesOnly() throws {
+        final class Reads: @unchecked Sendable { var value = 0 }
+        let reads = Reads()
+        func list(_ data: Data, _ sample: @escaping @Sendable () throws -> Data) throws -> [String: Any] {
+            var environment = Fixture.environment(data)
+            environment.hingeAngle = { _ in reads.value += 1; return try sample() }
+            let output = try SimulatorDisplayRequest.list(device: Self.uuid).execute(environment: environment, run: { _ in Data() })
+            return try #require(try JSONSerialization.jsonObject(with: output) as? [String: Any])
+        }
+        let unfolded = try list(Self.unfolded) { Self.sample(angle: 180, mechanical: 180) }
+        let hinge = try #require(unfolded["hinge"] as? [String: Any])
+        #expect(hinge["angle"] as? Double == 180 && hinge["posture"] as? String == "flat" && hinge["postureSource"] != nil)
+        // A failed read is reported in place; the displays still list.
+        let failed = try list(Self.folded) { throw CommandFailure(.transportFailed, "no sample", inputSent: .none) }
+        #expect(((failed["hinge"] as? [String: Any])?["error"] as? String)?.contains("no sample") == true && failed["displays"] != nil)
+        #expect(reads.value == 2)
+        // A one-display phone: no hinge key and no read, as before.
+        let phone = try list(Self.phone) { Issue.record("Read a phone's hinge"); return Data() }
+        #expect(phone["hinge"] == nil && reads.value == 2)
+    }
+
     @Test func angleSampleWithoutAnAngleIsATransportFailure() throws {
         #expect(try HingeSample(Self.sample(angle: 0, mechanical: 0)).angle == 0)
         for data in [Data("{}".utf8), Data("[1]".utf8), Data("{\"angle\": {\"value\": \"x\"}}".utf8)] {
