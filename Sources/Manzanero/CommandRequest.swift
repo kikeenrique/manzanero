@@ -17,6 +17,8 @@ enum CommandRequest: Sendable, Equatable {
     case diagnostics(AppDiagnosticsCommand)
     /// A `devicectl` or `simctl` wrapper.
     case tool(DeviceOperation)
+    /// Simulator `displays` and `screenshot` with a display choice.
+    case simulatorDisplay(SimulatorDisplayRequest)
     case decodeArchive(path: String)
     case ocr(path: String)
     case devices(simulators: Bool)
@@ -71,6 +73,7 @@ extension CommandRequest {
         case .buildRun(let build): (build.physical ? "physical" : "simulator", build.device, "build-run")
         case .diagnostics(let diagnostics): (diagnostics.physical ? "physical" : "simulator", diagnostics.device, diagnostics.operation)
         case .tool(let tool): (tool.platform.rawValue, tool.device, tool.operation)
+        case .simulatorDisplay(let display): ("simulator", display.device, display.operation)
         case .decodeArchive, .ocr, .devices, .doctor, .keyboardLayouts: nil
         }
     }

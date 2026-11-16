@@ -97,7 +97,9 @@ struct DeviceCommandsTests {
             let output = try await service.run(args, dryRun: true)
             let plan = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
             #expect(plan["executable"] as? String == "/usr/bin/xcrun")
-            #expect(Set(plan.keys) == ["executable", "arguments"])
+            // A simulator screenshot also says how its display is chosen at run time.
+            let simulatorCapture = args.first == "screenshot" && args.contains("--simulator")
+            #expect(Set(plan.keys) == (simulatorCapture ? ["executable", "arguments", "display"] : ["executable", "arguments"]))
         }
     }
 }

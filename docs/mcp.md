@@ -32,12 +32,13 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks plus host-only private-interface availability per capability ([doctor output](dependencies.md#reading-doctor-output)); apps and physical details/processes/media status. |
 | `device_readiness` | CoreDevice prerequisites plus separate display/passcode observations; see [readiness](readiness.md). |
 | `get_ui_tree` | Native AX hierarchy with optional PID, physical or [simulator](simulator-input.md). |
-| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Auto mode prefers the tree on both platforms. |
+| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Auto mode prefers the tree on both platforms. Optional `display` chooses a simulator display ([iPhone Duo](other-families.md#displays-iphone-duo)). |
+| `list_displays` | A simulator's displays: screen ID, name, size, backlight, active and primary state ([other families](other-families.md#displays-iphone-duo)); read-only |
 | `press_element`, `scroll_to_element` | [Fresh exact AX selectors](direct-accessibility.md), guarded native press/scroll, physical or simulator |
 | `set_element_value` | [Unicode entry by AX set-value](simulator-input.md#unicode-text-set-value): replaces one settable element's whole value, with the press guards, on a physical device (the default) or a simulator |
 | `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled or has an exact value, within one AX session. Run on one simulator; not yet verified on physical hardware. |
 | `decode_accessibility_archive` | Offline data-only archive inspection |
-| `record_screen` | [Finite MP4 recording](recording.md) to a new host path |
+| `record_screen` | [Finite MP4 recording](recording.md) to a new host path; optional `display` on a simulator |
 | `tap`, `drag`, `long_press` | Direct single-contact input, physical or simulator |
 | `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md); optional `platform` (default physical); a booted simulator receives all of them |
 | `type_text`, `paste_text`, `press_key`, `press_button` | [Typing in a named keyboard layout](physical-typing.md#layouts) (`layout`, default `us`), named keys and hardware buttons (physical or simulator, the same four buttons), and physical clipboard-replacing paste |

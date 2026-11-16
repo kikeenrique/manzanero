@@ -145,7 +145,19 @@ actor CommandService {
             let data = try runner.run(command.arguments, executable: command.executable)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
             return CommandOutput(data: data)
+        case .simulatorDisplay(let display):
+            if dryRun { return try json(display.plan()) }
+            try checkHandoffPause(request)
+            return CommandOutput(data: try display.execute(environment: simulator, run: { try runner.run($0.arguments, executable: $0.executable) }))
         }
+    }
+
+    /// The simulator display a capture uses (`SimulatorDisplays.select`); nil
+    /// for a physical device. Reading it sends no input.
+    private func captureDisplay(physical: Bool, device: String, requested: String?) throws -> SimulatorDisplaySelection? {
+        guard !physical else { return nil }
+        do { return try SimulatorDisplays.select(requested, in: SimulatorDisplays.read(device, environment: simulator)) }
+        catch let failure as CommandFailure { throw failure.noInputSent() }
     }
 
     /// Native physical input and accessibility: dry-run plans, the handoff
@@ -279,10 +291,17 @@ actor CommandService {
             let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/screen-\(UUID().uuidString)")
             if dryRun {
                 let plan = try screen.capturePlan(image: directory.appendingPathComponent("screen.png"))
-                return try json(["executable": plan.executable, "arguments": plan.arguments, "analysisMode": screen.mode.rawValue,
-                    "analysis": "Prefer accessibility in auto mode (physical selects the app at primary display centre; simulators the frontmost application, else the one at screen centre); fall back to Vision OCR, then explicitly report image-only if analysis fails."])
+                var output: [String: Any] = ["executable": plan.executable, "arguments": plan.arguments, "analysisMode": screen.mode.rawValue,
+                    "analysis": "Prefer accessibility in auto mode (physical selects the app at primary display centre; simulators the frontmost application, else the one at screen centre); fall back to Vision OCR, then explicitly report image-only if analysis fails."]
+                if screen.platform == "simulator" {
+                    output["display"] = ["requested": screen.display.map { $0 as Any } ?? NSNull(),
+                                         "resolution": SimulatorDisplays.resolution + " A display that is not primary is described by OCR only."]
+                }
+                return try json(output)
             }
             if screen.platform == "physical" { try preflight(screen.device, operation: "capture screen") }
+            var screen = screen
+            screen.selection = try captureDisplay(physical: screen.platform == "physical", device: screen.device, requested: screen.display)
             return CommandOutput(data: try await screen.execute(directory: directory,
                 run: { try runner.run($0.arguments, executable: $0.executable) },
                 hierarchy: { try await self.execute(.tree(platform: screen.platform, device: screen.device)).data }))
@@ -312,14 +331,19 @@ actor CommandService {
                         "stopPolicy": "Owned stream stop and fresh absence check, VideoToolbox invalidation, tunnel assertion release; publish only after artifact validation."] as [String: Any])
                 }
                 let plan = try recording.command(staging: directory.appendingPathComponent("capture.mp4"))
-                let output: [String: Any] = ["executable": plan.executable, "arguments": plan.arguments,
+                var output: [String: Any] = ["executable": plan.executable, "arguments": plan.arguments,
                     "destination": recording.destination.path, "durationSeconds": recording.seconds,
                     "stopPolicy": recording.native ? "Timestamped live frames; AVFoundation MP4 encoding; no automatic backend fallback." : (recording.physical ? "devicectl --duration" : "Wait for first frame, then SIGINT after duration; wait for finalization.")]
+                if !recording.physical {
+                    output["display"] = ["requested": recording.display.map { $0 as Any } ?? NSNull(), "resolution": SimulatorDisplays.resolution]
+                }
                 return try json(output)
             }
+            var recording = recording
             // Recording sends no input, so none of its failures can have.
             do {
                 if recording.physical { try preflight(recording.device, operation: "record screen") }
+                recording.selection = try captureDisplay(physical: recording.physical, device: recording.device, requested: recording.display)
                 // The native stream is owned for the whole capture. This process
                 // may still send input meanwhile; another process may not.
                 let lease = recording.native
@@ -374,7 +398,7 @@ actor CommandService {
 
     /// Device operations that only read: not paused by a pending handoff.
     static let observationOperations = ["readiness", "details", "apps", "processes", "screen", "screenshot", "files", "pull", "reports", "report"]
-        + nativeObservations + AppDiagnosticsCommand.observations
+        + nativeObservations + AppDiagnosticsCommand.observations + ["displays"]
 
     /// `logs`, `console` and `last-crash` (docs/app-logs.md). The handoff
     /// pause has already applied to `console`; none of them takes a lease.

@@ -82,6 +82,8 @@ func summary(_ request: CommandRequest) -> [String] {
             + option("--since", query.since.map { DiagnosticTime.iso8601($0) }) + option("--download", query.download)
     case .tool(let tool):
         return [tool.platform.rawValue, tool.device, tool.operation]
+    case .simulatorDisplay(let display):
+        return ["simulator", display.device, display.operation]
     case .decodeArchive(let path):
         return ["decode-ax-archive", path]
     case .ocr(let path):

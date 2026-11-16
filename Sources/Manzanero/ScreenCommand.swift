@@ -6,10 +6,20 @@ struct ScreenCommand: Sendable, Equatable {
     let platform: String
     let device: String
     let mode: Mode
+    /// The requested simulator display (`--display`), checked by `SimulatorDisplays.validated`.
+    var display: String? = nil
+    /// The simulator display chosen at run time; nil keeps the plain capture.
+    var selection: SimulatorDisplaySelection? = nil
 
     func capturePlan(image: URL) throws -> DeviceCommand {
-        try DeviceCommand.plan(physical: platform == "physical", device: device, operation: "screenshot", operands: [image.path])
+        var plan = try DeviceCommand.plan(physical: platform == "physical", device: device, operation: "screenshot", operands: [image.path])
+        plan.arguments = SimulatorDisplays.arguments(plan.arguments, selection: selection)
+        return plan
     }
+
+    /// The accessibility tree follows the primary display; another display is
+    /// described by OCR only.
+    var capturesPrimaryDisplay: Bool { selection?.display.primary ?? true }
 
     /// `hierarchy` reads the AX tree: the display-centre app on a physical
     /// device, the frontmost application on a simulator.
@@ -18,6 +28,9 @@ struct ScreenCommand: Sendable, Equatable {
                  recognize: @Sendable (String) async throws -> ScreenText = { try await ScreenText.recognize(path: $0) },
                  isolation: isolated (any Actor)? = #isolation) async throws -> Data {
         try Task.checkCancellation()
+        if mode == .tree, !capturesPrimaryDisplay {
+            throw CommandFailure(.unsupportedOperation, "screen tree describes the primary display only; display \(selection?.display.name ?? "") is not primary. Use screen ocr or auto with --display. Nothing was captured.", inputSent: .none)
+        }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let image = directory.appendingPathComponent("screen.png")
         let plan = try capturePlan(image: image)
@@ -26,7 +39,10 @@ struct ScreenCommand: Sendable, Equatable {
         let geometry = try ScreenImage.inspect(image)
         let capturedAt = Date().ISO8601Format()
         var diagnostics: [String] = []
-        if mode != .ocr {
+        if mode == .automatic, !capturesPrimaryDisplay {
+            diagnostics.append("Accessibility skipped: the tree follows the primary display, and display \(selection?.display.name ?? "") was captured.")
+        }
+        if mode != .ocr, capturesPrimaryDisplay {
             do {
                 let data = try await hierarchy()
                 guard try Self.hasUsefulPhysicalHierarchy(data) else {
@@ -81,6 +97,7 @@ struct ScreenCommand: Sendable, Equatable {
             "image": ["width": geometry.width, "height": geometry.height, "format": "png"],
             "capturedAt": capturedAt, "diagnostics": diagnostics,
             "coordinateSpace": method == "accessibility" ? "device-logical-points" : (method == "ocr" ? "normalized-top-left" : "image-pixels")]
+        if let selection, selection.argument != nil { result["display"] = ["id": selection.display.id, "name": selection.display.name, "primary": selection.display.primary] }
         if let hierarchy { result["hierarchy"] = try JSONSerialization.jsonObject(with: hierarchy) }
         if let text { result["textRegions"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(text.regions)) }
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])

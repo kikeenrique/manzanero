@@ -518,6 +518,27 @@ Simulator screenshot and finite H.264/HEVC movie checks passed. Build & Run pass
 
 Human handoff has synthetic terminal/form completion and per-device mutation-pause coverage. No actual biometric/passcode/purchase action, automatic prompt detection or native notification is claimed.
 
+## Other simulator families
+
+Three simulators created for this work, headless (Simulator.app not opened): `manzanero-research-tv` (Apple TV 4K (4th generation) at 1080p, tvOS 27.2, 24K150), `manzanero-research-watch` (Apple Watch Series 12 (46mm), watchOS 27.2, 24S118) and `manzanero-research-duo` (iPhone Duo, iOS 27.2, 24B91016s). Host macOS 27.2.1 (26B131), Xcode 27.2 (27B52). No physical device was contacted. Background and the first pass are in [the research](other-families-research.md); the commands are described in [other simulator families](other-families.md).
+
+### iPhone Duo displays
+
+**2026-11-16**, `manzanero-research-duo` freshly booted, Home Screen and then Settings in front.
+
+| Command | Observed |
+| --- | --- |
+| `displays` | Five displays: `LCD` id 1 primary, 1398 × 2034 px (466 × 678 pt), `activeOn`, active; `LCD-1` id 3, 2007 × 2853 px (669 × 951 pt), `rot90`, backlight `off`, not active (the research saw `activeOn` after its first boot); `TVOut`, `Wireless` and `Resizable` 0 × 0, not capturable. `defaultCaptureDisplay` 1 |
+| `screenshot` (no option) | Exit 0; 1398 × 2034 PNG of the outer Home Screen (before: `Cannot choose between 2 displays`) |
+| `screenshot --display LCD-1` | Exit 0; 2007 × 2853 PNG, black (the device is folded) |
+| `screenshot --display LCD-9`, `--display TVOut` | Exit 1 before capture: unknown display, and no framebuffer, each listing `LCD (id 1, primary), LCD-1 (id 3)` |
+| `screen` with Settings in front | `method: accessibility`, 122 nodes, display LCD in the receipt. A run directly after `launch`, with the Home Screen still in front, fell back to OCR because the Duo's Home Screen tree is empty (known from the research) |
+| `screen ocr --display LCD-1` | `method: ocr`, 2007 × 2853 image, display `LCD-1`, `primary: false` |
+| `screen tree --display 3` | Refused before capture: the tree describes the primary display only |
+| `record 2` (no option), `record 2 --display primary-1` | 2.02 s H.264 at 1398 × 2034 (display LCD), and 2.02 s at 2006 × 2852 (display LCD-1) |
+
+Not observed: an unfolded Duo (no fold control exists yet), so nothing showed on `LCD-1`, and trees and touch were not tried on it.
+
 ## Retired implementations
 
 These results are preserved as history, not current runtime availability:

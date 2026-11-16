@@ -8,6 +8,10 @@ struct RecordingCommand: Sendable, Equatable {
     let seconds: Double
     let codec: String
     let native: Bool
+    /// The requested simulator display (`--display`), checked by `SimulatorDisplays.validated`.
+    var display: String? = nil
+    /// The simulator display chosen at run time; nil keeps the plain recordVideo.
+    var selection: SimulatorDisplaySelection? = nil
 
     /// `backend` is devicectl (the default) or coredevice, physical only.
     init(physical: Bool, device: String, output: String, seconds: String, codec: String?, backend: String?) throws {
@@ -41,7 +45,8 @@ struct RecordingCommand: Sendable, Equatable {
                 "--destination", staging.path, "--duration", String(seconds), "--codec", codec,
                 "--timeout", String(Int(ceil(seconds)) + 60), "--json-output", "-"], jsonOutput: true)
         }
-        return DeviceCommand(arguments: ["simctl", "io", device, "recordVideo", "--codec=\(codec)", staging.path], jsonOutput: false)
+        return DeviceCommand(arguments: SimulatorDisplays.arguments(["simctl", "io", device, "recordVideo", "--codec=\(codec)", staging.path],
+                                                                    selection: selection), jsonOutput: false)
     }
 
     func execute(directory: URL, runner: ToolRunner, isolation: isolated (any Actor)? = #isolation) async throws -> Data {
@@ -75,6 +80,9 @@ struct RecordingCommand: Sendable, Equatable {
             var result: [String: Any] = ["status": "recorded", "backend": native ? "coredevice-videotoolbox" : (physical ? "devicectl" : "simctl"),
                 "path": destination.path, "requestedSeconds": seconds, "requestedCodec": codec,
                 "artifact": ["durationSeconds": video.duration, "width": video.width, "height": video.height, "codec": video.codec, "frameDecoded": true]]
+            if let selection, selection.argument != nil {
+                result["display"] = ["id": selection.display.id, "name": selection.display.name, "primary": selection.display.primary]
+            }
             if let nativeReceipt {
                 result["sourceFrames"] = nativeReceipt.frames
                 result["timeline"] = "host-pixel-delivery"

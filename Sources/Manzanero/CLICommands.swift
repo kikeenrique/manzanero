@@ -233,11 +233,25 @@ extension ManzaneroCLI {
     // MARK: Screen
 
     struct Screenshot: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "screenshot", abstract: "Save a PNG screenshot.")
+        static let configuration = CommandConfiguration(commandName: "screenshot", abstract: "Save a PNG screenshot.",
+            discussion: "A simulator with several displays (iPhone Duo) captures its primary display unless --display names another.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "Output path ending in .png.", completion: .file(extensions: ["png"])) var output: String
-        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "screenshot", [output])) }
+        @Option(help: ArgumentHelp("Simulator display: name, device name or screen ID (see displays).", valueName: "display")) var display: String?
+        func request(_ target: Target) throws -> CommandRequest {
+            if target.platform == .simulator { return .simulatorDisplay(try .screenshot(target, output: output, display: display)) }
+            _ = try SimulatorDisplays.validated(display, physical: true, operation: "screenshot")
+            return .tool(try DeviceOperation(target, "screenshot", [output]))
+        }
+    }
+
+    struct Displays: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "displays", abstract: "List a simulator's displays (simulators).",
+            discussion: "Name, screen ID, size, backlight and active state, and which display is primary, read from the simulator's display information. Sends no input.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        func request(_ target: Target) throws -> CommandRequest { .simulatorDisplay(try .list(target)) }
     }
 
     struct Screen: TargetedCommand {
@@ -246,8 +260,11 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "auto (default), tree or ocr.", completion: .list(["auto", "tree", "ocr"])) var mode: String?
+        @Option(help: ArgumentHelp("Simulator display: name, device name or screen ID (see displays); the tree follows the primary display only.", valueName: "display")) var display: String?
         func request(_ target: Target) throws -> CommandRequest {
-            .screen(try ScreenCommand(platform: target.platform.rawValue, device: target.identifier, mode: mode))
+            var screen = try ScreenCommand(platform: target.platform.rawValue, device: target.identifier, mode: mode)
+            screen.display = try SimulatorDisplays.validated(display, physical: target.platform == .physical, operation: "screen")
+            return .screen(screen)
         }
     }
 
@@ -261,9 +278,12 @@ extension ManzaneroCLI {
         @Argument(help: "h264 (default) or hevc.", completion: .list(["h264", "hevc"])) var codec: String?
         @Option(help: ArgumentHelp("Physical recording backend: devicectl (default) or coredevice.", valueName: "backend"),
                 completion: .list(["devicectl", "coredevice"])) var backend: String?
+        @Option(help: ArgumentHelp("Simulator display: name, device name or screen ID (see displays).", valueName: "display")) var display: String?
         func request(_ target: Target) throws -> CommandRequest {
-            .record(try RecordingCommand(physical: target.platform == .physical, device: target.identifier, output: output,
-                                         seconds: seconds, codec: codec, backend: backend))
+            var recording = try RecordingCommand(physical: target.platform == .physical, device: target.identifier, output: output,
+                                                 seconds: seconds, codec: codec, backend: backend)
+            recording.display = try SimulatorDisplays.validated(display, physical: target.platform == .physical, operation: "record")
+            return .record(recording)
         }
     }
 
