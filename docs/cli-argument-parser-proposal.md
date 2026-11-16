@@ -1,6 +1,6 @@
 # Proposal: adopt Swift Argument Parser and settle the command grammar
 
-Status: proposal, 2026-11-16. Nothing here is implemented. It needs the owner's decision on the points in [Decisions needed](#decisions-needed).
+Status: accepted by the owner on 2026-11-16, with the choices recorded under [Decisions](#decisions). Nothing here is implemented yet; it is scheduled after the pending phone checks, with no other command work in flight.
 
 ## Recommendation
 
@@ -109,11 +109,13 @@ Size: large but mechanical. Roughly 45 commands, their dry-run plans, and the te
 - **A new dependency in the shipped binary.** It is Apple-maintained and widely used; the release archive grows slightly and gains one notice.
 - **Doing it during other work.** The migration touches the files every new command touches. It should run when no other command work is in flight.
 
-## Decisions needed
+## Decisions
 
-1. **Grammar:** B (operation first, `--device` or `--simulator`) as recommended, or A (keep today's)?
-2. **Exit code for usage errors:** the library's 64, or keep 1? Recommended: 64, so a script can tell "you called it wrong" from "it failed", with `docs/errors.md` updated.
-3. **Environment defaults for the target** (`MANZANERO_DEVICE`, `MANZANERO_SIMULATOR`): include them, or always require the option? Recommended: include them.
-4. **Grouping:** `files list|pull|push` and `reports list|get` as proposed, or flat names?
-5. **`devices`:** one command with a flag, or `devices physical` and `devices simulators` as now?
-6. **When:** after the pending phone checks, as the next piece of work with nothing else in flight?
+Decided by the owner on 2026-11-16:
+
+1. **Grammar:** B, operation first, with the target given as `--device <UDID>` or `--simulator <UUID>`.
+2. **Exit code for usage errors:** 64, so a script can tell "called wrong" from "failed". `docs/errors.md` is updated with the migration.
+3. **Environment defaults for the target:** yes, `MANZANERO_DEVICE` and `MANZANERO_SIMULATOR`; an explicit option always wins.
+4. **Grouping:** `files list|pull|push` and `reports list|get`.
+5. **`devices`:** one command with a flag (`devices` for physical devices, `devices --simulators` for simulators).
+6. **When:** later, after the pending phone checks, with nothing else in flight.
