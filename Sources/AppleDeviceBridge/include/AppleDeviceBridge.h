@@ -276,6 +276,13 @@ int ADCSimulatorRotateCrown(void *owner, const double *deltas, size_t count, uin
 /// Same status contract as ADCSimulatorPressButton.
 int ADCSimulatorSetHingeAngle(void *owner, double degrees, ADCInputShouldStop shouldCancel,
                               char *error, size_t errorCapacity);
+/// One sample of the CoreDevice streamhingeangle action on the simulator's
+/// monitormotion service: {angle, mechanicalAngle, minAngle, maxAngle,
+/// velocity (each {value, unit}), isAngleValid, isVelocityValid, timestamp}
+/// as JSON to `sink`. Waits at most `timeoutSeconds` (0...30) for the first
+/// sample, then cancels the connection, which ends the stream. Read-only.
+int ADCSimulatorReadHingeAngle(void *owner, double timeoutSeconds, ADCInputShouldStop shouldCancel,
+                               void (^sink)(const uint8_t *, size_t), char *error, size_t errorCapacity);
 /// Host-only availability of the dynamically resolved Apple interfaces, grouped
 /// by capability. Loads the listed frameworks with the operations' own flags and
 /// looks up symbols, classes and selectors; never calls a resolved function,

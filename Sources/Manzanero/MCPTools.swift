@@ -215,6 +215,9 @@ enum MCPTools {
         .init(name: "set_hinge_angle", description: "Foldable simulator only (iPhone Duo, booted, by UUID): set the hinge to degrees, 0 (closed) ... 180 (fully open); the simulator animates to it. Whether an intermediate angle swaps the active display depends on the path (0 to 110 in one step unfolded, small steps to 110 did not), so the result only reports the display awake right after sending; use fold_device for a confirmed display. Refused on other simulators and physical devices before any input.", fields: [device, .init(name: "degrees", kind: .number)]) {
             $0.command(["hinge"], platform: "simulator", operands: [$0.number("degrees")])
         },
+        .init(name: "get_hinge_angle", description: "Foldable simulator only (iPhone Duo, booted, by UUID): read the hinge angle once from CoreDevice's hinge-angle stream on the simulator's dtdeviceinfod (the first sample, then the stream is closed): angle, mechanicalAngle, minAngle (0), maxAngle (180), velocity and isAngleValid, in degrees, with the integrated display awake (activeDisplay). 0 is closed, 180 fully open. Read-only; other simulators and physical devices are refused.", fields: [device], readOnly: true) {
+            $0.command(["hinge"], platform: "simulator")
+        },
     ]
 
     /// `logs`, `console` and `last-crash` (docs/app-logs.md).

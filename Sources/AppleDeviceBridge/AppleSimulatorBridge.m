@@ -658,3 +658,86 @@ int ADCSimulatorDisplayInfo(void *owner, void (^sink)(const uint8_t *, size_t), 
         return 0;
     }
 }
+
+// MARK: - Hinge angle (iPhone Duo)
+
+/// {value, unit: {symbol, converter: {coefficient, constant}}}, the shape
+/// Foundation's Measurement decodes from (docs/duo-fold-research.md).
+static xpc_object_t ADCDegrees(double value) {
+    xpc_object_t measurement = xpc_dictionary_create_empty(), unit = xpc_dictionary_create_empty(), converter = xpc_dictionary_create_empty();
+    xpc_dictionary_set_double(converter, "coefficient", 1.0);
+    xpc_dictionary_set_double(converter, "constant", 0.0);
+    xpc_dictionary_set_string(unit, "symbol", "°");
+    xpc_dictionary_set_value(unit, "converter", converter);
+    xpc_dictionary_set_double(measurement, "value", value);
+    xpc_dictionary_set_value(measurement, "unit", unit);
+    return measurement;
+}
+
+int ADCSimulatorReadHingeAngle(void *owner, double timeoutSeconds, ADCInputShouldStop shouldCancel,
+                               void (^sink)(const uint8_t *, size_t), char *error, size_t capacity) {
+    @autoreleasepool {
+        if (!owner || !sink || !(timeoutSeconds > 0 && timeoutSeconds <= 30)) return ADCSimulatorFail(error, capacity, @"Invalid hinge angle request; nothing was sent.");
+        if (shouldCancel && shouldCancel()) return ADCSimulatorFail(error, capacity, @"Hinge angle read cancelled before sending.");
+        if (ADCPrepareCoreSimulator(0, error, capacity)) return 1;
+        ADCSimulatorOwner *lifetime = (__bridge ADCSimulatorOwner *)owner;
+        ADCSimulatorInfo info;
+        if (ADCReadDevice(lifetime.device, &info, error, capacity)) return 1;
+        if (!info.booted) return ADCSimulatorFail(error, capacity, [NSString stringWithFormat:@"The simulator is %s, not Booted; nothing was sent.", info.state]);
+        // streamhingeangle input: a 0.5 degree change threshold and a 0.1 s
+        // update interval (Swift Duration: [high Int64, low UInt64] attoseconds),
+        // and a stream proxy naming the side channel the samples arrive on.
+        xpc_object_t input = xpc_dictionary_create_empty(), actual = xpc_dictionary_create_empty(), interval = xpc_array_create_empty();
+        xpc_dictionary_set_value(actual, "changeThreshold", ADCDegrees(0.5));
+        xpc_array_set_int64(interval, XPC_ARRAY_APPEND, 0);
+        xpc_array_set_uint64(interval, XPC_ARRAY_APPEND, 100000000000000000ULL);
+        xpc_dictionary_set_value(actual, "updateInterval", interval);
+        xpc_dictionary_set_value(input, "actualInput", actual);
+        xpc_object_t proxy = xpc_dictionary_create_empty();
+        uuid_t side;
+        [NSUUID.UUID getUUIDBytes:side];
+        xpc_dictionary_set_uuid(proxy, "sideChannel", side);
+        xpc_dictionary_set_value(input, "streamProxy", proxy);
+        xpc_object_t request = ADCSimulatorActionRequest(lifetime, "com.apple.coredevice.feature.monitormotion", "com.apple.coredevice.action.streamhingeangle",
+                                                         input, @"hinge angle", error, capacity);
+        if (!request) return 1;
+        ADCSimulatorReply *status = [ADCSimulatorReply new], *sample = [ADCSimulatorReply new];
+        // The first pushed sample is the current state. The request's reply
+        // only arrives when the stream ends, so a reply first is a failure.
+        xpc_connection_t connection = ADCSimulatorConnectWithEvents(lifetime, @"com.apple.coredevice.feature.monitormotion", status,
+            @"no dtdeviceinfod in this runtime?", ^(xpc_object_t event) {
+                if (xpc_get_type(event) != XPC_TYPE_DICTIONARY) return;
+                xpc_object_t channel = xpc_dictionary_get_dictionary(event, "CoreDevice.XPCMessageKey.sideChannelStatus");
+                xpc_object_t pushing = channel ? xpc_dictionary_get_dictionary(channel, "pushing") : NULL;
+                xpc_object_t elements = pushing ? xpc_dictionary_get_array(pushing, "elements") : NULL;
+                xpc_object_t first = elements && xpc_array_get_count(elements) ? xpc_array_get_value(elements, 0) : NULL;
+                if (!first || xpc_get_type(first) != XPC_TYPE_DICTIONARY || sample.arrived) return;
+                sample.value = (id)first;
+                sample.arrived = YES;
+                dispatch_semaphore_signal(sample.semaphore);
+            }, error, capacity);
+        if (!connection) return 1;
+        xpc_connection_send_message_with_reply(connection, request, lifetime.queue, ^(xpc_object_t reply) {
+            if (sample.arrived) return;
+            sample.value = (id)reply;
+            dispatch_semaphore_signal(sample.semaphore);
+        });
+        BOOL answered = ADCSimulatorWait(sample, timeoutSeconds, shouldCancel);
+        // Cancelling the connection ends the stream; nothing stays open.
+        xpc_connection_cancel(connection);
+        if (!answered)
+            return ADCSimulatorFail(error, capacity, shouldCancel && shouldCancel() ? @"Hinge angle read cancelled; the stream was closed."
+                : [NSString stringWithFormat:@"The simulator sent no hinge angle sample within %.1f seconds; the stream was closed.", timeoutSeconds]);
+        if (!sample.arrived) {
+            xpc_object_t reply = (xpc_object_t)sample.value;
+            xpc_object_t failure = reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY ? xpc_dictionary_get_dictionary(reply, "CoreDevice.error") : NULL;
+            const char *detail = failure ? xpc_dictionary_get_string(xpc_dictionary_get_dictionary(failure, "userInfo"), "NSDebugDescription") : NULL;
+            return ADCSimulatorFail(error, capacity, [NSString stringWithFormat:@"The simulator's hinge angle stream ended without a sample: %s.", detail ?: "no detail"]);
+        }
+        NSError *failure = nil;
+        NSData *json = [NSJSONSerialization dataWithJSONObject:ADCFoundationValue((xpc_object_t)sample.value, 0) options:NSJSONWritingSortedKeys error:&failure];
+        if (!json.length || json.length > 64 * 1024) return ADCSimulatorFail(error, capacity, @"Cannot encode the hinge angle sample.");
+        sink(json.bytes, json.length);
+        return 0;
+    }
+}

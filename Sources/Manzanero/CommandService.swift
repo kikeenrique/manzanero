@@ -387,7 +387,7 @@ actor CommandService {
         }
         defer { lease?.release() }
         if SimulatorHinge.operations.contains(simulator.operation) {
-            return CommandOutput(data: try await SimulatorHinge.execute(simulator, info: info, environment: self.simulator))
+            return CommandOutput(data: try SimulatorHinge.execute(simulator, info: info, environment: self.simulator))
         }
         if SimulatorInput.inputOperations.contains(simulator.operation) {
             return CommandOutput(data: try DirectSimulatorInput.execute(simulator, info: info, environment: self.simulator))
@@ -401,7 +401,7 @@ actor CommandService {
 
     /// Device operations that only read: not paused by a pending handoff.
     static let observationOperations = ["readiness", "details", "apps", "processes", "screen", "screenshot", "files", "pull", "reports", "report"]
-        + nativeObservations + AppDiagnosticsCommand.observations + ["displays"]
+        + nativeObservations + AppDiagnosticsCommand.observations + ["displays", SimulatorHinge.angleOperation]
 
     /// `logs`, `console` and `last-crash` (docs/app-logs.md). The handoff
     /// pause has already applied to `console`; none of them takes a lease.

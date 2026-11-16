@@ -33,7 +33,7 @@ struct SimulatorInput: Sendable, Equatable {
 
     /// Same rule as physical: trees and waits only read, take no lease and are
     /// not paused by a pending handoff.
-    static let observations = ["tree"] + AccessibilityWait.operations
+    static let observations = ["tree"] + AccessibilityWait.operations + [SimulatorHinge.angleOperation]
 
     var isObservation: Bool { Self.observations.contains(operation) }
     var coreDeviceInput: CoreDeviceInput { CoreDeviceInput(device: device, operation: operation, operands: operands) }
@@ -106,6 +106,8 @@ struct SimulatorInput: Sendable, Equatable {
         case "hinge":
             guard operands.count == 1 else { throw CommandFailure.usage(SimulatorHinge.usage) }
             operands = [String(try SimulatorHinge.degrees(operands[0]))]
+        case SimulatorHinge.angleOperation:
+            guard operands.isEmpty else { throw CommandFailure.usage(SimulatorHinge.usage) }
         case "type":
             operands = try DirectPhysicalTyping.operands(operands, subject: "Simulator")
         default:
@@ -238,8 +240,12 @@ struct SimulatorEnvironment: Sendable {
     var crown: @Sendable (String, [Double], UInt64) throws -> Void = DigitalCrown.rotate
     /// The iPhone Duo hinge: one angle in degrees, 0...180.
     var hinge: @Sendable (String, Double) throws -> Void = SimulatorHinge.set
+    /// One hinge-angle sample as JSON (read-only).
+    var hingeAngle: @Sendable (String) throws -> Data = SimulatorHinge.readAngle
     /// Waits between display reads (fold and unfold); cancellation ends it.
-    var pause: @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    /// It blocks the command service's own thread, as timed input does, so no
+    /// other command of this service runs between the event and the check.
+    var pause: @Sendable (Duration) throws -> Void = SimulatorHinge.sleep
     /// The clock that bounds those waits.
     var now: @Sendable () -> ContinuousClock.Instant = { .now }
 

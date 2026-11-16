@@ -293,12 +293,15 @@ extension ManzaneroCLI {
     }
 
     struct Hinge: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "hinge", abstract: "Set a foldable simulator's hinge angle (iPhone Duo).",
-            discussion: "0 is closed, 180 fully open; the simulator animates to the angle. Whether an intermediate angle swaps the display depends on how the hinge got there (0 to 110 in one step unfolded, the same in small steps did not), so the receipt only reports the display awake right after sending. Use fold or unfold for a confirmed display.")
+        static let configuration = CommandConfiguration(commandName: "hinge", abstract: "Read or set a foldable simulator's hinge angle (iPhone Duo).",
+            discussion: "Without an angle, reads one sample of the hinge angle (CoreDevice's hinge-angle stream, closed after the first sample) with the active display; sends no input. With an angle, 0 is closed and 180 fully open; the simulator animates to it. Whether an intermediate angle swaps the display depends on how the hinge got there (0 to 110 in one step unfolded, the same in small steps did not), so the receipt only reports the display awake right after sending. Use fold or unfold for a confirmed display.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        @Argument(help: ArgumentHelp("Angle in degrees, 0...180.", valueName: "degrees")) var degrees: String
-        func request(_ target: Target) throws -> CommandRequest { try SimulatorHinge.request(target, "hinge", [degrees]) }
+        @Argument(help: ArgumentHelp("Angle in degrees, 0...180; omit it to read the angle.", valueName: "degrees")) var degrees: String?
+        func request(_ target: Target) throws -> CommandRequest {
+            guard let degrees else { return try SimulatorHinge.request(target, SimulatorHinge.angleOperation) }
+            return try SimulatorHinge.request(target, "hinge", [degrees])
+        }
     }
 
     struct Displays: TargetedCommand {

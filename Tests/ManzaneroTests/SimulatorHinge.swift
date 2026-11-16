@@ -143,6 +143,56 @@ struct SimulatorHingeTests {
         #expect(receipt["expectedDisplay"] == nil && (receipt["note"] as? String)?.contains("depends on the path") == true)
     }
 
+    /// One streamhingeangle sample as the bridge passes it on (iOS 27.2, at rest after hinge 90).
+    static func sample(angle: Double = 94.617134094238281, mechanical: Double = 90) -> Data {
+        func degrees(_ value: Double, _ symbol: String = "°") -> [String: Any] {
+            ["value": value, "unit": ["symbol": symbol, "converter": ["coefficient": 1.0, "constant": 0.0]]]
+        }
+        return try! JSONSerialization.data(withJSONObject: [
+            "angle": degrees(angle), "mechanicalAngle": degrees(mechanical), "minAngle": degrees(0), "maxAngle": degrees(180),
+            "velocity": degrees(0, "°/s"), "isAngleValid": true, "isVelocityValid": true, "timestamp": 554572.886528])
+    }
+
+    @Test func hingeWithoutAnAngleReadsOneSampleAndSendsNoInput() async throws {
+        let moved = Moved([Self.unfolded])
+        var environment = Self.environment(moved)
+        final class Reads: @unchecked Sendable { var value = 0 }
+        let reads = Reads()
+        environment.hingeAngle = { device in
+            #expect(device == Self.uuid)
+            reads.value += 1
+            return Self.sample()
+        }
+        // An observation: no lease, so a registry that refuses every lease must not matter.
+        let service = CommandService(leases: try SimulatorAccessibilityTests.unusableLeases(), simulator: environment)
+        let result = try SimulatorInputTests.json(await service.run(["hinge", "--simulator", Self.uuid]))
+        #expect(reads.value == 1 && moved.angles.isEmpty && moved.reads == 1)
+        #expect(result["angle"] as? Double == 94.617134094238281 && result["mechanicalAngle"] as? Double == 90)
+        #expect(result["minAngle"] as? Double == 0 && result["maxAngle"] as? Double == 180 && result["isAngleValid"] as? Bool == true)
+        #expect(result["readOnly"] as? Bool == true && (result["activeDisplay"] as? [String: Any])?["name"] as? String == "LCD-1")
+        let input = try #require(try simulatorInput(["hinge", "--simulator", Self.uuid]))
+        #expect(input.operation == SimulatorHinge.angleOperation && input.isObservation)
+        #expect(try request(["hinge", "--simulator", Self.uuid]).isReadOnly)
+        #expect(try !request(["hinge", "10", "--simulator", Self.uuid]).isReadOnly)
+    }
+
+    @Test func angleSampleWithoutAnAngleIsATransportFailure() throws {
+        #expect(try HingeSample(Self.sample(angle: 0, mechanical: 0)).angle == 0)
+        for data in [Data("{}".utf8), Data("[1]".utf8), Data("{\"angle\": {\"value\": \"x\"}}".utf8)] {
+            let failure = try #require(throws: CommandFailure.self) { try HingeSample(data) }
+            #expect(failure.code == .transportFailed && failure.inputSent == .none)
+        }
+    }
+
+    @Test func angleReadIsRefusedOnNonFoldableSimulators() async throws {
+        let moved = Moved([Self.phone])
+        var environment = Self.environment(moved)
+        environment.hingeAngle = { _ in Issue.record("Read the angle of a phone"); return Data() }
+        let service = CommandService(leases: SimulatorAccessibilityTests.usableLeases(), simulator: environment)
+        let failure = await #expect(throws: CommandFailure.self) { _ = try await service.run(["hinge", "--simulator", Self.uuid]) }
+        #expect(failure?.code == .unsupportedOperation && failure?.inputSent == CommandFailure.InputSent.none)
+    }
+
     @Test func dryRunReadsNothingAndMCPToolsMapToTheCommands() async throws {
         let moved = Moved([Self.folded])
         let plan = try SimulatorInputTests.json(await Self.service(moved).run(["unfold", "--simulator", Self.uuid], dryRun: true))
@@ -154,5 +204,10 @@ struct SimulatorHingeTests {
         let args = try hinge.command(["device": .string(Self.uuid), "degrees": 90])
         #expect(args == ["hinge", "--simulator=\(Self.uuid)", "--", "90"])
         #expect(try simulatorInput(args)?.operands == ["90.0"])
+        let read = try #require(MCPTools.definitions.first { $0.name == "get_hinge_angle" })
+        #expect(read.tool.annotations.readOnlyHint == true)
+        #expect(try read.command(["device": .string(Self.uuid)]) == ["hinge", "--simulator=\(Self.uuid)"])
+        let readPlan = try SimulatorInputTests.json(await Self.service(moved).run(["hinge", "--simulator", Self.uuid], dryRun: true))
+        #expect(readPlan["readOnly"] as? Bool == true && moved.reads == 0)
     }
 }

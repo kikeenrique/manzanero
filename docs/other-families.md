@@ -28,17 +28,19 @@ MCP: `list_displays`, and an optional `display` field on `screenshot`, `get_scre
 manzanero fold --simulator <UUID>          # hinge 0: outer display LCD
 manzanero unfold --simulator <UUID>        # hinge 180: inner display LCD-1, landscape
 manzanero hinge 110 --simulator <UUID>     # any angle 0...180, no display promised
+manzanero hinge --simulator <UUID>         # read the angle (no input)
 ```
 
 Each sends one `IndigoVendorDefinedEvent` to the simulator's `com.apple.coredevice.feature.remote.hid.vendordefined` service: usage page `0xFF61`, usage `0x5B`, version 0, and as data a binary `IOCFSerialize` of `{source: "hinge-slider-control", type: "range", value: <degrees>}`, the event Device Hub's hinge control sends ([research](duo-fold-research.md)). It goes through the same input path as buttons and keys: readiness barrier, the event (the service sends no reply), completion barrier and the input drain before the connection closes. The research lost the event when the connection closed at once; the drain keeps it open long enough. The simulator animates to the angle itself (0 to 180 in about 0.3 s).
 
 - **`fold` and `unfold` wait for the display.** After sending 0 or 180 they read the display information every 250 ms, at most 40 times and 10 s, until the expected integrated display is `activeOn` and the other is `off`: the primary one (`LCD`) for `fold`, the other one (`LCD-1`) for `unfold`. The receipt has `expectedDisplay`, `activeDisplay` (the one integrated display awake at the last read, or null when none or both are), `displayObserved` and `displayReads`. When the display was not observed in time the command still exits 0 and says so in `note`; nothing is resent. On the iOS 27.2 runtime unfolding was observed after 3 reads and folding after 11 (about 2.7 s), with both displays reading awake in between.
 - **`hinge <degrees>` promises no display.** Whether an intermediate angle swaps the display depends on how the hinge got there: 0 → 110 in one step unfolded, 0 → 45 → 70 → 110 in steps did not, and 180 → 90 stayed unfolded. So `hinge` reads the display information once right after sending and reports it with `displayObserved: false`.
+- **Reading the angle.** `hinge` without an angle sends the CoreDevice action `com.apple.coredevice.action.streamhingeangle` to the simulator's `com.apple.coredevice.feature.monitormotion` service (in `dtdeviceinfod`), takes the first pushed sample, which is the current state, within 3 s, and cancels the connection, which ends the stream. It prints `angle`, `mechanicalAngle`, `minAngle` (0), `maxAngle` (180), `velocity` (degrees per second) and `isAngleValid`, with `activeDisplay` from the display information. `angle` and `mechanicalAngle` differ slightly at rest: mechanical 90 read as 94.62 and mechanical 120 as 113.84, while 0 and 180 read exactly. It is an observation: no lease, no handoff pause, no input.
 - **Foldable only.** A simulator is foldable when its display information lists exactly two integrated displays with a framebuffer, one of them primary; no device-type key marks a foldable. Others are refused as `unsupported-operation` after that read-only request and before any input; a physical device is refused before any contact.
 - **Cancellation.** SIGINT during the wait stops it (exit 130); the hinge connection has already closed, and each display read opens and closes its own. The event itself was sent, so the device may end up folded or unfolded.
-- `fold`, `unfold` and `hinge` take the simulator lease like other input.
+- `fold`, `unfold` and `hinge <degrees>` take the simulator lease like other input, and hold the command service for their whole duration, wait included, so a second call to the same CLI or MCP server cannot run between the event and the display check.
 
-MCP: `fold_device` (`state`: `fold` or `unfold`) and `set_hinge_angle` (`degrees`).
+MCP: `fold_device` (`state`: `fold` or `unfold`), `set_hinge_angle` (`degrees`) and `get_hinge_angle` (read-only).
 
 ## Siri Remote (Apple TV)
 

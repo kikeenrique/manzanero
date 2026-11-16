@@ -12,7 +12,10 @@ import Foundation
 /// information shows the expected display awake, while `hinge <degrees>`
 /// only sends the angle and reports the display it reads right after.
 enum SimulatorHinge {
-    static let operations = ["fold", "unfold", "hinge"]
+    static let operations = ["fold", "unfold", "hinge", angleOperation]
+    /// `hinge` without an angle: one read-only sample of the angle.
+    static let angleOperation = "hinge-angle"
+    static let angleTimeoutSeconds = 3.0
     static let service = "com.apple.coredevice.feature.remote.hid.vendordefined"
     static let message = "IndigoVendorDefinedEvent {usagePage: 0xFF61, usage: 0x5B, version: 0, data: IOCFSerialize(binary) of {source: hinge-slider-control, type: range, value: <degrees>}}"
     static let usage = "hinge takes an angle in degrees, 0...180 (0 closed, 180 fully open); no input sent."
@@ -28,7 +31,7 @@ enum SimulatorHinge {
     /// The request: refused on a physical device before any contact.
     static func request(_ target: Target, _ operation: String, _ operands: [String] = []) throws -> CommandRequest {
         guard target.platform == .simulator else {
-            throw CommandFailure.unsupported("\(operation) is implemented for foldable simulators (iPhone Duo) only; no device was contacted.")
+            throw CommandFailure.unsupported("\(operation == angleOperation ? "hinge" : operation) is implemented for foldable simulators (iPhone Duo) only; no device was contacted.")
         }
         return try .input(target, operation, operands)
     }
@@ -49,6 +52,11 @@ enum SimulatorHinge {
     }
 
     static func plan(_ input: SimulatorInput) -> [String: Any] {
+        if input.operation == angleOperation {
+            return ["backend": DirectSimulatorInput.backend, "operation": "hinge", "readOnly": true, "deviceLease": "not taken (observation)",
+                    "foldable": "Refused unless the display information lists exactly two integrated displays with a framebuffer, one of them primary.",
+                    "execution": "One display-information read, then in-process host XPC to the simulator's dtdeviceinfod (com.apple.coredevice.feature.monitormotion): the CoreDevice streamhingeangle action; the first pushed sample (the current state) is taken within \(Int(angleTimeoutSeconds)) s and the connection is cancelled, which ends the stream. No input."]
+        }
         var plan: [String: Any] = ["backend": DirectSimulatorInput.backend, "operands": input.operands, "deviceLease": "simulator UUID",
                                    "degrees": angle(input), "service": service, "message": message,
                                    "foldable": "Refused unless the display information lists exactly two integrated displays with a framebuffer, one of them primary (the iPhone Duo's LCD and LCD-1); read before any input."]
@@ -63,14 +71,21 @@ enum SimulatorHinge {
     }
 
     /// Sends the angle; for fold and unfold, waits (bounded) for the expected display.
-    static func execute(_ input: SimulatorInput, info: SimulatorDeviceInfo, environment: SimulatorEnvironment,
-                        isolation: isolated (any Actor)? = #isolation) async throws -> Data {
+    static func execute(_ input: SimulatorInput, info: SimulatorDeviceInfo, environment: SimulatorEnvironment) throws -> Data {
         try Task.checkCancellation()
         let displays: [SimulatorDisplayEntry]
         do { displays = try SimulatorDisplays.read(input.device, environment: environment) }
         catch let failure as CommandFailure { throw failure.noInputSent() }
         guard let pair = SimulatorDisplays.foldable(displays) else {
             throw CommandFailure.unsupported("\(input.operation) needs a foldable simulator such as iPhone Duo (two integrated displays); this one lists \(displays.filter { $0.isIntegrated && $0.capturable }.count) integrated display(s) with a framebuffer. No input sent.")
+        }
+        if input.operation == angleOperation {
+            let sample = try HingeSample(environment.hingeAngle(input.device))
+            var result: [String: Any] = ["operation": "hinge", "platform": "simulator", "device": input.device, "resolvedSimulatorUUID": info.uuid,
+                                         "readOnly": true, "source": "CoreDevice streamhingeangle (monitormotion), first sample"]
+            result.merge(sample.json) { $1 }
+            result["activeDisplay"] = SimulatorDisplays.active(displays)?.summary ?? NSNull()
+            return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         }
         let degrees = angle(input)
         try Task.checkCancellation()
@@ -91,7 +106,7 @@ enum SimulatorHinge {
         let start = environment.now()
         var polls = 0, observed = false, last: [SimulatorDisplayEntry] = []
         while polls < pollLimit, start.duration(to: environment.now()) <= waitLimit {
-            if polls > 0 { try await environment.pause(pollInterval) }
+            if polls > 0 { try environment.pause(pollInterval) }
             try Task.checkCancellation()
             polls += 1
             // A failed read is not a result; the next poll reads again.
@@ -112,10 +127,71 @@ enum SimulatorHinge {
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
     }
 
+    /// Blocks for `duration` in slices of at most 10 ms, throwing
+    /// `CancellationError` as soon as the task is cancelled (SIGINT).
+    static func sleep(_ duration: Duration) throws {
+        let end = ContinuousClock.now.advanced(by: duration)
+        while true {
+            try Task.checkCancellation()
+            let left = ContinuousClock.now.duration(to: end)
+            guard left > .zero else { return }
+            Thread.sleep(forTimeInterval: Double(min(left, .milliseconds(10)).milliseconds) / 1000 + 0.0005)
+        }
+    }
+
+    /// One hinge sample as JSON; read-only.
+    static func readAngle(_ uuid: String) throws -> Data {
+        let owner = try SimulatorBridgeOwner(uuid: uuid, developerDirectory: SimulatorDevice.developerDirectory(), accessibility: false)
+        var error = [CChar](repeating: 0, count: 1024)
+        var data = Data()
+        let status = ADCSimulatorReadHingeAngle(owner.pointer, angleTimeoutSeconds, { Task.isCancelled ? 1 : 0 }, { pointer, count in
+            if let pointer { data = Data(bytes: pointer, count: count) }
+        }, &error, error.count)
+        try Task.checkCancellation()
+        guard status == 0 else { throw CommandFailure(.transportFailed, DirectSimulatorInput.message(error), inputSent: .none) }
+        return data
+    }
+
     static func set(_ uuid: String, _ degrees: Double) throws {
         try DirectSimulatorInput.dispatch(uuid) { owner, error in
             ADCSimulatorSetHingeAngle(owner, degrees, { Task.isCancelled ? 1 : 0 }, &error, error.count)
         }
+    }
+}
+
+/// One streamhingeangle sample: each angle is a Measurement in degrees,
+/// `{value, unit: {symbol, converter}}`. `angle` and `mechanicalAngle`
+/// differ while moving and slightly at rest (mechanical 90, angle 94.62).
+struct HingeSample: Equatable {
+    let angle: Double
+    let mechanicalAngle: Double?
+    let minAngle: Double?
+    let maxAngle: Double?
+    let velocity: Double?
+    let angleValid: Bool
+
+    init(_ data: Data) throws {
+        guard data.count <= 65_536, let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw CommandFailure(.transportFailed, "Cannot read the simulator's hinge angle sample; nothing was sent.", inputSent: .none)
+        }
+        func value(_ key: String) -> Double? {
+            ((root[key] as? [String: Any])?["value"] as? NSNumber).map(\.doubleValue).flatMap { $0.isFinite ? $0 : nil }
+        }
+        guard let angle = value("angle") else {
+            throw CommandFailure(.transportFailed, "The simulator's hinge angle sample has no angle; nothing was sent.", inputSent: .none)
+        }
+        self.angle = angle
+        mechanicalAngle = value("mechanicalAngle")
+        minAngle = value("minAngle")
+        maxAngle = value("maxAngle")
+        velocity = value("velocity")
+        angleValid = root["isAngleValid"] as? Bool == true
+    }
+
+    var json: [String: Any] {
+        func optional(_ value: Double?) -> Any { value.map { $0 as Any } ?? NSNull() }
+        return ["angle": angle, "mechanicalAngle": optional(mechanicalAngle), "minAngle": optional(minAngle), "maxAngle": optional(maxAngle),
+                "velocity": optional(velocity), "isAngleValid": angleValid, "unit": "degrees", "velocityUnit": "degrees per second"]
     }
 }
 

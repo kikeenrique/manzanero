@@ -140,8 +140,9 @@ static const ADCRequirementSpec ADCSimulatorInput[] = {
     ADC_FILE("/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/Resources/Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtdeviceinfod.plist"),
 };
 // Simulator fold, unfold and hinge (iPhone Duo): one vendor-defined Indigo
-// event to dtuhidd's hid.vendordefined service, and the display information
-// from dtdeviceinfod to confirm the active display. IOCFSerialize
+// event to dtuhidd's hid.vendordefined service, the display information from
+// dtdeviceinfod to confirm the active display, and the hinge angle from the
+// CoreDevice streamhingeangle action on its monitormotion service. IOCFSerialize
 // is public, linked IOKit API and needs no check.
 static const ADCRequirementSpec ADCSimulatorHinge[] = {
     ADC_CORESIMULATOR_DEVICE,
@@ -204,7 +205,7 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCNativeRecording, ADC_COUNT(ADCNativeRecording) },
     { "simulator-input", "Simulator touch (one to five contacts, timed gestures), button, key and type through host XPC to the simulator's dtuhidd Indigo and Universal HID services, with display information from dtdeviceinfod", 0, 1,
       ADCSimulatorInput, ADC_COUNT(ADCSimulatorInput) },
-    { "simulator-hinge", "iPhone Duo simulator fold, unfold and hinge through host XPC to dtuhidd's vendor-defined HID service, confirmed with display information from dtdeviceinfod", 0, 1,
+    { "simulator-hinge", "iPhone Duo simulator fold, unfold and hinge through host XPC to dtuhidd's vendor-defined HID service, confirmed with display information from dtdeviceinfod; the hinge angle from its monitormotion stream", 0, 1,
       ADCSimulatorHinge, ADC_COUNT(ADCSimulatorHinge) },
     { "simulator-accessibility", "Simulator accessibility (tree, press/scroll by id or label, waits) through CoreSimulator AXPTranslator requests", 0, 1,
       ADCSimulatorAccessibility, ADC_COUNT(ADCSimulatorAccessibility) },

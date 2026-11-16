@@ -619,7 +619,9 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `fold`, SIGINT after 1.2 s (in the wait) | Exit 130 with the input-interruption diagnostic; the process was gone at once. The event had been sent: `displays` then showed LCD `activeOn`, LCD-1 `off` |
 | `fold`, `hinge 45` on `iPhone 17e` (iOS 27.2) | Exit 1, `unsupported-operation`, `inputSent: none`: "lists 1 integrated display(s) with a framebuffer" |
 | `unfold --device` (placeholder identifier) | Refused while parsing, `unsupported-operation`; no device contacted |
-| MCP `fold_device unfold`, `set_hinge_angle 90`, `fold_device fold` (one stdio session) | All `isError: false`; LCD-1 then LCD observed |
+| MCP `fold_device unfold`, `set_hinge_angle 90`, `fold_device fold`, sent together in one stdio session without waiting for answers | All `isError: false`, but the simulator ended at 90 degrees: the server ran the calls out of order, and the first version's wait (`Task.sleep`) let another call run during it. The wait now blocks the command service's thread, as timed input does |
+| `hinge` (read) folded, unfolded, after `hinge 90`, after `hinge 120` | `angle` 0, 180, 94.62 (`mechanicalAngle` 90), 113.84 (`mechanicalAngle` 120); `isAngleValid` true, `velocity` 0; `activeDisplay` LCD, LCD-1, LCD-1, and null right after sending 120, LCD-1 1 s later. About 0.7 s per read; five reads in a row all answered |
+| MCP `fold_device unfold`, `get_hinge_angle`, `set_hinge_angle 90`, `fold_device fold`, `get_hinge_angle`, pipelined in one session | All `isError: false`; answered in the order 90 (displayObserved false), angle 91.54 (still moving), unfold (observed), angle 180, fold (observed): each call ran whole, but pipelined calls still run in no fixed order, so a client must wait for each answer |
 
 ## Retired implementations
 
