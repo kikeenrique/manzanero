@@ -42,13 +42,38 @@ struct HandoffCommandTests {
         #expect(throws: CommandFailure.self) { try TerminalHandoff.confirm(request(), input: pipe.fileHandleForReading.fileDescriptor, prompt: { _ in }) }
     }
 
-    @Test func formAcceptWithoutExactlyOneCompletedBooleanDoesNotAcknowledge() {
-        #expect(MCPHandoffChannel.status(.init(action: .accept, content: ["completed": true])) == .acknowledged)
-        for content: [String: Value]? in [nil, [:], ["completed": false], ["completed": "true"], ["completed": true, "other": "x"]] {
-            #expect(MCPHandoffChannel.status(.init(action: .accept, content: content)) == .notCompleted)
+    @Test func theHostsOwnButtonsAreTheAnswer() throws {
+        // The form has no fields: Accept is done, Decline and Cancel are not.
+        #expect(MCPHandoffChannel.schema.properties.isEmpty && MCPHandoffChannel.schema.required == [])
+        for content: [String: Value]? in [nil, [:]] {
+            #expect(MCPHandoffChannel.status(.init(action: .accept, content: content)) == .acknowledged)
         }
         #expect(MCPHandoffChannel.status(.init(action: .decline)) == .declined)
         #expect(MCPHandoffChannel.status(.init(action: .cancel)) == .cancelled)
+        // An accepted answer carrying fields nobody asked for is not an acknowledgement.
+        for content: [String: Value] in [["completed": false], ["completed": true], ["outcome": "done"]] {
+            #expect(MCPHandoffChannel.status(.init(action: .accept, content: content)) == .notCompleted)
+        }
+        // The form asks its own question, whether the step is finished, and says what
+        // each of the host's buttons means for it: a device prompt's own Allow / Don't
+        // Allow must not be read into Accept / Decline.
+        // Three lines, no blank ones, the button meanings first: one host shows only
+        // the first three lines of a form's message. A step given on several lines
+        // is joined into one.
+        let command = try HandoffCommand(platform: "physical", device: "00008110-000A11112222801E", message: "Answer the notification prompt\non the phone", timeout: nil)
+        #expect(MCPHandoffChannel.message(command) == """
+            Accept = step finished (any choice on the device). Decline = not done.
+            Step: Answer the notification prompt on the phone
+            Device: physical 00008110-000A11112222801E
+            """)
+        #expect(MCPHandoffChannel.message(command).split(separator: "\n", omittingEmptySubsequences: false).count == 3)
+        // The description names fields and types, and no text a person typed.
+        let unticked = MCPHandoffChannel.describe(.init(action: .accept, content: ["completed": false]))
+        #expect(unticked.hasPrefix("Form answer from the host: action accept; completed=false (boolean)."))
+        let text = MCPHandoffChannel.describe(.init(action: .accept, content: ["outcome": "secret words"]))
+        #expect(text.contains("outcome (string, 12 bytes)") && !text.contains("secret"))
+        #expect(MCPHandoffChannel.describe(.init(action: .accept, content: [:])).contains("empty content"))
+        #expect(MCPHandoffChannel.describe(.init(action: .decline)).contains("action decline; no content"))
     }
 
     actor Gate {
@@ -164,16 +189,15 @@ struct HandoffCommandTests {
         #expect(try await pending.value.exitCode == 0)
     }
 
-    @Test(arguments: [true, false]) func sdkFormRoundTripRespectsCompletedBoolean(_ completed: Bool) async throws {
+    @Test(arguments: [true, false]) func sdkFormRoundTripRespectsTheButton(_ completed: Bool) async throws {
         let session = await AppleMCPServer.make(service: CommandService())
         let (clientTransport, serverTransport) = await InMemoryTransport.createConnectedPair()
         let client = Client(name: "handoff-test", version: "1", capabilities: .init(elicitation: .init()))
         await client.withElicitationHandler { params in
             guard case .form(let form) = params else { throw CommandFailure(description: "Expected form mode") }
-            #expect(form.requestedSchema.required == ["completed"])
-            #expect(form.requestedSchema.properties.count == 1)
-            #expect(form.requestedSchema.properties["completed"]?.objectValue?["type"] == "boolean")
-            return .init(action: .accept, content: ["completed": .bool(completed)])
+            #expect(form.requestedSchema.properties.isEmpty)
+            #expect(form.message.hasPrefix("Accept = step finished (any choice on the device). Decline = not done.\nStep: "))
+            return .init(action: completed ? .accept : .decline)
         }
         try await session.start(transport: serverTransport)
         do {

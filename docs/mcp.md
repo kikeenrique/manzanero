@@ -139,7 +139,7 @@ Within one session, the ordering above serializes each device's mutations. It do
 
 ## Handoff and approvals
 
-`request_handoff` uses a host form when form elicitation is advertised. A required completion checkbox acknowledges only the person's response, not device success. Pending handoff pauses that device's mutations within the same server process while leaving observations available.
+`request_handoff` uses a host form when form elicitation is advertised. The form has no fields: the host's own Accept acknowledges the person's response, not device success, and Decline or Cancel do not. Pending handoff pauses that device's mutations within the same server process while leaving observations available.
 
 Do not send passcodes, keys or pairing-file contents through tool arguments. No MCP tool or CLI command initiates pairing; pair through Xcode/CoreDevice.
 

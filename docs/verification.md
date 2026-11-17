@@ -336,6 +336,45 @@ End of input was not run on a device. Not shown: the passcode keypad, a phone re
 
 The decision was the person's; the tool pressed neither button. The receipt does not say which was chosen, and the probe's status shows it was "No permitir". Not shown: a biometric or purchase prompt, and a prompt raised by an app other than the probe.
 
+### Handoff through an MCP host: the pause, and a form the person never saw
+
+**2026-11-17, evening**, same phone and host. `manzanero mcp` ran as a stdio server of an interactive Claude Code session; the probe app had been uninstalled and installed again, so its notification status read `notDetermined`, and `press_element probe.permission.request` raised the prompt.
+
+| Step | Observed |
+| --- | --- |
+| `request_handoff` and a `tap`, issued together by the host's model | The host ran them one after the other. `request_handoff` returned `status: notCompleted`, `mechanism: mcp-form`, `humanAcknowledged: false`, as an error result. The `tap` then ran, `dispatched`, and the probe recorded it, so no handoff was pending by then |
+| `request_handoff` again, with a second agent of the same host sending one `tap` about 25 s later | The tap was refused: "Automation is paused for this device while human handoff is pending. Wait for the person's response." The probe's gesture count did not change. The handoff later returned `notCompleted` again |
+| `tap` after that handoff had returned | `dispatched`, and recorded by the probe as its next gesture: the pause ended with the request |
+
+The pause on a device's mutations while a handoff is pending is therefore shown on a phone, from a real host. An acknowledged form is not. `request_handoff` ran four times that evening and returned `notCompleted` each time. The host's own log shows it received each form request (`mode=form fields=["completed"]`) and answered `action=accept` with the `completed` field after 11, 48, 89 and 6 seconds. The owner at first reported seeing no form, then that they had typed their answer ("the action was done") at the host's prompt: the form is drawn inline where messages are normally typed, and submitting it with Enter leaves its checkbox at the default, unticked. The server did what it should with that, reporting `notCompleted` and no acknowledgement. The host has no hook that answers forms, and was Claude Code 2.1.326.
+
+On the phone the step itself was done both times it was asked for: the owner chose "Permitir", and the probe read `authorized` afterwards. A check without any handoff, by screenshot at 2 and 22 seconds after `press --id probe.permission.request` on a fresh install, showed that the prompt appears and stays until someone answers it.
+
+After these runs the tool result gained a line describing the form answer (its action, and each field's name and type, with the value only for Booleans and numbers), and the checkbox was replaced by one required choice, `done` or `not done`, with no default.
+
+| Step, with that form and the server reconnected | Observed |
+| --- | --- |
+| Fresh install, `press --id probe.permission.request`, `tree` | The prompt on the phone, confirmed from the tree before asking |
+| `request_handoff`; the owner chose "Permitir" on the phone and `done` in the form | `status: acknowledged`, `humanAcknowledged: true`, `mechanism: mcp-form`, after 62 s. The host log read `action=accept … fields=["outcome"]` |
+| Screenshot and `tree` afterwards | The probe app, no prompt, `{"requests":1,"status":"authorized","v":1}` |
+
+That is one MCP handoff acknowledged by a person and confirmed on the device. The describing line did not reach the model in this host, which showed only the structured result; it is now in the structured result as `formAnswer` as well.
+
+The owner then showed how Claude Code had drawn that form: a paragraph of text, the field as "not set" with "This field is required" in red, and the host's own Accept and Decline underneath. They judged it unacceptable and very confusing, since it asks the same thing twice. The form now has no fields and three short lines, and the host's buttons are the answer ([handoff](handoff.md#mcp-flow)). With the server reconnected on that form:
+
+| Step | Observed |
+| --- | --- |
+| Fresh install, `press --id probe.permission.request`, screenshot and `tree` | The prompt on the phone, confirmed by both before asking |
+| `request_handoff 'Answer the notification prompt on the phone: Permitir or No permitir.'`; the owner chose "Permitir" on the phone and pressed Accept in the host | `status: acknowledged`, `humanAcknowledged: true`, after 86 s, with `formAnswer` "action accept; empty content". The host log read `mode=form fields=[]` for the request and the answer |
+| Screenshot and `tree` afterwards | The probe app, no prompt, `{"requests":1,"status":"authorized","v":1}` |
+| `request_handoff` with nothing to do on the phone; the owner pressed Decline | `status: declined`, `humanAcknowledged: false`, an error result, with "action decline; no content" |
+
+So the form with no fields was answered by a person both ways, and the acknowledged one was confirmed on the device. Cancel (Esc) was not run from a host.
+
+The owner still found that form's wording wrong: what it says does not agree with the action. The phone asks one question, "Probe quiere enviarte notificaciones", answered "No permitir" or "Permitir"; the form asked another, whether the step was done, with the host's fixed buttons Accept and Decline, under a step that named both phone answers. Accept reads as "Permitir" and Decline as "No permitir", so someone who refused the permission would press Decline and report a finished step as not done. The text was rewritten to put the form's own question first and to say what each button means for it ([handoff](handoff.md#mcp-flow)). With that wording and the server reconnected, a fresh prompt (confirmed by screenshot and `tree`) and `request_handoff 'Answer the notification prompt on the phone.'`: the owner chose "Permitir" and pressed Accept; `status: acknowledged`, `formAnswer` "action accept; empty content"; afterwards the screenshot and `tree` showed the probe with no prompt and `status: authorized`. The owner's screenshot of that form showed what the host does with it: the title "MCP server "manzanero" requests your input", then only the first three lines of the message (the question, a blank line and the step) followed by "… (+4 more lines)", then Accept and Decline with "Esc to cancel · ↑/↓ to navigate". The lines saying what the buttons mean were folded away. The message was cut to three lines with no blank ones, button meanings first ([handoff](handoff.md#mcp-flow)). 
+
+With the three-line message and the server reconnected, the case the wording is for was run: a fresh prompt (confirmed by screenshot and `tree`), `request_handoff 'Answer the notification prompt on the phone.'`, and the owner chose "No permitir" on the phone and Accept in the host. `status: acknowledged`, `formAnswer` "action accept; empty content"; afterwards the screenshot and `tree` showed the probe with no prompt and `{"requests":1,"status":"denied","v":1}`. A refusal on the device was reported as a finished step, as it should be. How the host drew the three-line message was not captured.
+
 ### Web content on the phone
 
 **2026-11-17, later the same day**, same phone and host, Chrome with public test pages. This follows the web form failure in the session above.
