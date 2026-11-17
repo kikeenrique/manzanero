@@ -308,7 +308,9 @@ This is the handoff's first run around a real system step (pairing, with the pas
 | `tap 0.5 0.5` right after a `wake` | Exit 0, `dispatched`: input is gated on the display being on, not on the lock. The receipt says nothing about the lock |
 | `screenshot` right after | The lock screen |
 
-So `wake` keeps its promise with a passcode (it wakes, does not press Home and enters nothing), and the failures on a sleeping phone are classified. Two things to know: a screenshot of a sleeping phone succeeds with a black image, and touch is sent to a lock screen without any note that the phone is locked. Not shown: the passcode keypad, a phone restarted and not yet unlocked, Face ID, and a notification or call on the lock screen.
+So `wake` keeps its promise with a passcode (it wakes, does not press Home and enters nothing), and the failures on a sleeping phone are classified. Two things to know: a screenshot of a sleeping phone succeeds with a black image, and touch is sent to a lock screen without any note that the phone is locked.
+
+Later the same evening input receipts gained `passcodeRequired` and a `lockNote` ([guide](native-input.md#receipts-and-partial-effects)). On the locked phone, right after a `wake`: `tap 0.5 0.5` and `key escape` both returned `dispatched` with `passcodeRequired: true` and the note. Not shown: the passcode keypad, a phone restarted and not yet unlocked, Face ID, and a notification or call on the lock screen.
 
 ### Web content on the phone
 

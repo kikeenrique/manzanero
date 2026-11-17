@@ -15,6 +15,29 @@ struct DeviceUIReadiness: Encodable, Sendable {
         "UI Automation permission and actual input/capture are not verified. No wake or unlock is attempted."
     ]
 
+    static let lockNote = "After this input the device reported that a passcode is required: it is locked, so the input may have gone to the lock screen. Unlock it directly; the tool does not enter passcodes."
+
+    /// Adds `passcodeRequired` (true, false or null when it could not be
+    /// read) to an input receipt, and a `lockNote` when it is true. One
+    /// read-only lock-state query after the input, so the input's own timing
+    /// is untouched; a failed read never turns a sent input into a failure.
+    static func annotateInput(_ receipt: Data, uuid: String, query: (DeviceCommand) throws -> Data) -> Data {
+        guard var root = (try? JSONSerialization.jsonObject(with: receipt)) as? [String: Any], root["passcodeRequired"] == nil else { return receipt }
+        var required: Bool?
+        if let data = try? query(.init(arguments: ["devicectl", "device", "info", "lockState", "--device", uuid,
+                "--timeout", "10", "--quiet", "--json-output", "-"], jsonOutput: true)), data.count <= 1_048_576,
+           let reply = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+           (reply["info"] as? [String: Any])?["outcome"] as? String == "success",
+           let value = reply["result"] as? [String: Any],
+           let identifier = value["deviceIdentifier"] as? String, UUID(uuidString: identifier) == UUID(uuidString: uuid),
+           let number = value["passcodeRequired"] as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() {
+            required = number.boolValue
+        }
+        root["passcodeRequired"] = required.map { $0 as Any } ?? NSNull()
+        if required == true { root["lockNote"] = lockNote }
+        return (try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])) ?? receipt
+    }
+
     static func observe(details: Data, device: String, query: (DeviceCommand) throws -> Data) throws -> Self {
         try Task.checkCancellation()
         guard let uuid = try? CoreDeviceInput.resolve(details, requested: device) else {

@@ -271,6 +271,13 @@ actor CommandService {
                     throw failure.noInputSent()
                 }
             }
+            // An input's receipt says whether the device was locked afterwards
+            // (one read-only query; observations hold no lease and get none).
+            let inputDevice = leased
+            let lockQuery = uiReadinessQuery
+            func sent(_ data: Data) -> CommandOutput {
+                CommandOutput(data: inputDevice.map { DeviceUIReadiness.annotateInput(data, uuid: $0, query: lockQuery) } ?? data)
+            }
             do {
             if native.operation == DirectPhysicalWake.operation {
                 return try DirectPhysicalWake.output(DirectPhysicalWake.execute(native, query: query))
@@ -281,26 +288,26 @@ actor CommandService {
                 return try AccessibilityWait.output(await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
             }
             if (["tree", "press-id", "press-label", "scroll-id", "scroll-label"] + DirectAccessibilitySetValue.operations).contains(native.operation) {
-                return CommandOutput(data: try await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
+                return sent(try await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
             }
             if native.operation == "key" {
-                return CommandOutput(data: try DirectPhysicalKeyboard.execute(native, query: query))
+                return sent(try DirectPhysicalKeyboard.execute(native, query: query))
             }
             if DirectPhysicalGesture.handles(native) {
-                return CommandOutput(data: try DirectPhysicalGesture.execute(native, query: query))
+                return sent(try DirectPhysicalGesture.execute(native, query: query))
             }
             if native.operation == "type" {
-                return CommandOutput(data: try DirectPhysicalTyping.execute(native, query: query))
+                return sent(try DirectPhysicalTyping.execute(native, query: query))
             }
             if native.operation == "paste" {
-                return CommandOutput(data: try DirectPhysicalPaste.execute(native, query: query, copy: { plan, data in
+                return sent(try DirectPhysicalPaste.execute(native, query: query, copy: { plan, data in
                     try self.runner.run(plan.arguments, executable: plan.executable, timeout: 40, inputData: data)
                 }))
             }
             if native.operation != "button" {
-                return CommandOutput(data: try DirectPhysicalTouch.execute(native, query: query))
+                return sent(try DirectPhysicalTouch.execute(native, query: query))
             }
-            return CommandOutput(data: try DirectPhysicalInput.execute(native, query: query))
+            return sent(try DirectPhysicalInput.execute(native, query: query))
             } catch {
                 // An input whose end is unknown quarantines the device.
                 DeviceQuarantine.note(error, device: leased, operation: native.operation, leases: leases)

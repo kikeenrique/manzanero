@@ -83,6 +83,8 @@ Direct input returns JSON identifying the operation/backend with `verified: fals
 
 Failure after a down event can leave a partial effect. The tool cannot roll back typed text, clipboard changes, scroll position or an application action.
 
+**Locked devices.** Input is refused while the display is off (`display-off`), but not because a device is locked: an awake lock screen takes touches, keys and buttons, and sometimes that is what is wanted (its camera and torch buttons). So every physical input receipt, including `press`, `scroll` and `set-value`, carries `passcodeRequired`, read from Apple's lock state once after the input: `true`, `false`, or `null` when it could not be read. When it is `true` the receipt also has a `lockNote` saying the input may have gone to the lock screen. The read comes after the input so the input's timing is unchanged, and a failed read never makes a sent input fail. `wake` reports the same field itself; simulators have no such field. Checked on one iPhone 13 mini with a passcode ([verification](verification.md#a-passcode-on-the-phone-pairing-handoff-and-the-lock-screen)).
+
 ## Task cancellation and release attempts
 
 Schedulers check cancellation before each event and during waits using sleep chunks of at most 10 ms. That bounds the requested sleep chunk, not end-to-end latency.

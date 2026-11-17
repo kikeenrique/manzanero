@@ -11,6 +11,34 @@ struct DeviceUIReadinessTests {
         return try JSONSerialization.data(withJSONObject: ["info": ["outcome": "success"], "result": result])
     }
 
+    /// An input receipt says whether the device was locked afterwards, and a
+    /// failed or doubtful read leaves it unknown instead of failing the input.
+    @Test func inputReceiptsCarryThePasscodeStateReadAfterwards() throws {
+        let uuid = CoreDeviceInputTests().uuid
+        let receipt = try JSONSerialization.data(withJSONObject: ["operation": "tap", "status": "dispatched"])
+        func annotated(_ query: @escaping (DeviceCommand) throws -> Data) throws -> [String: Any] {
+            try #require(JSONSerialization.jsonObject(with: DeviceUIReadiness.annotateInput(receipt, uuid: uuid, query: query)) as? [String: Any])
+        }
+        let locked = try annotated { plan in
+            #expect(plan.arguments == ["devicectl", "device", "info", "lockState", "--device", uuid, "--timeout", "10", "--quiet", "--json-output", "-"])
+            return try response("lockState", passcode: true)
+        }
+        #expect(locked["passcodeRequired"] as? Bool == true && locked["lockNote"] as? String == DeviceUIReadiness.lockNote)
+        #expect(locked["status"] as? String == "dispatched")
+        let unlocked = try annotated { _ in try response("lockState") }
+        #expect(unlocked["passcodeRequired"] as? Bool == false && unlocked["lockNote"] == nil)
+        // Unknown, never guessed: a failed query, another device's answer, a number instead of a Boolean.
+        for query: (DeviceCommand) throws -> Data in [{ _ in throw CommandFailure(description: "offline") },
+                                                       { _ in try response("lockState", passcode: true, identity: UUID().uuidString) },
+                                                       { _ in try response("lockState", passcode: 1) }] {
+            let unknown = try annotated(query)
+            #expect(unknown["passcodeRequired"] is NSNull && unknown["lockNote"] == nil && unknown["status"] as? String == "dispatched")
+        }
+        // A receipt that already reports the state (wake) is left as it is.
+        let own = try JSONSerialization.data(withJSONObject: ["operation": "wake", "passcodeRequired": false])
+        #expect(DeviceUIReadiness.annotateInput(own, uuid: uuid) { _ in Issue.record("Queried"); return Data() } == own)
+    }
+
     @Test func observesPowerAndPasscodeWithoutClaimingCurrentUIUnlock() throws {
         let fixture = CoreDeviceInputTests()
         for power in ["activeOn", "off"] {
