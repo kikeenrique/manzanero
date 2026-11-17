@@ -12,14 +12,15 @@ If every query to a connected device times out, capture the state of Apple's dev
 
 ## Not yet run on hardware
 
-- `handoff --until` beyond its first run ([record](verification.md#handoff-that-watches-the-device)): `unlocked` starting from a locked phone, `paired` starting unpaired, a timeout, `decline` typed while it watches, a watch of several minutes, `request_handoff` with `until` from an MCP host, and one run on a simulator.
+- `handoff --until` beyond its first runs ([prompt](verification.md#handoff-that-watches-the-device), [timeout and simulator](verification.md#handoff-watch-a-timeout-on-the-phone-and-runs-on-a-simulator)): `unlocked` starting from a locked phone with someone unlocking it, `paired` starting unpaired, `decline` typed while it watches, and `request_handoff` with `until` from an MCP host.
 - With the passcode now set on the test phone: `wake` and `readiness` after a restart before the first unlock, the passcode keypad in the tree, and whether setting or removing a passcode always drops the pairing (it did once: [record](verification.md#a-passcode-on-the-phone-pairing-handoff-and-the-lock-screen)).
 - `handoff` answered by a person: a biometric prompt (the phone has no Face ID set up) or the passcode gate of Settings › Face ID y código; from an MCP host, Cancel, a second host, and a capture of how the host draws the three-line form. Every terminal answer, an unlock, an app permission prompt, the pause on mutations and the form's Accept and Decline are recorded. Reconnect an MCP server after a rebuild, or it keeps running the old binary. The terminal flow with a physical step is [recorded](verification.md#handoff-with-a-physical-step). The owner has to be present.
 - `tree` and the selector commands refuse a phone in landscape ("requires portrait geometry"), seen after that handoff; touch, keys and captures in landscape on a phone are still unrun.
 - A held `key` or `button` whose sender is killed, and a hold during which the cable or network path is lost rather than the process: a killed `long-press` ended by itself on the phone ([session](verification.md#phone-session-of-2026-11-17)), these did not run.
 - `tree`, `wait`, `press` and `scroll` with a web page in front in Safari and in an app's own `WKWebView`; a page with frames. In Chrome the page's tree reads and `press` works ([record](verification.md#web-content-on-the-phone)); `scroll` did not run. Count how often the first read after a page load selects the browser instead of the page.
 - `--index` on a simulator and through the MCP `index` field against a device; on the phone it ran from the CLI on a web form only ([record](verification.md#web-content-on-the-phone)).
-- Setting the value of a SwiftUI field that has a label or identifier. A UIKit text field and a secure field in Settings ran; the Settings search field has neither label nor identifier and cannot be selected.
+- Setting the value of a SwiftUI field that has a label or identifier. A UIKit text field and a secure field in Settings ran. The Settings search field has neither label nor identifier: select it by its placeholder with `--with-value`, which has run on a simulator only.
+- Built on 2026-11-17 and unit-tested only: a secure field's receipt (`readBack: masked`), `press` on a web field wider than the display, and `press --pid <browser>` on a browser's own control while a page is in front.
 - `rtcp.negotiatedFeedback` in a second recording, to see whether `disabled` is constant.
 - `frames` with the display rotated, on another device, for a long run (minutes, toward the 1000-frame and 1 GiB limits), and with a second process trying to capture or send input meanwhile. Portrait runs on the iPhone 13 mini are [recorded](verification.md#frames-on-the-phone).
 - `detect-layout` on another phone or with another layout set on this one (it found Spanish – ISO on the iPhone 13 mini: [verification](verification.md#layout-detection)), in a field other than the probe's (one with autocorrection or auto-capitalisation on, to see `no-match` and the hints), and through MCP against a phone.
@@ -48,7 +49,7 @@ These need no hardware and no owner decision; they were left out of the simulato
 
 - On the Duo's inner display: the centre-hit fallback when no frontmost application is reported, and four- and five-path `multi-drag` (three paths and `gesture` are [recorded](verification.md#the-duos-inner-display)); only the `rot90` orientation was seen.
 - `fold` on the Duo with nothing else booted: one of five folds was not observed within its 10 s bound while three other simulators were running.
-- `--index` and `handoff --until` with an element condition, against the probe app.
+- `--index` among real duplicates on a simulator: `detect-layout --index` and `handoff --until` with element conditions ran against the probe app ([record](verification.md#selector-by-value-detect-layout-index-masked-read-back-and-the-display-note)), but the probe has no two elements that share a label.
 
 ## Questions still open
 

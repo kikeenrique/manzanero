@@ -29,7 +29,7 @@ struct AccessibilityWait {
         }
     }
 
-    static let operations = ["wait-id", "wait-label"]
+    static let operations = AccessibilitySelector.operations("wait")
     static let optionNames: Set<String> = ["--until", "--value", "--timeout", "--interval", AccessibilitySelector.indexOption]
     static let conditionNames = ["visible", "gone", "enabled", "disabled", "value", "focused"]
     static let timeoutRange: ClosedRange<Double> = 0...60
@@ -59,7 +59,7 @@ struct AccessibilityWait {
               callbackBytes: max(40 * 1024 * 1024, 4 * 1024 * 1024 * maximumPolls))
     }
 
-    private static let usage = "Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--index <position 1...512>] [--until visible|gone|enabled|disabled|value|focused] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>]."
+    private static let usage = "Native AX wait usage: wait (--id <identifier> | --label <label> | --with-value <value>) [--pid <positive-pid>] [--index <position 1...512>] [--until visible|gone|enabled|disabled|value|focused] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>]."
 
     init(_ input: CoreDeviceInput) throws {
         guard Self.operations.contains(input.operation), !input.operands.isEmpty else { throw Self.invalid("") }
@@ -111,7 +111,7 @@ struct AccessibilityWait {
             }
             index += 2
         }
-        selector = AccessibilitySelector(by: input.operation == "wait-id" ? "identifier" : "label", text: text, index: position)
+        selector = AccessibilitySelector(by: AccessibilitySelector.by(operation: input.operation), text: text, index: position)
         switch (until, value) {
         case (nil, nil), ("visible", nil): condition = .visible
         case (nil, let value?), ("value", let value?): condition = .value(value)

@@ -38,6 +38,46 @@ struct DeviceUIReadiness: Encodable, Sendable {
         return (try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])) ?? receipt
     }
 
+    static let displayOffNote = "The display was off when this was checked right after the capture, so the image is probably black. Wake the device (wake) and capture again."
+
+    /// Adds `displayPower` (on, off or unknown) to a physical screenshot's
+    /// receipt, and a `displayNote` when it is off: a sleeping phone answers
+    /// a screenshot with a black image and no error. One read-only display
+    /// query after the capture; a failed read never fails the screenshot.
+    static func annotateScreenshot(_ receipt: Data, device: String, query: (DeviceCommand) throws -> Data) -> Data {
+        guard var root = (try? JSONSerialization.jsonObject(with: receipt)) as? [String: Any], root["displayPower"] == nil else { return receipt }
+        var power = "unknown"
+        if let data = try? query(.init(arguments: ["devicectl", "device", "info", "displays", "--device", device,
+                "--timeout", "10", "--quiet", "--json-output", "-"], jsonOutput: true)), data.count <= 1_048_576,
+           let reply = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+           (reply["info"] as? [String: Any])?["outcome"] as? String == "success",
+           let value = reply["result"] as? [String: Any] {
+            power = displayPower(value)
+        }
+        root["displayPower"] = power
+        if power == "off" { root["displayNote"] = displayOffNote }
+        return (try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])) ?? receipt
+    }
+
+    private static func boolean(_ value: Any?) -> Bool? {
+        guard let value = value as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else { return nil }
+        return value.boolValue
+    }
+
+    /// on, off or unknown, from a `devicectl device info displays` result:
+    /// the backlight of the one primary display.
+    static func displayPower(_ output: [String: Any]) -> String {
+        guard let displays = output["displays"] as? [[String: Any]], (1...16).contains(displays.count),
+              displays.allSatisfy({ boolean($0["primary"]) != nil }) else { return "unknown" }
+        let primary = displays.filter { boolean($0["primary"]) == true }
+        guard primary.count == 1 else { return "unknown" }
+        switch primary[0]["backlightState"] as? String {
+        case "activeOn": return "on"
+        case "off": return "off"
+        default: return "unknown"
+        }
+    }
+
     static func observe(details: Data, device: String, query: (DeviceCommand) throws -> Data) throws -> Self {
         try Task.checkCancellation()
         guard let uuid = try? CoreDeviceInput.resolve(details, requested: device) else {
@@ -70,22 +110,7 @@ struct DeviceUIReadiness: Encodable, Sendable {
                 diagnostics.append("\(command)Unavailable: the Apple query failed."); return nil
             }
         }
-        func boolean(_ value: Any?) -> Bool? {
-            guard let value = value as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else { return nil }
-            return value.boolValue
-        }
-        var power = "unknown"
-        if let output = try result("displays"), let displays = output["displays"] as? [[String: Any]],
-           (1...16).contains(displays.count), displays.allSatisfy({ boolean($0["primary"]) != nil }) {
-            let primary = displays.filter { boolean($0["primary"]) == true }
-            if primary.count == 1 {
-                switch primary[0]["backlightState"] as? String {
-                case "activeOn": power = "on"
-                case "off": power = "off"
-                default: break
-                }
-            }
-        }
+        let power = try result("displays").map(displayPower) ?? "unknown"
         if power == "unknown" { diagnostics.append("displayPowerUnknown: no unique primary display with a recognized power state.") }
         let lock = try result("lockState")
         let passcode = boolean(lock?["passcodeRequired"]), sinceBoot = boolean(lock?["unlockedSinceBoot"])

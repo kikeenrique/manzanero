@@ -29,7 +29,7 @@ struct DirectAccessibilityAction {
     init(_ input: CoreDeviceInput) throws {
         var operands = input.operands
         index = try AccessibilitySelector.takeIndex(&operands, minimumCount: 3)
-        guard ["press-id", "press-label", "scroll-id", "scroll-label"].contains(input.operation), (1...2).contains(operands.count),
+        guard Self.operations.contains(input.operation), (1...2).contains(operands.count),
               let text = operands.last, (1...4096).contains(text.utf8.count), !text.contains("\0") else {
             throw CommandFailure.usage("Native AX selector action requires an optional positive PID and 1...4096 UTF-8 bytes of exact selector without NUL.")
         }
@@ -38,9 +38,12 @@ struct DirectAccessibilityAction {
             self.pid = pid
         } else { pid = nil }
         action = input.operation.hasPrefix("scroll-") ? .scrollToVisible : .press
-        by = input.operation.hasSuffix("-id") ? "identifier" : "label"
+        by = AccessibilitySelector.by(operation: input.operation)
         self.text = text
     }
+
+    /// `press-…` and `scroll-…` for every selector kind.
+    static let operations = AccessibilitySelector.operations("press") + AccessibilitySelector.operations("scroll")
 
     var selector: AccessibilitySelector { AccessibilitySelector(by: by, text: text, index: index) }
 
@@ -107,9 +110,9 @@ struct DirectAccessibilityAction {
             try session.start()
             stage = "select-process"
             let selected = try session.foregroundProcess(geometry)
-            if let pid, pid != selected.pid { throw failure("requested PID differs from \(platform.selectionSubject) process", .targetUnresolved) }
+            let process = try actionProcess(selected: selected.pid, session: session)
             stage = "application"
-            let root = try session.application(pid: selected.pid)
+            let root = try session.application(pid: process)
             stage = "first-snapshot"
             let first = try resolve(session.snapshot(root), root: root)
             stage = "second-snapshot"
@@ -122,12 +125,12 @@ struct DirectAccessibilityAction {
                 try verifyHit(target, frame: before.frame, geometry: geometry, session: session)
             }
             stage = "application/display-recheck"
-            try verifySelection(root, geometry: geometry, session: session, display: display)
+            try verifySelection(root, centre: selected.pid, geometry: geometry, session: session, display: display)
             stage = operation
             let native = try session.performAction(target.token, action: action, onSubmission: { state = "submitted" })
             var result: [String: Any] = ["backend": platform.backend, "operation": operation,
                 "verified": false, "atomic": false,
-                "application": ["pid": root.pid, "selection": pid == nil ? platform.selection : "explicit-pid+\(platform.selection)"],
+                "application": applicationJSON(root.pid, centre: selected.pid, platform: platform),
                 "selector": selector.json, "coordinateSpace": "device-logical-points",
                 "limitations": ["Sequential guards are not atomic or a complete hittability check.",
                     "Unit attribute/action replies can lack target/sequence identity; one request is outstanding.",
@@ -149,7 +152,7 @@ struct DirectAccessibilityAction {
                     guard sameIdentity(afterTarget.token, target.token) else { throw failure("target identity changed after scroll", .preconditionChanged) }
                     let after = try liveState(afterTarget, session: session, requireVisible: true)
                     try verifyHit(afterTarget, frame: after.frame, geometry: geometry, session: session)
-                    try verifySelection(root, geometry: geometry, session: session, display: display)
+                    try verifySelection(root, centre: selected.pid, geometry: geometry, session: session, display: display)
                     result["after"] = after.json
                     result["status"] = "postcondition-verified"
                     result["postconditionVerified"] = true
@@ -205,19 +208,54 @@ struct DirectAccessibilityAction {
 
     func verifyHit(_ target: AccessibilitySnapshot.Node, frame: AccessibilitySnapshot.Frame,
                            geometry: AccessibilityDisplay, session: any AccessibilityExchange) throws {
+        // The element may reach past an edge: a web page zoomed by focusing a
+        // field puts a 392-point field on a 375-point display. Its centre
+        // must be on the display, and the hit test there must answer the
+        // element itself, which is what says it can be pressed.
         let bounds = geometry.bounds
-        guard frame.x >= bounds.x, frame.y >= bounds.y, frame.x + frame.width <= bounds.x + bounds.width,
-              frame.y + frame.height <= bounds.y + bounds.height else { throw failure("target is not wholly inside the primary display", .targetUnresolved) }
-        let hit = try session.hit(x: frame.x + frame.width / 2, y: frame.y + frame.height / 2)
+        let x = frame.x + frame.width / 2, y = frame.y + frame.height / 2
+        guard x >= bounds.x, y >= bounds.y, x < bounds.x + bounds.width, y < bounds.y + bounds.height else {
+            throw failure("target centre is outside the primary display", .targetUnresolved)
+        }
+        let hit = try session.hit(x: x, y: y)
         guard sameIdentity(hit, target.token) else { throw failure("target centre hit is another native element", .targetUnresolved) }
     }
 
-    func verifySelection(_ root: AccessibilityRequest.Token, geometry: AccessibilityDisplay,
+    /// The process the action runs in. Without `--pid`, or with the PID of
+    /// the display-centre process, that process. With another PID, only the
+    /// process that hosts the centre one: a web page's content process
+    /// answers its snapshot rooted at the browser's remote element, and the
+    /// browser's own controls (address bar, toolbar) are in the browser's
+    /// tree. Any other PID is refused, as before. The guards that follow are
+    /// unchanged, and the hit test at the target's centre still has to
+    /// answer the target itself, in that process.
+    func actionProcess(selected: Int32, session: any AccessibilityExchange) throws -> Int32 {
+        guard let pid, pid != selected else { return selected }
+        let subject = session.platform.selectionSubject
+        let page = try session.application(pid: selected)
+        let nodes = try AccessibilitySnapshot.normalize(session.snapshot(page), root: page)
+        guard let host = nodes.first, host.externalProcessReference == true, host.processIdentifier == pid else {
+            throw failure("requested PID differs from \(subject) process and does not host it", .targetUnresolved)
+        }
+        return pid
+    }
+
+    /// `application` in a receipt: the process acted on and how it was chosen.
+    func applicationJSON(_ process: Int32, centre: Int32, platform: AccessibilityPlatform) -> [String: Any] {
+        guard process != centre else {
+            return ["pid": process, "selection": pid == nil ? platform.selection : "explicit-pid+\(platform.selection)"]
+        }
+        return ["pid": process, "selection": "explicit-pid-hosting-\(platform.selection)", "hostedPid": centre]
+    }
+
+    /// `centre` is the display-centre process seen at selection; it differs
+    /// from `root.pid` only when the action runs in the process hosting it.
+    func verifySelection(_ root: AccessibilityRequest.Token, centre: Int32? = nil, geometry: AccessibilityDisplay,
                                  session: any AccessibilityExchange, display: () throws -> AccessibilityDisplay) throws {
         let after = try session.application(pid: root.pid)
         guard sameIdentity(after, root) else { throw failure("application identity changed", .preconditionChanged) }
         let displayed = try session.foregroundProcess(geometry)
-        guard displayed.pid == root.pid else { throw failure("\(session.platform.selectionSubject) process changed", .preconditionChanged) }
+        guard displayed.pid == centre ?? root.pid else { throw failure("\(session.platform.selectionSubject) process changed", .preconditionChanged) }
         guard try display() == geometry else { throw failure("display geometry changed", .preconditionChanged) }
     }
 
@@ -229,7 +267,7 @@ struct DirectAccessibilityAction {
     }
 }
 
-/// One exact identifier or label selector, shared by actions and waits so
+/// One exact identifier, label or value selector, shared by actions and waits so
 /// both read a snapshot the same way. Matching is exact, case-sensitive string
 /// equality on the normalized node field; non-string scalars never match.
 struct AccessibilitySelector: Sendable, Equatable {
@@ -248,6 +286,24 @@ struct AccessibilitySelector: Sendable, Equatable {
 
     static let indexOption = "--index"
     static let indexRange = 1...512
+
+    /// The node fields a selector can compare, by the suffix of the internal
+    /// operation name (`press-id`, `wait-label`, `set-value-value`). `value`
+    /// is for elements with neither label nor identifier, such as a search
+    /// field that only carries its placeholder.
+    static let kinds: [(suffix: String, by: String)] = [("id", "identifier"), ("label", "label"), ("value", "value")]
+
+    /// `press` gives `press-id`, `press-label` and `press-value`.
+    static func operations(_ base: String) -> [String] { kinds.map { "\(base)-\($0.suffix)" } }
+
+    /// The field an operation name selects by; `label` for anything else.
+    static func by(operation: String) -> String {
+        let suffix = operation.split(separator: "-").last.map(String.init) ?? ""
+        return kinds.first { $0.suffix == suffix }?.by ?? "label"
+    }
+
+    /// The operation-name suffix for a field name, the inverse of `by(operation:)`.
+    static func suffix(by: String) -> String { kinds.first { $0.by == by }?.suffix ?? "label" }
 
     /// The selector as receipts and plans print it.
     var json: [String: Any] {
@@ -285,7 +341,7 @@ struct AccessibilitySelector: Sendable, Equatable {
             guard case .dictionary(let record) = records[index], case .array(let children) = record["UIAccessibilitySnapshotKeyChildren"],
                   let attributes = record["UIAccessibilitySnapshotKeyAttributes"] else { throw failure("invalid snapshot record") }
             records.append(contentsOf: children)
-            let value = by == "identifier" ? node.identifier : node.label
+            let value = by == "identifier" ? node.identifier : by == "value" ? node.value : node.label
             if value == .string(text) { found.append(Match(node: node, attributes: attributes)) }
         }
         return found

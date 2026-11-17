@@ -119,14 +119,52 @@ struct CommandFailure: Error, CustomStringConvertible {
     static func unsupported(_ description: String) -> Self { Self(.unsupportedOperation, description, inputSent: .none) }
 
     /// Adds context to an inner error and keeps its classification. A
-    /// cancellation stays `cancelled`; any other error type is unclassified.
+    /// cancellation stays `cancelled`; any other error type gets the
+    /// category `foreignCode` recognises, or stays unclassified.
     init(_ description: String, wrapping error: any Error) {
         if let inner = error as? CommandFailure {
             self.init(inner.code, description, inputSent: inner.inputSent, retry: inner.retry, action: inner.action)
         } else if error is CancellationError {
             self.init(.cancelled, description, inputSent: .unknown)
         } else {
-            self.init(description: description)
+            self.init(Self.foreignCode(error), description, inputSent: .unknown)
+        }
+    }
+
+    /// The category of an error that is not a `CommandFailure`, from its type
+    /// and domain alone. The site is unknown, so callers keep
+    /// `inputSent: unknown`; only what is recognised is classified.
+    static func foreignCode(_ error: any Error) -> Code {
+        // A reply that does not decode: malformed JSON or property list.
+        if error is DecodingError { return .transportFailed }
+        let error = error as NSError
+        switch error.domain {
+        case NSPOSIXErrorDomain:
+            switch Int32(error.code) {
+            case ETIMEDOUT: return .timeout
+            case ECONNREFUSED, ECONNRESET, ECONNABORTED, EPIPE, ENOTCONN, EHOSTUNREACH, EHOSTDOWN, ENETUNREACH, ENETDOWN, ENETRESET:
+                return .transportFailed
+            case ENOENT, EACCES, EPERM, ENOSPC, EEXIST, ENOTDIR, EISDIR, EROFS: return .hostRequirement
+            default: return .unclassified
+            }
+        case NSURLErrorDomain:
+            return error.code == NSURLErrorTimedOut ? .timeout : .transportFailed
+        case NSCocoaErrorDomain:
+            switch error.code {
+            // Property list and JSON data that cannot be read.
+            case NSPropertyListReadCorruptError, NSPropertyListReadUnknownVersionError, NSPropertyListReadStreamError,
+                 NSCoderReadCorruptError, NSCoderValueNotFoundError:
+                return .transportFailed
+            // A file or directory on this Mac that is missing, unreadable, unwritable or in the way.
+            case NSFileNoSuchFileError, NSFileReadNoSuchFileError, NSFileReadNoPermissionError, NSFileWriteNoPermissionError,
+                 NSFileWriteOutOfSpaceError, NSFileWriteFileExistsError, NSFileWriteVolumeReadOnlyError, NSFileReadUnknownError,
+                 NSFileWriteUnknownError, NSFileReadInvalidFileNameError, NSFileWriteInvalidFileNameError:
+                return .hostRequirement
+            default: return .unclassified
+            }
+        // AVFoundation, Core Media and VideoToolbox steps that return an error.
+        case "AVFoundationErrorDomain", NSOSStatusErrorDomain: return .toolFailed
+        default: return .unclassified
         }
     }
 
@@ -176,7 +214,7 @@ struct CommandFailure: Error, CustomStringConvertible {
     static func classify(_ error: any Error) -> Self {
         if let failure = error as? CommandFailure { return failure }
         if error is CancellationError { return Self(.cancelled, "\(error)", inputSent: .unknown) }
-        return Self(description: "\(error)")
+        return Self(foreignCode(error), "\(error)", inputSent: .unknown)
     }
 
     /// The CLI's exit status for a failure: 64 (EX_USAGE) when the call was

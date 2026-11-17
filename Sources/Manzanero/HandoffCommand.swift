@@ -15,15 +15,15 @@ struct HandoffCommand: Sendable, Equatable {
     /// `paired`, or a `wait` condition (`visible`, `gone`, `enabled`,
     /// `disabled`, `value`, `focused`) on the element `id` or `label` names.
     init(platform: String, device: String, message: String, timeout: String?,
-         until: String?, id: String? = nil, label: String? = nil, index: String? = nil, value: String? = nil) throws {
+         until: String?, id: String? = nil, label: String? = nil, withValue: String? = nil, index: String? = nil, value: String? = nil) throws {
         try self.init(platform: platform, device: device, message: message, timeout: timeout)
         guard let until else {
-            guard id == nil, label == nil, index == nil, value == nil else {
-                throw CommandFailure.usage("handoff: --id, --label, --index and --value describe what --until watches; give --until.")
+            guard id == nil, label == nil, withValue == nil, index == nil, value == nil else {
+                throw CommandFailure.usage("handoff: --id, --label, --with-value, --index and --value describe what --until watches; give --until.")
             }
             return
         }
-        condition = try HandoffCondition(until: until, platform: platform, device: device, id: id, label: label, index: index, value: value)
+        condition = try HandoffCondition(until: until, platform: platform, device: device, id: id, label: label, withValue: withValue, index: index, value: value)
     }
 
     /// A physical device takes a hardware UDID, a simulator its UUID.
@@ -65,21 +65,23 @@ enum HandoffCondition: Sendable, Equatable {
     /// CoreDevice reports the device connected and paired (physical devices).
     case paired
     /// A `wait` condition on one element, checked in short waits.
-    case element(operation: String, operands: [String], until: String, by: String, text: String)
+    case element(operation: String, operands: [String], until: String, by: String, text: String, value: String? = nil)
 
     static let names = ["unlocked", "paired"] + AccessibilityWait.conditionNames
     /// Seconds of one short wait; the handoff repeats it until its deadline.
     static let waitSeconds = 3
 
-    init(until: String, platform: String, device: String, id: String?, label: String?, index: String?, value: String?) throws {
-        let usage = "handoff --until takes \(Self.names.joined(separator: ", ")). unlocked and paired are for physical devices and take no selector; the others take exactly one of --id or --label, optionally --index, and --value for value."
+    init(until: String, platform: String, device: String, id: String?, label: String?, withValue: String? = nil, index: String?, value: String?) throws {
+        let usage = "handoff --until takes \(Self.names.joined(separator: ", ")). unlocked and paired are for physical devices and take no selector; the others take exactly one of --id, --label or --with-value, optionally --index, and --value for value."
         switch until {
         case "unlocked", "paired":
-            guard platform == "physical", id == nil, label == nil, index == nil, value == nil else { throw CommandFailure.usage(usage) }
+            guard platform == "physical", id == nil, label == nil, withValue == nil, index == nil, value == nil else { throw CommandFailure.usage(usage) }
             self = until == "unlocked" ? .unlocked : .paired
         default:
-            guard AccessibilityWait.conditionNames.contains(until), (id == nil) != (label == nil), let text = id ?? label else { throw CommandFailure.usage(usage) }
-            let operation = id != nil ? "wait-id" : "wait-label"
+            guard AccessibilityWait.conditionNames.contains(until), [id, label, withValue].compactMap({ $0 }).count == 1,
+                  let text = id ?? label ?? withValue else { throw CommandFailure.usage(usage) }
+            let by = id != nil ? "identifier" : withValue != nil ? "value" : "label"
+            let operation = "wait-\(AccessibilitySelector.suffix(by: by))"
             var operands = [text]
             if let index { operands += [AccessibilitySelector.indexOption, index] }
             operands += ["--until", until]
@@ -87,7 +89,7 @@ enum HandoffCondition: Sendable, Equatable {
             operands += ["--timeout", String(Self.waitSeconds)]
             // The wait's own validation is the check: selector, index, value.
             _ = try CommandRequest.input(Target(platform: platform == "physical" ? .physical : .simulator, identifier: device), operation, operands)
-            self = .element(operation: operation, operands: operands, until: until, by: id != nil ? "identifier" : "label", text: text)
+            self = .element(operation: operation, operands: operands, until: until, by: by, text: text, value: value)
         }
     }
 
@@ -95,7 +97,10 @@ enum HandoffCondition: Sendable, Equatable {
         switch self {
         case .unlocked: return ["until": "unlocked", "meaning": "display on and no passcode required"]
         case .paired: return ["until": "paired", "meaning": "connected and paired"]
-        case .element(_, _, let until, let by, let text): return ["until": until, "selector": ["by": by, "text": text]]
+        case .element(_, _, let until, let by, let text, let value):
+            var json: [String: Any] = ["until": until, "selector": ["by": by, "text": text]]
+            if let value { json["value"] = value }
+            return json
         }
     }
 
@@ -104,7 +109,9 @@ enum HandoffCondition: Sendable, Equatable {
         switch self {
         case .unlocked: return "the device unlocked with its display on"
         case .paired: return "the device connected and paired"
-        case .element(_, _, let until, let by, let text): return "the element with \(by) '\(text)' \(until)"
+        case .element(_, _, let until, let by, let text, let value):
+            // "… value 'hola'", not a bare "value": say what is expected.
+            return "the element with \(by) '\(text)' \(until)" + (value.map { " '\($0)'" } ?? "")
         }
     }
 }

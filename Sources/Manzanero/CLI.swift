@@ -125,8 +125,11 @@ struct TargetOptions: ParsableArguments {
     }
 }
 
-/// An exact accessibility selector: `--id` or `--label`, and an optional PID.
+/// An exact accessibility selector: `--id`, `--label` or `--with-value`, and an optional PID.
 struct SelectorOptions: ParsableArguments {
+    @Option(parsing: .unconditional, help: ArgumentHelp("Exact, case-sensitive current value, for an element with neither identifier nor label (a search field that only shows its placeholder).", valueName: "value"))
+    var withValue: String?
+
     @Option(parsing: .unconditional, help: ArgumentHelp("Exact, case-sensitive accessibility identifier.", valueName: "identifier"))
     var id: String?
 
@@ -140,8 +143,15 @@ struct SelectorOptions: ParsableArguments {
     var index: String?
 
     func validate() throws {
-        guard (id == nil) != (label == nil) else { throw ValidationError("Give exactly one of --id or --label.") }
+        guard [id, label, withValue].compactMap({ $0 }).count == 1 else {
+            throw ValidationError("Give exactly one of --id, --label or --with-value.")
+        }
     }
+
+    /// The node field the selector compares: identifier, label or value.
+    var by: String { id != nil ? "identifier" : withValue != nil ? "value" : "label" }
+    /// The selector's text, whichever option gave it.
+    var text: String { id ?? label ?? withValue ?? "" }
 }
 
 /// A parsed operation.
@@ -165,10 +175,10 @@ extension TargetedCommand {
 
 extension SelectorOptions {
     /// The internal name of a selector operation: `press-id`, `wait-label`, …
-    func operation(_ base: String) -> String { "\(base)-\(id != nil ? "id" : "label")" }
+    func operation(_ base: String) -> String { "\(base)-\(AccessibilitySelector.suffix(by: by))" }
 
     /// `[pid] <text>`, the operands the selector operations validate.
-    var operands: [String] { (pid.map { [$0] } ?? []) + [id ?? label ?? ""] }
+    var operands: [String] { (pid.map { [$0] } ?? []) + [text] }
 
     /// `--index <n>` when given; it follows every positional operand.
     var indexOperands: [String] { index.map { [AccessibilitySelector.indexOption, $0] } ?? [] }

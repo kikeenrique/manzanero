@@ -167,6 +167,8 @@ struct LayoutDetectionCommand: Sendable, Equatable {
     let by: String
     let text: String
     let pid: Int32?
+    /// `--index`: the position among several fields that match, counted from 1.
+    let index: Int?
     /// The value set before typing, so the probe never starts a sentence and
     /// the typed part can be cut from what is read back.
     static let prefix = "x"
@@ -175,10 +177,10 @@ struct LayoutDetectionCommand: Sendable, Equatable {
         guard !target.identifier.isEmpty, !target.identifier.hasPrefix("-") else {
             throw CommandFailure.usage("Provide a valid device identifier.")
         }
-        guard selector.index == nil else {
-            throw CommandFailure.usage("detect-layout does not take --index: select the field by a selector that matches it alone.")
+        guard selector.withValue == nil else {
+            throw CommandFailure.usage("detect-layout does not take --with-value: the probe changes the field's value, so the selector would stop matching. Use --id or --label, with --index among several.")
         }
-        let text = selector.id ?? selector.label ?? ""
+        let text = selector.text
         guard (1...4096).contains(text.utf8.count), !text.contains("\0") else {
             throw CommandFailure.usage("detect-layout requires an exact selector of 1...4096 UTF-8 bytes without NUL.")
         }
@@ -192,20 +194,24 @@ struct LayoutDetectionCommand: Sendable, Equatable {
         }
         self.platform = target.platform
         self.device = target.identifier
-        self.by = selector.id != nil ? "identifier" : "label"
+        self.by = selector.by
         self.text = text
         self.pid = pid
+        self.index = try selector.index.map(AccessibilitySelector.parseIndex)
     }
 
     var target: Target { Target(platform: platform, identifier: device) }
     /// `[pid] <selector>`, the operands the selector operations take.
     var selectorOperands: [String] { (pid.map { [String($0)] } ?? []) + [text] }
     var setValueOperation: String { by == "identifier" ? "set-value-id" : "set-value-label" }
+    /// `--index <n>`, which follows every positional operand of set-value.
+    var indexOperands: [String] { index.map { [AccessibilitySelector.indexOption, String($0)] } ?? [] }
+    var selector: AccessibilitySelector { AccessibilitySelector(by: by, text: text, index: index) }
 
     func plan(_ probe: LayoutProbe) -> [String: Any] {
         let groups = probe.groups
         return ["operation": "detect-layout", "platform": platform.rawValue, "device": device,
-                "selector": ["by": by, "text": text], "pid": pid.map { $0 as Any } ?? NSNull(),
+                "selector": selector.json, "pid": pid.map { $0 as Any } ?? NSNull(),
                 "probe": ["strokes": probe.strokeDescriptions, "keyCount": probe.strokes.count,
                           "layouts": probe.expectations.count, "distinguishableGroups": groups.count,
                           "largestGroup": groups.first.map { $0.layouts.map(\.name) } ?? []] as [String: Any],
@@ -252,16 +258,24 @@ struct LayoutDetection {
     static let backspaceUsage: UInt64 = 42
 
     /// The value of the one node a tree holds for the selector: "" when it
-    /// has no string value. None, or several, is refused before any input.
-    static func fieldValue(fromTree data: Data, by: String, text: String) throws -> String {
+    /// has no string value. None, or several without an index, is refused
+    /// before any input; an index chooses by position in node order, as
+    /// `--index` does for set-value.
+    static func fieldValue(fromTree data: Data, by: String, text: String, index: Int? = nil) throws -> String {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let nodes = root["nodes"] as? [[String: Any]] else {
             throw CommandFailure(.transportFailed, "The accessibility tree has no node list; no input sent.", inputSent: .none)
         }
         let key = by == "identifier" ? "identifier" : "label"
         let found = nodes.filter { $0[key] as? String == text }
+        if let index {
+            guard index <= found.count else {
+                throw CommandFailure(.targetUnresolved, "The tree has \(found.count) elements with \(key) '\(text)'; --index \(index) is beyond them. No input sent.", inputSent: .none)
+            }
+            return found[index - 1]["value"] as? String ?? ""
+        }
         guard found.count == 1, let node = found.first else {
-            throw CommandFailure(.targetUnresolved, "The tree has \(found.count) elements with \(key) '\(text)'; detect-layout needs exactly one. No input sent.", inputSent: .none)
+            throw CommandFailure(.targetUnresolved, "The tree has \(found.count) elements with \(key) '\(text)'; detect-layout needs exactly one, or --index to choose. No input sent.", inputSent: .none)
         }
         return node["value"] as? String ?? ""
     }
@@ -305,7 +319,7 @@ struct LayoutDetection {
         }
         let original = try await operations.read()
         var result: [String: Any] = ["operation": "detect-layout", "platform": command.platform.rawValue, "device": command.device,
-                                     "selector": ["by": command.by, "text": command.text], "settingsChanged": false,
+                                     "selector": command.selector.json, "settingsChanged": false,
                                      "probe": ["strokes": probe.strokeDescriptions, "layoutsCompared": probe.expectations.count,
                                                "distinguishableGroups": probe.groups.count] as [String: Any]]
         var arrived: String?

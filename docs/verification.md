@@ -388,6 +388,37 @@ With the three-line message and the server reconnected, the case the wording is 
 
 Not run on the phone: a timeout, `unlocked` and `paired` from the locked or unpaired state, the typed answers while watching, a watch longer than 21 s, the MCP `until` field from a host, and a simulator. Unit tests cover the loop with injected device readings: a condition met on the third look, an already-met one, a timeout, a failed look, the pause refusing a tap, and cancellation.
 
+### Handoff watch: a timeout on the phone and runs on a simulator
+
+**2026-11-17, 23:08**, the same phone, asleep and locked (`displayPower: off`, `passcodeRequired: true`), and one iPhone 17e simulator (iOS 27.2) with the probe app, all from a non-interactive shell.
+
+| Command | Observed |
+| --- | --- |
+| Phone: `handoff 'Unlock the phone' 180 --until unlocked`; nobody touched the phone | Exit 1 after 182 s and 63 looks: `status: timedOut`, `alreadyMet: false`, `verified: false`, last observation `displayPower: off`, `passcodeRequired: true`. This is the timeout and a three-minute watch; the unlock itself did not happen |
+| Simulator, a notification prompt on screen (screenshot): `handoff 'Answer the notification prompt' 60 --until gone --label Allow`, and 9 s later a second process ran `press --label Allow` | The press was accepted (the pause is per process). Exit 0 after 11 s and 3 looks: `status: observed`, `verified: true`, observation reason `absent` |
+| Simulator: `handoff … --until value --id probe.text.field --value hola`, the field already holding `hola` | Exit 0 at once: `alreadyMet: true`, `polls: 1` |
+| Simulator: the same for `adios`, and 7 s later a second process ran `set-value --id probe.text.field adios` | Exit 0 after 8 s and 2 looks: `observed`, `verified: true` |
+| Simulator: `handoff … 60 --until value --id probe.text.value --value hola` while the prompt covered the app | `timedOut` after 65 s and 13 looks, observation `no-match` in the prompt's process (SpringBoard): the watch reads the frontmost application, so an element of the app under a prompt is not seen. Also, `probe.text.value` holds JSON, not the text; the field itself is `probe.text.field` |
+
+The request line printed for a `value` condition ended in a bare "value"; it now names the awaited value ("the element with identifier 'probe.text.field' value 'nunca'"), and the plan's `until` carries it.
+
+Still not run: `unlocked` from the locked state with someone unlocking, `paired` from unpaired, a typed answer while watching, and the MCP `until` field from a host.
+
+### Selector by value, detect-layout index, masked read-back and the display note
+
+**2026-11-17, night.** Built that evening and run on the same iPhone 17e simulator with the probe app, except the last row.
+
+| Command | Observed |
+| --- | --- |
+| `wait --with-value adios --timeout 3` | `condition-met`, selector `by: value`, one match |
+| `set-value --with-value adios 'por valor'` | `acknowledged`, `valueMatches: true`; the target was `probe.text.field` |
+| `press --with-value 'por valor'` | `accepted` |
+| `detect-layout --id probe.text.field --index 1` | Ran as without the index; the plan's selector carries `index: 1`, restore confirmed |
+| `detect-layout --id probe.text.field --index 2` | Refused, nothing sent: "The tree has 1 elements with identifier 'probe.text.field'; --index 2 is beyond them" |
+| Phone, asleep: `screenshot` | Succeeded as before, and the receipt now carries `displayPower: off` and a `displayNote` saying the image is probably black |
+
+Unit tests only, not run on a device: the masked read-back of a secure field (`valueMatches: null`, `readBack: masked`), `press` on an element that reaches past the display's edge with its centre on it, a selector action with the PID of the process hosting the display-centre one, and the categories of errors that are not this tool's own.
+
 ### Web content on the phone
 
 **2026-11-17, later the same day**, same phone and host, Chrome with public test pages. This follows the web form failure in the session above.

@@ -50,6 +50,31 @@ struct CommandFailureTests {
         }
     }
 
+    /// Errors that are not a `CommandFailure` get a category from their type
+    /// and domain; the site is unknown, so `inputSent` stays unknown.
+    @Test func foreignErrorsAreClassifiedByTypeAndDomain() throws {
+        struct Reply: Decodable { let value: Int }
+        let decoding = try #require(throws: DecodingError.self) { try JSONDecoder().decode(Reply.self, from: Data("{}".utf8)) }
+        let malformed = try #require(throws: (any Error).self) { try JSONSerialization.jsonObject(with: Data("not json".utf8)) }
+        let cases: [(any Error, CommandFailure.Code)] = [
+            (decoding, .transportFailed), (malformed, .transportFailed),
+            (POSIXError(.ETIMEDOUT), .timeout), (POSIXError(.ECONNRESET), .transportFailed), (POSIXError(.EPIPE), .transportFailed),
+            (POSIXError(.ENOENT), .hostRequirement), (POSIXError(.ENOSPC), .hostRequirement), (POSIXError(.EIO), .unclassified),
+            (URLError(.timedOut), .timeout), (URLError(.cannotConnectToHost), .transportFailed),
+            (CocoaError(.fileNoSuchFile), .hostRequirement), (CocoaError(.fileWriteNoPermission), .hostRequirement),
+            (CocoaError(.userCancelled), .unclassified),
+            (NSError(domain: "AVFoundationErrorDomain", code: -11800), .toolFailed),
+            (NSError(domain: NSOSStatusErrorDomain, code: -12909), .toolFailed),
+            (NSError(domain: "SomeOtherDomain", code: 1), .unclassified)
+        ]
+        for (error, code) in cases {
+            let classified = CommandFailure.classify(error)
+            #expect(classified.code == code && classified.inputSent == .unknown && classified.retry == .afterInspection, "\(error)")
+            #expect(classified.description == "\(error)")
+            #expect(CommandFailure("context", wrapping: error).code == code, "\(error)")
+        }
+    }
+
     @Test func wrappingKeepsTheInnerClassificationAndUsesTheNewMessage() {
         let inner = CommandFailure(.displayOff, "inner", inputSent: .none)
         let outer = CommandFailure("outer: \(inner)", wrapping: inner)
@@ -91,7 +116,7 @@ struct CommandFailureTests {
         #expect(error["action"] as? String == "wake")
         let usage = try json(ErrorFormat.json.render(CommandFailure.usage("u")))
         #expect(usage["action"] is NSNull && Set(usage.keys) == ["code", "message", "inputSent", "retry", "action"])
-        let posix: any Error = POSIXError(.ENOENT)
+        let posix: any Error = POSIXError(.EIO)
         let foreign = try json(ErrorFormat.json.render(posix))
         #expect(foreign["code"] as? String == "unclassified" && foreign["inputSent"] as? String == "unknown")
         #expect(foreign["message"] as? String == "\(posix)")
@@ -148,7 +173,7 @@ struct CommandFailureTests {
         (["tap", "0.5", "0.5", "--simulator", "U"], "Simulator tap requires the simulator's UUID (see devices --simulators); names and 'booted' are not accepted.", "usage"),
         (["wake", "--simulator", "11111111-2222-3333-4444-555555555555"], "Simulator wake is not implemented yet; simulator input covers touch with one to five contacts, gesture sequences, button, key and type. Wake remains physical-only. No input sent.", "unsupported-operation"),
         (["boot", "--device", "U"], "Unsupported physical-device operation: boot.", "unsupported-operation"),
-        (["wait", "--id", "sel", "--timeout", "99", "--device", "U"], "--timeout must be a number of seconds in 0...60. Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--index <position 1...512>] [--until visible|gone|enabled|disabled|value|focused] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>].", "usage"),
+        (["wait", "--id", "sel", "--timeout", "99", "--device", "U"], "--timeout must be a number of seconds in 0...60. Native AX wait usage: wait (--id <identifier> | --label <label> | --with-value <value>) [--pid <positive-pid>] [--index <position 1...512>] [--until visible|gone|enabled|disabled|value|focused] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>].", "usage"),
         (["gesture", #"{"frames":[{"ms":0,"touches":[]}]}"#, "--device", "U"], "Gesture requires 2...512 frames, starting at ms=0 with a touch and ending with touches:[].", "usage"),
     ])
     func parseFailuresKeepTheirTextAndSayNothingWasSent(_ args: [String], _ message: String, _ code: String) async throws {

@@ -112,7 +112,14 @@ struct HandoffWatchTests {
             Issue.record("Not a handoff"); return
         }
         #expect(value.timeoutSeconds == 120 && value.condition == .element(operation: "wait-id",
-            operands: ["field", "--until", "value", "--value", "ok", "--timeout", "3"], until: "value", by: "identifier", text: "field"))
+            operands: ["field", "--until", "value", "--value", "ok", "--timeout", "3"], until: "value", by: "identifier", text: "field", value: "ok"))
+        // The person is told which value is awaited, and the plan carries it.
+        #expect(value.condition?.sentence == "the element with identifier 'field' value 'ok'" && value.condition?.json["value"] as? String == "ok")
+        guard case .handoff(let byValue) = try command(["handoff", "Clear the search", "--until", "gone", "--with-value", "Buscar", "--simulator", simulator]) else {
+            Issue.record("Not a handoff"); return
+        }
+        #expect(byValue.condition == .element(operation: "wait-value", operands: ["Buscar", "--until", "gone", "--timeout", "3"],
+                                               until: "gone", by: "value", text: "Buscar"))
         // Without --until nothing changes: a person answers.
         guard case .handoff(let plain) = try command(["handoff", "Do it", "--device", udid]) else { Issue.record("Not a handoff"); return }
         #expect(plain.condition == nil)

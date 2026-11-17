@@ -36,7 +36,7 @@ manzanero detect-layout --id probe.text.field --device <UDID>
 manzanero type --layout spanish-iso '¿Qué? <º> @€' --device <UDID>
 ```
 
-`detect-layout` (MCP `detect_keyboard_layout`) types a short probe into one named text field, reads what arrived and compares it with what every keyboard layout on this Mac would have typed. It works on physical devices and simulators.
+`detect-layout` (MCP `detect_keyboard_layout`) types a short probe into one named text field, reads what arrived and compares it with what every keyboard layout on this Mac would have typed. It works on physical devices and simulators. The field is named with `--id` or `--label`, and `--index` (MCP `index`) chooses among several that match, by position; `--with-value` is refused, because the probe changes the field's value.
 
 - **The probe** is computed from the Mac's layouts when the command runs: a greedy choice of letter, digit and punctuation keys, with and without Shift, that splits the layouts into as many groups as possible. Never Option, Return, Tab, Escape, space or arrows; a key that types a control character in any layout is not used; ties prefer keys that are not letters; and no layout may be left with a dead key pending at the end. On the test Mac it is 12 keys and tells the 262 layouts apart in 215 groups. `--dry-run` prints the keys and group counts without contacting the device.
 - **Steps.** Read the field's value from the tree; `set-value` it to `x`, with the guards of `press` and the settable check (this focuses it with the caret at the end, and keeps the probe from starting a sentence); type the probe as HID keyboard events; read the field again and take what follows the `x`; compare.

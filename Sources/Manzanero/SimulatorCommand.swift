@@ -10,7 +10,7 @@ struct SimulatorInput: Sendable, Equatable {
     let operation: String
     let operands: [String]
 
-    static let selectorActions = ["press-id", "press-label", "scroll-id", "scroll-label"]
+    static let selectorActions = DirectAccessibilityAction.operations
     static let accessibilityOperations = ["tree"] + selectorActions + DirectAccessibilitySetValue.operations + AccessibilityWait.operations
     /// Indigo digitizer schedules: one contact, or two for pinch and a
     /// two-path multi-drag (pointOne and pointTwo), as on physical devices.

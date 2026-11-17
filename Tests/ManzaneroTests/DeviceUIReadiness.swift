@@ -39,6 +39,31 @@ struct DeviceUIReadinessTests {
         #expect(DeviceUIReadiness.annotateInput(own, uuid: uuid) { _ in Issue.record("Queried"); return Data() } == own)
     }
 
+    /// A sleeping phone answers a screenshot with a black image and no
+    /// error; the receipt says the display was off.
+    @Test func screenshotReceiptsSayWhenTheDisplayWasOff() throws {
+        let udid = CoreDeviceInputTests().udid
+        let receipt = try JSONSerialization.data(withJSONObject: ["info": ["outcome": "success"], "result": ["path": "a.png"]])
+        func annotated(_ query: @escaping (DeviceCommand) throws -> Data) throws -> [String: Any] {
+            try #require(JSONSerialization.jsonObject(with: DeviceUIReadiness.annotateScreenshot(receipt, device: udid, query: query)) as? [String: Any])
+        }
+        let off = try annotated { plan in
+            #expect(plan.arguments == ["devicectl", "device", "info", "displays", "--device", udid, "--timeout", "10", "--quiet", "--json-output", "-"])
+            return try response("displays", power: "off")
+        }
+        #expect(off["displayPower"] as? String == "off" && off["displayNote"] as? String == DeviceUIReadiness.displayOffNote)
+        #expect((off["result"] as? [String: String]) == ["path": "a.png"])
+        let on = try annotated { _ in try response("displays") }
+        #expect(on["displayPower"] as? String == "on" && on["displayNote"] == nil)
+        // Unknown, never guessed, and never a failed screenshot.
+        for query: (DeviceCommand) throws -> Data in [{ _ in throw CommandFailure(description: "offline") },
+                                                       { _ in try response("displays", duplicate: true) },
+                                                       { _ in try response("displays", power: "dimmed") }] {
+            let unknown = try annotated(query)
+            #expect(unknown["displayPower"] as? String == "unknown" && unknown["displayNote"] == nil)
+        }
+    }
+
     @Test func observesPowerAndPasscodeWithoutClaimingCurrentUIUnlock() throws {
         let fixture = CoreDeviceInputTests()
         for power in ["activeOn", "off"] {

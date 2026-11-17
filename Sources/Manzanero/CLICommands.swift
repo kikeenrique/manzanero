@@ -234,7 +234,7 @@ extension ManzaneroCLI {
     }
 
     struct Press: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "press", abstract: "Press one element by exact identifier or label.",
+        static let configuration = CommandConfiguration(commandName: "press", abstract: "Press one element by exact identifier, label or value.",
             discussion: "Two fresh unique snapshots and live state, frame and hit checks precede one accessibility press. \(receiptCaveat)")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
@@ -243,7 +243,7 @@ extension ManzaneroCLI {
     }
 
     struct Scroll: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "scroll", abstract: "Scroll one element into view by exact identifier or label.",
+        static let configuration = CommandConfiguration(commandName: "scroll", abstract: "Scroll one element into view by exact identifier, label or value.",
             discussion: "The element must already be in the snapshot. Visibility is observed afterward and reported separately.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
@@ -693,7 +693,7 @@ extension ManzaneroCLI {
             itself when it shows the condition, or at the timeout; nobody has to answer, no terminal is needed, and \
             a step that is already done returns at once. unlocked (display on, no passcode required) and paired \
             (connected and paired) are for physical devices; visible, gone, enabled, disabled, value and focused \
-            are wait's conditions and take --id or --label, for example --until gone --label Allow for a \
+            are wait's conditions and take --id, --label or --with-value, for example --until gone --label Allow for a \
             permission prompt. Without --until a person answers in the terminal (done, decline, cancel) and the \
             answer is not verified on the device. Do not put secrets in the message.
             """)
@@ -705,11 +705,12 @@ extension ManzaneroCLI {
                 completion: .list(HandoffCondition.names)) var until: String?
         @Option(parsing: .unconditional, help: ArgumentHelp("Element to watch, by exact accessibility identifier.", valueName: "identifier")) var id: String?
         @Option(parsing: .unconditional, help: ArgumentHelp("Element to watch, by exact accessibility label.", valueName: "label")) var label: String?
+        @Option(parsing: .unconditional, help: ArgumentHelp("Element to watch, by its exact current value.", valueName: "value")) var withValue: String?
         @Option(help: ArgumentHelp("Position among several matching elements, counted from 1.", valueName: "position")) var index: String?
         @Option(parsing: .unconditional, help: ArgumentHelp("Exact expected value, for --until value.", valueName: "text")) var value: String?
         func request(_ target: Target) throws -> CommandRequest {
             .handoff(try HandoffCommand(platform: target.platform.rawValue, device: target.identifier, message: message, timeout: timeout,
-                                        until: until, id: id, label: label, index: index, value: value))
+                                        until: until, id: id, label: label, withValue: withValue, index: index, value: value))
         }
     }
 

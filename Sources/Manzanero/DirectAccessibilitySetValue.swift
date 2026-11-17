@@ -18,7 +18,7 @@ protocol AccessibilityValueSetting: AccessibilityExchange {
 /// value is read back once and compared; the receipt reports the comparison
 /// rather than failing on it, because the app may legitimately transform it.
 struct DirectAccessibilitySetValue {
-    static let operations = ["set-value-id", "set-value-label"]
+    static let operations = AccessibilitySelector.operations("set-value")
     static let maximumTextBytes = 65536
 
     let guards: DirectAccessibilityAction
@@ -30,7 +30,7 @@ struct DirectAccessibilitySetValue {
         var operands = input.operands
         let index = try AccessibilitySelector.takeIndex(&operands, minimumCount: 4)
         guard Self.operations.contains(input.operation), (2...3).contains(operands.count) else {
-            throw CommandFailure.usage("Usage: set-value-id|set-value-label [positive-pid] <exact-selector> <text>; text is 1...\(Self.maximumTextBytes) UTF-8 bytes without NUL.")
+            throw CommandFailure.usage("Usage: set-value-id|set-value-label|set-value-value [positive-pid] <exact-selector> <text>; text is 1...\(Self.maximumTextBytes) UTF-8 bytes without NUL.")
         }
         let selector = operands[operands.count - 2], value = operands[operands.count - 1]
         guard (1...4096).contains(selector.utf8.count), !selector.contains("\0") else {
@@ -44,9 +44,17 @@ struct DirectAccessibilitySetValue {
             guard let value = Int32(operands[0]), value > 0 else { throw CommandFailure.usage("Native AX selector PID must be positive.") }
             pid = value
         }
-        guards = DirectAccessibilityAction(guardsFor: "set-value", by: input.operation.hasSuffix("-id") ? "identifier" : "label",
+        guards = DirectAccessibilityAction(guardsFor: "set-value", by: AccessibilitySelector.by(operation: input.operation),
                                            text: selector, pid: pid, index: index)
         self.value = value
+    }
+
+    /// Whether a read-back is the masked form of `value`: nothing but bullets
+    /// (U+2022), one per character sent. Seen on a secure `UITextField` on
+    /// the phone, 14 bullets for 14 characters. A value that is itself all
+    /// bullets is compared as text instead.
+    static func isMasked(_ readBack: String, for value: String) -> Bool {
+        readBack != value && readBack.count == value.count && readBack.allSatisfy { $0 == "\u{2022}" }
     }
 
     func execute(session: any AccessibilityValueSetting, display: () throws -> AccessibilityDisplay) throws -> Data {
@@ -60,11 +68,9 @@ struct DirectAccessibilitySetValue {
             try session.start()
             stage = "select-process"
             let selected = try session.foregroundProcess(geometry)
-            if let pid = guards.pid, pid != selected.pid {
-                throw guards.failure("requested PID differs from \(platform.selectionSubject) process", .targetUnresolved)
-            }
+            let process = try guards.actionProcess(selected: selected.pid, session: session)
             stage = "application"
-            let root = try session.application(pid: selected.pid)
+            let root = try session.application(pid: process)
             stage = "first-snapshot"
             let first = try guards.resolve(session.snapshot(root), root: root)
             stage = "second-snapshot"
@@ -81,18 +87,18 @@ struct DirectAccessibilitySetValue {
             stage = "target-hit"
             try guards.verifyHit(target, frame: before.frame, geometry: geometry, session: session)
             stage = "application/display-recheck"
-            try guards.verifySelection(root, geometry: geometry, session: session, display: display)
+            try guards.verifySelection(root, centre: selected.pid, geometry: geometry, session: session, display: display)
             stage = "set-value"
             try session.setValue(target.token, text: value, onSubmission: { state = "submitted" })
             state = "acknowledged"
             var result: [String: Any] = ["backend": platform.backend, "operation": operation,
                 "status": "acknowledged", "verified": false, "atomic": false,
-                "application": ["pid": root.pid, "selection": guards.pid == nil ? platform.selection : "explicit-pid+\(platform.selection)"],
+                "application": guards.applicationJSON(root.pid, centre: selected.pid, platform: platform),
                 "selector": guards.selector.json, "coordinateSpace": "device-logical-points",
                 "target": before.json, "requestedUTF8Bytes": value.utf8.count,
                 "limitations": ["Sequential guards are not atomic or a complete hittability check.",
                     "The value replaces the element's whole value; it is not typed at a caret, and no keyboard, clipboard or return key is involved.",
-                    "The app may transform or reject the value; valueMatches compares one read-back.",
+                    "The app may transform or reject the value; valueMatches compares one read-back, and is null with readBack 'masked' when a secure field answers one bullet per character.",
                     "No coordinate fallback or automatic replay. Inspect a fresh observation before retrying."]]
             stage = "read-back"
             do {
@@ -101,8 +107,16 @@ struct DirectAccessibilitySetValue {
                 }
                 let readBack = fields[String(AccessibilityRequest.valueAttribute)]
                 if case .string(let text) = readBack {
-                    result["valueMatches"] = text == value
                     result["readBackUTF8Bytes"] = text.utf8.count
+                    if Self.isMasked(text, for: value) {
+                        // A secure field answers one bullet per character, so
+                        // the text cannot be compared; only its length can.
+                        result["valueMatches"] = NSNull()
+                        result["readBack"] = "masked"
+                        result["maskedLengthMatches"] = true
+                    } else {
+                        result["valueMatches"] = text == value
+                    }
                 } else {
                     result["valueMatches"] = false
                     result["readBack"] = "not a string"

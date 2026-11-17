@@ -33,34 +33,36 @@ A web page is drawn by a content process of its own, inside the browser's or app
 
 What follows from it:
 
-- The tree is the page alone. The browser's own controls are in the browser's tree (`tree --pid <browser>`), which stops at the remote element; selector actions on them are refused while the page holds the display centre, because the optional PID must agree with it.
+- The tree is the page alone. The browser's own controls are in the browser's tree (`tree --pid <browser>`), which stops at the remote element. To act on them while the page holds the display centre, give the browser's PID: `press`, `scroll` and `set-value` accept `--pid` when it is the process that hosts the display-centre one, which is read from the page's root (`processIdentifier`). The receipt then reports `application.selection: explicit-pid-hosting-centre-hit-test` and the page's PID as `hostedPid`. Any other PID is still refused, and every later guard is unchanged: the hit test at the target's centre must answer the target itself. Unit-tested only; not yet run against a browser on a device.
 - The first read after a page loads can still select the browser, before the page's accessibility has started. Read again, or `wait` for an element of the page.
 - `press`, `scroll` and `wait` use the same selection, so they act on the page. A link or a field usually shares its label with the text inside it or with its HTML label; when the visible-one rule does not settle that, the selector is ambiguous and web elements carry no identifier to fall back on. Use `--index`.
 - `set-value` is acknowledged by a web input but did not change it (`valueMatches: false`). Press the field, then `type`.
-- Focusing a field can zoom the page. An element then wider than the display is refused by `press` ("target is not wholly inside the primary display"); a `tap` at its frame from a fresh tree reaches it.
+- Focusing a field can zoom the page, and an element can then be wider than the display (a 392-point field on a 375-point display). `press` used to refuse it ("target is not wholly inside the primary display"); since 2026-11-17 it accepts an element that reaches past an edge when its centre is on the display and the hit test there answers the element. That case is unit-tested and has not been repeated on the phone.
 
 ## Current guarded native press
 
 ```sh
 manzanero press --id com.example.control --device <UDID>
 manzanero press --label 'Exact label' --device <UDID>
-# Optional PID must agree with the selected display-centre process:
+# An element with neither identifier nor label, by its exact current value:
+manzanero press --with-value 'Buscar' --device <UDID>
+# Optional PID: the display-centre process, or the process that hosts it (a browser around a page):
 manzanero press --id com.example.control --pid <pid> --device <UDID>
 ```
 
-Give exactly one of `--id` or `--label`. MCP `press_element` takes `device`, `by: identifier|label`, `text` and optional positive `pid`. Selector text is exact/case-sensitive, `1...4096` UTF-8 bytes without NUL; it may begin with `-`, and text that spells one of the global options (`--dry-run`, `--error-format`, `--help`, `--version`) is attached with `=` (`--label=--help`). Pairing files are unsupported.
+Give exactly one of `--id`, `--label` or `--with-value`. `--with-value` compares the element's current value, which is all a search field showing only its placeholder has (the Settings search field); the value changes as soon as something is typed, so read the tree first. `press`, `scroll`, `set-value`, `wait` and `handoff --until` take it; `detect-layout` does not, because its probe changes the field's value. MCP `press_element` takes `device`, `by: identifier|label|value`, `text` and optional positive `pid`. Selector text is exact/case-sensitive, `1...4096` UTF-8 bytes without NUL; it may begin with `-`, and text that spells one of the global options (`--dry-run`, `--error-format`, `--help`, `--version`) is attached with `=` (`--label=--help`). Pairing files are unsupported.
 
 Before one native press, the operation requires:
 
 1. An awake portrait primary display and its centre-selected process.
 2. The same unique native target in two fresh snapshots.
 3. Matching live identifier/frame and known enabled/visible state.
-4. A positive-size frame wholly inside the display whose centre hits that exact target.
+4. A positive-size frame whose centre is on the display and hits that exact target. The frame may reach past an edge.
 5. Rechecked application root, centre process and display geometry.
 
 Repeated paths for one identity are accepted only when the full native attributes agree. Different matching identities, foreign processes, hidden/disabled/ambiguous targets and mismatches are refused. When several distinct elements match and the visible-one rule does not settle it, the failure lists up to five of them with their identifier, visibility and frame (`… multiple distinct or inconsistent matches: 5 elements (identifier 'com.apple.settings.general', visible, frame 20,254 280x52; …). Select one by a unique identifier, or by its position in this list with --index`), so the call can be repeated with `--id` or `--index`. Nothing is chosen for the caller.
 
-**`--index <n>`** (MCP `index`) chooses among several matches when no identifier tells them apart, as on web pages, where a field shares its label with its HTML label. It takes the nth distinct matching element, counted from 1 in the tree's node order, which is the order the failure lists them and the order of `tree`'s node IDs. `press`, `scroll`, `set-value` and `wait` take it; `detect-layout` does not. With it the visible-one rule is not applied and a hidden element is not skipped: the position is taken as given. A position beyond the matches is refused with the list. Every guard after the choice still applies to the chosen element: the second snapshot must give the same identity at that position, and live state, frame and hit are checked as usual. The receipt's `selector` carries the `index`. A position is not an identity: content that gains or loses an earlier match moves it to another element, so read the tree or the failure's list first, and prefer `--id` when an identifier exists.
+**`--index <n>`** (MCP `index`) chooses among several matches when no identifier tells them apart, as on web pages, where a field shares its label with its HTML label. It takes the nth distinct matching element, counted from 1 in the tree's node order, which is the order the failure lists them and the order of `tree`'s node IDs. `press`, `scroll`, `set-value`, `wait` and `detect-layout` take it. With it the visible-one rule is not applied and a hidden element is not skipped: the position is taken as given. A position beyond the matches is refused with the list. Every guard after the choice still applies to the chosen element: the second snapshot must give the same identity at that position, and live state, frame and hit are checked as usual. The receipt's `selector` carries the `index`. A position is not an identity: content that gains or loses an earlier match moves it to another element, so read the tree or the failure's list first, and prefer `--id` when an identifier exists.
 
 Only then is one type-7/action-5 request submitted with a fresh token. No coordinate fallback, stale snapshot handle, automatic retry or replay is used. Sequential guards reduce stale targeting but do not make the action atomic or implement XCTest's full hittability calculation.
 

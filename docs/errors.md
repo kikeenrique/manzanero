@@ -117,5 +117,15 @@ At the app-logs checkpoint, `Sources/Manzanero` constructed `CommandFailure` in 
 
 What remains `unclassified`:
 
-- Errors that are not `CommandFailure` at all: Foundation and POSIX errors (malformed JSON from an Apple tool, socket errors), decoding errors and AVFoundation errors. They print exactly as before and are `unclassified` with `inputSent: unknown`, except that the accessibility action and tree paths, which know their stage, report `none` before the action.
-- A wrapped failure keeps the inner category, so a wrapper around one of the above stays unclassified.
+- Errors that are not `CommandFailure` at all and that `CommandFailure.foreignCode` does not recognise. Since 2026-11-17 the recognised ones get a category from their type and domain alone, and print exactly as before:
+
+  | Error | Category |
+  | --- | --- |
+  | A `DecodingError`; unreadable JSON, property list or keyed-archive data | `transport-failed` |
+  | POSIX `ETIMEDOUT`; `NSURLErrorTimedOut` | `timeout` |
+  | POSIX connection errors (refused, reset, aborted, broken pipe, not connected, host or network unreachable or down); other `NSURLErrorDomain` errors | `transport-failed` |
+  | A file or directory on this Mac that is missing, unreadable, unwritable, full, read-only or already there (POSIX and Cocoa file errors) | `host-requirement` |
+  | `AVFoundationErrorDomain` and `NSOSStatusErrorDomain` | `tool-failed` |
+
+  The site of such an error is not known, so `inputSent` stays `unknown` and `retry` is `after-inspection`, except that the accessibility action and tree paths, which know their stage, report `none` before the action. Anything else (`EIO`, an unknown domain) is still `unclassified`.
+- A wrapped failure keeps the inner category, so a wrapper around an unrecognised error stays unclassified.

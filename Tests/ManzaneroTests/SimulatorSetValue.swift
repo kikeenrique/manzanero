@@ -35,8 +35,8 @@ struct SimulatorSetValueTests {
         let labelled = try DirectAccessibilitySetValue(Self.input("set-value-label", ["42", "Field", "x"]).coreDeviceInput)
         #expect(labelled.guards.by == "label" && labelled.guards.pid == 42 && labelled.operation == "set-value")
         let invalid: [([String], String)] = [
-            (["set-value-id", "only"], "Usage: set-value-id|set-value-label [positive-pid] <exact-selector> <text>; text is 1...65536 UTF-8 bytes without NUL."),
-            (["set-value-id", "1", "2", "3", "4"], "Usage: set-value-id|set-value-label [positive-pid] <exact-selector> <text>; text is 1...65536 UTF-8 bytes without NUL."),
+            (["set-value-id", "only"], "Usage: set-value-id|set-value-label|set-value-value [positive-pid] <exact-selector> <text>; text is 1...65536 UTF-8 bytes without NUL."),
+            (["set-value-id", "1", "2", "3", "4"], "Usage: set-value-id|set-value-label|set-value-value [positive-pid] <exact-selector> <text>; text is 1...65536 UTF-8 bytes without NUL."),
             (["set-value-id", "field", ""], "Native AX set-value text must be 1...65536 UTF-8 bytes without NUL."),
             (["set-value-id", "field", "a\0b"], "Native AX set-value text must be 1...65536 UTF-8 bytes without NUL."),
             (["set-value-id", "field", String(repeating: "é", count: 32769)], "Native AX set-value text must be 1...65536 UTF-8 bytes without NUL."),
@@ -88,6 +88,19 @@ struct SimulatorSetValueTests {
         #expect(receipt["verified"] as? Bool == false && receipt["requestedUTF8Bytes"] as? Int == 16 && receipt["readBackUTF8Bytes"] as? Int == 16)
         #expect(receipt["platform"] as? String == "simulator")
         #expect((receipt["selector"] as? [String: String]) == ["by": "identifier", "text": "probe.text.field"])
+    }
+
+    /// A secure field answers one bullet per character: the text cannot be
+    /// compared, so the receipt says masked instead of "does not match".
+    @Test func aMaskedReadBackIsNotReportedAsAMismatch() async throws {
+        let fixture = Self.fixture()
+        fixture.transform = { String(repeating: "\u{2022}", count: $0.count) }
+        let receipt = try await Self.run(fixture, ["set-value", "--id", "probe.text.field", "hunter2 ñ"])
+        #expect(receipt["valueMatches"] is NSNull && receipt["readBack"] as? String == "masked" && receipt["maskedLengthMatches"] as? Bool == true)
+        #expect(receipt["status"] as? String == "acknowledged" && receipt["readBackUTF8Bytes"] as? Int == 27)
+        // Bullets of another length, and a value that is itself bullets, are compared as text.
+        #expect(!DirectAccessibilitySetValue.isMasked("•••", for: "ab") && !DirectAccessibilitySetValue.isMasked("••", for: "••"))
+        #expect(DirectAccessibilitySetValue.isMasked("••", for: "ab") && !DirectAccessibilitySetValue.isMasked("", for: ""))
     }
 
     @Test func aTransformedValueIsReportedNotRefused() async throws {

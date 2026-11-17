@@ -172,6 +172,9 @@ actor CommandService {
             if tool.needsPreflight { try preflight(tool.device, operation: tool.operation) }
             let data = try runner.run(command.arguments, executable: command.executable)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
+            if tool.platform == .physical, tool.operation == "screenshot" {
+                return CommandOutput(data: DeviceUIReadiness.annotateScreenshot(data, device: tool.device, query: uiReadinessQuery))
+            }
             return CommandOutput(data: data)
         case .simulatorDisplay(let display):
             if dryRun { return try json(display.plan()) }
@@ -194,7 +197,7 @@ actor CommandService {
     private func executePhysical(_ native: CoreDeviceInput, dryRun: Bool) async throws -> CommandOutput {
             if dryRun {
                 let identity = try native.identityPlan()
-                if ["press-id", "press-label", "scroll-id", "scroll-label"].contains(native.operation) {
+                if DirectAccessibilityAction.operations.contains(native.operation) {
                     let press = try DirectAccessibilityAction(native)
                     return try json(["backend": "coredevice-direct", "operation": press.operation, "selector": press.selector.json,
                         "identityArguments": identity.arguments, "liveVerified": false,
@@ -302,7 +305,7 @@ actor CommandService {
                 // service can run then; each poll's requests still block it.
                 return try AccessibilityWait.output(await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
             }
-            if (["tree", "press-id", "press-label", "scroll-id", "scroll-label"] + DirectAccessibilitySetValue.operations).contains(native.operation) {
+            if (["tree"] + DirectAccessibilityAction.operations + DirectAccessibilitySetValue.operations).contains(native.operation) {
                 return sent(try await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
             }
             if native.operation == "key" {
@@ -465,11 +468,11 @@ actor CommandService {
 
     private func detectionRead(_ command: LayoutDetectionCommand) async throws -> String {
         let tree = try await execute(.input(command.target, "tree", command.pid.map { [String($0)] } ?? []))
-        return try LayoutDetection.fieldValue(fromTree: tree.data, by: command.by, text: command.text)
+        return try LayoutDetection.fieldValue(fromTree: tree.data, by: command.by, text: command.text, index: command.index)
     }
 
     private func detectionSet(_ command: LayoutDetectionCommand, _ value: String) async throws -> Bool {
-        let receipt = try await execute(.input(command.target, command.setValueOperation, command.selectorOperands + [value]))
+        let receipt = try await execute(.input(command.target, command.setValueOperation, command.selectorOperands + [value] + command.indexOperands))
         let fields = try JSONSerialization.jsonObject(with: receipt.data) as? [String: Any]
         return fields?["valueMatches"] as? Bool == true
     }
@@ -623,7 +626,7 @@ actor CommandService {
             case .paired:
                 let report = try readiness(handoff.device)
                 return (report.connection == "connected" && report.pairing == "paired", ["connection": report.connection, "pairing": report.pairing])
-            case .element(let operation, let operands, _, _, _):
+            case .element(let operation, let operands, _, _, _, _):
                 let target = Target(platform: handoff.platform == "physical" ? .physical : .simulator, identifier: handoff.device)
                 let output = try await perform(.input(target, operation, operands), dryRun: false, allowInteractive: false, handoffConfirmation: nil)
                 let result = try JSONSerialization.jsonObject(with: output.data) as? [String: Any] ?? [:]

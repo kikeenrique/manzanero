@@ -239,6 +239,11 @@ struct LayoutDetectionTests {
         let failure = try #require(throws: CommandFailure.self) { try LayoutDetection.fieldValue(fromTree: twice, by: "label", text: "Field") }
         #expect(failure.code == .targetUnresolved && failure.inputSent == .none)
         #expect(throws: CommandFailure.self) { try LayoutDetection.fieldValue(fromTree: one, by: "identifier", text: "missing") }
+        // An index chooses among several, by position; beyond them is refused.
+        let two = try tree([["label": "Field", "value": "first"], ["label": "Field", "value": "second"]])
+        #expect(try LayoutDetection.fieldValue(fromTree: two, by: "label", text: "Field", index: 2) == "second")
+        let beyond = try #require(throws: CommandFailure.self) { try LayoutDetection.fieldValue(fromTree: two, by: "label", text: "Field", index: 3) }
+        #expect(beyond.code == .targetUnresolved && beyond.inputSent == .none)
     }
 
     @Test func backspacesAreOneKeyPressEach() {

@@ -61,7 +61,11 @@ struct MCPToolsTests {
             let tool = try #require(MCPTools.definitions.first { $0.name == name })
             #expect(tool.fields.contains { $0.name == "index" && !$0.required })
         }
-        #expect(try #require(MCPTools.definitions.first { $0.name == "detect_keyboard_layout" }).fields.contains { $0.name == "index" } == false)
+        let detect = try #require(MCPTools.definitions.first { $0.name == "detect_keyboard_layout" })
+        #expect(detect.fields.contains { $0.name == "index" && !$0.required })
+        // detect-layout changes the field's value, so it cannot select by it.
+        #expect(detect.fields.first { $0.name == "by" }?.choices == ["identifier", "label"])
+        #expect(try selector.command(["device": "phone", "by": "value", "text": "Buscar"]) == ["press", "--device=phone", "--with-value=Buscar"])
         let indexed = try selector.command(["device": "phone", "by": "label", "text": "Username", "index": 2])
         #expect(indexed == ["press", "--device=phone", "--label=Username", "--index=2"])
         #expect(try CLI.invocation(indexed).request == .physicalInput(CoreDeviceInput(device: "phone", operation: "press-label", operands: ["Username", "--index", "2"])))

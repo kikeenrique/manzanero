@@ -6,10 +6,10 @@ Simulator trees, element actions, waits, touch with one to five contacts and tim
 
 ```sh
 manzanero tree [--pid <pid>] --simulator <UUID>
-manzanero press (--id <identifier> | --label <label>) [--pid <pid>] --simulator <UUID>
-manzanero scroll (--id <identifier> | --label <label>) [--pid <pid>] --simulator <UUID>
-manzanero set-value (--id <identifier> | --label <label>) [--pid <pid>] <text> --simulator <UUID>
-manzanero wait (--id <identifier> | --label <label>) [--pid <pid>] [--until …] [--value …] [--timeout …] [--interval …] --simulator <UUID>
+manzanero press (--id <identifier> | --label <label> | --with-value <value>) [--pid <pid>] --simulator <UUID>
+manzanero scroll (--id <identifier> | --label <label> | --with-value <value>) [--pid <pid>] --simulator <UUID>
+manzanero set-value (--id <identifier> | --label <label> | --with-value <value>) [--pid <pid>] <text> --simulator <UUID>
+manzanero wait (--id <identifier> | --label <label> | --with-value <value>) [--pid <pid>] [--until …] [--value …] [--timeout …] [--interval …] --simulator <UUID>
 manzanero tap <x> <y> --simulator <UUID>
 manzanero long-press <x> <y> <seconds> --simulator <UUID>
 manzanero swipe|drag <x1> <y1> <x2> <y2> <seconds> --simulator <UUID>
@@ -32,7 +32,7 @@ MCP tools take `platform: simulator` for the same operations: `get_ui_tree`, `pr
 
 `set-value` works the same way on a physical device (`--device <UDID>`), over the device's accessibility session; this section describes both.
 
-`set-value` replaces one element's whole value with any Unicode text (1...65536 UTF-8 bytes, no NUL) through the accessibility set-value request (request type 8, attribute 53, parameter `value`). No key event, keyboard layout or clipboard is involved. Selection and guards are those of `press`: foreground selection, two fresh unique snapshots, live enabled and visible state and frame, an exact centre hit and application/display rechecks. Before the request the element must answer the settable query (type 3, attribute 53) with true; otherwise the command fails as `ambiguous-or-missing-target` and sends nothing, so select the text field itself, not its label. Afterwards the value is read back once: the receipt has `status: acknowledged`, `valueMatches` (true, false, or null with `readBackFailure`) and the requested and read-back byte counts. An app may transform the value, so a mismatch is reported rather than treated as failure. The command takes the device lease like a press. A failure after the request was sent is `input-outcome-unknown`.
+`set-value` replaces one element's whole value with any Unicode text (1...65536 UTF-8 bytes, no NUL) through the accessibility set-value request (request type 8, attribute 53, parameter `value`). No key event, keyboard layout or clipboard is involved. Selection and guards are those of `press`: foreground selection, two fresh unique snapshots, live enabled and visible state and frame, an exact centre hit and application/display rechecks. Before the request the element must answer the settable query (type 3, attribute 53) with true; otherwise the command fails as `ambiguous-or-missing-target` and sends nothing, so select the text field itself, not its label. Afterwards the value is read back once: the receipt has `status: acknowledged`, `valueMatches` (true, false, or null with `readBackFailure`) and the requested and read-back byte counts. An app may transform the value, so a mismatch is reported rather than treated as failure. A secure field answers one bullet per character, so its text cannot be compared: when the read-back is nothing but bullets, as many as the characters sent, `valueMatches` is null with `readBack: masked` and `maskedLengthMatches: true` (seen as 14 bullets for 14 characters on the phone; the masked receipt itself is unit-tested). The command takes the device lease like a press. A failure after the request was sent is `input-outcome-unknown`.
 
 Observed on the probe's text field: the field becomes first responder, as after a tap. With an on-screen keyboard that can cover a field low on the screen, and a covered field reports itself not visible, so a second set-value is refused by the visibility guard until the keyboard is dismissed.
 

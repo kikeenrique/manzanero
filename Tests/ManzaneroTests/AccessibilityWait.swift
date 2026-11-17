@@ -506,7 +506,8 @@ struct AccessibilityWaitTests {
         for operands in invalid {
             #expect(throws: CommandFailure.self, "\(operands)") { try Self.wait(operands) }
         }
-        #expect(throws: CommandFailure.self) { try Self.wait(["x"], operation: "wait-value") }
+        #expect(throws: CommandFailure.self) { try Self.wait(["x"], operation: "wait-hint") }
+        #expect(try Self.wait(["x"], operation: "wait-value").selector == AccessibilitySelector(by: "value", text: "x"))
     }
 
     @Test func sessionBudgetsScaleWithThePollBoundAndDefaultsAreUnchanged() throws {

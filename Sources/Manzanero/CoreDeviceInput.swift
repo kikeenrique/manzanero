@@ -8,8 +8,8 @@ struct CoreDeviceInput: Sendable, Equatable {
     let operands: [String]
 
     /// The operations that run in process on a physical device.
-    static let operations = ["button", "key", "type", "paste", "gesture", "multi-tap", "tree", "press-id", "press-label",
-                             "scroll-id", "scroll-label", DirectPhysicalWake.operation] + DirectAccessibilitySetValue.operations
+    static let operations = ["button", "key", "type", "paste", "gesture", "multi-tap", "tree", DirectPhysicalWake.operation]
+                             + DirectAccessibilityAction.operations + DirectAccessibilitySetValue.operations
                              + AccessibilityWait.operations + DirectPhysicalTouch.operations
 
     /// One native physical operation with its operands checked, before any
@@ -22,7 +22,7 @@ struct CoreDeviceInput: Sendable, Equatable {
         guard !device.isEmpty, !device.hasPrefix("-") else {
             throw CommandFailure.usage("Invalid native physical input target or operands.")
         }
-        if ["press-id", "press-label", "scroll-id", "scroll-label"].contains(operation) {
+        if DirectAccessibilityAction.operations.contains(operation) {
             _ = try DirectAccessibilityAction(Self(device: device, operation: operation, operands: operands))
         } else if DirectAccessibilitySetValue.operations.contains(operation) {
             _ = try DirectAccessibilitySetValue(Self(device: device, operation: operation, operands: operands))

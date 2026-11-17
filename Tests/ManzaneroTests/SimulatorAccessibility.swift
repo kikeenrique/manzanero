@@ -547,6 +547,40 @@ struct SimulatorAccessibilityTests {
         #expect(framed.hitClientTypes == [0])
     }
 
+    /// An element may reach past an edge of the display (a field on a zoomed
+    /// web page: 392 points on a 375-point display). Its centre must be on
+    /// the display and hit the element itself.
+    @Test func pressAcceptsAnElementPartlyOffTheDisplayWhenItsCentreIsOnIt() async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.elements = [.init(identifier: "wide", label: "Wide", frame: NSRect(x: -20, y: 200, width: 420, height: 40))]
+        let press = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).run(["press", "--id", "wide", "--simulator", Self.uuid]))
+        #expect(press["status"] as? String == "accepted")
+        let hit = try #require(fixture.hitPoints.last)
+        #expect(abs(hit.x - 190) < 1e-9 && abs(hit.y - 220) < 1e-9)
+        // Centre beyond the right edge (390 points): refused, nothing sent.
+        let off = SimulatorAXFixture()
+        off.elements = [.init(identifier: "wide", label: "Wide", frame: NSRect(x: 380, y: 200, width: 80, height: 40))]
+        let failure = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(off, leases: Self.usableLeases()).run(["press", "--id", "wide", "--simulator", Self.uuid])
+        })
+        #expect(failure.code == .targetUnresolved && failure.inputSent == .none)
+        #expect(failure.description.contains("target centre is outside the primary display") && !off.kinds.contains(7))
+    }
+
+    /// An element with neither identifier nor label is selected by its value.
+    @Test func pressSelectsAnElementByItsValue() async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.elements = [.init(id: 2, identifier: nil, label: nil, value: "Buscar"),
+                            .init(id: 3, identifier: "other", label: "Other", value: "x", frame: NSRect(x: 100, y: 300, width: 80, height: 40))]
+        let press = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).run(["press", "--with-value", "Buscar", "--simulator", Self.uuid]))
+        #expect(press["status"] as? String == "accepted" && (press["selector"] as? [String: String]) == ["by": "value", "text": "Buscar"])
+        #expect((press["target"] as? [String: Any])?["value"] as? String == "Buscar")
+        let missing = try #require(await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(fixture, leases: Self.usableLeases()).run(["press", "--with-value", "Other", "--simulator", Self.uuid])
+        })
+        #expect(missing.code == .targetUnresolved && missing.inputSent == .none)
+    }
+
     @Test func pressIsRefusedWhenTheSimulatorIsBusyOrUnbooted() async throws {
         let fixture = Self.pressable()
         let unusable = try #require(await #expect(throws: CommandFailure.self) {

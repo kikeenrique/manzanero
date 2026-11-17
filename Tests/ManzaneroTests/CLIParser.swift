@@ -178,11 +178,32 @@ struct CLIParserTests {
 
     @Test(arguments: ["press", "scroll", "wait"])
     func selectorsNeedExactlyOneOfIdOrLabel(_ command: String) throws {
-        for arguments in [[command, "--device", Self.device], [command, "--id", "a", "--label", "b", "--device", Self.device]] {
+        for arguments in [[command, "--device", Self.device], [command, "--id", "a", "--label", "b", "--device", Self.device],
+                          [command, "--label", "b", "--with-value", "c", "--device", Self.device]] {
             let failure = try usageFailure(arguments)
-            #expect(failure.description == "Give exactly one of --id or --label.")
+            #expect(failure.description == "Give exactly one of --id, --label or --with-value.")
             #expect(failure.code == .usage && failure.inputSent == .none && failure.retry == .no)
         }
+    }
+
+    /// `--with-value` selects by the element's current value, for one with
+    /// neither identifier nor label.
+    @Test func aSelectorMayNameAnElementByItsValue() throws {
+        func operation(_ arguments: [String]) throws -> [String] {
+            guard case .physicalInput(let input) = try invocation(arguments).request else { return [] }
+            return [input.operation] + input.operands
+        }
+        #expect(try operation(["press", "--with-value", "Buscar", "--device", Self.device]) == ["press-value", "Buscar"])
+        #expect(try operation(["scroll", "--with-value", "Buscar", "--index", "2", "--device", Self.device]) == ["scroll-value", "Buscar", "--index", "2"])
+        #expect(try operation(["set-value", "--with-value", "Buscar", "wifi", "--device", Self.device]) == ["set-value-value", "Buscar", "wifi"])
+        #expect(try operation(["wait", "--with-value", "Buscar", "--until", "gone", "--device", Self.device]) == ["wait-value", "Buscar", "--until", "gone"])
+        // The value may begin with dashes, like the other selectors.
+        #expect(try operation(["press", "--with-value", "--x", "--device", Self.device]) == ["press-value", "--x"])
+        for (name, by) in [("press-id", "identifier"), ("wait-label", "label"), ("set-value-value", "value"), ("set-value-id", "identifier")] {
+            #expect(AccessibilitySelector.by(operation: name) == by)
+        }
+        let layout = try usageFailure(["detect-layout", "--with-value", "x", "--device", Self.device])
+        #expect(layout.description.hasPrefix("detect-layout does not take --with-value"))
     }
 
     @Test func selectorIndexIsValidatedBeforeAnyDeviceQuery() throws {
@@ -193,8 +214,12 @@ struct CLIParserTests {
             }
         }
         #expect(try usageFailure(["set-value", "--label", "Row", "--index", "0", "x", "--device", Self.device]).description.contains("--index must be"))
-        let layout = try usageFailure(["detect-layout", "--id", "field", "--index", "2", "--device", Self.device])
-        #expect(layout.description.hasPrefix("detect-layout does not take --index"))
+        // detect-layout takes it too, with the same bounds.
+        guard case .detectLayout(let layout) = try invocation(["detect-layout", "--id", "field", "--index", "2", "--device", Self.device]).request else {
+            Issue.record("not detect-layout"); return
+        }
+        #expect(layout.index == 2 && layout.indexOperands == ["--index", "2"] && layout.selector.json["index"] as? Int == 2)
+        #expect(try usageFailure(["detect-layout", "--id", "field", "--index", "0", "--device", Self.device]).description.contains("--index must be"))
     }
 
     @Test func selectorValuesMayBeginWithDashes() throws {
