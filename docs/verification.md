@@ -310,7 +310,18 @@ This is the handoff's first run around a real system step (pairing, with the pas
 
 So `wake` keeps its promise with a passcode (it wakes, does not press Home and enters nothing), and the failures on a sleeping phone are classified. Two things to know: a screenshot of a sleeping phone succeeds with a black image, and touch is sent to a lock screen without any note that the phone is locked.
 
-Later the same evening input receipts gained `passcodeRequired` and a `lockNote` ([guide](native-input.md#receipts-and-partial-effects)). On the locked phone, right after a `wake`: `tap 0.5 0.5` and `key escape` both returned `dispatched` with `passcodeRequired: true` and the note. Not shown: the passcode keypad, a phone restarted and not yet unlocked, Face ID, and a notification or call on the lock screen.
+Later the same evening input receipts gained `passcodeRequired` and a `lockNote` ([guide](native-input.md#receipts-and-partial-effects)). On the locked phone, right after a `wake`: `tap 0.5 0.5` and `key escape` both returned `dispatched` with `passcodeRequired: true` and the note. After the unlock below, `button home` returned `passcodeRequired: false` and no note.
+
+**The other handoff answers, and an unlock**, run by the owner in a terminal with the phone locked:
+
+| Command and answer | Observed |
+| --- | --- |
+| `handoff '<message>' 60`, answered `decline` | `status: declined`, `humanAcknowledged: false`, exit 1 |
+| `handoff '<message>' 10`, left unanswered | `status: timedOut`, `humanAcknowledged: false`, exit 1 |
+| `handoff 'Unlock the phone with the passcode' 300`; the owner unlocked it and answered `done` | `status: acknowledged`, exit 0. Afterwards `readiness` read `passcodeRequired: false` with the display on, and `tree` and the screenshot showed Settings, not the lock screen |
+| `handoff '<message>' 60`, answered `cancel` | `status: cancelled`, `humanAcknowledged: false`, exit 1 |
+
+End of input was not run on a device. Not shown: the passcode keypad, a phone restarted and not yet unlocked, Face ID, and a notification or call on the lock screen.
 
 ### Web content on the phone
 
