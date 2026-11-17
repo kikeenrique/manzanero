@@ -70,9 +70,9 @@ The media owner sends bounded compound Receiver Reports plus a random per-sessio
 
 `rtcp.receiverReportsSent` counts successful local UDP sends, not remote acknowledgements. `senderReportsObserved` counts validated sender reports. Transient send failures drop a report; persistent failures stop capture.
 
-`rtcp.negotiatedFeedback` is `enabled`, `disabled` or `unknown` from Apple's negotiated screen result after answer acceptance. Class/selector/return-ABI guards preserve unknown for unsupported contracts. It does not infer feedback from ordinary RTCP enablement, alter an offer or send feedback. Installed getter signatures are verified. Read live once, on the iPhone 13 mini on 2026-11-17, it was `disabled` ([verification](verification.md#phone-session-of-2026-11-17)). Even enabled would not establish PLI/FIR compatibility.
+`rtcp.negotiatedFeedback` is `enabled`, `disabled` or `unknown` from Apple's negotiated screen result after answer acceptance. Class/selector/return-ABI guards preserve unknown for unsupported contracts. It does not infer feedback from ordinary RTCP enablement, alter an offer or send feedback. Installed getter signatures are verified. Read live on the iPhone 13 mini on 2026-11-17, it was `disabled` twice with the stock offer, which does not ask for feedback, and `disabled` again in one recording whose offer did ask ([verification](verification.md#an-offer-that-asks-for-rtcp-feedback)). Even enabled would not establish PLI/FIR compatibility.
 
-Keyframe requests and loss recovery remain unfinished. Startup failures with zero packets on the test Mac were traced to the firewall (above); whether every earlier startup failure had that cause was not checked.
+Keyframe requests over negotiated feedback are therefore not planned: that phone declines them. Recovery from loss, a crash or a disconnect is to be a restart of the stream, and is not built. Startup failures with zero packets on the test Mac were traced to the firewall (above); whether every earlier startup failure had that cause was not checked.
 
 ## Frames: repeated screenshots from one stream
 

@@ -227,7 +227,7 @@ This answers the research note's first two open questions for this phone: `devic
 | `record <new>.mp4 5 --backend coredevice` | Exit 0, `status: recorded`: 1136×2464 `avc1`, 5 s, 78 source frames, `frameDecoded: true`; every cleanup field confirmed. `rtcp.negotiatedFeedback: disabled`, 5 receiver reports sent, 5 sender reports observed |
 | `frames <dir> --count 10` | Exit 0: 10 JPEG files of 1125×2436, first frame after 549 ms, about 45 ms apart; the last frame showed the Home Screen as the screenshot did; cleanup acknowledged |
 
-This is the first live reading of `rtcp.negotiatedFeedback`. It was `disabled` in this one session, so the phone did not agree to feedback messages and a keyframe request (PLI/FIR) has nothing negotiated to ride on.
+This is the first live reading of `rtcp.negotiatedFeedback`. It was `disabled` in this one session, so a keyframe request (PLI/FIR) has nothing negotiated to ride on. That reading alone did not say the phone refused: the negotiated value needs both sides, and the stock offer does not ask. The [experiment that asked](#an-offer-that-asks-for-rtcp-feedback) settled it the same night.
 
 **A hold whose sender is killed.** Probe app in front, counters reset.
 
@@ -418,6 +418,23 @@ Still not run: `unlocked` from the locked state with someone unlocking, `paired`
 | Phone, asleep: `screenshot` | Succeeded as before, and the receipt now carries `displayPower: off` and a `displayNote` saying the image is probably black |
 
 Unit tests only, not run on a device: the masked read-back of a secure field (`valueMatches: null`, `readBack: masked`), `press` on an element that reaches past the display's edge with its centre on it, a selector action with the PID of the process hosting the display-centre one, and the categories of errors that are not this tool's own.
+
+### An offer that asks for RTCP feedback
+
+**2026-11-17, about 23:50**, the same phone, woken to its lock screen (`wake`: `awake-locked`), macOS 27.2.1, AVConference 2260.15.1. The one experiment the owner approved, to decide whether keyframe requests are worth building.
+
+What was found first, on the Mac only: Apple's `AVCMediaStreamNegotiator` builds the whole offer and has no option for feedback. The request is a flag on its local configuration (`-[VCMediaNegotiatorLocalConfiguration setAllowRTCPFB:]`, reached as `mediaNegotiator.localSettings`), off by default for screen sharing, and it is field 5.2 of the offer's media blob. The blob is cached when the negotiator is created, so it has to be regenerated (`negotiationData`, `setMediaBlobCompressed:`) for the flag to reach the offer. In a loopback between two negotiators on the Mac the negotiated value was the AND of the two sides, and a stock answerer declined an asking offer. The offers that AXe and idevice reproduce from Apple's own client also leave the flag off.
+
+A scratch build set the flag and regenerated the blob before `createOffer` when an environment variable was given. Two recordings, one after the other:
+
+| Command | Observed |
+| --- | --- |
+| `record <new>.mp4 5 --backend coredevice`, stock offer | `recorded`, `frameDecoded: true`, 89 source frames, 5 receiver reports sent, 5 sender reports observed, `rtcp.negotiatedFeedback: disabled`. This is the second reading of the stock offer |
+| The same with the asking offer | `recorded`, `frameDecoded: true`, 87 source frames, 5 and 5 reports, cleanup as before, `rtcp.negotiatedFeedback: disabled` |
+
+So the phone was asked and did not agree, and asking did no harm to the stream. The offer's bytes were not dumped in that run; that it carried the flag rests on the loopback with the same calls and on every interface guard passing. One phone, one iOS version.
+
+Decision that follows, as the owner set it beforehand: keyframe requests over negotiated feedback (PLI/FIR) are dropped, and recovery is to be a restart of the stream. The scratch change was not kept: it added four private interfaces for a result that is now known.
 
 ### Web content on the phone
 

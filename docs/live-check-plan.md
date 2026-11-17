@@ -21,7 +21,6 @@ If every query to a connected device times out, capture the state of Apple's dev
 - `--index` on a simulator and through the MCP `index` field against a device; on the phone it ran from the CLI on a web form only ([record](verification.md#web-content-on-the-phone)).
 - Setting the value of a SwiftUI field that has a label or identifier. A UIKit text field and a secure field in Settings ran. The Settings search field has neither label nor identifier: select it by its placeholder with `--with-value`, which has run on a simulator only.
 - Built on 2026-11-17 and unit-tested only: a secure field's receipt (`readBack: masked`), `press` on a web field wider than the display, and `press --pid <browser>` on a browser's own control while a page is in front.
-- `rtcp.negotiatedFeedback` in a second recording, to see whether `disabled` is constant.
 - `frames` with the display rotated, on another device, for a long run (minutes, toward the 1000-frame and 1 GiB limits), and with a second process trying to capture or send input meanwhile. Portrait runs on the iPhone 13 mini are [recorded](verification.md#frames-on-the-phone).
 - `detect-layout` on another phone or with another layout set on this one (it found Spanish – ISO on the iPhone 13 mini: [verification](verification.md#layout-detection)), in a field other than the probe's (one with autocorrection or auto-capitalisation on, to see `no-match` and the hints), and through MCP against a phone.
 - Typing in keyboard layouts other than Spanish – ISO, which the iPhone 13 mini uses on its own and which typed exactly ([verification](verification.md#keyboard-layouts-on-the-phone)). The runs below remain for other layouts, each needing the phone's layout changed by hand ([physical typing](physical-typing.md#layouts); simulator results in [verification](verification.md#keyboard-layouts-on-the-simulator)). The phone's layout cannot be read, so set it by hand first in Settings › General › Keyboard › Hardware Keyboard (if that section appears without a real keyboard attached, which is itself unknown), then confirm it with `detect-layout --id probe.text.field --device <UDID>`, and focus `probe.text.field` (`set-value --id probe.text.field x --device <UDID>`, `key backspace`). Read the result from `probe.text.value` in `tree`. Suggested runs, each with its own layout set on the phone:
@@ -64,7 +63,6 @@ These need no hardware and no owner decision; they were left out of the simulato
 - Does a web input ever take `set-value`, for example after it has focus?
 - Does setting or removing a passcode always drop the pairing?
 - Does a host remove a form that the server withdraws? If it does, a watching handoff could keep a form up as its "I will not do it" button.
-- Would the phone accept an offer that asks for RTCP feedback? It negotiated `disabled` for the offer sent today.
 
 ## Stop conditions
 
