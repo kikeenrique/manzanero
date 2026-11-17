@@ -323,6 +323,19 @@ Later the same evening input receipts gained `passcodeRequired` and a `lockNote`
 
 End of input was not run on a device. Not shown: the passcode keypad, a phone restarted and not yet unlocked, Face ID, and a notification or call on the lock screen.
 
+### Handoff with an app permission prompt
+
+**2026-11-17, evening**, same phone and host, with the probe app rebuilt to include its [permission probe](probe-app.md#permission-probe) and installed by `build-run` (no provisioning options; the existing profile was reused).
+
+| Step | Observed |
+| --- | --- |
+| `tree` after launch | `probe.permission.request` at 204,400 155×52 with value `{"requests":0,"status":"notDetermined","v":1}` |
+| `press --id probe.permission.request` | `accepted`. The screenshot showed the system alert "Probe quiere enviarte notificaciones" over the probe; `tree` selected the alert's process (pid 39, 139 nodes) and read its title, its text and the buttons "No permitir" and "Permitir" |
+| `handoff 'Answer the notification prompt on the phone: Permitir or No permitir, your choice' 300`, run by the owner | The owner decided the prompt and answered `done`: `status: acknowledged`, `humanAcknowledged: true`, `verified: false`, exit 0 |
+| `tree` afterwards | The probe app again (16 nodes), no alert, and the element's value `{"requests":1,"status":"denied","v":1}` |
+
+The decision was the person's; the tool pressed neither button. The receipt does not say which was chosen, and the probe's status shows it was "No permitir". Not shown: a biometric or purchase prompt, and a prompt raised by an app other than the probe.
+
 ### Web content on the phone
 
 **2026-11-17, later the same day**, same phone and host, Chrome with public test pages. This follows the web form failure in the session above.

@@ -1,6 +1,6 @@
 # Probe fixture app
 
-The probe app is a small iOS app of this project's own that reports what the device actually received, so Manzanero's operations can be checked against ground truth instead of screenshots. It holds three probes: the touch probe described first, whose accessibility identifiers are namespaced `probe.touch.*`; the [log probe](#log-probe), namespaced `probe.log.*`, which writes known lines for [`logs` and `console`](app-logs.md); and the [text probe](#text-probe), namespaced `probe.text.*`, which shows what text entry reached a text field.
+The probe app is a small iOS app of this project's own that reports what the device actually received, so Manzanero's operations can be checked against ground truth instead of screenshots. It holds three probes: the touch probe described first, whose accessibility identifiers are namespaced `probe.touch.*`; the [log probe](#log-probe), namespaced `probe.log.*`, which writes known lines for [`logs` and `console`](app-logs.md); and the [text probe](#text-probe), namespaced `probe.text.*`, which shows what text entry reached a text field. A fourth, the [permission probe](#permission-probe) (`probe.permission.*`), raises a real system prompt on demand.
 
 ## Touch probe
 
@@ -17,7 +17,7 @@ The app is a test fixture. It is not part of the `manzanero` product and has no 
 | `Fixtures/ProbeApp/Project.swift`, `Tuist.swift` | Tuist manifests (local generation only) |
 | `Fixtures/ProbeApp/Config/ProbeApp.xcconfig` | Neutral bundle identifier and signing defaults, with an optional untracked include |
 | `Fixtures/ProbeApp/ProbeCore/` | UIKit-independent Swift package: recorder, readout formats (summary, last gesture, recent gestures) and log format (encoding and decoding), log writer, the log probe's plan (`LogProbe`), Swift Testing tests; also the host-only [measurement runner](probe-touch-runner.md) targets, which the app does not link |
-| `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing, log probe emitter, text probe |
+| `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing, log probe emitter, text probe, permission probe |
 | `Fixtures/ProbeApp/UITests/` | XCUITest checks of the recording path in the simulator |
 
 Requirements: iOS 18.0 or later, iPhone or iPad (full screen through `UIRequiresFullScreen`; Xcode 27.2's test runs warn that the key "will soon be ignored", so a later iPadOS may window the probe). Portrait only, unless launched with the argument `-ProbeAllowRotation YES` (for example `xcrun simctl launch <UUID> <bundle-id> -ProbeAllowRotation YES`), which lets the interface follow the device into landscape for rotation measurements; positions stay normalized to the current interface. Swift 6 language mode with complete strict concurrency. Built and tested with Xcode 27.2 and Tuist 4.214.0.
@@ -310,6 +310,18 @@ manzanero last-crash --bundle com.lemambo.manzanero.probeapp --since <ISO-8601 b
 ```
 
 Results on one iPhone Air simulator are in [verification](verification.md#app-logs-console-and-crashes).
+
+## Permission probe
+
+The permission probe raises a genuine system prompt when asked, so that [handoff](handoff.md) and prompt handling can be checked against something a person has to decide. Its plan is `PermissionProbe` in ProbeCore (unit-tested); `App/PermissionProbeRequester.swift` drives it. It shares nothing with the other probes and posts no notification.
+
+| Identifier | Label | Value | Frame |
+| --- | --- | --- | --- |
+| `probe.permission.request` | `Request notification permission` | `{"requests":N,"status":…,"v":1}`, keys sorted: requests made by this process, and the app's notification authorization (`unknown` until first read, `notDetermined`, `denied`, `authorized`, `provisional`, `ephemeral`) | x 204, y 400, 155×52 points, to the right of `probe.log.emit`; a button-trait accessibility element, not a view |
+
+Activating it (`manzanero press --id probe.permission.request (--device <UDID> | --simulator <UUID>)`) calls `requestAuthorization(options: [.alert])`. Notification permission was chosen because it needs no usage string and no entitlement. The system shows its prompt only while the status is `notDetermined`; after a decision a request changes nothing, and getting the prompt again means uninstalling the app and installing it once more. The status is read again when the app becomes active, so a change made in Settings shows up.
+
+On the iPhone 13 mini on 2026-11-17 the press raised "Probe quiere enviarte notificaciones", which the tree read with both buttons, and after the owner's choice the value read `denied` ([verification](verification.md#handoff-with-an-app-permission-prompt)). Not run on a simulator.
 
 ## Verification status
 

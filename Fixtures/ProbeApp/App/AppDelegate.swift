@@ -7,6 +7,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     let model = ProbeModel()
     /// The log probe (docs/probe-app.md#log-probe), independent of the touch probe.
     let logProbe = LogProbeEmitter()
+    /// The permission probe (docs/probe-app.md#permission-probe).
+    let permissionProbe = PermissionProbeRequester()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         logProbe.launched()
@@ -34,10 +36,12 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         self.window = window
         if let surface = window.rootViewController?.view {
             (UIApplication.shared.delegate as? AppDelegate)?.logProbe.attach(to: surface)
+            (UIApplication.shared.delegate as? AppDelegate)?.permissionProbe.attach(to: surface)
         }
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
+        (UIApplication.shared.delegate as? AppDelegate)?.permissionProbe.refresh()
         // Keep the display awake: Manzanero's touch and AX paths require an awake display.
         UIApplication.shared.isIdleTimerDisabled = true
     }
