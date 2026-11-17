@@ -65,6 +65,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown | [Other simulator families](docs/other-families.md) |
 | Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical `logs` is not implemented) |
 | What a failure means and whether to retry | [Errors and exit codes](docs/errors.md) |
+| Input refused as `device-quarantined` | [Quarantine and `clear-quarantine`](docs/native-input.md#quarantine-after-an-uncertain-release) |
 
 Physical input, accessibility and native video need no separate device helper. The CLI has no routes to AXe, idevice or ipb executables, and the process runners refuse them at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator trees, element actions, waits, touch with one to five contacts, gesture sequences, buttons, keys, typing and `set-value` run in process on a booted simulator ([simulator input](docs/simulator-input.md)). Simulator `wake` and `paste` are refused.
 
@@ -109,7 +110,7 @@ Host configuration formats vary. Set a suitable working directory: relative file
 
 - Native input and AX actions are experimental. Successful transport acknowledgements are not UI assertions.
 - Native video has scoped CLI/MCP verification, including one five-minute capture and one recording with AX inspection and Home control. With the macOS firewall on, the executable needs an allow rule or recordings get no video; `doctor` reports it ([recording](docs/recording.md#the-macos-firewall-can-drop-the-video)). Keyframe, crash and disconnect recovery are unfinished.
-- SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Forced exits and failed transports do not have a release guarantee. A second `manzanero` process is refused input to a device another one is controlling.
+- SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Forced exits and failed transports do not have a release guarantee: after one during an input, further input to that device is refused until you have looked at it and run `clear-quarantine` ([quarantine](docs/native-input.md#quarantine-after-an-uncertain-release)). A second `manzanero` process is refused input to a device another one is controlling.
 - Live screen mirroring, stable reusable element handles, broad Apple-family coverage and several simulator/diagnostic paths remain incomplete.
 - Screenshots, app lists, logs, clipboard data and artifacts under `tmp/` can contain private information. Do not commit or share them without review.
 
