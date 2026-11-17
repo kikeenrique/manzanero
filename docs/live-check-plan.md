@@ -2,7 +2,9 @@
 
 This page lists what still has to be run on hardware. It is a plan, not a record: results go in [verification](verification.md), and items are removed from here once they are recorded there. The [roadmap](roadmap.md#pending) puts these runs in order with the work that is not about hardware.
 
-Done on the iPhone 13 mini so far: wake, the command service queue, the device lease across two processes, interruption, the accessibility tree, press, scroll and every wait condition except `focused`, touch delivery measured with the probe app (one to five contacts), keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, `frames` in portrait, app console output and the last crash, system-prompt handling through the tree, the operation-first grammar, `set-value` and Spanish – ISO typing and detection in the probe's field, live MCP sessions, and on 2026-11-17 recording and `frames` after the bridge change, a killed `long-press` with quarantine, `set-value` in Settings, pipelined MCP calls and bounded `console` output. See [verification](verification.md).
+Done on the iPhone 13 mini so far: wake, the command service queue, the device lease across two processes, interruption, the accessibility tree, press, scroll and every wait condition except `focused`, touch delivery measured with the probe app (one to five contacts), keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, `frames` in portrait, app console output and the last crash, system-prompt handling through the tree, the operation-first grammar, `set-value` and Spanish – ISO typing and detection in the probe's field, live MCP sessions, and on 2026-11-17 recording and `frames` after the bridge change, a killed `long-press` with quarantine, `set-value` in Settings, pipelined MCP calls, bounded `console` output, a web page in Chrome read and filled with `--index`, `wake` and the lock screen with a passcode, and `handoff` at a terminal, from an MCP host and watching the device. See [verification](verification.md).
+
+The test phone has had a passcode since the evening of 2026-11-17 and its default browser is Safari; before that it had no passcode and links opened in Chrome. Most records were made without a passcode.
 
 Run from the repository root with the device paired and unlocked. Replace `<UDID>` with the hardware UDID from `mise run cli devices`. If the display is off, `mise run cli wake --device <UDID>` turns it on. Take a screenshot before choosing where to touch, and inspect the screen after every action; a receipt is not an effect. Do not replay an input automatically.
 
@@ -12,7 +14,7 @@ If every query to a connected device times out, capture the state of Apple's dev
 
 - `handoff --until` beyond its first run ([record](verification.md#handoff-that-watches-the-device)): `unlocked` starting from a locked phone, `paired` starting unpaired, a timeout, `decline` typed while it watches, a watch of several minutes, `request_handoff` with `until` from an MCP host, and one run on a simulator.
 - With the passcode now set on the test phone: `wake` and `readiness` after a restart before the first unlock, the passcode keypad in the tree, and whether setting or removing a passcode always drops the pairing (it did once: [record](verification.md#a-passcode-on-the-phone-pairing-handoff-and-the-lock-screen)).
-- `handoff` with a biometric prompt or the passcode gate of Settings › Face ID y código (every terminal answer, an unlock and an app permission prompt are recorded), and more of `request_handoff` from an MCP host (recorded in Claude Code: the pause on mutations, and the field-less form answered with Accept and with Decline). Left: Cancel from a host, a second host, and a capture of how a host draws the form. Reconnect the server after a rebuild. The terminal flow with a physical step is [recorded](verification.md#handoff-with-a-physical-step). The owner has to be present.
+- `handoff` answered by a person: a biometric prompt (the phone has no Face ID set up) or the passcode gate of Settings › Face ID y código; from an MCP host, Cancel, a second host, and a capture of how the host draws the three-line form. Every terminal answer, an unlock, an app permission prompt, the pause on mutations and the form's Accept and Decline are recorded. Reconnect an MCP server after a rebuild, or it keeps running the old binary. The terminal flow with a physical step is [recorded](verification.md#handoff-with-a-physical-step). The owner has to be present.
 - `tree` and the selector commands refuse a phone in landscape ("requires portrait geometry"), seen after that handoff; touch, keys and captures in landscape on a phone are still unrun.
 - A held `key` or `button` whose sender is killed, and a hold during which the cable or network path is lost rather than the process: a killed `long-press` ended by itself on the phone ([session](verification.md#phone-session-of-2026-11-17)), these did not run.
 - `tree`, `wait`, `press` and `scroll` with a web page in front in Safari and in an app's own `WKWebView`; a page with frames. In Chrome the page's tree reads and `press` works ([record](verification.md#web-content-on-the-phone)); `scroll` did not run. Count how often the first read after a page load selects the browser instead of the page.
@@ -28,7 +30,7 @@ If every query to a connected device times out, capture the state of Apple's dev
   - `type --layout latin-american '<>≤ |°¬' --device <UDID>`, or another of the 13 layouts whose key left of 1 and key left of Z differ between the ISO and ANSI keyboard types: the simulator used ISO; whether a phone's Indigo keyboard does is the main open question.
   - The same once through MCP: `mise run test:mcp-type <UDID> 'Año ¿qué?' spanish-iso`.
   - Record whether Settings shows a Hardware Keyboard section while nothing but Manzanero's events have been sent, and whether the layout chosen there changes the result without relaunching the app.
-- Landscape on a phone, an iPad, and anything on a second device. The simulator side of rotation and iPad is measured.
+- Landscape on a phone, an iPad, and anything on a second device. The simulator side of rotation and iPad is measured. On 2026-11-17 the Mac listed other iPhones, iPads and Apple TVs as paired and available; none has been used, and none is to be until the owner names it.
 - The 200 ms input drain on another device and with the Mac under load (on the iPhone 13 mini, 50 ms lost short gestures and 100 ms did not).
 - An output above 64 KiB through `console` (a 1 KiB bound on 4.6 kB was kept correctly; the probe has no bulk trigger).
 
@@ -46,7 +48,10 @@ These need no hardware and no owner decision; they were left out of the simulato
 
 - On the Duo's inner display: the centre-hit fallback when no frontmost application is reported, and four- and five-path `multi-drag` (three paths and `gesture` are [recorded](verification.md#the-duos-inner-display)); only the `rot90` orientation was seen.
 - `fold` on the Duo with nothing else booted: one of five folds was not observed within its 10 s bound while three other simulators were running.
+- `--index` and `handoff --until` with an element condition, against the probe app.
+
 ## Questions still open
+
 - Why did one tap on the Settings search field have no effect, when the next 36 taps there did?
 - What made Apple's device services stop answering for the phone on 2026-11-16?
 - What do apps' gesture recognizers make of three or more contacts?
@@ -55,6 +60,8 @@ These need no hardware and no owner decision; they were left out of the simulato
 - Why does a subscription stop sometimes go unconfirmed? Three of about thirty selector commands on 2026-11-17; each time the socket closed 2 to 3 ms into the stop exchange, after one cleanup frame.
 - Does a phone keep a key or button held when the process sending it is killed? It ended a contact itself, as a simulator did.
 - Does a web input ever take `set-value`, for example after it has focus?
+- Does setting or removing a passcode always drop the pairing?
+- Does a host remove a form that the server withdraws? If it does, a watching handoff could keep a form up as its "I will not do it" button.
 - Would the phone accept an offer that asks for RTCP feedback? It negotiated `disabled` for the offer sent today.
 
 ## Stop conditions

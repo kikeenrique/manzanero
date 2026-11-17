@@ -41,7 +41,7 @@ Tools declare no output schema, so the MCP specification places no constraint on
 
 ### Answers are not errors
 
-Some commands report an unsuccessful outcome as a JSON answer on stdout with its own exit code, and are unaffected by the error format: `wake` (exit 1 for `unknown-display-state`, `not-awake` and `awake-locked`), the AX wait's timeout (exit 124), `readiness` (exit 1 unless CoreDevice prerequisites are present), `doctor` (exit 1 when an Xcode, CoreDevice or CoreSimulator tool is unavailable) and `handoff` (exit 1 unless the person acknowledged). Read their documented fields instead. In MCP, `wait_for_element`'s timeout and `wake_device`'s statuses do not set `isError`; readiness and doctor do, with their JSON under `structuredContent.result`.
+Some commands report an unsuccessful outcome as a JSON answer on stdout with its own exit code, and are unaffected by the error format: `wake` (exit 1 for `unknown-display-state`, `not-awake` and `awake-locked`), the AX wait's timeout (exit 124), `readiness` (exit 1 unless CoreDevice prerequisites are present), `doctor` (exit 1 when an Xcode, CoreDevice or CoreSimulator tool is unavailable) and `handoff` (exit 0 for `acknowledged`, a person's answer, and for `observed`, the device showing the condition `--until` named; exit 1 for `declined`, `cancelled`, `notCompleted` and `timedOut`). Read their documented fields instead. In MCP, `wait_for_element`'s timeout and `wake_device`'s statuses do not set `isError`; readiness and doctor do, with their JSON under `structuredContent.result`.
 
 ## Facts
 

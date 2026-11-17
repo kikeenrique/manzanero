@@ -8,13 +8,13 @@ This is the evidence summary for the current implementation and the material fai
 
 **Entries are not rewritten.** A few undated summary paragraphs were written before later dated sections; where they differ, the dated section is the later record, and a "Later:" note points to it.
 
-Where to find the physical results: [discovery and readiness](#discovery-and-readiness) through [app console and last crash](#app-console-and-last-crash-on-the-phone) and the [phone session of 2026-11-17](#phone-session-of-2026-11-17) (the newest phone runs), then [direct physical input](#direct-physical-input), [physical accessibility](#physical-accessibility-and-screen-understanding), [native media](#native-media-and-recording) and [frames](#frames-on-the-phone). Simulator results: [simulator input](#simulator-input-and-accessibility), [keyboard layouts](#keyboard-layouts-on-the-simulator), [layout detection](#layout-detection), [app logs](#app-logs-console-and-crashes) and [other simulator families](#other-simulator-families). MCP ordering: [calls sent without waiting](#mcp-calls-sent-without-waiting).
+Where to find the physical results: [discovery and readiness](#discovery-and-readiness) through [app console and last crash](#app-console-and-last-crash-on-the-phone) and the runs of 2026-11-17, the newest on the phone: the [morning session](#phone-session-of-2026-11-17), [web content](#web-content-on-the-phone), [a passcode, pairing and the lock screen](#a-passcode-on-the-phone-pairing-handoff-and-the-lock-screen), and human handoff [with a physical step](#handoff-with-a-physical-step), [with a permission prompt](#handoff-with-an-app-permission-prompt), [through an MCP host](#handoff-through-an-mcp-host-the-pause-and-the-form) and [watching the device](#handoff-that-watches-the-device); then [direct physical input](#direct-physical-input), [physical accessibility](#physical-accessibility-and-screen-understanding), [native media](#native-media-and-recording) and [frames](#frames-on-the-phone). Simulator results: [simulator input](#simulator-input-and-accessibility), [keyboard layouts](#keyboard-layouts-on-the-simulator), [layout detection](#layout-detection), [app logs](#app-logs-console-and-crashes) and [other simulator families](#other-simulator-families). MCP ordering: [calls sent without waiting](#mcp-calls-sent-without-waiting).
 
 ## Environment and evidence handling
 
 The latest physical checks used the designated iPhone 13 mini, iOS 27.2.1 (24B156), macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2 and CoreDevice 651.32. Media work observed AVConference 2260.15.1. Some earlier input records used iOS 27.2 (24B119); results from one checkpoint do not establish all OS versions.
 
-The phone had Developer Mode and Enable UI Automation enabled for the successful UI checks. Later checks found its display off. User preparation is not continuous proof that the device remains awake/unlocked.
+The phone had Developer Mode and Enable UI Automation enabled for the successful UI checks. It had no passcode until the evening of 2026-11-17, when the owner set one for testing; records before that describe a phone without one. Its default browser was Chrome until the same evening and is Safari since. Later checks found its display off. User preparation is not continuous proof that the device remains awake/unlocked.
 
 Raw screenshots, movies, app/process inventories, addresses, device IDs, archives and stderr remain under ignored `tmp/`. They are not public fixtures. The Git commits named below retain the detailed implementation checkpoints; temporary artifact UUID lists and intermediate test counts are omitted here.
 
@@ -336,7 +336,7 @@ End of input was not run on a device. Not shown: the passcode keypad, a phone re
 
 The decision was the person's; the tool pressed neither button. The receipt does not say which was chosen, and the probe's status shows it was "No permitir". Not shown: a biometric or purchase prompt, and a prompt raised by an app other than the probe.
 
-### Handoff through an MCP host: the pause, and a form the person never saw
+### Handoff through an MCP host: the pause and the form
 
 **2026-11-17, evening**, same phone and host. `manzanero mcp` ran as a stdio server of an interactive Claude Code session; the probe app had been uninstalled and installed again, so its notification status read `notDetermined`, and `press_element probe.permission.request` raised the prompt.
 
@@ -982,6 +982,6 @@ The earlier source/history privacy review used Gitleaks 8.30.1 against the pre-c
 
 ## What these records do not establish
 
-No result here completes all Apple-family coverage or reliable unattended testing. Important gaps include cross-process ownership, uncertain-release quarantine, crash/cable-loss recovery, broad app/overlay/orientation behavior, simulator input migration and dedicated iPad/Watch/TV/Duo validation. Later: the device lease and the simulator route now exist and have scoped live checks; quarantine after an uncertain release exists on the Mac and has run on one simulator, not on the phone; iPad, Watch, TV and Duo have simulator results only. Native recording and `frames` have not run on the phone since the bridge's decoded-JPEG mode was removed on 2026-11-17. The [roadmap](roadmap.md#pending) lists what remains.
+No result here completes all Apple-family coverage or reliable unattended testing. Important gaps include cross-process ownership, uncertain-release quarantine, crash/cable-loss recovery, broad app/overlay/orientation behavior, simulator input migration and dedicated iPad/Watch/TV/Duo validation. Later: the device lease and the simulator route now exist and have scoped live checks; quarantine after an uncertain release exists on the Mac and has run on one simulator and, for a killed touch, on the phone; iPad, Watch, TV and Duo have simulator results only. Native recording and `frames` each ran once on the phone after the bridge's decoded-JPEG mode was removed on 2026-11-17. Web pages are read in Chrome only, a phone in landscape is not read at all, and human handoff has run with one person, one phone and one MCP host. The [roadmap](roadmap.md#pending) lists what remains.
 
 When repeating a check, record the current versions/target/backend, separate transport acceptance from visible effect and cleanup, and retain failures rather than automatically retrying an input action.

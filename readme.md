@@ -32,7 +32,7 @@ There is no published beta release or Homebrew formula yet. See [beta installati
 
 ## Prepare a physical device
 
-Pair and trust the Mac using Apple's normal setup. Enable Developer Mode and **Settings → Developer → Enable UI Automation** on the device. Keep it awake and unlocked for the verified UI flows.
+Pair and trust the Mac using Apple's normal setup. Enable Developer Mode and **Settings → Developer → Enable UI Automation** on the device. Keep it awake and unlocked for the verified UI flows, in portrait: the accessibility tree is refused on a phone in landscape. A phone with a passcode works; `wake` stops at the lock screen and never enters a passcode, and [`handoff --until unlocked`](docs/handoff.md#watching-the-device---until) waits for a person to unlock it. Setting a passcode on an already paired phone dropped its pairing once, so pair again if `readiness` reports it unpaired.
 
 ```sh
 mise run cli readiness --device <hardware-UDID>
@@ -57,10 +57,12 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Pinch or coordinated contacts | [Multitouch](docs/multitouch.md), [timed sequences](docs/gesture-sequences.md) |
 | Text entry | [Typing in a named keyboard layout](docs/physical-typing.md) ([layout research](docs/keyboard-layouts.md), [finding the device's layout](docs/physical-typing.md#finding-the-layout-detect-layout)), [Unicode text by set-value](docs/simulator-input.md#unicode-text-set-value), [Unicode paste](docs/native-input.md#direct-unicode-paste) |
 | Screen, hierarchy, OCR | [Screen inspection](docs/screen-understanding.md), [accessibility](docs/direct-accessibility.md) |
-| Exact accessibility press or scroll | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
+| Exact accessibility press or scroll, and choosing among elements that share a label (`--index`) | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
+| Reading and pressing a web page | [Web content](docs/direct-accessibility.md#web-content) |
 | Video, or many screenshots in a row | [Recording](docs/recording.md), [frames](docs/recording.md#frames-repeated-screenshots-from-one-stream) |
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
-| A step that needs a person | [Human handoff](docs/handoff.md) |
+| A step that needs a person (unlock, pairing, a permission prompt) | [Human handoff](docs/handoff.md): `handoff --until` watches the device and ends by itself |
+| Input sent to a locked phone | [Lock state in receipts](docs/native-input.md#receipts-and-partial-effects) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
 | Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown | [Other simulator families](docs/other-families.md) |
 | Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical `logs` is not implemented) |
@@ -111,6 +113,7 @@ Host configuration formats vary. Set a suitable working directory: relative file
 - Native input and AX actions are experimental. Successful transport acknowledgements are not UI assertions.
 - Native video has scoped CLI/MCP verification, including one five-minute capture and one recording with AX inspection and Home control. With the macOS firewall on, the executable needs an allow rule or recordings get no video; `doctor` reports it ([recording](docs/recording.md#the-macos-firewall-can-drop-the-video)). Keyframe, crash and disconnect recovery are unfinished.
 - SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Forced exits and failed transports do not have a release guarantee: after one during an input, further input to that device is refused until you have looked at it and run `clear-quarantine` ([quarantine](docs/native-input.md#quarantine-after-an-uncertain-release)). A second `manzanero` process is refused input to a device another one is controlling.
+- A web page is read and pressed as a tree of its own, apart from the browser around it, and has been checked in Chrome only ([web content](docs/direct-accessibility.md#web-content)).
 - Live screen mirroring, stable reusable element handles, broad Apple-family coverage and several simulator/diagnostic paths remain incomplete.
 - Screenshots, app lists, logs, clipboard data and artifacts under `tmp/` can contain private information. Do not commit or share them without review.
 

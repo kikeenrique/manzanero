@@ -60,3 +60,5 @@ mise run test:mcp-readiness <hardware-UDID>
 ```
 
 This reads state through real MCP without input. The latest iPhone 13 mini check reported CoreDevice prerequisites present and display off, with no passcode requirement reported. It did not establish current UI unlock or a successful wake. See [verification](verification.md).
+
+With a passcode set on that phone (2026-11-17), a locked and sleeping phone read `displayPower: off`, `passcodeRequired: true` and `ui.status: needsUserAction`, and the same phone unlocked read `passcodeRequired: false` ([record](verification.md#a-passcode-on-the-phone-pairing-handoff-and-the-lock-screen)). Right after the passcode was set, readiness exited 1 with `connection: disconnected` and `pairing: unpaired` until the phone was paired again. To wait for a person to unlock or pair, use [`handoff --until unlocked` or `--until paired`](handoff.md#watching-the-device---until), which poll these same fields.

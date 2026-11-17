@@ -11,7 +11,7 @@ manzanero tree --device <hardware-UDID>
 manzanero tree --pid <positive-PID> --device <hardware-UDID>
 ```
 
-Without PID, the operation selects the process hit at the primary display's logical centre, then rechecks that process and the display geometry after capture. This requires one awake primary display with native/current portrait orientation (`rot0`). An overlay or embedded process can be selected; the result is not a combined system/application tree.
+Without PID, the operation selects the process hit at the primary display's logical centre, then rechecks that process and the display geometry after capture. This requires one awake primary display with native/current portrait orientation (`rot0`): on a phone turned to landscape, `tree` and every selector command fail with "native AX centre selection requires portrait geometry" (seen on the iPhone 13 mini, 2026-11-17). An overlay or embedded process can be selected; the result is not a combined system/application tree. A system alert is such an overlay: while a permission prompt is up, the tree is the alert's, and when it is answered the tree is the app's again. A web page is another ([web content](#web-content)).
 
 An explicit PID permits background inspection and does not verify foreground selection. PIDs must be positive Int32 values. MCP `get_ui_tree` defaults to `platform: physical`.
 

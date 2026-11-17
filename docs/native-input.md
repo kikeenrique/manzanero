@@ -37,7 +37,7 @@ manzanero wake [--no-dismiss] --device <UDID>
 
 The result is JSON with `status`, `displayPowerBefore`, `displayPower`, `sideButtonPressed` and `homePressed`. `already-awake` and `awake` exit 0; the other statuses exit 1 with an `action` explaining what a person should do. Over MCP the tool is `wake_device`, and those statuses are answers rather than errors. `wake` takes the device lease like any other input.
 
-An `awake` status means Apple reported the backlight on. It does not prove the UI is unlocked or which screen is showing, so inspect before acting. Local tests cover every branch. On hardware it has been observed once, on an iPhone 13 mini without a passcode: a dark display was woken to the Home screen and stayed on, and a second call on the lit display sent nothing. See [verification](verification.md#guarded-wake).
+An `awake` status means Apple reported the backlight on. It does not prove the UI is unlocked or which screen is showing, so inspect before acting. Local tests cover every branch. On hardware it has been observed on one iPhone 13 mini. Without a passcode: a dark display was woken to the Home screen and stayed on, and a second call on the lit display sent nothing ([verification](verification.md#guarded-wake)). With a passcode: the side button was pressed, Home was not, and the status was `awake-locked` with exit 1; a second call on the lit lock screen was `already-awake` ([verification](verification.md#a-passcode-on-the-phone-pairing-handoff-and-the-lock-screen)). The lock screen sleeps again within about ten seconds. To have a person unlock it, follow with [`handoff --until unlocked`](handoff.md#watching-the-device---until).
 
 ## Touch preparation and dispatch
 
