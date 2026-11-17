@@ -3,6 +3,7 @@
 Handoff asks a person to perform a step on the selected device. It does not detect prompts, perform the step or verify its effect.
 
 ```sh
+manzanero handoff 'Unlock the phone' --until unlocked --device <hardware-UDID>      # ends by itself
 manzanero handoff 'Complete Face ID on the phone' --device <hardware-UDID>
 manzanero handoff 'Finish the permission step' 120 --simulator <UUID>
 manzanero handoff 'Enable Developer Mode and restart' --device <hardware-UDID> --dry-run
@@ -11,6 +12,36 @@ manzanero handoff 'Enable Developer Mode and restart' --device <hardware-UDID> -
 Use a hardware UDID for physical devices or UUID for simulators. Names, `booted` and physical CoreDevice UUID aliases are rejected. Format validation does not establish device presence; discover the target first.
 
 Messages accept at most 2048 UTF-8 bytes and exclude terminal controls except tab/newline. Never put a passcode, password or other credential in the message.
+
+## Watching the device: `--until`
+
+The better way to end a handoff is not to ask. With `--until` the handoff names what "finished" looks like on the device, watches for it, and ends by itself. The person only touches the device.
+
+```sh
+manzanero handoff 'Unlock the phone' --until unlocked --device <UDID>
+manzanero handoff 'Pair the phone: click Pair, tap Trust' --until paired --device <UDID>
+manzanero handoff 'Answer the notification prompt' 180 --until gone --label Allow --device <UDID>
+manzanero handoff 'Sign in' --until visible --id home.title --simulator <UUID>
+```
+
+| `--until` | Finished when | Devices |
+| --- | --- | --- |
+| `unlocked` | The display is on and no passcode is required | Physical |
+| `paired` | CoreDevice reports connected and paired | Physical |
+| `visible`, `gone`, `enabled`, `disabled`, `value`, `focused` | [`wait`](direct-accessibility.md#bounded-wait-for-a-selector-condition)'s condition holds for the element `--id` or `--label` names (`--index` and `--value` as there) | Both |
+
+How it runs:
+
+- **It never watches forever.** The timeout is the same operand as before, 1...3600 seconds, default 300. At the deadline the result is `timedOut`, exit 1.
+- **The condition is read first.** A step that is already done returns at once with `alreadyMet: true` and nobody is asked. The same happens when there was never anything to wait for, such as `gone` for a prompt that is not on screen; `alreadyMet` is how to tell.
+- **It polls, read-only.** One look, then a 2-second pause, until the condition or the deadline. An element condition is a `wait` of 3 seconds each time. A look that fails (display asleep, device unreachable mid-pairing, a phone in landscape) counts as "not seen yet" and is reported in `observation.notObserved`; it is not an error, because the person may be in the middle of the step.
+- **Waiting costs no model tokens.** The polling is inside this process; a caller makes one call and is blocked until it returns.
+- **No terminal is needed**, so an agent's own shell can run it. At an interactive terminal the request is printed and `done`, `decline` and `cancel` are also taken between looks. From an MCP host there is no form: to refuse, cancel the call or let it time out.
+- **The pause holds throughout.** Mutations for the device are refused while it is watched, and the watch ends with the call, including when it is cancelled.
+
+The result has `status: observed`, `mechanism: device-observation`, `humanAcknowledged: false` and `verified: true`. `verified` is about the named condition only: a prompt that went away says nothing about which button was pressed. It also carries `until`, the last `observation`, `polls`, `elapsedSeconds`, `timeoutSeconds` and `alreadyMet`.
+
+Use the forms below when a step leaves nothing on the device to see.
 
 ## Terminal flow
 
@@ -31,7 +62,7 @@ Noninteractive stdin is refused. This coordinates workflow; it is not proof of h
 
 ## MCP flow
 
-`request_handoff` takes `platform`, `device` and `message`. A host advertising form elicitation receives a form with no fields. The host's own Accept and Decline are the answer: accept is `acknowledged`, decline is `declined`, cancel is `cancelled`.
+`request_handoff` takes `platform`, `device` and `message`. With `until` (and `by`, `text`, `index`, `value`, `timeout_seconds`) it [watches the device](#watching-the-device---until) and shows no form; prefer that whenever the step can be seen on the device. Without it, a host advertising form elicitation receives a form with no fields. The host's own Accept and Decline are the answer: accept is `acknowledged`, decline is `declined`, cancel is `cancelled`.
 
 ```text
 Accept = step finished (any choice on the device). Decline = not done.

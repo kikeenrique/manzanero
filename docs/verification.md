@@ -375,6 +375,19 @@ The owner still found that form's wording wrong: what it says does not agree wit
 
 With the three-line message and the server reconnected, the case the wording is for was run: a fresh prompt (confirmed by screenshot and `tree`), `request_handoff 'Answer the notification prompt on the phone.'`, and the owner chose "No permitir" on the phone and Accept in the host. `status: acknowledged`, `formAnswer` "action accept; empty content"; afterwards the screenshot and `tree` showed the probe with no prompt and `{"requests":1,"status":"denied","v":1}`. A refusal on the device was reported as a finished step, as it should be. How the host drew the three-line message was not captured.
 
+### Handoff that watches the device
+
+**2026-11-17, night**, same phone and host, after the owner asked whether there was no other way than a form. `handoff --until` ([guide](handoff.md#watching-the-device---until)) was run from a non-interactive shell, which the form-based handoff refuses.
+
+| Command | Observed |
+| --- | --- |
+| `handoff 'Unlock the phone' 20 --until unlocked`, phone already unlocked | Exit 0 at once: `status: observed`, `alreadyMet: true`, `polls: 1`, `verified: true`, observation `displayPower: on`, `passcodeRequired: false` |
+| `handoff 'Answer the prompt' 20 --until gone --label Permitir`, no prompt on screen | Exit 0 at once: `observed`, `alreadyMet: true`, observation reason `absent` |
+| Fresh install, `press --id probe.permission.request`, `tree` (prompt present), then `handoff 'Answer the notification prompt on the phone' 180 --until gone --label Permitir`; the owner answered on the phone and touched nothing on the Mac | The request was printed on stderr with "Watching the device for: the element with label 'Permitir' gone". Exit 0 after 21 s and 4 looks: `status: observed`, `mechanism: device-observation`, `alreadyMet: false`, `verified: true` |
+| Screenshot and `tree` afterwards | The probe app, no prompt, `{"requests":1,"status":"denied","v":1}` |
+
+Not run on the phone: a timeout, `unlocked` and `paired` from the locked or unpaired state, the typed answers while watching, a watch longer than 21 s, the MCP `until` field from a host, and a simulator. Unit tests cover the loop with injected device readings: a condition met on the third look, an already-met one, a timeout, a failed look, the pause refusing a tap, and cancellation.
+
 ### Web content on the phone
 
 **2026-11-17, later the same day**, same phone and host, Chrome with public test pages. This follows the web form failure in the session above.

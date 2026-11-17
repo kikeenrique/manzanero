@@ -10,6 +10,7 @@ If every query to a connected device times out, capture the state of Apple's dev
 
 ## Not yet run on hardware
 
+- `handoff --until` beyond its first run ([record](verification.md#handoff-that-watches-the-device)): `unlocked` starting from a locked phone, `paired` starting unpaired, a timeout, `decline` typed while it watches, a watch of several minutes, `request_handoff` with `until` from an MCP host, and one run on a simulator.
 - With the passcode now set on the test phone: `wake` and `readiness` after a restart before the first unlock, the passcode keypad in the tree, and whether setting or removing a passcode always drops the pairing (it did once: [record](verification.md#a-passcode-on-the-phone-pairing-handoff-and-the-lock-screen)).
 - `handoff` with a biometric prompt or the passcode gate of Settings › Face ID y código (every terminal answer, an unlock and an app permission prompt are recorded), and more of `request_handoff` from an MCP host (recorded in Claude Code: the pause on mutations, and the field-less form answered with Accept and with Decline). Left: Cancel from a host, a second host, and a capture of how a host draws the form. Reconnect the server after a rebuild. The terminal flow with a physical step is [recorded](verification.md#handoff-with-a-physical-step). The owner has to be present.
 - `tree` and the selector commands refuse a phone in landscape ("requires portrait geometry"), seen after that handoff; touch, keys and captures in landscape on a phone are still unrun.

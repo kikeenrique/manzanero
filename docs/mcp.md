@@ -139,7 +139,7 @@ Within one session, the ordering above serializes each device's mutations. It do
 
 ## Handoff and approvals
 
-`request_handoff` uses a host form when form elicitation is advertised. The form has no fields: the host's own Accept acknowledges the person's response, not device success, and Decline or Cancel do not. Pending handoff pauses that device's mutations within the same server process while leaving observations available.
+`request_handoff` with `until` watches the device and ends by itself when it shows the condition, with no form ([handoff](handoff.md#watching-the-device---until)); prefer it. Without `until` it uses a host form when form elicitation is advertised. The form has no fields: the host's own Accept acknowledges the person's response, not device success, and Decline or Cancel do not. Pending handoff pauses that device's mutations within the same server process while leaving observations available.
 
 Do not send passcodes, keys or pairing-file contents through tool arguments. No MCP tool or CLI command initiates pairing; pair through Xcode/CoreDevice.
 

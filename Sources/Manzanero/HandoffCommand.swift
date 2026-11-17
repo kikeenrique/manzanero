@@ -7,6 +7,24 @@ struct HandoffCommand: Sendable, Equatable {
     let message: String
     let timeoutSeconds: Int
     let target: DeviceTarget
+    /// What "finished" looks like on the device. With one, the handoff
+    /// watches for it and ends by itself; nobody has to answer.
+    var condition: HandoffCondition? = nil
+
+    /// A handoff that ends when the device shows `until`: `unlocked`,
+    /// `paired`, or a `wait` condition (`visible`, `gone`, `enabled`,
+    /// `disabled`, `value`, `focused`) on the element `id` or `label` names.
+    init(platform: String, device: String, message: String, timeout: String?,
+         until: String?, id: String? = nil, label: String? = nil, index: String? = nil, value: String? = nil) throws {
+        try self.init(platform: platform, device: device, message: message, timeout: timeout)
+        guard let until else {
+            guard id == nil, label == nil, index == nil, value == nil else {
+                throw CommandFailure.usage("handoff: --id, --label, --index and --value describe what --until watches; give --until.")
+            }
+            return
+        }
+        condition = try HandoffCondition(until: until, platform: platform, device: device, id: id, label: label, index: index, value: value)
+    }
 
     /// A physical device takes a hardware UDID, a simulator its UUID.
     init(platform: String, device: String, message: String, timeout: String?) throws {
@@ -25,15 +43,71 @@ struct HandoffCommand: Sendable, Equatable {
         self.target = DeviceTarget(platform: platform, identifier: identifier)
     }
 
-    func output(_ status: HandoffStatus, mechanism: String) throws -> CommandOutput {
-        let acknowledged = status == .acknowledged
-        let data = try JSONSerialization.data(withJSONObject: ["status": status.rawValue, "platform": platform,
-            "device": device, "humanAcknowledged": acknowledged, "verified": false, "mechanism": mechanism], options: [.prettyPrinted, .sortedKeys])
-        return CommandOutput(data: data, exitCode: acknowledged ? 0 : 1)
+    /// `observed` is the device showing the named condition; `acknowledged`
+    /// is a person saying so. Both exit 0. `verified` is true only for
+    /// `observed`, and only about that condition.
+    func output(_ status: HandoffStatus, mechanism: String, extra: [String: Any] = [:]) throws -> CommandOutput {
+        let acknowledged = status == .acknowledged, observed = status == .observed
+        var result: [String: Any] = ["status": status.rawValue, "platform": platform,
+            "device": device, "humanAcknowledged": acknowledged, "verified": observed, "mechanism": mechanism]
+        result.merge(extra) { current, _ in current }
+        let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+        return CommandOutput(data: data, exitCode: acknowledged || observed ? 0 : 1)
     }
 }
 
-enum HandoffStatus: String, Sendable { case acknowledged, declined, cancelled, notCompleted, timedOut }
+enum HandoffStatus: String, Sendable { case acknowledged, declined, cancelled, notCompleted, timedOut, observed }
+
+/// What a handoff watches the device for.
+enum HandoffCondition: Sendable, Equatable {
+    /// The display is on and no passcode is required (physical devices).
+    case unlocked
+    /// CoreDevice reports the device connected and paired (physical devices).
+    case paired
+    /// A `wait` condition on one element, checked in short waits.
+    case element(operation: String, operands: [String], until: String, by: String, text: String)
+
+    static let names = ["unlocked", "paired"] + AccessibilityWait.conditionNames
+    /// Seconds of one short wait; the handoff repeats it until its deadline.
+    static let waitSeconds = 3
+
+    init(until: String, platform: String, device: String, id: String?, label: String?, index: String?, value: String?) throws {
+        let usage = "handoff --until takes \(Self.names.joined(separator: ", ")). unlocked and paired are for physical devices and take no selector; the others take exactly one of --id or --label, optionally --index, and --value for value."
+        switch until {
+        case "unlocked", "paired":
+            guard platform == "physical", id == nil, label == nil, index == nil, value == nil else { throw CommandFailure.usage(usage) }
+            self = until == "unlocked" ? .unlocked : .paired
+        default:
+            guard AccessibilityWait.conditionNames.contains(until), (id == nil) != (label == nil), let text = id ?? label else { throw CommandFailure.usage(usage) }
+            let operation = id != nil ? "wait-id" : "wait-label"
+            var operands = [text]
+            if let index { operands += [AccessibilitySelector.indexOption, index] }
+            operands += ["--until", until]
+            if let value { operands += ["--value", value] }
+            operands += ["--timeout", String(Self.waitSeconds)]
+            // The wait's own validation is the check: selector, index, value.
+            _ = try CommandRequest.input(Target(platform: platform == "physical" ? .physical : .simulator, identifier: device), operation, operands)
+            self = .element(operation: operation, operands: operands, until: until, by: id != nil ? "identifier" : "label", text: text)
+        }
+    }
+
+    var json: [String: Any] {
+        switch self {
+        case .unlocked: return ["until": "unlocked", "meaning": "display on and no passcode required"]
+        case .paired: return ["until": "paired", "meaning": "connected and paired"]
+        case .element(_, _, let until, let by, let text): return ["until": until, "selector": ["by": by, "text": text]]
+        }
+    }
+
+    /// One line for the person at a terminal.
+    var sentence: String {
+        switch self {
+        case .unlocked: return "the device unlocked with its display on"
+        case .paired: return "the device connected and paired"
+        case .element(_, _, let until, let by, let text): return "the element with \(by) '\(text)' \(until)"
+        }
+    }
+}
 
 struct DeviceTarget: Hashable, Sendable {
     let platform: String

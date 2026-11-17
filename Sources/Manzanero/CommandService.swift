@@ -28,12 +28,16 @@ actor CommandService {
         return try ToolRunner().run(plan.arguments + ["--quiet"])
     }, uiReadinessQuery: @escaping @Sendable (DeviceCommand) throws -> Data = { plan in
         try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 15)
-    }) {
+    }, handoffWatchPause: Duration = .seconds(2)) {
         self.leases = leases
         self.simulator = simulator
         self.readinessQuery = readinessQuery
         self.uiReadinessQuery = uiReadinessQuery
+        self.handoffWatchPause = handoffWatchPause
     }
+
+    /// The pause between two looks at the device while a handoff watches it.
+    private let handoffWatchPause: Duration
 
     private func readiness(_ device: String) throws -> DeviceReadiness {
         guard !device.isEmpty, !device.hasPrefix("-") else { throw CommandFailure.usage("Provide a valid device identifier.") }
@@ -93,9 +97,20 @@ actor CommandService {
             if dryRun { return try json(simulator.plan()) }
             return try await executeSimulator(simulator)
         case .handoff(let handoff):
-            if dryRun { return try json(["platform": handoff.platform, "device": handoff.device, "message": handoff.message, "action": "Request human completion; no device action or prompt is executed by this dry run."]) }
+            if dryRun {
+                var plan: [String: Any] = ["platform": handoff.platform, "device": handoff.device, "message": handoff.message, "action": "Request human completion; no device action or prompt is executed by this dry run."]
+                if let condition = handoff.condition {
+                    plan["until"] = condition.json
+                    plan["timeoutSeconds"] = handoff.timeoutSeconds
+                    plan["action"] = "Read the device for the condition, then ask a person and keep reading (read-only, about every 2 s) until it is seen or the timeout passes. Nobody has to answer; at a terminal done, decline and cancel are also taken. Nothing is queried by this dry run."
+                }
+                return try json(plan)
+            }
             guard pendingHandoffs.insert(handoff.target).inserted else { throw CommandFailure(.handoffPending, "A handoff is already pending for this device.", inputSent: .none) }
             defer { pendingHandoffs.remove(handoff.target) }
+            if let condition = handoff.condition {
+                return try await watchHandoff(handoff, until: condition, terminal: allowInteractive)
+            }
             if let handoffConfirmation {
                 let status = try await handoffConfirmation(handoff)
                 return try handoff.output(status, mechanism: "mcp-form")
@@ -550,6 +565,74 @@ actor CommandService {
 
     private func json(_ value: Any) throws -> CommandOutput {
         CommandOutput(data: try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]))
+    }
+
+    /// A handoff that watches the device for its condition and ends when it
+    /// is seen, at its deadline, or (at a terminal) when the person types an
+    /// answer. Nobody has to answer. The condition is read first, so a step
+    /// that is already done is not asked for. Reads only; the pause on the
+    /// device's mutations holds for the whole watch.
+    private func watchHandoff(_ handoff: HandoffCommand, until condition: HandoffCondition, terminal: Bool) async throws -> CommandOutput {
+        let clock = ContinuousClock(), start = clock.now
+        let deadline = start + .seconds(handoff.timeoutSeconds)
+        let keyboard = terminal && isatty(STDIN_FILENO) != 0
+        var polls = 0, asked = false
+        var observation: [String: Any] = [:]
+        func extra() -> [String: Any] {
+            let elapsed = clock.now - start
+            return ["until": condition.json, "observation": observation, "polls": polls, "alreadyMet": !asked,
+                    "elapsedSeconds": (Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18).rounded(),
+                    "timeoutSeconds": handoff.timeoutSeconds]
+        }
+        while true {
+            try Task.checkCancellation()
+            polls += 1
+            let (met, seen) = try await observeHandoff(condition, handoff)
+            observation = seen
+            if met { return try handoff.output(.observed, mechanism: "device-observation", extra: extra()) }
+            if !asked {
+                asked = true
+                if terminal {
+                    FileHandle.standardError.write(Data(("\u{7}Human action needed on \(handoff.platform) \(handoff.device):\n\(handoff.message)\n"
+                        + "Watching the device for: \(condition.sentence). This ends by itself when that is seen, or after \(handoff.timeoutSeconds) s."
+                        + (keyboard ? " You can also type 'done', 'decline' or 'cancel'." : "") + "\n").utf8))
+                }
+            }
+            guard clock.now < deadline else { return try handoff.output(.timedOut, mechanism: "device-observation", extra: extra()) }
+            if keyboard {
+                // Listening for a typed answer between looks at the device.
+                let answer = try TerminalHandoff.confirm(handoff, timeout: handoffWatchPause, prompt: { _ in })
+                if answer != .timedOut { return try handoff.output(answer, mechanism: "terminal", extra: extra()) }
+            } else {
+                try await Task.sleep(for: handoffWatchPause)
+            }
+        }
+    }
+
+    /// One look at the device. A look that fails (asleep, unreachable, not
+    /// portrait) is "not seen yet" with the reason, never an error: the
+    /// person may be in the middle of the step.
+    private func observeHandoff(_ condition: HandoffCondition, _ handoff: HandoffCommand) async throws -> (met: Bool, observation: [String: Any]) {
+        do {
+            switch condition {
+            case .unlocked:
+                let details = try readinessQuery(handoff.device)
+                let ui = try DeviceUIReadiness.observe(details: details, device: handoff.device, query: uiReadinessQuery)
+                return (ui.displayPower == "on" && ui.passcodeRequired == false,
+                        ["displayPower": ui.displayPower, "passcodeRequired": ui.passcodeRequired.map { $0 as Any } ?? NSNull()])
+            case .paired:
+                let report = try readiness(handoff.device)
+                return (report.connection == "connected" && report.pairing == "paired", ["connection": report.connection, "pairing": report.pairing])
+            case .element(let operation, let operands, _, _, _):
+                let target = Target(platform: handoff.platform == "physical" ? .physical : .simulator, identifier: handoff.device)
+                let output = try await perform(.input(target, operation, operands), dryRun: false, allowInteractive: false, handoffConfirmation: nil)
+                let result = try JSONSerialization.jsonObject(with: output.data) as? [String: Any] ?? [:]
+                return (result["conditionMet"] as? Bool == true, result["observation"] as? [String: Any] ?? [:])
+            }
+        } catch {
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            return (false, ["notObserved": String(String(describing: error).prefix(400))])
+        }
     }
 
     private func checkHandoffPause(_ request: CommandRequest) throws {

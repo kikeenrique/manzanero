@@ -687,14 +687,29 @@ extension ManzaneroCLI {
     }
 
     struct Handoff: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "handoff", abstract: "Ask a person to do a step on the device, then wait for their answer.",
-            discussion: "Automation of this device pauses until the person answers in the terminal. The answer is not verified on the device. Do not put secrets in the message.")
+        static let configuration = CommandConfiguration(commandName: "handoff", abstract: "Ask a person to do a step on the device, then wait until it is done.",
+            discussion: """
+            Automation of this device pauses meanwhile. With --until the device is watched and the handoff ends by \
+            itself when it shows the condition, or at the timeout; nobody has to answer, no terminal is needed, and \
+            a step that is already done returns at once. unlocked (display on, no passcode required) and paired \
+            (connected and paired) are for physical devices; visible, gone, enabled, disabled, value and focused \
+            are wait's conditions and take --id or --label, for example --until gone --label Allow for a \
+            permission prompt. Without --until a person answers in the terminal (done, decline, cancel) and the \
+            answer is not verified on the device. Do not put secrets in the message.
+            """)
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "What the person should do, 1...2048 UTF-8 bytes.") var message: String
-        @Argument(help: "Seconds to wait for the answer, 1...3600 (default 300).") var timeout: String?
+        @Argument(help: "Seconds to wait, 1...3600 (default 300).") var timeout: String?
+        @Option(help: ArgumentHelp("End when the device shows this: \(HandoffCondition.names.joined(separator: ", ")).", valueName: "condition"),
+                completion: .list(HandoffCondition.names)) var until: String?
+        @Option(parsing: .unconditional, help: ArgumentHelp("Element to watch, by exact accessibility identifier.", valueName: "identifier")) var id: String?
+        @Option(parsing: .unconditional, help: ArgumentHelp("Element to watch, by exact accessibility label.", valueName: "label")) var label: String?
+        @Option(help: ArgumentHelp("Position among several matching elements, counted from 1.", valueName: "position")) var index: String?
+        @Option(parsing: .unconditional, help: ArgumentHelp("Exact expected value, for --until value.", valueName: "text")) var value: String?
         func request(_ target: Target) throws -> CommandRequest {
-            .handoff(try HandoffCommand(platform: target.platform.rawValue, device: target.identifier, message: message, timeout: timeout))
+            .handoff(try HandoffCommand(platform: target.platform.rawValue, device: target.identifier, message: message, timeout: timeout,
+                                        until: until, id: id, label: label, index: index, value: value))
         }
     }
 
