@@ -137,6 +137,13 @@ actor CommandService {
             return try await executeFrames(frames)
         case .detectLayout(let detection):
             return try await executeLayoutDetection(detection, dryRun: dryRun)
+        case .clearQuarantine(let target):
+            if dryRun { return try json(DeviceQuarantine.plan(target)) }
+            // The mark is keyed like the lease: by the resolved CoreDevice
+            // identifier (a read-only query) or the simulator UUID.
+            let key = target.platform == .physical
+                ? try CoreDeviceInput.resolve(readinessQuery(target.identifier), requested: target.identifier) : target.identifier
+            return try json(DeviceQuarantine.clear(target, key: key, leases: leases))
         case .buildRun(let command):
             if !dryRun { try checkHandoffPause(request) }
             return try executeBuildRun(command, dryRun: dryRun)
@@ -234,6 +241,7 @@ actor CommandService {
             // querying the device a second time.
             var details: Data?
             let lease: DeviceLease?
+            var leased: String?
             do {
                 details = try readinessQuery(native.device)
                 if Self.nativeObservations.contains(native.operation) {
@@ -241,6 +249,7 @@ actor CommandService {
                 } else {
                     let resolved = try DirectPhysicalInput.identity(native, query: { _ in details ?? Data() })
                     lease = try leases.acquire(device: resolved.uuid, operation: native.operation)
+                    leased = resolved.uuid
                 }
             } catch let failure as CommandFailure {
                 throw failure.noInputSent()
@@ -262,6 +271,7 @@ actor CommandService {
                     throw failure.noInputSent()
                 }
             }
+            do {
             if native.operation == DirectPhysicalWake.operation {
                 return try DirectPhysicalWake.output(DirectPhysicalWake.execute(native, query: query))
             }
@@ -291,6 +301,11 @@ actor CommandService {
                 return CommandOutput(data: try DirectPhysicalTouch.execute(native, query: query))
             }
             return CommandOutput(data: try DirectPhysicalInput.execute(native, query: query))
+            } catch {
+                // An input whose end is unknown quarantines the device.
+                DeviceQuarantine.note(error, device: leased, operation: native.operation, leases: leases)
+                throw error
+            }
     }
 
     private func executeScreen(_ screen: ScreenCommand, dryRun: Bool) async throws -> CommandOutput {
@@ -388,6 +403,7 @@ actor CommandService {
         if dryRun { return try json(command.plan(probe)) }
         try checkHandoffPause(.detectLayout(command))
         let lease: DeviceLease
+        let leased: String
         let keyboard: LayoutDetection.Keyboard
         var setting: @Sendable () -> [String: Any]? = { nil }
         do {
@@ -397,10 +413,12 @@ actor CommandService {
                 let identity = try DirectPhysicalInput.identity(CoreDeviceInput(device: command.device, operation: "type", operands: []),
                                                                 query: { _ in details })
                 lease = try leases.acquire(device: identity.uuid, operation: "detect-layout")
+                leased = identity.uuid
                 keyboard = .physical(uuid: identity.uuid, version: identity.version)
             case .simulator:
                 _ = try SimulatorDevice.requireBooted(command.device, operation: "detect-layout", lookup: simulator.lookup)
                 lease = try leases.acquire(device: command.device, operation: "detect-layout")
+                leased = command.device
                 keyboard = .simulator(command.device)
                 let environment = simulator, device = command.device
                 setting = { DeviceKeyboardLayout.simulatorSetting(Result { try environment.keyboardPreferences(device) }, sources: KeyboardLayout.available()) }
@@ -414,7 +432,13 @@ actor CommandService {
             set: { try await self.detectionSet(command, $0) },
             keys: { try await self.detectionKeys($0, keyboard) },
             deviceSetting: setting)
-        return try json(await LayoutDetection.run(command, probe: probe, operations: operations))
+        do {
+            return try json(await LayoutDetection.run(command, probe: probe, operations: operations))
+        } catch {
+            // The probe is typed with real key events.
+            DeviceQuarantine.note(error, device: leased, operation: "detect-layout", leases: leases)
+            throw error
+        }
     }
 
     private func detectionRead(_ command: LayoutDetectionCommand) async throws -> String {
@@ -467,7 +491,12 @@ actor CommandService {
             return CommandOutput(data: try SimulatorHinge.execute(simulator, info: info, environment: self.simulator))
         }
         if SimulatorInput.inputOperations.contains(simulator.operation) {
-            return CommandOutput(data: try DirectSimulatorInput.execute(simulator, info: info, environment: self.simulator))
+            do {
+                return CommandOutput(data: try DirectSimulatorInput.execute(simulator, info: info, environment: self.simulator))
+            } catch {
+                DeviceQuarantine.note(error, device: simulator.device, operation: simulator.operation, leases: leases)
+                throw error
+            }
         }
         let data = try await DirectSimulatorAccessibility.execute(simulator, info: info, environment: self.simulator)
         return AccessibilityWait.operations.contains(simulator.operation) ? try AccessibilityWait.output(data) : CommandOutput(data: data)

@@ -629,6 +629,24 @@ extension ManzaneroCLI {
         func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "processes")) }
     }
 
+    struct ClearQuarantine: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: DeviceQuarantine.operation,
+            abstract: "Allow input again after an input whose release is unknown.",
+            discussion: """
+            A device is quarantined on this Mac when a touch, button or key input ended with an unknown outcome, \
+            or when the process sending it exited before releasing (a crash or a kill): a contact, key or button \
+            may still be held. Input is then refused with code device-quarantined, in every manzanero process; \
+            tree, screen, screenshot and recording still work. Inspect the device, then run this. It removes the \
+            mark and sends nothing to the device: it does not release anything held there.
+            """)
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        func request(_ target: Target) throws -> CommandRequest {
+            guard !target.identifier.isEmpty, !target.identifier.hasPrefix("-") else { throw CommandFailure.usage("Provide a valid device identifier.") }
+            return .clearQuarantine(target)
+        }
+    }
+
     struct Readiness: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "readiness", abstract: "Check CoreDevice prerequisites and observe display and passcode state (physical devices).",
             discussion: "Exits 1 unless the prerequisites are present. Does not verify UI Automation or prove that the UI is unlocked.")

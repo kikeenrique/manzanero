@@ -57,6 +57,8 @@ func summary(_ request: CommandRequest) -> [String] {
     case .detectLayout(let detection):
         return [detection.platform.rawValue, detection.device, "detect-layout", detection.by == "identifier" ? "--id" : "--label", detection.text]
             + option("--pid", detection.pid.map { String($0) })
+    case .clearQuarantine(let target):
+        return [target.platform.rawValue, target.identifier, DeviceQuarantine.operation]
     case .buildRun(let build):
         return [platform(build.physical), build.device, "build-run", build.project, build.scheme]
             + option("--configuration", build.configuration == "Debug" ? nil : build.configuration)

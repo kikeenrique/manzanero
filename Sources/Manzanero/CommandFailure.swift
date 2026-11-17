@@ -24,6 +24,9 @@ struct CommandFailure: Error, CustomStringConvertible {
         case deviceBusy = "device-busy"
         /// A human handoff is pending for the device.
         case handoffPending = "handoff-pending"
+        /// An earlier input may have left a contact, key or button held, so
+        /// input is refused until the device has been inspected and cleared.
+        case deviceQuarantined = "device-quarantined"
         /// An accessibility selector or PID matched nothing, several things, or something unusable.
         case targetUnresolved = "ambiguous-or-missing-target"
         /// The display, application or element changed between two checks.
@@ -76,6 +79,8 @@ struct CommandFailure: Error, CustomStringConvertible {
         case human
         /// Allow incoming connections for this executable in the macOS firewall.
         case allowFirewall = "allow-firewall"
+        /// Inspect the device (`tree`, `screenshot`), then run `clear-quarantine`.
+        case clearQuarantine = "clear-quarantine"
     }
 
     let description: String
@@ -151,7 +156,7 @@ struct CommandFailure: Error, CustomStringConvertible {
         guard inputSent == .none else { return .afterInspection }
         switch code {
         case .usage, .unsupportedOperation: return .no
-        case .deviceNotReady, .displayOff, .deviceBusy, .handoffPending, .signingFailed, .hostRequirement: return .afterAction
+        case .deviceNotReady, .displayOff, .deviceBusy, .handoffPending, .deviceQuarantined, .signingFailed, .hostRequirement: return .afterAction
         default: return .safe
         }
     }
@@ -160,6 +165,7 @@ struct CommandFailure: Error, CustomStringConvertible {
         switch code {
         case .displayOff: .wake
         case .deviceBusy, .handoffPending: .wait
+        case .deviceQuarantined: .clearQuarantine
         case .deviceNotReady, .signingFailed, .hostRequirement: .human
         default: nil
         }

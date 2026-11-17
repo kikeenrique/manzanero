@@ -56,4 +56,4 @@ Launch the installed executable with argument `mcp` from your host configuration
 
 Include the release version, host macOS/Xcode versions, device model/OS, redacted command, expected result and stderr. Review captures, app inventories, paths and `tmp/` contents before sharing. Never upload pairing records, credentials or commercial application binaries.
 
-Known gaps include recording recovery, release after a failure, devices other than one iPhone 13 mini, and Apple TV, Apple Watch and iPhone Duo hardware (simulators only so far). Check [feature status](feature-status.md), the [roadmap](roadmap.md#pending) and [verification](verification.md) before interpreting a failure.
+Known gaps include recording recovery, device-side release after a failure (the Mac only [quarantines](native-input.md#quarantine-after-an-uncertain-release) the device), devices other than one iPhone 13 mini, and Apple TV, Apple Watch and iPhone Duo hardware (simulators only so far). Check [feature status](feature-status.md), the [roadmap](roadmap.md#pending) and [verification](verification.md) before interpreting a failure.

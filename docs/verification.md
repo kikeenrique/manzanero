@@ -256,6 +256,21 @@ The MCP registry closes admissions, cancels and drains owned tasks. Local tests 
 
 Checkpoints: `63f1c27`, `b34ae14`, `181d699`, `9087b03`. SIGKILL, crashes, cable loss, blocked synchronous calls, interrupted setup, cross-process ownership and quarantine after uncertain release remain unresolved. Text/clipboard changes are not rolled back.
 
+### Quarantine after an uncertain release
+
+**2026-11-17**, `manzanero-research-duo-fold` (iPhone Duo, iOS 27.2, folded), headless; host macOS 27.2.1, Xcode 27.2. Settings in front, then the [probe app](probe-app.md). No physical device was contacted. Behaviour: [quarantine](native-input.md#quarantine-after-an-uncertain-release).
+
+| Command | Observed |
+| --- | --- |
+| `long-press 0.5 0.5 8`, SIGINT after 2 s; then `tap 0.5 0.5` | Exit 130 with the interruption diagnostic; the tap was `dispatched`: an interrupted input releases and leaves no mark |
+| `long-press 0.5 0.5 8`, SIGKILL after 2 s; then `tap`, `key escape` | Exit 137; both refused: `code: device-quarantined`, `inputSent: none`, `retry: after-action`, `action: clear-quarantine`, naming `the previous owner (pid …, long-press) exited without releasing the device` and the time |
+| `tree`, `screenshot` while quarantined | 103 labels; exit 0: observations and captures still run |
+| `clear-quarantine`, then `tap`, then `clear-quarantine` again | `status: cleared` with the reason; `dispatched`; `status: not-quarantined`, `reason: null` |
+| Probe app in front: `long-press 0.5 0.5 8`, SIGKILL after 2 s, then `tree` about 10 s later | `probe.touch.summary`: `began 1`, `ended 1`, `cancelled 0`, `active 0`: the simulator ended the contact itself after the sending process died |
+| `clear-quarantine` as the first command after a kill, in the first version | `not-quarantined`, because only a new owner looked for the dead owner's note; the next input would then have been refused. `clear-quarantine` now looks for it too (unit-tested; in the live repeat the mark had already been written by a refused input) |
+
+Not shown: anything on a phone, including whether it keeps a contact down after its connection closes; a failure that the bridge reports as an unknown outcome (only injected in tests); an MCP server killed mid-input.
+
 ### MCP calls sent without waiting
 
 **2026-11-16**, `iPhone 17e` simulator (iOS 27.2) with Settings in front; macOS 27.2.1 (26B131), Xcode 27.2 (27B52), Swift 6.4.2, MCP Swift SDK 0.12.1. Each session was a fresh `manzanero mcp` process driven by a script that wrote JSON-RPC lines to its stdin and read its stdout; the same script ran against the binary before and after the change ([contract](mcp.md#calls-sent-without-waiting)).

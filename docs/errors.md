@@ -74,6 +74,7 @@ A read-only command (`tree`, `wait`, `screen`, `screenshot`, `details`, `apps`, 
 | `wait` | Wait for the other owner of the device, or for the person answering a handoff |
 | `human` | A person must act: enable Developer Mode, connect or trust the device, sign in or fix signing, change the Mac |
 | `allow-firewall` | Allow incoming connections for this executable in the macOS firewall (see [recording](recording.md)) |
+| `clear-quarantine` | Inspect the device (`tree`, `screen`, `screenshot`), then run `clear-quarantine` for it (see [quarantine](native-input.md#quarantine-after-an-uncertain-release)) |
 
 ## Categories
 
@@ -85,6 +86,7 @@ A read-only command (`tree`, `wait`, `screen`, `screenshot`, `details`, `apps`, 
 | `display-off` | The primary display is off or its state is unknown | Screen locked and dark before touch, capture or AX centre selection | Run `wake`, then retry (`action: wake`) | No |
 | `device-busy` | Another owner controls the device | Another manzanero process holds the device lease; a native recording is already running in this process | Wait, then retry (`action: wait`) | No |
 | `handoff-pending` | A human handoff is pending for the device | A mutation while the person has not answered; a second handoff | Wait for the person (`action: wait`) | No |
+| `device-quarantined` | An earlier input may have left a contact, key or button held | An input that ended as `input-outcome-unknown`, or a process that exited mid-input (crash, kill) | Inspect the device, then `clear-quarantine` (`action: clear-quarantine`) | No |
 | `ambiguous-or-missing-target` | A selector, PID or identifier matched nothing, several things or the wrong thing | No match, duplicates, target offscreen or covered, PID not at the display centre, alias resolved to another device | Observe again and correct the selector or target | No |
 | `precondition-changed` | Something changed between two checks | Display rotated, foreground app or element identity changed before the action | Observe again, then retry (`retry: safe`) | No |
 | `tool-failed` | An Apple executable or framework step returned an error | `devicectl`, `simctl` or `xcodebuild` non-zero exit, an invalid capture | Read the message; inspect if `inputSent` is not `none` | Depends: `unknown` for a tool that may act |
@@ -93,7 +95,7 @@ A read-only command (`tree`, `wait`, `screen`, `screenshot`, `details`, `apps`, 
 | `cancelled` | The operation was cancelled | MCP request cancelled, session shut down | Decide again; inspect if `inputSent` is not `none` | Depends |
 | `signing-failed` | Xcode could not sign or provision the app | No team, account, certificate or profile, device not registered (from the build log) | Ask a person (`action: human`); see [Build & Run](build-run.md) | No |
 | `host-requirement` | The Mac lacks something | macOS too old for native recording, no terminal or form-capable MCP host for a handoff, firewall drops video, lease directory unwritable | Fix the host (`action: human` or `allow-firewall`) | No |
-| `input-outcome-unknown` | Input was attempted and its effect or release is unknown | HID barrier unconfirmed after sending, input stopped mid-schedule, AX action submitted without a usable reply or refused, paste keys failed after the clipboard changed, a later step failed after `wake` pressed a button | Inspect the screen; never replay automatically | Yes (`possible`) |
+| `input-outcome-unknown` | Input was attempted and its effect or release is unknown | HID barrier unconfirmed after sending, input stopped mid-schedule, AX action submitted without a usable reply or refused, paste keys failed after the clipboard changed, a later step failed after `wake` pressed a button | Inspect the screen; never replay automatically. When the operation presses something (touch, button, keys), the device is then quarantined and later input is `device-quarantined` | Yes (`possible`) |
 | `internal` | An internal invariant failed | A plan or encoding that should be impossible | Report it; retrying is unlikely to help | Usually no |
 | `unclassified` | The failure site has not been classified | See below | Treat as `inputSent: unknown`, inspect before retrying | Unknown |
 

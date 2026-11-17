@@ -11,6 +11,7 @@ If every query to a connected device times out, capture the state of Apple's dev
 ## Not yet run on hardware
 
 - `handoff` with a real prompt. Wait for the owner to say when.
+- Release after a killed input. With the probe app in front: `long-press 0.5 0.5 8 --device <UDID>`, `kill -KILL` its process after 2 s, then read `probe.touch.summary` in `tree` at once and again after 10 s (`active`, `ended`, `cancelled`). Then a `tap` (expect `device-quarantined`), `clear-quarantine --device <UDID>`, and a `tap` again. On a simulator the contact ended by itself; if the phone keeps it down, that is what a device-side release has to fix. Repeat with a held `key` if the first shows a stuck contact.
 - Setting an element's value in apps other than the probe (SwiftUI, secure, search and web fields), and through the MCP tool.
 - `frames` with the display rotated, on another device, for a long run (minutes, toward the 1000-frame and 1 GiB limits), and with a second process trying to capture or send input meanwhile. Portrait runs on the iPhone 13 mini are [recorded](verification.md#frames-on-the-phone).
 - `detect-layout` on another phone or with another layout set on this one (it found Spanish – ISO on the iPhone 13 mini: [verification](verification.md#layout-detection)), in a field other than the probe's (one with autocorrection or auto-capitalisation on, to see `no-match` and the hints), and through MCP against a phone.

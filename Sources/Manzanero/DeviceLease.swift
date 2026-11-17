@@ -13,7 +13,20 @@ import Synchronization
 ///
 /// A lease proves host-side exclusivity only. It says nothing about contacts or
 /// streams that an earlier owner left active on the device.
+///
+/// Quarantine covers the part of that the host can know. A device is marked
+/// when an input ended with an unknown outcome (`markUncertain`), or when a
+/// new owner finds the note of an input owner that exited without releasing
+/// (a crash, SIGKILL or forced exit: a normal release clears the note). The
+/// mark is a `<device>.quarantine` file beside the lock; while it exists,
+/// every operation that sends input is refused, in this and in other
+/// processes, until `clearQuarantine`. Nothing is sent to the device for it:
+/// whether a contact is really still down there is not known.
 final class DeviceLeaseRegistry: Sendable {
+    /// Owners that hold a stream, not contacts or keys. Their unclean exit
+    /// does not quarantine the device, and quarantine does not refuse them.
+    static let streamOperations = ["record", "frames"]
+
     static let shared = DeviceLeaseRegistry(directory: defaultDirectory)
 
     static var defaultDirectory: URL {
@@ -39,15 +52,104 @@ final class DeviceLeaseRegistry: Sendable {
     /// a lease held by another process fails immediately and names its holder.
     func acquire(device: String, operation: String) throws -> DeviceLease {
         let key = try Self.key(device)
+        let sendsInput = !Self.streamOperations.contains(operation)
         try entries.withLock { entries in
             if var entry = entries[key] {
+                if sendsInput, let note = quarantineNote(key) { throw Self.quarantined(note) }
                 entry.holders += 1
                 entries[key] = entry
                 return
             }
-            entries[key] = Entry(descriptor: try open(key: key, operation: operation), holders: 1)
+            // Opening the lock is what finds an owner that died holding it,
+            // so the quarantine check comes after it.
+            let descriptor = try open(key: key, operation: operation)
+            if sendsInput, let note = quarantineNote(key) {
+                Self.unlock(descriptor)
+                throw Self.quarantined(note)
+            }
+            entries[key] = Entry(descriptor: descriptor, holders: 1)
         }
         return DeviceLease(registry: self, key: key)
+    }
+
+    /// Marks `device` after an input whose release is unknown. Returns false
+    /// when the mark could not be written.
+    @discardableResult
+    func markUncertain(device: String, reason: String) -> Bool {
+        guard let key = try? Self.key(device) else { return false }
+        return mark(key, reason: reason)
+    }
+
+    /// Why `device` is quarantined, or nil when it is not.
+    func quarantine(device: String) throws -> String? {
+        let key = try Self.key(device)
+        adoptAbandonedOwner(key)
+        return quarantineNote(key)
+    }
+
+    /// An owner that died holding the lock is otherwise found only by the
+    /// next owner. This finds it without becoming one: if the lock is free
+    /// and still carries an input owner's note, the device is marked and the
+    /// note cleared. A lock held by anyone, this process included, is left alone.
+    private func adoptAbandonedOwner(_ key: String) {
+        entries.withLock { entries in
+            guard entries[key] == nil else { return }
+            let descriptor = Darwin.open(directory.appendingPathComponent("\(key).lock").path, O_RDWR | O_CLOEXEC | O_NOFOLLOW)
+            guard descriptor >= 0 else { return }
+            guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { _ = close(descriptor); return }
+            if let stale = Self.readHolder(descriptor), !Self.streamOperations.contains(where: { stale.hasSuffix(", \($0)") }) {
+                _ = mark(key, reason: "the previous owner (\(stale)) exited without releasing the device")
+            }
+            Self.unlock(descriptor)
+        }
+    }
+
+    /// Removes the mark and returns what it said, or nil when there was none.
+    /// It sends nothing to the device: the caller has inspected it.
+    func clearQuarantine(device: String) throws -> String? {
+        let key = try Self.key(device)
+        adoptAbandonedOwner(key)
+        guard let note = quarantineNote(key) else { return nil }
+        do {
+            try FileManager.default.removeItem(at: quarantineFile(key))
+        } catch {
+            throw CommandFailure(.hostRequirement, "Cannot remove the device quarantine mark: \(error.localizedDescription).", inputSent: .none)
+        }
+        return note
+    }
+
+    private static func quarantined(_ note: String) -> CommandFailure {
+        CommandFailure(.deviceQuarantined, "Device is quarantined: \(note). A contact, key or button may still be held on it. Inspect it (tree, screenshot), then run clear-quarantine for this device; no input sent.", inputSent: .none)
+    }
+
+    private func quarantineFile(_ key: String) -> URL { directory.appendingPathComponent("\(key).quarantine") }
+
+    /// The mark's text, sanitized because it is echoed into messages.
+    private func quarantineNote(_ key: String) -> String? {
+        guard let data = try? Data(contentsOf: quarantineFile(key)) else { return nil }
+        let text = String(decoding: data.prefix(400), as: UTF8.self).unicodeScalars
+            .filter { $0.isASCII && $0.value >= 0x20 && $0.value < 0x7F }
+        let note = String(String.UnicodeScalarView(text)).trimmingCharacters(in: .whitespaces)
+        return note.isEmpty ? "no reason recorded" : note
+    }
+
+    /// The first reason is kept: a later one would hide when it began.
+    private func mark(_ key: String, reason: String) -> Bool {
+        if quarantineNote(key) != nil { return true }
+        let note = "\(reason.prefix(300)), since \(ISO8601DateFormatter().string(from: Date()))\n"
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try Data(note.utf8).write(to: quarantineFile(key), options: .atomic)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private static func unlock(_ descriptor: Int32) {
+        _ = ftruncate(descriptor, 0)
+        _ = flock(descriptor, LOCK_UN)
+        _ = close(descriptor)
     }
 
     fileprivate func release(key: String) {
@@ -60,10 +162,9 @@ final class DeviceLeaseRegistry: Sendable {
             }
             entries[key] = nil
             // Clear the holder note before unlocking so a later reader never
-            // attributes the device to a process that has released it.
-            _ = ftruncate(entry.descriptor, 0)
-            _ = flock(entry.descriptor, LOCK_UN)
-            _ = close(entry.descriptor)
+            // attributes the device to a process that has released it, and
+            // so a note still present means its writer did not get here.
+            Self.unlock(entry.descriptor)
         }
     }
 
@@ -105,6 +206,13 @@ final class DeviceLeaseRegistry: Sendable {
             var held = stat(), current = stat()
             if fstat(descriptor, &held) == 0, stat(path, &current) == 0,
                held.st_ino == current.st_ino, held.st_dev == current.st_dev {
+                // A note under a free lock was left by an owner that exited
+                // without releasing. If it was sending input, its contacts,
+                // keys or buttons may still be held.
+                if let stale = Self.readHolder(descriptor),
+                   !Self.streamOperations.contains(where: { stale.hasSuffix(", \($0)") }) {
+                    _ = mark(key, reason: "the previous owner (\(stale)) exited without releasing the device")
+                }
                 Self.writeHolder(descriptor, operation: operation)
                 return descriptor
             }

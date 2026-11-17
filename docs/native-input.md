@@ -99,11 +99,24 @@ Within one process the lease is shared, so an MCP server can record and send inp
 
 [Simulator input](simulator-input.md) and simulator press/scroll take the same lease, keyed by the simulator UUID; on one simulator a second process's tap during a long press was refused this way.
 
-The lease establishes host-side exclusivity only. It does not show that an earlier owner released its contacts, keys or stream on the device, and it does not restrain Xcode or other tools. Local tests cover refusal, sharing and release. On the iPhone 13 mini, a second process's `tap` during an 8-second `long-press` was refused at once and a `tree` from it succeeded; after the hold a `tap` was accepted ([verification](verification.md#first-live-run-of-the-queue-lease-wait-and-trimmed-bridge)). That is one pair of processes and one timing.
+The lease establishes host-side exclusivity only. It does not show that an earlier owner released its contacts, keys or stream on the device ([quarantine](#quarantine-after-an-uncertain-release) covers the cases the Mac can know about), and it does not restrain Xcode or other tools. Local tests cover refusal, sharing and release. On the iPhone 13 mini, a second process's `tap` during an 8-second `long-press` was refused at once and a `tree` from it succeeded; after the hold a `tap` was accepted ([verification](verification.md#first-live-run-of-the-queue-lease-wait-and-trimmed-bridge)). That is one pair of processes and one timing.
+
+## Quarantine after an uncertain release
+
+A touch, button or key input can end without its release being known: the bridge reports `input-outcome-unknown` (input was attempted and the end of it was not confirmed), or the process sending it exits first (a crash, SIGKILL, the forced exit after a second signal or the grace deadline). A contact, key or button may then still be held on the device, and further input would be read against it: a tap as a second finger, a key as a chord.
+
+Manzanero cannot see that on the device, so it records it on the Mac and stops sending input until someone has looked:
+
+- **What marks a device.** An operation that presses something (`tap`, `long-press`, `swipe`, `drag`, `pinch`, `multi-tap`, `multi-drag`, `gesture`, `button`, `key`, `type`, `paste`, `wake`, `remote`, `crown`, `detect-layout`) failing with `input-outcome-unknown`; or a new owner, or `clear-quarantine`, finding the lease note of such an operation under a free lock, which only an owner that exited without releasing leaves behind. Accessibility actions (`press`, `scroll`, `set-value`) hold nothing and never mark; `fold`, `unfold` and `hinge` send one event with no release; an abandoned `record` or `frames` owner holds a stream, not a contact, and does not mark.
+- **What it refuses.** Every operation that takes the lease to send input or an accessibility action, in every `manzanero` process on this Mac, with `code: device-quarantined`, `inputSent: none`, `retry: after-action`, `action: clear-quarantine`. The message gives the reason and when it began. `tree`, `wait`, `screen`, `screenshot`, `record`, `frames` and the app and file commands still run, so the device can be inspected.
+- **How it ends.** `manzanero clear-quarantine (--device <UDID> | --simulator <UUID>)` (MCP `clear_quarantine`) removes the mark and prints `status: cleared` with the reason, or `not-quarantined`. It sends nothing to the device and releases nothing on it; it records that the caller inspected it. The mark is a `<device>.quarantine` file beside the lease, keyed like it, and survives restarts.
+- **What does not mark.** SIGINT and SIGTERM: the release is sent before exit 130/143 and the lease note is cleared. A failure before any input (`transport-failed`, `inputSent: none`).
+
+Nothing is sent to the device to release anything. Whether a phone keeps a contact down when its connection closes has not been observed, so a release sequence would be untested input. On one simulator a long press killed with SIGKILL after 2 s was released by the simulator itself: the probe app recorded the contact ending, with none active ([verification](verification.md#quarantine-after-an-uncertain-release)). The same check on the phone is in the [live check plan](live-check-plan.md).
 
 ## CLI signals
 
-During direct physical HID commands, SIGINT/SIGTERM cancel owned work, attempt cleanup and exit 130/143 without a success receipt. A second signal or the 30-second grace deadline forces exit. Force exit, SIGKILL, crashes and disconnects cannot guarantee device-side release.
+During direct physical HID commands, SIGINT/SIGTERM cancel owned work, attempt cleanup and exit 130/143 without a success receipt. A second signal or the 30-second grace deadline forces exit. Force exit, SIGKILL, crashes and disconnects cannot guarantee device-side release; the next input to that device is then refused until [`clear-quarantine`](#quarantine-after-an-uncertain-release).
 
 MCP also cancels/drains owned operations on EOF and signals; see [MCP shutdown](mcp.md#shutdown-and-operation-ownership).
 
@@ -113,7 +126,7 @@ Scoped iPhone 13 mini checks cover Home, Settings tap/drag, long press, two-cont
 
 The fix explains the earlier taps and Home presses that had no visible effect. The connection used to be cancelled as soon as the completion barrier was acknowledged, and a gesture shorter than about 0.2 s could be discarded whole by the device while its receipt still said `dispatched`. The connection now stays open for 200 ms after the barrier, so every input call takes at least that long. The value was measured on that phone: 50 ms lost about a third of short gestures, and 100, 200 and 400 ms lost none. A receipt is still not an effect: inspect after every action.
 
-Local tests cover encoding, scheduling, rotation, invalid input and attempted cleanup. They do not prove hardware delivery, exact timing or release after failure. Other Apple families, rotations, quarantine after an uncertain release and reliable unattended recovery remain incomplete. [Verification](verification.md) records positive and negative results.
+Local tests cover encoding, scheduling, rotation, invalid input and attempted cleanup. They do not prove hardware delivery, exact timing or release after failure. Other Apple families, rotations, device-side release after an uncertain one and reliable unattended recovery remain incomplete. [Verification](verification.md) records positive and negative results.
 
 ## Historical helper implementation (removed)
 

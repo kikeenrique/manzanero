@@ -17,6 +17,9 @@ enum CommandRequest: Sendable, Equatable {
     case frames(FramesCommand)
     /// `detect-layout`: a probe typed into a named field and read back.
     case detectLayout(LayoutDetectionCommand)
+    /// `clear-quarantine`: remove this Mac's mark that an earlier input may
+    /// have left something held on the device. Sends the device nothing.
+    case clearQuarantine(Target)
     case buildRun(BuildRunCommand)
     case diagnostics(AppDiagnosticsCommand)
     /// A `devicectl` or `simctl` wrapper.
@@ -76,6 +79,7 @@ extension CommandRequest {
         case .record(let recording): (recording.physical ? "physical" : "simulator", recording.device, "record")
         case .frames(let frames): ("physical", frames.device, "frames")
         case .detectLayout(let detection): (detection.platform.rawValue, detection.device, "detect-layout")
+        case .clearQuarantine(let target): (target.platform.rawValue, target.identifier, DeviceQuarantine.operation)
         case .buildRun(let build): (build.physical ? "physical" : "simulator", build.device, "build-run")
         case .diagnostics(let diagnostics): (diagnostics.physical ? "physical" : "simulator", diagnostics.device, diagnostics.operation)
         case .tool(let tool): (tool.platform.rawValue, tool.device, tool.operation)
@@ -89,7 +93,7 @@ extension CommandRequest {
     /// assumed read-only.
     var isReadOnly: Bool {
         guard let addressed else { return true }
-        return (CommandService.observationOperations + ["media-status"]).contains(addressed.operation)
+        return (CommandService.observationOperations + ["media-status", DeviceQuarantine.operation]).contains(addressed.operation)
     }
 
     /// Operations that own a child process, send input or (`frames`) save
