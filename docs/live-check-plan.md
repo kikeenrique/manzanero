@@ -10,6 +10,7 @@ If every query to a connected device times out, capture the state of Apple's dev
 
 ## Not yet run on hardware
 
+- One `record tmp/after-bridge-change.mp4 5 --backend coredevice --device <UDID>` and one `frames tmp/after-bridge-change --count 10 --device <UDID>`: the bridge's video session became packet-only on 2026-11-17 and neither command has run on the phone since. Note `rtcp.negotiatedFeedback` in the recording's receipt; it has never been read live and decides whether keyframe requests can be built.
 - `handoff` with a real prompt. Wait for the owner to say when.
 - Release after a killed input. With the probe app in front: `long-press 0.5 0.5 8 --device <UDID>`, `kill -KILL` its process after 2 s, then read `probe.touch.summary` in `tree` at once and again after 10 s (`active`, `ended`, `cancelled`). Then a `tap` (expect `device-quarantined`), `clear-quarantine --device <UDID>`, and a `tap` again. On a simulator the contact ended by itself; if the phone keeps it down, that is what a device-side release has to fix. Repeat with a held `key` if the first shows a stuck contact.
 - Setting an element's value in apps other than the probe (SwiftUI, secure, search and web fields), and through the MCP tool.
@@ -48,6 +49,7 @@ These need no hardware and no owner decision; they were left out of the simulato
 - Which keyboard type (ANSI or ISO) does a phone apply to Indigo keyboard events, and does a phone's iOS version ship the same layouts as the Mac?
 - Was the firewall also behind the earlier intermittent recording startup failures?
 - Why did one wait report its subscription stop as unconfirmed?
+- Does a phone keep a contact, key or button held when the process sending it is killed? A simulator ended the contact itself.
 
 ## Stop conditions
 

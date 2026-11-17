@@ -148,7 +148,7 @@ The AX session uses a 30-second overall read budget, four-second phases, 256 fra
 
 Successful observations can retain uncertain subscription cleanup. Inspect `cleanup.subscriptionStop`, `confirmed` and diagnostics, plus separate `connectionCleanup.tunnelAssertionRelease`. An acknowledgement is not independent proof of device-side teardown.
 
-Cancellation propagates after cleanup attempts. No operation is replayed. Blocking private calls, force exit, crashes/disconnection and delayed same-type replies retain uncertainty.
+Cancellation propagates after cleanup attempts. No operation is replayed. `press`, `scroll` and `set-value` take the device lease, so they are refused as `device-quarantined` while the device is [quarantined](native-input.md#quarantine-after-an-uncertain-release); they hold nothing themselves and never cause a quarantine. `tree` and `wait` are not affected. Blocking private calls, force exit, crashes/disconnection and delayed same-type replies retain uncertainty.
 
 ## Evidence and earlier failures
 

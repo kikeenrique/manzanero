@@ -6,7 +6,7 @@ Source reviewed on 2026-11-12 at [revision `4b622d4436fc441534e6ee8c7196728cd762
 
 | AXe area | Useful idea | manzanero gap or application |
 | --- | --- | --- |
-| Input owner/broker | Track held input across clients, attempt release, block later input after uncertain cleanup | A per-device lease now refuses a second process's input ([ownership](native-input.md#ownership-across-processes)); quarantine after uncertain cleanup remains missing here |
+| Input owner/broker | Track held input across clients, attempt release, block later input after uncertain cleanup | A per-device lease now refuses a second process's input ([ownership](native-input.md#ownership-across-processes)); after an input whose release is unknown, input is refused until `clear-quarantine` ([quarantine](native-input.md#quarantine-after-an-uncertain-release)), on the Mac only: nothing is released on the device |
 | Display stream | Own session UUID/control/UDP lifetime; poll disappearance of the owned session rather than stop-all | Informed session-specific media cleanup; independent teardown proof still limited |
 | Negotiated transport | Validate endpoints, codec/RTCP metadata and distinguish stall/replacement | Scoped validations exist; broad long-session/recovery behavior remains incomplete |
 | Screenshot capture | Check geometry before/after each capture | Distinct from stream timing/quality; not a silent substitute |
@@ -25,4 +25,4 @@ The project instead implements device operations against Apple APIs in its own c
 
 The RTCP receiver-report layout/statistics were informed by AXe's [PhysicalDisplayRTCP.swift](https://github.com/cameroncooke/AXe/blob/4b622d4436fc441534e6ee8c7196728cd762dbff/Sources/AXe/Device/PhysicalDisplayRTCP.swift) and RFC 3550. The [MIT notice](../ThirdParty/AXe-LICENSE.txt) is retained.
 
-Native HEVC reception uses Apple's negotiator, not AXe's custom offer encoder. Receiver reports and scoped recordings have local/live evidence here; no AXe runtime operation was invoked. Keyframe/crash recovery and quarantine after uncertain release remain separate gaps. See [recording](recording.md) and [verification](verification.md).
+Native HEVC reception uses Apple's negotiator, not AXe's custom offer encoder. Receiver reports and scoped recordings have local/live evidence here; no AXe runtime operation was invoked. Keyframe and crash recovery remain gaps. See [recording](recording.md) and [verification](verification.md).

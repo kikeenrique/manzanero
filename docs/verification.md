@@ -779,6 +779,6 @@ The earlier source/history privacy review used Gitleaks 8.30.1 against the pre-c
 
 ## What these records do not establish
 
-No result here completes all Apple-family coverage or reliable unattended testing. Important gaps include cross-process ownership, uncertain-release quarantine, crash/cable-loss recovery, broad app/overlay/orientation behavior, simulator input migration and dedicated iPad/Watch/TV/Duo validation. Later: the device lease and the simulator route now exist and have scoped live checks; iPad, Watch, TV and Duo have simulator results only. The [roadmap](roadmap.md#pending) lists what remains.
+No result here completes all Apple-family coverage or reliable unattended testing. Important gaps include cross-process ownership, uncertain-release quarantine, crash/cable-loss recovery, broad app/overlay/orientation behavior, simulator input migration and dedicated iPad/Watch/TV/Duo validation. Later: the device lease and the simulator route now exist and have scoped live checks; quarantine after an uncertain release exists on the Mac and has run on one simulator, not on the phone; iPad, Watch, TV and Duo have simulator results only. Native recording and `frames` have not run on the phone since the bridge's decoded-JPEG mode was removed on 2026-11-17. The [roadmap](roadmap.md#pending) lists what remains.
 
 When repeating a check, record the current versions/target/backend, separate transport acceptance from visible effect and cleanup, and retain failures rather than automatically retrying an input action.

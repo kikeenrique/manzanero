@@ -93,7 +93,7 @@ Both routes are private interfaces of CoreSimulator, libxpc and AccessibilityPla
 | Snapshot depth | Always 48 | 48; when that comes back empty, 10 (see the Home Screen below) |
 | Lease | Keyed by the CoreDevice UUID | Keyed by the simulator UUID |
 
-The lease, the handoff pause and the CLI signal handling (SIGINT/SIGTERM exit 130/143 after attempted release) apply to simulator input exactly as to physical input; trees and waits take no lease and are not paused.
+The lease, the [quarantine](native-input.md#quarantine-after-an-uncertain-release) that follows an input whose release is unknown, the handoff pause and the CLI signal handling (SIGINT/SIGTERM exit 130/143 after attempted release) apply to simulator input exactly as to physical input; trees and waits take no lease and are not paused. On one simulator a long press killed with SIGKILL quarantined it until `clear-quarantine`, and the simulator ended the contact itself.
 
 ## Observed limits
 

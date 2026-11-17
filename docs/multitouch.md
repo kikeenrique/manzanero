@@ -50,6 +50,6 @@ Two-contact spread and inward movement visibly zoomed Maps on iPhone 13 mini; a 
 
 On one iPhone 17e simulator the probe app recorded every two-contact pinch and two-path drag as two simultaneous contacts (20 of 20 over five rounds), and every three-, four- and five-contact multi-tap and three-path drag as that many simultaneous contacts (20 of 20 over five rounds of the built-in plan) ([runner results](probe-touch-runner.md#simulator-runs)).
 
-Local tests cover two-to-five-slot encoding, rotation, interpolation, endpoint/timing bounds and input rejection before device queries. Broad gesture semantics, release after a hardware failure, other apps, landscape on a phone and other Apple families' hardware remain unverified.
+Local tests cover two-to-five-slot encoding, rotation, interpolation, endpoint/timing bounds and input rejection before device queries. Broad gesture semantics, release after a hardware failure (the Mac [quarantines](native-input.md#quarantine-after-an-uncertain-release) the device; nothing is released on it), other apps, landscape on a phone and other Apple families' hardware remain unverified.
 
 Earlier ipb/idevice implementations have been removed (git history keeps them). Their tests and receipts do not establish behavior of the current direct backend.

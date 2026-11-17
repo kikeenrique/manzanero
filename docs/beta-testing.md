@@ -46,7 +46,7 @@ Inspect fresh state after actions. Physical touch coordinates are normalized `0.
 
 Paste replaces the clipboard. The tool does not automatically retry input, approve prompts or switch to a non-Apple helper. A second `manzanero` process that tries to send input to a device another one is controlling is refused (`device-busy`); Xcode and other tools are not coordinated.
 
-SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Crashes, forced exits and disconnects do not guarantee release or rollback.
+SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Crashes, forced exits and disconnects do not guarantee release or rollback. After one of them during an input, further input to that device fails with `device-quarantined`: look at the device, then run `manzanero clear-quarantine --device <UDID>` ([quarantine](native-input.md#quarantine-after-an-uncertain-release)).
 
 ## MCP setup
 

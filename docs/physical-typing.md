@@ -61,7 +61,7 @@ The complete string is validated before device access. Each character maps to on
 
 Events use absolute monotonic offsets spaced by 10 ms. A schedule holds at most 2048 events (20.47 seconds), the former worst case of 512 shifted characters; Option and dead-key characters need four to twelve events each, so a long text of them is refused with the count and should be split. Those are requested host times, not guaranteed device delivery times. The C boundary independently checks usages (main block, arrows, Non-US backslash 100, Left Shift, Left Option, Left Command), counts, balanced transitions and complete release.
 
-Cancellation or transport failure stops future typing and attempts release of the outstanding key set. The operation never replays a partial string. Forced exit, crashes or transport loss can prevent cleanup, and already-entered text is not rolled back. A cancellation between the two strokes of a dead-key character can leave the dead key pending on the device. See [input cancellation](native-input.md#task-cancellation-and-release-attempts).
+Cancellation or transport failure stops future typing and attempts release of the outstanding key set. The operation never replays a partial string. Forced exit, crashes or transport loss can prevent cleanup, and already-entered text is not rolled back; after a typing failure with an unknown outcome, or a typing process that died, input to the device is refused until [`clear-quarantine`](native-input.md#quarantine-after-an-uncertain-release). A cancellation between the two strokes of a dead-key character can leave the dead key pending on the device. See [input cancellation](native-input.md#task-cancellation-and-release-attempts).
 
 ## Result and evidence
 

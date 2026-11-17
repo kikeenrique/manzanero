@@ -131,7 +131,7 @@ Each tool call is registered as an owned task before device work starts. Request
 | --- | --- |
 | stdin EOF | Cancel/drain; exit 0 |
 | SIGINT / SIGTERM | Cancel/drain; exit 130 / 143 |
-| Cleanup grace expiry or repeated signal | Forced exit; cleanup is uncertain |
+| Cleanup grace expiry or repeated signal | Forced exit; cleanup is uncertain. If an input was running, the next input to that device is refused as `device-quarantined` until `clear_quarantine` |
 
 The runtime grace is 30 seconds. Interrupted input does not publish an ordinary success receipt. Embedded sessions stop/drain without exiting their host process and cannot restart after shutdown.
 
