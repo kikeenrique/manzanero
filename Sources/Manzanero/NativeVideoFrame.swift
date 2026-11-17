@@ -13,7 +13,7 @@ struct NativeVideoFrame: Sendable {
         let width = CVPixelBufferGetWidth(source), height = CVPixelBufferGetHeight(source)
         guard (1...8192).contains(width), (1...8192).contains(height), width * height <= 20_000_000,
               CVPixelBufferGetPixelFormatType(source) == kCVPixelFormatType_32BGRA else {
-            throw CommandFailure(description: "Native decoded pixel buffer has unsupported dimensions or format.")
+            throw CommandFailure(.toolFailed, "Native decoded pixel buffer has unsupported dimensions or format.", inputSent: .none)
         }
         let owned = try CVMutablePixelBuffer(.init(pixelFormatType: .init(rawValue: kCVPixelFormatType_32BGRA),
             size: .init(width: width, height: height)))

@@ -30,7 +30,8 @@ final class NativeHEVCDecoder {
 
     init(width: Int, height: Int) throws {
         guard (1...8192).contains(width), (1...8192).contains(height), width * height <= 20_000_000 else {
-            throw CommandFailure(description: "Invalid native HEVC video dimensions.")
+            // The dimensions are the ones negotiated with the device.
+            throw CommandFailure(.transportFailed, "Invalid native HEVC video dimensions.", inputSent: .none)
         }
         self.width = width; self.height = height
     }
@@ -49,7 +50,7 @@ final class NativeHEVCDecoder {
             guard emitJPEG else { return nil }
             guard let jpeg = context.jpegRepresentation(of: CIImage(cvPixelBuffer: image), colorSpace: CGColorSpaceCreateDeviceRGB(), options: [:]),
                   jpeg.count <= 8 * 1024 * 1024 else {
-                throw CommandFailure(description: "Native HEVC decoder produced invalid JPEG output.")
+                throw CommandFailure(.toolFailed, "Native HEVC decoder produced invalid JPEG output.", inputSent: .none)
             }
             return jpeg
         }
@@ -72,7 +73,7 @@ final class NativeHEVCDecoder {
             let options = [CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String): quality]
             guard let jpeg = context.jpegRepresentation(of: visible, colorSpace: CGColorSpaceCreateDeviceRGB(), options: options),
                   !jpeg.isEmpty, jpeg.count <= 8 * 1024 * 1024 else {
-                throw CommandFailure(description: "Native HEVC decoder produced invalid JPEG output.")
+                throw CommandFailure(.toolFailed, "Native HEVC decoder produced invalid JPEG output.", inputSent: .none)
             }
             return jpeg
         }
@@ -90,22 +91,22 @@ final class NativeHEVCDecoder {
     private func decodeOutput<Value: Sendable>(_ unit: MediaHEVCAccessUnit,
         transform: @escaping @Sendable (CVPixelBuffer) throws -> Value?) throws -> Value? {
         try Task.checkCancellation()
-        guard !closed else { throw failure("decoder is closed") }
+        guard !closed else { throw closedFailure }
         guard unit.parameterSets.count == 3, unit.parameterSets.allSatisfy({ (2...65_535).contains($0.count) }),
-              !unit.nals.isEmpty, unit.nals.count <= 256 else { throw failure("invalid access unit") }
+              !unit.nals.isEmpty, unit.nals.count <= 256 else { throw failure("invalid access unit", stream: true) }
         var available = 8 * 1024 * 1024
         for nal in unit.nals {
-            guard nal.count >= 2, nal.count + 4 <= available else { throw failure("oversized access unit") }
+            guard nal.count >= 2, nal.count + 4 <= available else { throw failure("oversized access unit", stream: true) }
             available -= nal.count + 4
         }
         if parameters == nil {
-            guard unit.randomAccess else { throw failure("initial picture is not random access") }
+            guard unit.randomAccess else { throw failure("initial picture is not random access", stream: true) }
             try configure(unit.parameterSets)
-        } else if parameters != unit.parameterSets { throw failure("parameter sets changed during capture") }
-        guard let session, let format else { throw failure("decoder is closed") }
+        } else if parameters != unit.parameterSets { throw failure("parameter sets changed during capture", stream: true) }
+        guard let session, let format else { throw closedFailure }
         if let previousTimestamp {
             let delta = unit.timestamp &- previousTimestamp
-            guard delta > 0, delta < 0x80000000 else { throw failure("reordered or repeated presentation timestamp") }
+            guard delta > 0, delta < 0x80000000 else { throw failure("reordered or repeated presentation timestamp", stream: true) }
             ticks += Int64(delta)
         }
         previousTimestamp = unit.timestamp
@@ -164,7 +165,7 @@ final class NativeHEVCDecoder {
         guard let description else { throw failure("missing format description") }
         let dimensions = CMVideoFormatDescriptionGetDimensions(description)
         guard Self.acceptsCodedDimensions(Int(dimensions.width), Int(dimensions.height), negotiatedWidth: width, negotiatedHeight: height) else {
-            throw failure("coded dimensions \(dimensions.width)x\(dimensions.height) differ from negotiated \(width)x\(height)")
+            throw failure("coded dimensions \(dimensions.width)x\(dimensions.height) differ from negotiated \(width)x\(height)", stream: true)
         }
         var decoder: VTDecompressionSession?
         try check(VTDecompressionSessionCreate(allocator: kCFAllocatorDefault, formatDescription: description,
@@ -184,7 +185,14 @@ final class NativeHEVCDecoder {
             height >= negotiatedHeight && height <= (negotiatedHeight + 31) / 32 * 32
     }
 
-    private func failure(_ detail: String) -> CommandFailure { CommandFailure(description: "Native HEVC decoder: \(detail).") }
+    /// A VideoToolbox or Core Media step that failed is `tool-failed`; `stream`
+    /// marks data from the device that is not what was negotiated
+    /// (`transport-failed`). Decoding sends no input either way.
+    private func failure(_ detail: String, stream: Bool = false) -> CommandFailure {
+        CommandFailure(stream ? .transportFailed : .toolFailed, "Native HEVC decoder: \(detail).", inputSent: .none)
+    }
+    /// Use after `close()` is a caller error in this process.
+    private var closedFailure: CommandFailure { CommandFailure(.internal, "Native HEVC decoder: decoder is closed.", inputSent: .none) }
     private func check(_ status: OSStatus, _ action: String) throws {
         if status != 0 { throw failure("\(action) failed (OSStatus \(status))") }
     }

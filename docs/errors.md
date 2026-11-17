@@ -108,9 +108,12 @@ The set is deliberately small and closed; a new value would be a change to this 
 
 ## Unclassified sites
 
-At the app-logs checkpoint, `Sources/Manzanero` constructed `CommandFailure` in 279 places (a helper such as `failure(_:)` counts once, however many guards call it; the 49 added with `logs`, `console` and `last-crash` were all classified), 273 of them classified, 11 by keeping a wrapped failure's category. Those totals were not recounted after later features. The sites that remain `unclassified` (those built with `CommandFailure(description:)`) are now seven:
+At the app-logs checkpoint, `Sources/Manzanero` constructed `CommandFailure` in 279 places (a helper such as `failure(_:)` counts once, however many guards call it; the 49 added with `logs`, `console` and `last-crash` were all classified), 273 of them classified, 11 by keeping a wrapped failure's category. Those totals were not recounted after later features. No site in `Sources/Manzanero` builds a failure with `CommandFailure(description:)` any more. The seven that did are classified as follows:
 
-- `KeyedArchiveInspector`'s invalid-archive failure: it serves both offline `decode-ax-archive` files (a usage problem) and device replies (a transport problem), and cannot tell which.
-- `NativeHEVCDecoder` (four sites, one of them its `failure(_:)` helper, and one the JPEG-output check that `frames` added), `NativeVideoFrame` and native movie finalization: host-side VideoToolbox/AVFoundation failures whose cause (stream data or host) is not known at the site. They occur only during recording and `frames`, so they still report `inputSent: none`.
-- Errors that are not `CommandFailure` at all: Foundation and POSIX errors (a missing file for `ocr` or `decode-ax-archive`, malformed JSON from an Apple tool, socket errors), decoding errors and AVFoundation errors. They print exactly as before and are `unclassified` with `inputSent: unknown`, except that the accessibility action and tree paths, which know their stage, report `none` before the action.
+- `KeyedArchiveInspector`'s invalid archive is `transport-failed` (a malformed device or simulator reply), including bytes that are not a property list at all, which used to escape as a Foundation error. For the offline `decode-ax-archive` it is `usage`, as is a file that cannot be read.
+- `NativeHEVCDecoder`: stream data that is not what was negotiated (an invalid or oversized access unit, a first picture that is not random access, changed parameter sets, a repeated timestamp, unexpected dimensions) is `transport-failed`; a VideoToolbox or Core Media step that returns an error, and invalid JPEG output, are `tool-failed`; use after close is `internal`. `NativeVideoFrame` and native movie finalization are `tool-failed`. All report `inputSent: none`: they occur only during recording and `frames`.
+
+What remains `unclassified`:
+
+- Errors that are not `CommandFailure` at all: Foundation and POSIX errors (malformed JSON from an Apple tool, socket errors), decoding errors and AVFoundation errors. They print exactly as before and are `unclassified` with `inputSent: unknown`, except that the accessibility action and tree paths, which know their stage, report `none` before the action.
 - A wrapped failure keeps the inner category, so a wrapper around one of the above stays unclassified.

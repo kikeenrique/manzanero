@@ -117,4 +117,22 @@ struct KeyedArchiveInspectorTests {
         }
         #expect(mcp.isError == false)
     }
+
+    /// An invalid archive is a malformed reply when it came from a device and
+    /// a usage error when it is the caller's own file, as is a missing file.
+    @Test func invalidArchivesAreClassifiedByWhereTheyCameFrom() async throws {
+        let reply = try #require(throws: CommandFailure.self) { _ = try KeyedArchiveInspector.inspect(Data("not a plist".utf8)) }
+        #expect(reply.code == .transportFailed && reply.inputSent == .unknown)
+
+        let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/archive-inspection-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("broken.plist").path
+        try Data("not a plist".utf8).write(to: URL(fileURLWithPath: path))
+        let service = CommandService(readinessQuery: { _ in Issue.record("Offline inspection queried device"); return Data() })
+        for file in [path, directory.appendingPathComponent("missing.plist").path] {
+            let failure = await #expect(throws: CommandFailure.self) { _ = try await service.run(["decode-ax-archive", file]) }
+            #expect(failure?.code == .usage && failure?.inputSent == CommandFailure.InputSent.none && failure?.retry == .no)
+        }
+    }
 }

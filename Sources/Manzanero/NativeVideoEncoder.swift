@@ -103,7 +103,8 @@ actor NativeVideoEncoder {
         receiver.finish()
         await writer.finishWriting()
         guard writer.status == .completed else {
-            throw CommandFailure(description: "Native movie finalization failed: \(String(describing: writer.error))")
+            // AVFoundation refused to finish the file; recording sends no input.
+            throw CommandFailure(.toolFailed, "Native movie finalization failed: \(String(describing: writer.error))", inputSent: .none)
         }
         return frameCount
     }

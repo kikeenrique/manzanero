@@ -42,7 +42,7 @@ The order below is a suggested order, not one the owner set, except where an ite
 3. **Recording startup and recovery.** Keyframe requests (PLI/FIR), crash and disconnect recovery are not built; the negotiated-feedback value has never been read live. Earlier startup failures were traced to the macOS firewall in one case; whether that explains all of them is open.
 4. **Release after failure.** Quarantine after an uncertain release, and device-side release after a forced exit, crash or cable loss, are not handled. The lease is host-side only.
 5. **Open questions on the phone.** One tap on the Settings search field had no effect while 36 others did; Apple's device services stopped answering once on 2026-11-16 (capture evidence before restarting them next time); one wait reported its subscription stop unconfirmed. See the [live check plan](live-check-plan.md#questions-still-open).
-6. **Unclassified failures.** A few host-side recording, `frames` and archive failures, and errors that are not `CommandFailure`, still report `unclassified` ([errors](errors.md#unclassified-sites)).
+6. **Unclassified failures.** Errors that are not `CommandFailure` (Foundation, POSIX, decoding and AVFoundation errors) still report `unclassified`; the recording, `frames` and archive sites are classified ([errors](errors.md#unclassified-sites)).
 
 ### More devices and more apps
 

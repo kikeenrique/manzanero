@@ -53,20 +53,34 @@ struct KeyedArchiveInspector {
         return kind
     }
 
+    /// `decode-ax-archive`: the archive is the caller's file, so a file that
+    /// cannot be read or is not a valid archive is a usage error.
     static func inspectFile(_ path: String) throws -> Data {
-        let file = try FileHandle(forReadingFrom: URL(fileURLWithPath: path))
-        defer { try? file.close() }
         var bytes = Data()
-        while bytes.count <= maximumBytes {
-            let chunk = try file.read(upToCount: maximumBytes + 1 - bytes.count) ?? Data()
-            if chunk.isEmpty { break }
-            bytes.append(chunk)
+        do {
+            let file = try FileHandle(forReadingFrom: URL(fileURLWithPath: path))
+            defer { try? file.close() }
+            while bytes.count <= maximumBytes {
+                let chunk = try file.read(upToCount: maximumBytes + 1 - bytes.count) ?? Data()
+                if chunk.isEmpty { break }
+                bytes.append(chunk)
+            }
+        } catch {
+            throw CommandFailure.usage("Archive is not readable: \(path) (\(error.localizedDescription))")
         }
-        return try inspect(bytes)
+        do {
+            return try inspect(bytes)
+        } catch let failure as CommandFailure where failure.code == .transportFailed {
+            throw CommandFailure.usage(failure.description)
+        }
     }
 
+    /// An archive that is not what the protocol sends. Archives decoded here
+    /// are device or simulator replies, so this is a malformed reply; the
+    /// offline `inspectFile` turns it into a usage error. Whether input was
+    /// sent is not known here; the accessibility paths refine it by stage.
     private static func invalid(_ reason: String) -> CommandFailure {
-        CommandFailure(description: "Invalid accessibility keyed archive: \(reason)")
+        CommandFailure(.transportFailed, "Invalid accessibility keyed archive: \(reason)", inputSent: .unknown)
     }
 
     private func uid(_ value: Any) throws -> Int? {
@@ -90,7 +104,12 @@ struct KeyedArchiveInspector {
         }
         archives += 1
         try Self.validateBinaryUIDs(bytes)
-        let parsed = try PropertyListSerialization.propertyList(from: bytes, options: [], format: nil)
+        let parsed: Any
+        do {
+            parsed = try PropertyListSerialization.propertyList(from: bytes, options: [], format: nil)
+        } catch {
+            throw Self.invalid("not a property list (\(error.localizedDescription))")
+        }
         guard let envelope = parsed as? [String: Any], envelope["$archiver"] as? String == "NSKeyedArchiver",
               let table = envelope["$objects"] as? [Any], table.count <= 100_000,
               let top = envelope["$top"] as? [String: Any], let root = top["root"], try uid(root) != nil else {
