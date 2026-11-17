@@ -402,7 +402,25 @@ Not run on the phone: a timeout, `unlocked` and `paired` from the locked or unpa
 
 The request line printed for a `value` condition ended in a bare "value"; it now names the awaited value ("the element with identifier 'probe.text.field' value 'nunca'"), and the plan's `until` carries it.
 
-Still not run: `unlocked` from the locked state with someone unlocking, `paired` from unpaired, a typed answer while watching, and the MCP `until` field from a host.
+The runs that needed the owner at the phone followed within the hour, below.
+
+### The last handoff runs on the phone
+
+**2026-11-17, 23:54 to 2026-11-18, 00:02**, the same phone with the owner at it, and Claude Code as the MCP host with the server reconnected after the rebuild. Each row was followed by a look at the phone (`readiness`, a screenshot or a tree).
+
+| Step | Observed |
+| --- | --- |
+| Phone asleep and locked. `handoff 'Unlock the phone' 180 --until unlocked` from a non-interactive shell; the owner unlocked it | Exit 0 after 73 s and 26 looks: `status: observed`, `alreadyMet: false`, `verified: true`, observation `displayPower: on`, `passcodeRequired: false` |
+| `press_button lock` (receipt `passcodeRequired: false`; `readiness` a moment later: display off, passcode required), then MCP `request_handoff` with `until: unlocked`, `timeout_seconds: 180`; the owner unlocked it | No form. `observed` after 24 s and 9 looks, `mechanism: device-observation` |
+| MCP `request_handoff` without `until`, asking for Esc on the form | First try: the host returned `action accept; empty content` and the result was `acknowledged`, so Enter or Accept was pressed. Second try: `action cancel; no content`, `status: cancelled`, `humanAcknowledged: false`, returned as an error result |
+| Settings › Face ID y código (`press --id com.apple.settings.passcodeAndBiometrics`): the passcode gate. `tree` | The gate is in the tree: `Passcode field` ("Campo del código"), the keypad's ten digits by identifier and label, `Delete`, `Cancel`. Nothing was pressed on it |
+| MCP `request_handoff 'Enter your passcode on the phone'` with `until: gone`, `by: identifier`, `text: Passcode field`; the owner entered the passcode | `observed` after 14 s and 3 looks, observation reason `absent`; the tree then showed the page behind the gate ("Configurar Face ID", "Desbloquear el iPhone") |
+| In the owner's own terminal: `handoff 'Type decline here' 120 --until visible --id no.such.element`, and `decline` typed | `status: declined` after 17 s and 3 looks, `mechanism: terminal`, `verified: false`, last observation `no-match` |
+| With the owner's permission, `devicectl manage unpair`; `readiness`: `disconnected`, `unpaired`. Then `handoff 'Pair the phone: tap Trust and enter the passcode' 300 --until paired`; the owner paired it again | Exit 0 after 50 s and 23 looks: `observed`, observation `connected`, `paired`. A `tree` right after read Settings |
+
+So every way a handoff ends has now run on the phone with a person: the device observed (`unlocked`, `paired`, an element gone), a timeout, a typed decline while watching, and from the host Accept, Decline and Cancel. The passcode gate stands in for a biometric prompt, which this phone cannot raise without Face ID set up.
+
+Not run, and not planned on this setup: a second MCP host (only Claude Code is configured here) and a real Face ID or purchase prompt. Still untested: whether a host removes a form the server withdraws, which is why a watching handoff shows none.
 
 ### Selector by value, detect-layout index, masked read-back and the display note
 
