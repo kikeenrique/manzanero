@@ -26,6 +26,7 @@ mise tasks validate
 | `test:cli-interrupt`, `test:ocr` | CLI signal handling during a physical hold; Vision OCR on a local image (no device) |
 | `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core and measurement-runner tests on macOS; Tuist workspace generation under `tmp/probe-app/generated` |
 | `test:probe-touch <UDID>` | Opt-in [touch measurement](probe-touch-runner.md) against the foreground probe app; `--dry-run` contacts no device |
+| `diagnose:device-services` | When every query to a connected device times out: saves a `sample` of `CoreDeviceService` and `remotepairingd`, one unified-log window for both (`--minutes`, default 15), a timed `devicectl list devices` and the OS and Xcode versions under `tmp/device-services/<timestamp>/`. Sends nothing to a device and restarts nothing; run it before anyone restarts those services |
 
 Use the installed task's argument help rather than guessing flags:
 

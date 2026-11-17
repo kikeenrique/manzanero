@@ -76,7 +76,7 @@ One SwiftPM package, three targets: the `Manzanero` executable, the Objective-C 
 
 ### Stuck Apple device services
 
-- When every query to a connected device times out, capture evidence before restarting `CoreDeviceService` or `remotepairingd`: a wide `log show` (or `log stream`) window for both and a `sample` of each process, saved under `tmp/`. Then ask before restarting them. On 2026-11-16 a restart fixed such a hang but nothing had been captured, so the cause is unknown.
+- When every query to a connected device times out, capture evidence before restarting `CoreDeviceService` or `remotepairingd`: a wide `log show` (or `log stream`) window for both and a `sample` of each process, saved under `tmp/`. `mise run diagnose:device-services` does exactly that. Then ask before restarting them. On 2026-11-16 a restart fixed such a hang but nothing had been captured, so the cause is unknown.
 
 ## Implementation and validation
 

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+#MISE description = "Capture evidence about Apple's device services (CoreDeviceService, remotepairingd) under tmp/ before anyone restarts them; restarts nothing"
+#USAGE flag "--minutes <minutes>" default="15" help="How far back the unified-log window reaches, 1...120"
+#USAGE flag "--sample-seconds <seconds>" default="5" help="How long each process is sampled, 1...30"
+
+# For the case where every query to a connected device times out. Writes, for
+# CoreDeviceService and remotepairingd: the process line, a `sample` of each,
+# and one unified-log window covering both; plus a timed `devicectl list
+# devices` and the OS and Xcode versions. Everything goes to a new directory
+# under tmp/device-services/, which can hold device names and identifiers and
+# stays untracked. It sends nothing to a device and restarts nothing: ask the
+# owner before restarting the services.
+
+set -u -o pipefail
+
+minutes="${usage_minutes:-15}"
+seconds="${usage_sample_seconds:-5}"
+case "$minutes" in ''|*[!0-9]*) echo "--minutes must be an integer from 1 to 120" >&2; exit 2;; esac
+case "$seconds" in ''|*[!0-9]*) echo "--sample-seconds must be an integer from 1 to 30" >&2; exit 2;; esac
+if [ "$minutes" -lt 1 ] || [ "$minutes" -gt 120 ]; then echo "--minutes must be an integer from 1 to 120" >&2; exit 2; fi
+if [ "$seconds" -lt 1 ] || [ "$seconds" -gt 30 ]; then echo "--sample-seconds must be an integer from 1 to 30" >&2; exit 2; fi
+
+out="tmp/device-services/$(date -u +%Y%m%d-%H%M%S)"
+mkdir -p "$out"
+
+{
+  echo "captured: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  sw_vers
+  xcodebuild -version 2>&1
+} > "$out/versions.txt"
+
+# The query that hangs, bounded, with how long it took.
+start=$(date +%s)
+xcrun devicectl list devices --timeout 20 > "$out/devicectl-list-devices.txt" 2>&1
+status=$?
+echo "exit $status after $(( $(date +%s) - start )) s" >> "$out/devicectl-list-devices.txt"
+
+for name in CoreDeviceService remotepairingd; do
+  pids=$(pgrep -x "$name" || true)
+  if [ -z "$pids" ]; then
+    echo "not running" > "$out/$name.process.txt"
+    continue
+  fi
+  for pid in $pids; do
+    ps -o pid=,user=,etime=,state=,%cpu=,rss=,command= -p "$pid" >> "$out/$name.process.txt" 2>&1
+    # sample needs root for a process of another user; the failure is kept.
+    sample "$pid" "$seconds" -file "$out/$name.$pid.sample.txt" > "$out/$name.$pid.sample.log" 2>&1 \
+      || echo "sample failed with exit $?" >> "$out/$name.$pid.sample.log"
+  done
+done
+
+log show --last "${minutes}m" --style compact --info \
+  --predicate 'process == "CoreDeviceService" OR process == "remotepairingd"' \
+  > "$out/unified-log.txt" 2> "$out/unified-log.err" || echo "log show failed with exit $?" >> "$out/unified-log.err"
+
+echo "Evidence written to $out:"
+ls -l "$out"
+echo "Nothing was restarted. Ask before restarting CoreDeviceService or remotepairingd."
