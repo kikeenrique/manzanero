@@ -8,7 +8,7 @@ This is the evidence summary for the current implementation and the material fai
 
 **Entries are not rewritten.** A few undated summary paragraphs were written before later dated sections; where they differ, the dated section is the later record, and a "Later:" note points to it.
 
-Where to find the physical results: [discovery and readiness](#discovery-and-readiness) through [app console and last crash](#app-console-and-last-crash-on-the-phone) (the newest phone runs, 2026-11-15/16), then [direct physical input](#direct-physical-input), [physical accessibility](#physical-accessibility-and-screen-understanding), [native media](#native-media-and-recording) and [frames](#frames-on-the-phone). Simulator results: [simulator input](#simulator-input-and-accessibility), [keyboard layouts](#keyboard-layouts-on-the-simulator), [layout detection](#layout-detection), [app logs](#app-logs-console-and-crashes) and [other simulator families](#other-simulator-families). MCP ordering: [calls sent without waiting](#mcp-calls-sent-without-waiting).
+Where to find the physical results: [discovery and readiness](#discovery-and-readiness) through [app console and last crash](#app-console-and-last-crash-on-the-phone) and the [phone session of 2026-11-17](#phone-session-of-2026-11-17) (the newest phone runs), then [direct physical input](#direct-physical-input), [physical accessibility](#physical-accessibility-and-screen-understanding), [native media](#native-media-and-recording) and [frames](#frames-on-the-phone). Simulator results: [simulator input](#simulator-input-and-accessibility), [keyboard layouts](#keyboard-layouts-on-the-simulator), [layout detection](#layout-detection), [app logs](#app-logs-console-and-crashes) and [other simulator families](#other-simulator-families). MCP ordering: [calls sent without waiting](#mcp-calls-sent-without-waiting).
 
 ## Environment and evidence handling
 
@@ -215,6 +215,58 @@ Not covered: `handoff` with a real prompt, `set_element_value` on a phone (refus
 This answers the research note's first two open questions for this phone: `devicectl`'s console does bridge stderr, the mirroring setting does copy the app's log lines on a device, and the termination result is reported. Debug-level lines, a large output, and other iOS versions were not checked.
 
 **The phone stopped answering before this run.** Every `devicectl` query timed out while the phone was still listed as connected; replugging and unlocking did not help. Stopping `CoreDeviceService` and `remotepairingd` on the Mac, which macOS restarts on demand, restored it at once. The services' state was not captured before they were stopped and the system log held no entries for them, so the cause is unknown. It followed a period of very high load on the Mac and two console launches that failed to start.
+
+### Phone session of 2026-11-17
+
+**2026-11-17, at `01988bf`**, the same iPhone 13 mini (unlocked, portrait, reached over `apple-network-rsd`), macOS 27.2.1, Xcode 27.2 (27B52), `devicectl` 651.32. Evidence is under `tmp/session-1117/` (not tracked).
+
+**Recording and `frames` after the bridge became packet-only.**
+
+| Command | Observed |
+| --- | --- |
+| `record <new>.mp4 5 --backend coredevice` | Exit 0, `status: recorded`: 1136×2464 `avc1`, 5 s, 78 source frames, `frameDecoded: true`; every cleanup field confirmed. `rtcp.negotiatedFeedback: disabled`, 5 receiver reports sent, 5 sender reports observed |
+| `frames <dir> --count 10` | Exit 0: 10 JPEG files of 1125×2436, first frame after 549 ms, about 45 ms apart; the last frame showed the Home Screen as the screenshot did; cleanup acknowledged |
+
+This is the first live reading of `rtcp.negotiatedFeedback`. It was `disabled` in this one session, so the phone did not agree to feedback messages and a keyframe request (PLI/FIR) has nothing negotiated to ride on.
+
+**A hold whose sender is killed.** Probe app in front, counters reset.
+
+| Step | Observed |
+| --- | --- |
+| `long-press 0.5 0.5 8`; `tree` about 2 s in | `probe.touch.summary`: `began 1`, `active 1` |
+| `kill -KILL` of that process, then `tree` at once (within about a second) and 10 s later | Exit 137. Both reads: `active 0`, `began 1`, `ended 1`, `cancelled 0`. The gesture lasted 2.29 s and ended as `ended`, with its end position reported as `[0,0]`, where an ordinary tap ends where it began |
+| `tap 0.5 0.5` | Exit 1, `device-quarantined`, `inputSent: none`, naming `pid …, long-press`; the summary did not change. The `since` time in the message was the time of this refusal, about 20 s after the kill, not the time of the kill |
+| `clear-quarantine`, then `tap 0.5 0.5` | `status: cleared` with the reason; the tap was recorded as gesture 2 |
+
+So this phone ended the contact itself when the sending process died, as the simulator did. Not shown: a held key or button (the plan asked for them only if the contact stayed down), a lost cable or network path instead of a dead process, and an app's reaction to a release at `[0,0]`.
+
+**`set-value` outside the probe app.**
+
+| Field | Observed |
+| --- | --- |
+| Settings search field (a `UISearchBarTextField` inside SwiftUI's search bar host) | Not addressable: the node has neither label nor identifier, only the placeholder as its value. `--label Buscar` found no match; `--label Búsqueda` (the magnifier image) was refused with `precondition-changed`. Nothing was sent |
+| A web form in Chrome (username and password inputs) | `tree` failed twice with `transport-failed`, "snapshot root identity mismatch", and `set-value --label Username` failed the same way at its first snapshot. `tree --pid <Chrome>` returned 115 nodes that stop at `WKContentView`, with no element of the page; `set-value --pid <Chrome>` was refused because the display-centre process is a different one. Nothing was sent. Safari was not tried |
+| Settings › Wi‑Fi › Other network, `Nombre` (`UITextField`) | `set-value --id Nombre 'prueba ñ€ 日本 🙂'`: `acknowledged`, `valueMatches: true`, 24 bytes; a fresh tree and the screenshot showed the text |
+| The same sheet, `Contraseña` (secure `UITextField`) | `acknowledged` with `valueMatches: false`: 17 bytes requested, 42 read back. The tree value was 14 bullets for the 14 characters sent, and the sheet's join button became enabled. The sheet was then cancelled; no network was joined |
+
+A secure field takes the value but reads back as bullets, so `valueMatches` is false there even when the value arrived. No SwiftUI field with a label or identifier was tried. While navigating, one `press` whose selector had no match reported its subscription stop as unconfirmed: "Accessibility socket closed or reached EOF (stop exchange: 3 ms of 3000, 1 of 32 cleanup frames read)". That is the second such report and the first with the stop's timing. Chrome showed two first-run promotions, which were dismissed with "No, gracias" and "Saltar"; the test page was left open in a tab.
+
+**MCP against the phone, calls sent without waiting.** One stdio `manzanero mcp` session; `initialize`, `notifications/initialized` and seven `tools/call` requests written at once: `press_element probe.touch.reset`, then `tap` and `set_element_value probe.text.field` alternating three times, with different points and values.
+
+| Check | Observed |
+| --- | --- |
+| Answers | All seven `isError: false`, in the order sent |
+| Taps | Gestures 1 to 3 in the probe at (0.3, 0.2), (0.5, 0.3), (0.7, 0.4), in that order, about 2.7 s apart |
+| Values | `valueMatches: true` three times; `probe.text.value` ended as `tres 日本 🙂` (9 scalars, 16 bytes), the last value sent |
+
+**`console` with debug lines and a small bound.**
+
+| Command | Observed |
+| --- | --- |
+| `console <probe> --seconds 6 --os-log -- -probeLogToken S1` | The info, default, error and fault lines were mirrored; the debug line was not. The `.private` value arrived unredacted |
+| `console <probe> --seconds 30 --os-log --max-bytes 1024`, with `press --id probe.log.emit` eight times from a second process | Nine sets written. `stderrBytes: 4660`, `stderrTail` the last 1024 bytes ending with set 9, `truncated: true`; stdout (598 bytes) whole, with every flushed and unflushed line |
+
+Debug-level lines therefore do not come through physical `console`. An output above the 64 KiB default or the 1 MiB maximum was not produced: the probe has no bulk trigger.
 
 ## Direct physical input
 

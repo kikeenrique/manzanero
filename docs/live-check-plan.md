@@ -2,7 +2,7 @@
 
 This page lists what still has to be run on hardware. It is a plan, not a record: results go in [verification](verification.md), and items are removed from here once they are recorded there. The [roadmap](roadmap.md#pending) puts these runs in order with the work that is not about hardware.
 
-Done on the iPhone 13 mini so far: wake, the command service queue, the device lease across two processes, interruption, the accessibility tree, press, scroll and every wait condition except `focused`, touch delivery measured with the probe app (one to five contacts), keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, `frames` in portrait, app console output and the last crash, system-prompt handling through the tree, the operation-first grammar, `set-value` and Spanish – ISO typing and detection in the probe's field, and live MCP sessions. See [verification](verification.md).
+Done on the iPhone 13 mini so far: wake, the command service queue, the device lease across two processes, interruption, the accessibility tree, press, scroll and every wait condition except `focused`, touch delivery measured with the probe app (one to five contacts), keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, `frames` in portrait, app console output and the last crash, system-prompt handling through the tree, the operation-first grammar, `set-value` and Spanish – ISO typing and detection in the probe's field, live MCP sessions, and on 2026-11-17 recording and `frames` after the bridge change, a killed `long-press` with quarantine, `set-value` in Settings, pipelined MCP calls and bounded `console` output. See [verification](verification.md).
 
 Run from the repository root with the device paired and unlocked. Replace `<UDID>` with the hardware UDID from `mise run cli devices`. If the display is off, `mise run cli wake --device <UDID>` turns it on. Take a screenshot before choosing where to touch, and inspect the screen after every action; a receipt is not an effect. Do not replay an input automatically.
 
@@ -10,10 +10,11 @@ If every query to a connected device times out, capture the state of Apple's dev
 
 ## Not yet run on hardware
 
-- One `record tmp/after-bridge-change.mp4 5 --backend coredevice --device <UDID>` and one `frames tmp/after-bridge-change --count 10 --device <UDID>`: the bridge's video session became packet-only on 2026-11-17 and neither command has run on the phone since. Note `rtcp.negotiatedFeedback` in the recording's receipt; it has never been read live and decides whether keyframe requests can be built.
 - `handoff` with a real prompt. Wait for the owner to say when.
-- Release after a killed input. With the probe app in front: `long-press 0.5 0.5 8 --device <UDID>`, `kill -KILL` its process after 2 s, then read `probe.touch.summary` in `tree` at once and again after 10 s (`active`, `ended`, `cancelled`). Then a `tap` (expect `device-quarantined`), `clear-quarantine --device <UDID>`, and a `tap` again. On a simulator the contact ended by itself; if the phone keeps it down, that is what a device-side release has to fix. Repeat with a held `key` if the first shows a stuck contact.
-- Setting an element's value in apps other than the probe (SwiftUI, secure, search and web fields), and through the MCP tool.
+- A held `key` or `button` whose sender is killed, and a hold during which the cable or network path is lost rather than the process: a killed `long-press` ended by itself on the phone ([session](verification.md#phone-session-of-2026-11-17)), these did not run.
+- `tree` with a web page in front in Safari and in an app's own `WKWebView`: in Chrome it failed with "snapshot root identity mismatch". Note the PID the failure selects, if the diagnostic can be made to say it.
+- Setting the value of a SwiftUI field that has a label or identifier. A UIKit text field and a secure field in Settings ran; the Settings search field has neither label nor identifier and cannot be selected.
+- `rtcp.negotiatedFeedback` in a second recording, to see whether `disabled` is constant.
 - `frames` with the display rotated, on another device, for a long run (minutes, toward the 1000-frame and 1 GiB limits), and with a second process trying to capture or send input meanwhile. Portrait runs on the iPhone 13 mini are [recorded](verification.md#frames-on-the-phone).
 - `detect-layout` on another phone or with another layout set on this one (it found Spanish – ISO on the iPhone 13 mini: [verification](verification.md#layout-detection)), in a field other than the probe's (one with autocorrection or auto-capitalisation on, to see `no-match` and the hints), and through MCP against a phone.
 - Typing in keyboard layouts other than Spanish – ISO, which the iPhone 13 mini uses on its own and which typed exactly ([verification](verification.md#keyboard-layouts-on-the-phone)). The runs below remain for other layouts, each needing the phone's layout changed by hand ([physical typing](physical-typing.md#layouts); simulator results in [verification](verification.md#keyboard-layouts-on-the-simulator)). The phone's layout cannot be read, so set it by hand first in Settings › General › Keyboard › Hardware Keyboard (if that section appears without a real keyboard attached, which is itself unknown), then confirm it with `detect-layout --id probe.text.field --device <UDID>`, and focus `probe.text.field` (`set-value --id probe.text.field x --device <UDID>`, `key backspace`). Read the result from `probe.text.value` in `tree`. Suggested runs, each with its own layout set on the phone:
@@ -25,8 +26,7 @@ If every query to a connected device times out, capture the state of Apple's dev
   - Record whether Settings shows a Hardware Keyboard section while nothing but Manzanero's events have been sent, and whether the layout chosen there changes the result without relaunching the app.
 - Landscape on a phone, an iPad, and anything on a second device. The simulator side of rotation and iPad is measured.
 - The 200 ms input drain on another device and with the Mac under load (on the iPhone 13 mini, 50 ms lost short gestures and 100 ms did not).
-- Debug-level log lines and a large output through `console`.
-- Pipelined MCP calls to a physical device, to confirm the [per-device call order](mcp.md#calls-sent-without-waiting) there (checked on two simulators only).
+- An output above 64 KiB through `console` (a 1 KiB bound on 4.6 kB was kept correctly; the probe has no bulk trigger).
 
 ## Not yet run on Apple TV, Apple Watch or iPhone Duo hardware
 
@@ -48,8 +48,10 @@ These need no hardware and no owner decision; they were left out of the simulato
 - What do apps' gesture recognizers make of three or more contacts?
 - Which keyboard type (ANSI or ISO) does a phone apply to Indigo keyboard events, and does a phone's iOS version ship the same layouts as the Mac?
 - Was the firewall also behind the earlier intermittent recording startup failures?
-- Why did one wait report its subscription stop as unconfirmed?
-- Does a phone keep a contact, key or button held when the process sending it is killed? A simulator ended the contact itself.
+- Why does a subscription stop sometimes go unconfirmed? Seen twice; the second time the socket closed 3 ms into the stop exchange, after one cleanup frame.
+- Does a phone keep a key or button held when the process sending it is killed? It ended a contact itself, as a simulator did.
+- Which process does the display-centre selection find over a web page, and why does its root identity not hold between the two checks?
+- Would the phone accept an offer that asks for RTCP feedback? It negotiated `disabled` for the offer sent today.
 
 ## Stop conditions
 
