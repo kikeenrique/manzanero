@@ -24,7 +24,7 @@ If every query to a connected device times out, capture the state of Apple's dev
 - Landscape on a phone, an iPad, and anything on a second device. The simulator side of rotation and iPad is measured.
 - The 200 ms input drain on another device and with the Mac under load (on the iPhone 13 mini, 50 ms lost short gestures and 100 ms did not).
 - Debug-level log lines and a large output through `console`.
-- Pipelined MCP calls to a physical device, to confirm the [per-device call order](mcp.md#calls-sent-without-waiting) there (checked on one simulator only).
+- Pipelined MCP calls to a physical device, to confirm the [per-device call order](mcp.md#calls-sent-without-waiting) there (checked on two simulators only).
 
 ## Not yet run on Apple TV, Apple Watch or iPhone Duo hardware
 
@@ -38,8 +38,8 @@ Everything in [other families](other-families.md) has run on simulators only. On
 
 These need no hardware and no owner decision; they were left out of the simulator runs.
 
-- On the Duo's inner display: `gesture`, three-to-five-path `multi-drag`, and the centre-hit fallback when no frontmost application is reported; only the `rot90` orientation was seen.
-- Pipelined `fold_device` and `set_hinge_angle` over MCP on the Duo since the per-device call order was added. Checked so far on `iPhone 17e` with taps, a long press and trees only.
+- On the Duo's inner display: the centre-hit fallback when no frontmost application is reported, and four- and five-path `multi-drag` (three paths and `gesture` are [recorded](verification.md#the-duos-inner-display)); only the `rot90` orientation was seen.
+- `fold` on the Duo with nothing else booted: one of five folds was not observed within its 10 s bound while three other simulators were running.
 ## Questions still open
 - Why did one tap on the Settings search field have no effect, when the next 36 taps there did?
 - What made Apple's device services stop answering for the phone on 2026-11-16?

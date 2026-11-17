@@ -216,6 +216,7 @@ On 2026-11-16, after simulator multi-contact input was added (same simulator and
 | 5 | 5/5 | 25/25 | 0.0004 / 0.0004 | 2.1 / 4.8 ms |
 
 - **Landscape and iPad** (after rotation support, `--any-orientation`): the built-in plan, five rounds each, delivered 70 of 70 actions and 145 of 145 contacts on the iPhone 17e in landscape left and right, and on an iPad mini (A17 Pro) in portrait and landscape left; per-contact-count figures are in [verification](verification.md#rotation-and-ipad-on-the-simulator).
+- **iPhone Duo, inner display** (2026-11-17, unfolded, `--any-orientation`): the built-in plan once delivered 14 of 14 actions and 29 of 29 contacts through the display's own Universal HID touchscreen ([verification](verification.md#the-duos-inner-display)).
 
 Not shown by these runs: anything about a phone, and anything the probe log would add (per-event order), since there is no simulator pull.
 

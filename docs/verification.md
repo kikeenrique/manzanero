@@ -700,7 +700,7 @@ Not checked: a physical watch, what the Action button does once an action is cho
 | `unfold --device` (placeholder identifier) | Refused while parsing, `unsupported-operation`; no device contacted |
 | MCP `fold_device unfold`, `set_hinge_angle 90`, `fold_device fold`, sent together in one stdio session without waiting for answers | All `isError: false`, but the simulator ended at 90 degrees: the server ran the calls out of order, and the first version's wait (`Task.sleep`) let another call run during it. The wait now blocks the command service's thread, as timed input does |
 | `hinge` (read) folded, unfolded, after `hinge 90`, after `hinge 120` | `angle` 0, 180, 94.62 (`mechanicalAngle` 90), 113.84 (`mechanicalAngle` 120); `isAngleValid` true, `velocity` 0; `activeDisplay` LCD, LCD-1, LCD-1, and null right after sending 120, LCD-1 1 s later. About 0.7 s per read; five reads in a row all answered |
-| MCP `fold_device unfold`, `get_hinge_angle`, `set_hinge_angle 90`, `fold_device fold`, `get_hinge_angle`, pipelined in one session (`set_hinge_angle` answered first) | All `isError: false`; answered in the order 90 (displayObserved false), angle 91.54 (still moving), unfold (observed), angle 180, fold (observed): each call ran whole, but pipelined calls still ran in no fixed order. The server now runs a device's mutations in arrival order ([MCP calls sent without waiting](#mcp-calls-sent-without-waiting)); not yet repeated on the Duo |
+| MCP `fold_device unfold`, `get_hinge_angle`, `set_hinge_angle 90`, `fold_device fold`, `get_hinge_angle`, pipelined in one session (`set_hinge_angle` answered first) | All `isError: false`; answered in the order 90 (displayObserved false), angle 91.54 (still moving), unfold (observed), angle 180, fold (observed): each call ran whole, but pipelined calls still ran in no fixed order. The server now runs a device's mutations in arrival order ([MCP calls sent without waiting](#mcp-calls-sent-without-waiting)); repeated on the Duo on 2026-11-17 ([below](#the-duos-inner-display)) |
 | `displays` and `hinge` (read) after `unfold`, `hinge 90` (from 180, then from 0), `fold`; `displays` on `iPhone 17e` | `hinge.angle` 180 `flat`; angle 85.38 `partially-open` (approached from 0; from 180 it had read 94.62); 0 `closed`. The 17e listing has no `hinge` key. MCP `list_displays` on the folded Duo: `isError: false`, angle 0, `closed` |
 
 ### The Duo's inner display
@@ -724,6 +724,17 @@ Not checked: a physical watch, what the Action button does once an action is cho
 | Folded again: `displays`, `tap 0.25 0.75`, `multi-tap` 3, `tree`, `press`, `screenshot` | `interfaceDisplay` 1; Indigo route (no `route` key), (0.2504, 0.7503); `max 3`; 466 × 678 `rot0` without a `display` object; `accepted`; 1398 px wide |
 | `iPhone 17e` (iOS 27.2, single display): `displays`, `tap`, `multi-tap` 3, `press`, `tree`, `screenshot` | `interfaceDisplay` 1; Indigo route, (0.300, 0.600); `max 3`; `accepted`; 390 × 844; `simctl io … screenshot` without `--display`, as before |
 | MCP, one call every 4 s: `list_displays`, `tap`, `get_ui_tree`, `screenshot` (no display) | All `isError: false`; `interfaceDisplay` 3, `route: universal-hid`, the probe recorded (0.3999, 0.5999), a 2853-px PNG |
+
+**2026-11-17**, the same simulator, unfolded, three other simulators booted on the Mac; the probe launched with `-ProbeAllowRotation YES`.
+
+| Experiment or command | Observed |
+| --- | --- |
+| `mise run test:probe-touch <UUID> --platform simulator --any-orientation`, the built-in plan once | 14 of 14 actions and 29 of 29 contacts `delivered`, all through the recent-gestures readout; start error median 0.0002, max 0.0003; hold error median +1.4 ms, max +3.0 ms; `maxActive` 1, 2, 3, 4 and 5 as scheduled. This includes the two `gesture` sequences and the three-path `multi-drag`, which had not run on `LCD-1`. Identity matched on all 15 readbacks |
+| MCP `fold_device fold`, `get_hinge_angle`, `set_hinge_angle 90`, `get_hinge_angle`, `fold_device unfold`, `get_hinge_angle`, written at once in one stdio session, five sessions | Every call `isError: false` and answered in the order sent, in all five. The reads gave 0 (`closed`), 84.69 to 85.38 (`mechanicalAngle` 90, `partially-open`) and 180 (`flat`) each time, so each observation saw the state after the mutation before it. `fold` was observed after 16 to 18 display reads in four sessions; in one it was not observed in 35 reads (10 s) although the angle then read 0. `unfold` was observed after 2 to 7 reads |
+| `button home`, then `tree`, with the snapshot retry depth changed to 8, 6, 4 and 2 in a scratch build | No snapshot data each time. The frontmost process is SpringBoard |
+| The same with the foreground taken from a hit test at the centre, on the Settings icon and in the dock (client type 0 and 2) | SpringBoard again, no snapshot data. A hit on the Maps widget answered `WidgetRenderer_Default` and its tree (34 labels) |
+
+Folding took longer here than the 11 reads recorded above, once longer than the 10 s bound; whether the landscape probe in front or the load on the Mac caused that was not separated.
 
 ## Retired implementations
 

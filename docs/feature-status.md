@@ -48,7 +48,7 @@ User-facing live mirroring, reusable semantic element handles, automatic permiss
 | iPad | Simulator only: one iPad mini simulator in portrait and landscape. No physical iPad; multitasking and windowed apps untested |
 | Apple Watch | One watchOS 27.2 simulator: `crown` (calibrated) and `button side` verified; `button action` verified on one Apple Watch Ultra simulator; trees, waits, press, tap and `button home` work. `key` and `type` are refused: keyboard events do not arrive, and `set-value` changes the field's text but not the app's bound value. No physical watch |
 | Apple TV | One tvOS 27.2 simulator: `remote` (D-pad, select, menu, home, play-pause) verified with Settings and a probe app; trees mark the focused node and `wait --until focused` waits for focus; touch is refused; press, keys and typing work. Remote touch surface blocked; no physical Apple TV |
-| iPhone Duo | One iOS 27.2 simulator: `fold`, `unfold` and `hinge` verified, with a derived posture; captures take `--display`. Touch, trees, actions, waits and default captures follow the active display, verified unfolded with the probe app (one to five contacts) and Settings. Home Screen tree empty; `gesture` on the inner display untried; no physical device |
+| iPhone Duo | One iOS 27.2 simulator: `fold`, `unfold` and `hinge` verified, with a derived posture; captures take `--display`. Touch, trees, actions, waits and default captures follow the active display, verified unfolded with the probe app (one to five contacts) and Settings. Home Screen tree empty (SpringBoard answers no snapshot at any depth); no physical device |
 
 Accepting an identifier or passing a build does not establish support for a new family.
 
