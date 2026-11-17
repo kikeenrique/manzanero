@@ -57,9 +57,26 @@ struct DirectAccessibilityAction {
         // The same rule as a wait; any unknown visibility keeps it ambiguous.
         let shown = distinct.filter { $0.node.visible == true }
         guard shown.count == 1, distinct.allSatisfy({ $0.node.visible != nil }) else {
-            throw failure("selector has multiple distinct or inconsistent matches", .targetUnresolved)
+            throw failure("selector has multiple distinct or inconsistent matches: \(Self.describe(distinct.map(\.node)))", .targetUnresolved)
         }
         return shown[0].node
+    }
+
+    /// What an ambiguous selector matched, so the caller can choose a unique
+    /// identifier instead: at most five elements with their identifier,
+    /// visibility and frame. Nothing is chosen for the caller.
+    static func describe(_ nodes: [AccessibilitySnapshot.Node]) -> String {
+        let listed = nodes.prefix(5).map { node -> String in
+            var parts: [String] = []
+            if case .string(let identifier) = node.identifier { parts.append("identifier '\(identifier.prefix(120))'") } else { parts.append("no identifier") }
+            parts.append(node.visible.map { $0 ? "visible" : "hidden" } ?? "visibility unknown")
+            if let frame = node.frame {
+                parts.append("frame \(Int(frame.x.rounded())),\(Int(frame.y.rounded())) \(Int(frame.width.rounded()))x\(Int(frame.height.rounded()))")
+            }
+            return parts.joined(separator: ", ")
+        }
+        let more = nodes.count > listed.count ? "; and \(nodes.count - listed.count) more" : ""
+        return "\(nodes.count) elements (\(listed.joined(separator: "; "))\(more)). Select one by a unique identifier"
     }
 
     func execute(session: any AccessibilityExchange, display: () throws -> AccessibilityDisplay) throws -> Data {

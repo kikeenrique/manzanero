@@ -124,6 +124,11 @@ struct DirectAccessibilityActionTests {
             catch {
                 let state = ["refused", "lost"].contains(failure) ? (failure == "refused" ? "refused" : "submitted") : "not-sent"
                 #expect(String(describing: error).contains("state=\(state)"))
+                // An ambiguous selector says what it matched, and chooses nothing.
+                if ["ambiguous", "unknown-twin"].contains(failure) {
+                    #expect(String(describing: error).contains("multiple distinct or inconsistent matches: 2 elements (identifier 'fixture.control', visible, frame "))
+                    #expect(String(describing: error).contains("Select one by a unique identifier"))
+                }
             }
         }
         #expect(wire.closed)

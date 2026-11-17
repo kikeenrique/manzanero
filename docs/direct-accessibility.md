@@ -46,7 +46,7 @@ Before one native press, the operation requires:
 4. A positive-size frame wholly inside the display whose centre hits that exact target.
 5. Rechecked application root, centre process and display geometry.
 
-Repeated paths for one identity are accepted only when the full native attributes agree. Different matching identities, foreign processes, hidden/disabled/ambiguous targets and mismatches are refused.
+Repeated paths for one identity are accepted only when the full native attributes agree. Different matching identities, foreign processes, hidden/disabled/ambiguous targets and mismatches are refused. When several distinct elements match and the visible-one rule does not settle it, the failure lists up to five of them with their identifier, visibility and frame (`… multiple distinct or inconsistent matches: 5 elements (identifier 'com.apple.settings.general', visible, frame 20,254 280x52; …). Select one by a unique identifier`), so the call can be repeated with `--id`. Nothing is chosen for the caller.
 
 Only then is one type-7/action-5 request submitted with a fresh token. No coordinate fallback, stale snapshot handle, automatic retry or replay is used. Sequential guards reduce stale targeting but do not make the action atomic or implement XCTest's full hittability calculation.
 
