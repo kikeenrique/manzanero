@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-#MISE extends = "swift"
-#MISE description = "Start one native video session, observe decoded frames for two seconds, then stop only its owned stream"
-#USAGE arg "<device>" help="Explicit selected physical hardware UDID; starts a screen-sharing session"
-
-set -e -o pipefail
-
-MANZANERO_MEDIA_FRAMES_DEVICE="$usage_device" swift test --cache-path tmp/swift-cache --filter NativeMediaFramesTests 2>&1 | xcsift -f toon --warnings

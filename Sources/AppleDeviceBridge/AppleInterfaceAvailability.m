@@ -172,26 +172,6 @@ static const ADCRequirementSpec ADCKeyedArchiveUID[] = {
     ADC_SYMBOL("_CFKeyedArchiverUIDGetValue"),
 };
 
-// Bridge path that no CLI or MCP command reaches today.
-// ADCCreateVideoSession (decoded-JPEG mode). Its runtime access check,
-// -[AVCStreamOutput validateAccess], needs an instance and is not run here.
-// It admits only the process names in AVConference's AVCStreamOutputAccess.plist
-// and refused manzanero (2026-11-16), so frames decodes the packet stream instead.
-static const ADCRequirementSpec ADCNativeRecordingJPEG[] = {
-    ADC_MEDIA_CONTROL, ADC_AVCONFERENCE_NEGOTIATION,
-    ADC_CLASS("AVCVideoStream"),
-    ADC_METHOD("AVCVideoStream", "initWithNetworkSockets:options:error:"),
-    ADC_METHOD("AVCVideoStream", "configure:error:"),
-    ADC_METHOD("AVCVideoStream", "setDelegate:"),
-    ADC_METHOD("AVCVideoStream", "start"),
-    ADC_METHOD("AVCVideoStream", "stop"),
-    ADC_METHOD("AVCVideoStream", "streamToken"),
-    ADC_CLASS("AVCStreamOutput"),
-    ADC_METHOD("AVCStreamOutput", "initWithStreamToken:delegate:queue:error:"),
-    ADC_METHOD("AVCStreamOutput", "setDelegate:"),
-    ADC_METHOD("AVCStreamOutput", "validateAccess"),
-};
-
 static const ADCCapabilitySpec ADCCapabilities[] = {
     { "physical-input", "button, key, type, paste, tap, long-press, drag, swipe, pinch and two-contact multi-drag through CoreDevice Indigo HID", 0, 1,
       ADCPhysicalInput, ADC_COUNT(ADCPhysicalInput) },
@@ -212,10 +192,7 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
     { "simulator-accessibility", "Simulator accessibility (tree, press/scroll by id or label, waits) through CoreSimulator AXPTranslator requests", 0, 1,
       ADCSimulatorAccessibility, ADC_COUNT(ADCSimulatorAccessibility) },
     { "keyed-archive-uid", "Reading keyed-archive UID values in AX archives and decode-ax-archive", 0, 1,
-      ADCKeyedArchiveUID, ADC_COUNT(ADCKeyedArchiveUID) },
-    { "native-recording-jpeg", "Decoded-JPEG native video session; not used by commands: Apple's AVCStreamOutput access list admits only named processes and refuses manzanero, so frames decodes the packet stream instead", 26, 0,
-      ADCNativeRecordingJPEG, ADC_COUNT(ADCNativeRecordingJPEG) },
-};
+      ADCKeyedArchiveUID, ADC_COUNT(ADCKeyedArchiveUID) },};
 
 // Walks method lists only: no message is sent, so no +initialize or dynamic
 // method resolution runs in the checked class.

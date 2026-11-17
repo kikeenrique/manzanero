@@ -97,7 +97,7 @@ While the stream runs, iOS shows its screen-sharing indicator in the status bar,
 
 ### The bridge's decoded-JPEG mode is refused
 
-The bridge also has a mode in which Apple's own decoder hands over frames, encoded to JPEG in the bridge (`ADCCreateVideoSession`, `ADCCopyNextVideoFrame`). `frames` was first written against it. It refuses before any stream starts with `Installed AVCStreamOutput denies access to this process; no stream started`: `-[AVCStreamOutput validateAccess]` admits only the process names listed in AVConference's `AVCStreamOutputAccess.plist` (FaceTime, ContinuityCaptureAgent, test runners and a few others), and `manzanero` is not one of them. Getting past it would mean changing a default, renaming the process or patching the framework, which this project does not do. `frames` therefore decodes the standard-RTP stream itself, as recording does. The mode stays in the bridge and `doctor` lists it as `native-recording-jpeg`, not used by commands.
+The bridge used to have a mode in which Apple's own decoder handed over frames, encoded to JPEG in the bridge. `frames` was first written against it. It refused before any stream started with `Installed AVCStreamOutput denies access to this process; no stream started`: `-[AVCStreamOutput validateAccess]` admits only the process names listed in AVConference's `AVCStreamOutputAccess.plist` (FaceTime, ContinuityCaptureAgent, test runners and a few others), and `manzanero` is not one of them. Getting past it would mean changing a default, renaming the process or patching the framework, which this project does not do. `frames` therefore decodes the standard-RTP stream itself, as recording does. The mode was removed on 2026-11-17 by the owner's decision, with its `native-recording-jpeg` entry in `doctor` and the `test:media-frames` task that exercised it; git history has it.
 
 ## Other capture paths and probes
 
@@ -116,7 +116,7 @@ The default physical `devicectl` path advertises finite capture in Xcode help bu
 
 Run these via `mise run`. They are opt-in; input-bearing tasks change the phone.
 
-The older `test:media-frames` AVConference-output experiment is denied by Apple's `AVCStreamOutput` access validator, as is `manzanero` itself ([above](#the-bridges-decoded-jpeg-mode-is-refused)). No override, process spoofing or framework hook is used. The old ipb video helper/ADV1 pipe has been removed.
+The older AVConference-output experiment was denied by Apple's `AVCStreamOutput` access validator and has been removed ([above](#the-bridges-decoded-jpeg-mode-is-refused)). No override, process spoofing or framework hook is used. The old ipb video helper/ADV1 pipe has been removed.
 
 ## Verified scope
 

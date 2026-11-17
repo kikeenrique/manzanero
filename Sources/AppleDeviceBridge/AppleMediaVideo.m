@@ -1,7 +1,4 @@
 #import <Foundation/Foundation.h>
-#import <CoreMedia/CoreMedia.h>
-#import <CoreVideo/CoreVideo.h>
-#import <CoreImage/CoreImage.h>
 #import <objc/runtime.h>
 #include <arpa/inet.h>
 #include <net/if.h>
@@ -35,19 +32,6 @@
 @interface AVCMediaStreamNegotiatorSettings : NSObject
 + (id)negotiatorSettingsForMode:(long)mode deviceRole:(int)role options:(NSDictionary *)options errorString:(NSString **)error;
 - (uint32_t)localSSRC;
-@end
-@interface AVCVideoStream : NSObject
-- (instancetype)initWithNetworkSockets:(id)sockets options:(id)options error:(NSError **)error;
-- (BOOL)configure:(id)configuration error:(NSError **)error;
-- (void)setDelegate:(id)delegate;
-- (void)start;
-- (void)stop;
-- (long long)streamToken;
-@end
-@interface AVCStreamOutput : NSObject
-- (BOOL)validateAccess;
-- (instancetype)initWithStreamToken:(long long)token delegate:(id)delegate queue:(dispatch_queue_t)queue error:(NSError **)error;
-- (void)setDelegate:(id)delegate;
 @end
 
 static int VideoFail(char *error, size_t capacity, NSString *message) {
@@ -171,19 +155,11 @@ int ADCValidateVideoEndpoints(const void *reply, const char *hostAddress, const 
     return 0;
 }
 
-@class ADCVideoOwner;
-@interface ADCVideoSink : NSObject
-@property(nonatomic, weak) ADCVideoOwner *owner;
-@end
+// One standard-RTP packet session: Apple's negotiator, an owned datagram
+// socket and the control channel. Packets are decoded in Swift.
 @interface ADCVideoOwner : NSObject
 @property(nonatomic, strong) ADCMediaControl *control;
 @property(nonatomic, strong) AVCMediaStreamNegotiator *negotiator;
-@property(nonatomic, strong) AVCVideoStream *stream;
-@property(nonatomic, strong) AVCStreamOutput *output;
-@property(nonatomic, strong) ADCVideoSink *sink;
-@property(nonatomic, strong) dispatch_queue_t ingress;
-@property(nonatomic, strong) NSLock *lock;
-@property(nonatomic, strong) CIContext *images;
 @property(nonatomic, copy) NSString *hostAddress;
 @property(nonatomic, copy) NSString *deviceAddress;
 @property(nonatomic, strong) NSUUID *clientID;
@@ -193,66 +169,27 @@ int ADCValidateVideoEndpoints(const void *reply, const char *hostAddress, const 
 @property(nonatomic) BOOL hasIdentifier;
 @property(nonatomic) BOOL startAttempted;
 @property(nonatomic) BOOL configured;
-@property(nonatomic) BOOL packetMode;
 @property(nonatomic) ADCVideoPacketProfile packetProfile;
 @property(nonatomic) ADCVideoRTCPProfile rtcpProfile;
 @property(nonatomic) BOOL closing;
-@property(nonatomic, copy) NSString *failure;
-@property(nonatomic) CMSampleBufferRef latest;
-@property(nonatomic) CMTime newestPTS;
-@property(nonatomic) uint64_t decodedFrames;
-@property(nonatomic) uint64_t droppedFrames;
-@property(nonatomic) uint64_t firstEmission;
-@property(nonatomic) uint64_t lastEmission;
-- (void)acceptSample:(CMSampleBufferRef)sample;
-- (void)failStream;
-@end
-@implementation ADCVideoSink
-- (void)didReceiveSampleBuffer:(CMSampleBufferRef)sample { [self.owner acceptSample:sample]; }
-- (void)streamOutput:(id)output didReceiveSampleBuffer:(CMSampleBufferRef)sample { [self.owner acceptSample:sample]; }
-- (void)streamOutput:(id)output didOutputSampleBuffer:(CMSampleBufferRef)sample { [self.owner acceptSample:sample]; }
-- (void)stream:(id)stream didStart:(BOOL)success error:(NSError *)error { if (!success) [self.owner failStream]; }
-- (void)streamDidStop:(id)stream { [self.owner failStream]; }
-- (void)vcMediaStreamDidStop:(id)stream { [self.owner failStream]; }
-- (void)streamDidServerDie:(id)stream { [self.owner failStream]; }
 @end
 @implementation ADCVideoOwner
 - (instancetype)init {
     if ((self = [super init])) {
-        _socket = -1; _lock = [NSLock new]; _newestPTS = kCMTimeInvalid;
+        _socket = -1;
         _clientID = NSUUID.UUID;
-        _ingress = dispatch_queue_create("manzanero.video.ingress", DISPATCH_QUEUE_SERIAL);
-        _sink = [ADCVideoSink new]; _sink.owner = self;
     }
     return self;
-}
-- (void)acceptSample:(CMSampleBufferRef)sample {
-    if (!sample || CFGetTypeID(sample) != CMSampleBufferGetTypeID() || !CMSampleBufferIsValid(sample)) return;
-    CMTime pts = CMSampleBufferGetPresentationTimeStamp(sample);
-    [self.lock lock];
-    if (!self.closing && CMTIME_IS_NUMERIC(pts) && (!CMTIME_IS_NUMERIC(self.newestPTS) || CMTimeCompare(pts, self.newestPTS) > 0)) {
-        self.newestPTS = pts; self.decodedFrames++;
-        CFRetain(sample);
-        if (self.latest) { CFRelease(self.latest); self.droppedFrames++; }
-        self.latest = sample;
-    }
-    [self.lock unlock];
-}
-- (void)failStream {
-    [self.lock lock];
-    if (!self.closing) self.failure = @"AVConference stream failed or stopped unexpectedly.";
-    [self.lock unlock];
 }
 - (void)dealloc {
     // The Swift owner must explicitly close. This only releases local resources;
     // deinit is not presented as acknowledged remote cleanup.
-    if (_latest) CFRelease(_latest);
     if (_socket >= 0) close(_socket);
     [_control close];
 }
 @end
 
-static BOOL VideoAPIAvailable(BOOL packets, char *error, size_t capacity) {
+static BOOL VideoAPIAvailable(char *error, size_t capacity) {
     static void *framework;
     static dispatch_once_t once;
     dispatch_once(&once, ^{ framework = dlopen("/System/Library/PrivateFrameworks/AVConference.framework/Versions/A/AVConference", RTLD_NOW | RTLD_LOCAL); });
@@ -260,15 +197,11 @@ static BOOL VideoAPIAvailable(BOOL packets, char *error, size_t capacity) {
     // Every negotiator method the session later calls is checked here, so a
     // method removed by an OS update fails cleanly instead of raising an
     // unrecognized-selector exception after negotiation has begun.
-    NSArray *negotiation = @[@[@"AVCMediaStreamNegotiator", @"initWithMode:options:error:"],
+    NSArray *checks = @[@[@"AVCMediaStreamNegotiator", @"initWithMode:options:error:"],
         @[@"AVCMediaStreamNegotiator", @"createOffer"], @[@"AVCMediaStreamNegotiator", @"offer"],
         @[@"AVCMediaStreamNegotiator", @"setAnswer:withError:"],
         @[@"AVCMediaStreamNegotiator", @"generateMediaStreamConfigurationWithError:"],
         @[@"AVCMediaStreamNegotiator", @"generateMediaStreamInitOptionsWithError:"]];
-    NSArray *checks = packets ? negotiation : [negotiation arrayByAddingObjectsFromArray:@[
-        @[@"AVCVideoStream", @"initWithNetworkSockets:options:error:"], @[@"AVCVideoStream", @"streamToken"],
-        @[@"AVCStreamOutput", @"initWithStreamToken:delegate:queue:error:"], @[@"AVCStreamOutput", @"setDelegate:"],
-        @[@"AVCStreamOutput", @"validateAccess"]]];
     for (NSArray *check in checks) {
         Class type = NSClassFromString(check[0]);
         if (!type || ![type instancesRespondToSelector:NSSelectorFromString(check[1])]) {
@@ -281,19 +214,12 @@ static BOOL VideoAPIAvailable(BOOL packets, char *error, size_t capacity) {
         ![NSClassFromString(@"AVCMediaStreamNegotiatorSettings") instancesRespondToSelector:@selector(localSSRC)]) {
         VideoFail(error, capacity, @"Installed Apple screen-sharing negotiation settings are unavailable; no stream started."); return NO;
     }
-    // Ask Apple's own access validator using the actual process identity before
-    // opening media resources. Do not change defaults, spoof names or patch it.
-    AVCStreamOutput *access = packets ? nil : [[NSClassFromString(@"AVCStreamOutput") alloc] init];
-    if (!packets && ![access validateAccess]) {
-        VideoFail(error, capacity, @"Installed AVCStreamOutput denies access to this process; no stream started.");
-        return NO;
-    }
     return YES;
 }
 
-static int VideoCreate(BOOL packets, const char *uuid, const char *version, const char *interface,
-                          const char *hostAddress, const char *deviceAddress, int (^cancelled)(void),
-                          void **owner, char *error, size_t capacity) {
+int ADCCreateVideoPacketSession(const char *uuid, const char *version, const char *interface,
+                                const char *hostAddress, const char *deviceAddress, int (^cancelled)(void),
+                                void **owner, char *error, size_t capacity) {
     if (owner) *owner = NULL;
     struct in6_addr host = {0}, device = {0};
     BOOL validVersion = version && strnlen(version, 64) > 0 && strnlen(version, 64) < 64;
@@ -313,11 +239,10 @@ static int VideoCreate(BOOL packets, const char *uuid, const char *version, cons
         memcmp(&host, &device, 8) || !memcmp(&host, &device, sizeof(host)) || (cancelled && cancelled()))
         return VideoFail(error, capacity, @"Invalid or cancelled native video endpoint; no media resources opened.");
     if (![NSThread isMainThread]) return VideoFail(error, capacity, @"Native video lifecycle must run on the main thread.");
-    if (!VideoAPIAvailable(packets, error, capacity)) return 1;
+    if (!VideoAPIAvailable(error, capacity)) return 1;
     unsigned index = if_nametoindex(interface);
     if (!index) return VideoFail(error, capacity, @"Selected media tunnel interface is unavailable.");
     ADCVideoOwner *state = [ADCVideoOwner new];
-    state.packetMode = packets;
     state.hostAddress = [NSString stringWithUTF8String:hostAddress]; state.deviceAddress = [NSString stringWithUTF8String:deviceAddress];
     state.control = [ADCMediaControl openUUID:uuid version:version streaming:YES cancelled:cancelled error:error capacity:capacity];
     if (!state.control) return 1;
@@ -326,7 +251,7 @@ static int VideoCreate(BOOL packets, const char *uuid, const char *version, cons
     if (flags < 0 || fcntl(state.socket, F_SETFL, flags | O_NONBLOCK) || fcntl(state.socket, F_SETFD, FD_CLOEXEC))
         return VideoFail(error, capacity, @"Cannot create owned nonblocking video socket.");
     int receiveBuffer = 1024 * 1024;
-    if (packets && setsockopt(state.socket, SOL_SOCKET, SO_RCVBUF, &receiveBuffer, sizeof(receiveBuffer)))
+    if (setsockopt(state.socket, SOL_SOCKET, SO_RCVBUF, &receiveBuffer, sizeof(receiveBuffer)))
         return VideoFail(error, capacity, @"Cannot configure the bounded video receive buffer.");
     struct sockaddr_in6 address = {0}; address.sin6_len = sizeof(address); address.sin6_family = AF_INET6;
     address.sin6_addr = host; address.sin6_scope_id = index;
@@ -335,8 +260,8 @@ static int VideoCreate(BOOL packets, const char *uuid, const char *version, cons
         return VideoFail(error, capacity, @"Cannot bind the fresh native media tunnel endpoint.");
     state.receiverPort = ntohs(address.sin6_port);
     NSError *failure = nil;
-    NSDictionary *negotiation = packets ? @{@"AVCMediaStreamNegotiatorTransportProtocolType": @2,
-        @"AVCMediaStreamNegotiatorAccessNetworkType": @1} : @{};
+    NSDictionary *negotiation = @{@"AVCMediaStreamNegotiatorTransportProtocolType": @2,
+        @"AVCMediaStreamNegotiatorAccessNetworkType": @1};
     // The settings' operatingMode and the negotiator's mode are different enums.
     // The installed factory has a bounded 1...16 table. Resolve its concrete
     // screen-sharing class locally, without generating offers for other modes.
@@ -356,21 +281,8 @@ static int VideoCreate(BOOL packets, const char *uuid, const char *version, cons
     if (!state.negotiator || ![state.negotiator createOffer] || ![state.negotiator.offer isKindOfClass:NSData.class] ||
         !state.negotiator.offer.length || state.negotiator.offer.length > 1048576)
         return VideoFail(error, capacity, @"Apple media negotiator did not create a bounded offer.");
-    state.images = [CIContext contextWithOptions:nil];
     *owner = (void *)CFBridgingRetain(state);
     return 0;
-}
-
-int ADCCreateVideoSession(const char *uuid, const char *version, const char *interface,
-                          const char *hostAddress, const char *deviceAddress, int (^cancelled)(void),
-                          void **owner, char *error, size_t capacity) {
-    return VideoCreate(NO, uuid, version, interface, hostAddress, deviceAddress, cancelled, owner, error, capacity);
-}
-
-int ADCCreateVideoPacketSession(const char *uuid, const char *version, const char *interface,
-                                const char *hostAddress, const char *deviceAddress, int (^cancelled)(void),
-                                void **owner, char *error, size_t capacity) {
-    return VideoCreate(YES, uuid, version, interface, hostAddress, deviceAddress, cancelled, owner, error, capacity);
 }
 
 int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void), char *error, size_t capacity) {
@@ -392,7 +304,7 @@ int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void),
     xpc_dictionary_set_data(input, "negotiatorOffer", offer.bytes, offer.length);
     // 140 is the observed standard-RTP reference advertisement; support flags
     // are not interpreted as proof of recording or decoding availability.
-    xpc_dictionary_set_uint64(input, "clientSupportedFeatures", state.packetMode ? 140 : 972);
+    xpc_dictionary_set_uint64(input, "clientSupportedFeatures", 140);
     xpc_object_t options = xpc_dictionary_create_empty(), client = xpc_dictionary_create_empty();
     uuid_t bytes; [state.clientID getUUIDBytes:bytes]; xpc_dictionary_set_uuid(client, "uuid", bytes);
     // Current Apple utilities expose these display-selection keys. Values use
@@ -402,12 +314,10 @@ int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void),
     xpc_dictionary_set_int64(display, "int", displayID);
     xpc_dictionary_set_value(options, "CoreDeviceVideoDisplayMode", mode);
     xpc_dictionary_set_value(options, "VideoStreamForDisplayID", display);
-    if (state.packetMode) {
-        xpc_object_t transport = xpc_dictionary_create_empty(), network = xpc_dictionary_create_empty();
-        xpc_dictionary_set_int64(transport, "int", 2); xpc_dictionary_set_int64(network, "int", 1);
-        xpc_dictionary_set_value(options, "AVCMediaStreamNegotiatorTransportProtocolType", transport);
-        xpc_dictionary_set_value(options, "AVCMediaStreamNegotiatorAccessNetworkType", network);
-    }
+    xpc_object_t transport = xpc_dictionary_create_empty(), network = xpc_dictionary_create_empty();
+    xpc_dictionary_set_int64(transport, "int", 2); xpc_dictionary_set_int64(network, "int", 1);
+    xpc_dictionary_set_value(options, "AVCMediaStreamNegotiatorTransportProtocolType", transport);
+    xpc_dictionary_set_value(options, "AVCMediaStreamNegotiatorAccessNetworkType", network);
     xpc_dictionary_set_value(options, "avcMediaStreamOptionClientSessionID", client); xpc_dictionary_set_value(input, "options", options);
     if (cancelled && cancelled()) return VideoFail(error, capacity, @"Native video cancelled before start submission.");
     state.startAttempted = YES;
@@ -423,33 +333,27 @@ int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void),
     uint16_t senderPort = 0;
     if (ADCValidateVideoEndpoints((__bridge const void *)reply, state.hostAddress.UTF8String,
         state.deviceAddress.UTF8String, state.receiverPort, &senderPort, error, capacity)) return 1;
-    if (state.packetMode) {
-        ADCVideoPacketProfile profile;
-        if (ADCValidateVideoPacketProfile((__bridge const void *)reply, &profile, error, capacity)) return 1;
-        profile.negotiatorMode = state.packetProfile.negotiatorMode;
-        state.packetProfile = profile;
-        ADCVideoRTCPProfile feedback;
-        AVCMediaStreamNegotiatorSettings *settings = state.negotiator.negotiatorSettings;
-        if (ADCValidateVideoRTCPProfile((__bridge const void *)reply, settings.localSSRC, state.receiverPort, &feedback, error, capacity)) return 1;
-        state.rtcpProfile = feedback;
-    }
+    ADCVideoPacketProfile profile;
+    if (ADCValidateVideoPacketProfile((__bridge const void *)reply, &profile, error, capacity)) return 1;
+    profile.negotiatorMode = state.packetProfile.negotiatorMode;
+    state.packetProfile = profile;
+    ADCVideoRTCPProfile feedback;
+    AVCMediaStreamNegotiatorSettings *negotiated = state.negotiator.negotiatorSettings;
+    if (ADCValidateVideoRTCPProfile((__bridge const void *)reply, negotiated.localSSRC, state.receiverPort, &feedback, error, capacity)) return 1;
+    state.rtcpProfile = feedback;
     size_t answerLength = 0;
     const void *answer = xpc_dictionary_get_data(output, "negotiatorAnswer", &answerLength);
     if (!answer || !answerLength || answerLength > 1048576) return VideoFail(error, capacity, @"Media start reply has no bounded negotiator answer.");
     NSError *failure = nil;
     if (![state.negotiator setAnswer:[NSData dataWithBytes:answer length:answerLength] withError:&failure])
         return VideoFail(error, capacity, @"Apple media negotiator refused the answer.");
-    if (state.packetMode) {
-        ADCVideoRTCPProfile feedback = state.rtcpProfile;
-        VideoReadNegotiatedFeedback(state.negotiator, &feedback);
-        state.rtcpProfile = feedback;
-    }
+    VideoReadNegotiatedFeedback(state.negotiator, &feedback);
+    state.rtcpProfile = feedback;
     id configuration = [state.negotiator generateMediaStreamConfigurationWithError:&failure];
     id initial = [state.negotiator generateMediaStreamInitOptionsWithError:&failure];
     if (!configuration || ![initial isKindOfClass:NSDictionary.class]) return VideoFail(error, capacity, @"Apple media configuration is unavailable.");
     // Match installed NetworkUtils.withSharedSocketDictionary: connect to the
-    // validated negotiated peer before decoder creation, without waiting for an
-    // unsolicited datagram. Apple's decoder owns media/control packet handling.
+    // validated negotiated peer without waiting for an unsolicited datagram.
     struct sockaddr_in6 peer = {0}; peer.sin6_len = sizeof(peer); peer.sin6_family = AF_INET6;
     inet_pton(AF_INET6, state.deviceAddress.UTF8String, &peer.sin6_addr);
     peer.sin6_port = htons(senderPort);
@@ -457,27 +361,15 @@ int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void),
     if (getsockname(state.socket, (struct sockaddr *)&local, &localLength))
         return VideoFail(error, capacity, @"Cannot inspect the owned video socket scope.");
     peer.sin6_scope_id = local.sin6_scope_id;
-    if (cancelled && cancelled()) return VideoFail(error, capacity, @"Native video cancelled before decoder creation.");
+    if (cancelled && cancelled()) return VideoFail(error, capacity, @"Native video cancelled before the media socket was connected.");
     if (connect(state.socket, (struct sockaddr *)&peer, sizeof(peer))) return VideoFail(error, capacity, @"Cannot connect the owned video media socket.");
-    if (state.packetMode) { state.configured = YES; return 0; }
-    NSMutableDictionary *settings = [initial mutableCopy];
-    settings[@"avcMediaStreamOptionRunInProcess"] = @YES; settings[@"avcMediaStreamOptionClientName"] = @"CoreDeviceScreenSharing";
-    settings[@"avcMediaStreamOptionClientSessionID"] = state.clientID;
-    xpc_object_t sockets = xpc_dictionary_create_empty(); xpc_dictionary_set_fd(sockets, "avcKeySharedSocket", state.socket);
-    state.stream = [[NSClassFromString(@"AVCVideoStream") alloc] initWithNetworkSockets:(id)sockets options:settings error:&failure];
-    if (!state.stream) return VideoFail(error, capacity, @"Cannot create Apple's in-process video decoder.");
-    [state.stream setDelegate:state.sink];
-    if (![state.stream configure:configuration error:&failure]) return VideoFail(error, capacity, @"Apple video decoder configuration failed.");
     state.configured = YES;
-    state.output = [[NSClassFromString(@"AVCStreamOutput") alloc] initWithStreamToken:state.stream.streamToken delegate:state.sink queue:state.ingress error:&failure];
-    if (!state.output) return VideoFail(error, capacity, @"Cannot attach Apple's owned per-stream frame output.");
-    [state.stream start];
     return 0;
 }
 
 int ADCCopyNextVideoPacket(void *owner, int (^cancelled)(void), void (^sink)(const uint8_t *, size_t), char *error, size_t capacity) {
     ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
-    if (!state || !state.packetMode || !state.configured || state.closing || !sink || ![NSThread isMainThread] || (cancelled && cancelled())) {
+    if (!state || !state.configured || state.closing || !sink || ![NSThread isMainThread] || (cancelled && cancelled())) {
         VideoFail(error, capacity, @"Native video packet read is unavailable or cancelled."); return -1;
     }
     uint8_t packet[65535];
@@ -491,7 +383,7 @@ int ADCCopyNextVideoPacket(void *owner, int (^cancelled)(void), void (^sink)(con
 int ADCReadVideoPacketProfile(void *owner, ADCVideoPacketProfile *profile) {
     if (profile) memset(profile, 0, sizeof(*profile));
     ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
-    if (!state || !state.packetMode || !profile || state.closing || ![NSThread isMainThread]) return 1;
+    if (!state || !profile || state.closing || ![NSThread isMainThread]) return 1;
     *profile = state.packetProfile;
     return 0;
 }
@@ -499,7 +391,7 @@ int ADCReadVideoPacketProfile(void *owner, ADCVideoPacketProfile *profile) {
 int ADCReadVideoRTCPProfile(void *owner, ADCVideoRTCPProfile *profile) {
     if (profile) memset(profile, 0, sizeof(*profile));
     ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
-    if (!state || !state.packetMode || !state.configured || state.closing || !profile || ![NSThread isMainThread]) return 1;
+    if (!state || !state.configured || state.closing || !profile || ![NSThread isMainThread]) return 1;
     *profile = state.rtcpProfile;
     return 0;
 }
@@ -529,7 +421,7 @@ int ADCValidateVideoReceiverReport(const uint8_t *packet, size_t length, uint32_
 
 int ADCSendVideoReceiverReport(void *owner, const uint8_t *packet, size_t length, int (^cancelled)(void), char *error, size_t capacity) {
     ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
-    if (!state || !state.packetMode || !state.configured || state.closing || ![NSThread isMainThread] || (cancelled && cancelled())) {
+    if (!state || !state.configured || state.closing || ![NSThread isMainThread] || (cancelled && cancelled())) {
         VideoFail(error, capacity, @"Native RTCP report send is unavailable or cancelled."); return -1;
     }
     if (ADCValidateVideoReceiverReport(packet, length, state.rtcpProfile.senderSSRC, state.rtcpProfile.receiverSSRC, error, capacity)) return -1;
@@ -578,52 +470,12 @@ int ADCVideoSessionActive(void *owner, int (^cancelled)(void), char *error, size
     return ADCValidateOwnedVideoStatus(reply ? (__bridge const void *)reply : NULL, state.ownedIdentifier, error, capacity);
 }
 
-int ADCCopyNextVideoFrame(void *owner, int (^cancelled)(void), void (^sink)(const uint8_t *, size_t, uint64_t), char *error, size_t capacity) {
-    ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
-    if (!state || state.packetMode || !sink || !state.configured || ![NSThread isMainThread] || (cancelled && cancelled())) {
-        VideoFail(error, capacity, @"Native video frame read is unavailable or cancelled."); return -1;
-    }
-    [state.lock lock];
-    NSString *failure = state.failure;
-    CMSampleBufferRef sample = state.latest; state.latest = NULL;
-    [state.lock unlock];
-    if (failure || state.closing) { if (sample) CFRelease(sample); VideoFail(error, capacity, failure ?: @"Native video is closing."); return -1; }
-    if (!sample) {
-        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.002]];
-        return 0;
-    }
-    @try {
-        uint64_t now = VideoNow();
-        if (state.lastEmission && now - state.lastEmission < NSEC_PER_SEC / 30) return 0;
-        CVPixelBufferRef pixel = CMSampleBufferGetImageBuffer(sample);
-        if (!pixel || !CVPixelBufferGetWidth(pixel) || !CVPixelBufferGetHeight(pixel) || CVPixelBufferGetWidth(pixel) > 8192 ||
-            CVPixelBufferGetHeight(pixel) > 8192 || CVPixelBufferGetWidth(pixel) * CVPixelBufferGetHeight(pixel) > 20000000) {
-            VideoFail(error, capacity, @"Native video decoded an unsupported frame size."); return -1;
-        }
-        CIImage *image = [CIImage imageWithCVPixelBuffer:pixel];
-        CGColorSpaceRef color = CGColorSpaceCreateDeviceRGB();
-        NSData *jpeg = [state.images JPEGRepresentationOfImage:image colorSpace:color options:@{}];
-        CGColorSpaceRelease(color);
-        if (!jpeg.length || jpeg.length > 8 * 1024 * 1024) { VideoFail(error, capacity, @"Native video JPEG is empty or oversized."); return -1; }
-        now = VideoNow();
-        if (!state.firstEmission) state.firstEmission = now;
-        state.lastEmission = now;
-        sink(jpeg.bytes, jpeg.length, now - state.firstEmission);
-        return 1;
-    } @finally { CFRelease(sample); }
-}
-
 int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size_t capacity) {
     if (result) memset(result, 0, sizeof(*result));
     if (!owner) return 0;
     ADCVideoOwner *state = CFBridgingRelease(owner);
-    [state.lock lock]; state.closing = YES;
-    if (state.latest) { CFRelease(state.latest); state.latest = NULL; }
-    if (result) { result->startAttempted = state.startAttempted; result->decodedFrames = state.decodedFrames; result->droppedFrames = state.droppedFrames; }
-    [state.lock unlock];
-    if (state.output) { [state.output setDelegate:nil]; state.output = nil; if (result) result->localOutputReleaseRequested = 1; }
-    if (state.stream) { [state.stream stop]; state.stream = nil; if (result) result->localDecoderStopRequested = 1; }
-    dispatch_sync(state.ingress, ^{});
+    state.closing = YES;
+    if (result) result->startAttempted = state.startAttempted;
     BOOL confirmed = !state.startAttempted;
     @try {
         if (state.hasIdentifier) {

@@ -64,22 +64,15 @@ typedef struct {
     int startAttempted;
     int stopAcknowledged;
     int ownedStreamAbsent;
-    int localDecoderStopRequested;
-    int localOutputReleaseRequested;
-    uint64_t decodedFrames;
-    uint64_t droppedFrames;
 } ADCVideoCleanup;
 /// Validates negotiated IPv6 endpoints against the selected tunnel and bound
 /// receiver. Returns only the sender port; never exports stream keys or IDs.
 int ADCValidateVideoEndpoints(const void *reply, const char *hostAddress, const char *deviceAddress,
                               uint16_t receiverPort, uint16_t *senderPort, char *error, size_t errorCapacity);
-/// Main-thread, single-owner capture. Create prepares only local resources and
-/// a control channel. Start requests one media stream. No global hooks/state.
-int ADCCreateVideoSession(const char *uuid, const char *version, const char *interface,
-                          const char *hostAddress, const char *deviceAddress, int (^cancelled)(void),
-                          void **owner, char *error, size_t errorCapacity);
-/// Experimental standard-RTP receiver. Uses Apple's negotiator, not
-/// AVCStreamOutput. Start rejects encrypted/non-RTP replies. Same close owner.
+/// Main-thread, single-owner capture as a standard-RTP receiver, through
+/// Apple's negotiator. Create prepares only local resources and a control
+/// channel. Start requests one media stream and rejects encrypted or non-RTP
+/// replies. No global hooks/state.
 int ADCCreateVideoPacketSession(const char *uuid, const char *version, const char *interface,
                                 const char *hostAddress, const char *deviceAddress, int (^cancelled)(void),
                                 void **owner, char *error, size_t errorCapacity);
@@ -118,11 +111,7 @@ int ADCSendVideoReceiverReport(void *owner, const uint8_t *packet, size_t length
 int ADCVideoSessionActive(void *owner, int (^cancelled)(void), char *error, size_t errorCapacity);
 int ADCValidateOwnedVideoStatus(const void *reply, uint32_t identifier, char *error, size_t errorCapacity);
 int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void), char *error, size_t errorCapacity);
-/// Returns 1 for one JPEG delivered synchronously to sink, 0 when none is ready,
-/// -1 on error. Bytes are borrowed only during sink. Time starts at first JPEG.
-int ADCCopyNextVideoFrame(void *owner, int (^cancelled)(void),
-                          void (^sink)(const uint8_t *, size_t, uint64_t), char *error, size_t errorCapacity);
-/// Consumes owner, gates callbacks, stops local objects and requests only its
+/// Consumes owner, closes its socket and requests a stop of only its
 /// reply-derived RemoteSSRC with stopAll=false. No stop-all fallback.
 int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size_t errorCapacity);
 

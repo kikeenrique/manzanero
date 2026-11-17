@@ -1,23 +1,19 @@
 import AppleDeviceBridge
 import Foundation
 
-/// Apple's per-stream decoder/output objects stay on the main actor. Ingress
-/// retains only the latest valid sample; JPEG encoding happens on demand.
+/// One owned native video session as a standard-RTP receiver: the bridge's
+/// negotiator, socket and control channel stay on the main actor, and the
+/// packets it hands over are assembled and decoded in Swift.
 @MainActor
 final class NativeMediaFrames {
     struct Cleanup: Sendable, Encodable {
         let startAttempted: Bool
         let stopAcknowledged: Bool
         let ownedStreamAbsent: Bool
-        let localDecoderStopRequested: Bool
-        let localOutputReleaseRequested: Bool
-        let decodedFrames: UInt64
-        let droppedFrames: UInt64
         let diagnostic: String?
     }
     private var owner: UnsafeMutableRawPointer?
     private var cleanup: Cleanup?
-    private let packetMode: Bool
     private var feedback: MediaRTCPReceiver?
     private var heartbeat: Task<Void, Never>?
     private var feedbackFailure: String?
@@ -25,17 +21,10 @@ final class NativeMediaFrames {
     private(set) var senderReportsObserved: UInt64 = 0
     private(set) var negotiatedFeedback = "unknown"
 
-    init(endpoint: NativeMediaEndpoint, version: String, packets: Bool = false) throws {
-        packetMode = packets
+    init(endpoint: NativeMediaEndpoint, version: String) throws {
         var pointer: UnsafeMutableRawPointer?, error = [CChar](repeating: 0, count: 1024)
-        let result: Int32
-        if packets {
-            result = ADCCreateVideoPacketSession(endpoint.uuid, version, endpoint.interface, endpoint.host, endpoint.device,
-                { Task.isCancelled ? 1 : 0 }, &pointer, &error, error.count)
-        } else {
-            result = ADCCreateVideoSession(endpoint.uuid, version, endpoint.interface, endpoint.host, endpoint.device,
-                { Task.isCancelled ? 1 : 0 }, &pointer, &error, error.count)
-        }
+        let result = ADCCreateVideoPacketSession(endpoint.uuid, version, endpoint.interface, endpoint.host, endpoint.device,
+            { Task.isCancelled ? 1 : 0 }, &pointer, &error, error.count)
         guard result == 0, let pointer else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
         owner = pointer
     }
@@ -48,37 +37,25 @@ final class NativeMediaFrames {
         let result = ADCStartVideoSession(owner, displayID, { Task.isCancelled ? 1 : 0 }, &error, error.count)
         try Task.checkCancellation()
         guard result == 0 else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
-        if packetMode {
-            var profile = ADCVideoRTCPProfile()
-            guard ADCReadVideoRTCPProfile(owner, &profile) == 0, let payload = packetProfile()?["payloadType"],
-                  let payload = UInt8(exactly: payload) else { throw CommandFailure(.transportFailed, "Native media has no owned RTCP profile.", inputSent: .none) }
-            negotiatedFeedback = profile.feedbackKnown == 0 ? "unknown" : (profile.feedbackEnabled != 0 ? "enabled" : "disabled")
-            feedback = try MediaRTCPReceiver(sender: profile.senderSSRC, receiver: profile.receiverSSRC,
-                payloadType: payload, cname: UUID().uuidString.lowercased() + "@manzanero",
-                intervalSeconds: profile.reportIntervalSeconds, now: DispatchTime.now().uptimeNanoseconds)
-            heartbeat = Task { [weak self] in
-                while !Task.isCancelled {
-                    do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
-                    guard let self, self.owner != nil else { return }
-                    do { try self.flushReceiverReport() }
-                    catch { self.feedbackFailure = String(describing: error); return }
-                }
+        var profile = ADCVideoRTCPProfile()
+        guard ADCReadVideoRTCPProfile(owner, &profile) == 0, let payload = packetProfile()?["payloadType"],
+              let payload = UInt8(exactly: payload) else { throw CommandFailure(.transportFailed, "Native media has no owned RTCP profile.", inputSent: .none) }
+        negotiatedFeedback = profile.feedbackKnown == 0 ? "unknown" : (profile.feedbackEnabled != 0 ? "enabled" : "disabled")
+        feedback = try MediaRTCPReceiver(sender: profile.senderSSRC, receiver: profile.receiverSSRC,
+            payloadType: payload, cname: UUID().uuidString.lowercased() + "@manzanero",
+            intervalSeconds: profile.reportIntervalSeconds, now: DispatchTime.now().uptimeNanoseconds)
+        heartbeat = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
+                guard let self, self.owner != nil else { return }
+                do { try self.flushReceiverReport() }
+                catch { self.feedbackFailure = String(describing: error); return }
             }
         }
     }
 
-    func next() throws -> TimedVideoFrame? {
-        try Task.checkCancellation()
-        var error = [CChar](repeating: 0, count: 1024), frame: TimedVideoFrame?
-        let result = ADCCopyNextVideoFrame(owner, { Task.isCancelled ? 1 : 0 }, { bytes, count, time in
-            if let bytes { frame = TimedVideoFrame(nanoseconds: time, jpeg: Data(bytes: bytes, count: count)) }
-        }, &error, error.count)
-        try Task.checkCancellation()
-        guard result >= 0 else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
-        return frame
-    }
-
-    /// Experimental transport path. Packets are not decoded frames.
+    /// One datagram of the stream, or nil when none is pending. Packets are
+    /// not decoded frames.
     func nextPacket() throws -> Data? {
         try Task.checkCancellation()
         if let feedbackFailure { throw CommandFailure(.transportFailed, feedbackFailure, inputSent: .none) }
@@ -132,9 +109,7 @@ final class NativeMediaFrames {
         var result = ADCVideoCleanup(), error = [CChar](repeating: 0, count: 1024)
         let status = ADCCloseVideoSession(saved, &result, &error, error.count)
         let value = Cleanup(startAttempted: result.startAttempted != 0, stopAcknowledged: result.stopAcknowledged != 0,
-            ownedStreamAbsent: result.ownedStreamAbsent != 0, localDecoderStopRequested: result.localDecoderStopRequested != 0,
-            localOutputReleaseRequested: result.localOutputReleaseRequested != 0, decodedFrames: result.decodedFrames,
-            droppedFrames: result.droppedFrames, diagnostic: status == 0 ? nil : Self.text(error))
+            ownedStreamAbsent: result.ownedStreamAbsent != 0, diagnostic: status == 0 ? nil : Self.text(error))
         cleanup = value
         return value
     }

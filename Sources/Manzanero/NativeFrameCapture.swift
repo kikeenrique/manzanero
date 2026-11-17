@@ -4,10 +4,10 @@ import Foundation
 /// standard-RTP mode native recording uses), HEVC decoded with VideoToolbox,
 /// each saved frame encoded as JPEG, then the same owned cleanup as recording.
 ///
-/// The bridge's decoded-JPEG mode (`ADCCreateVideoSession`) would hand over
-/// JPEG frames directly, but Apple's `-[AVCStreamOutput validateAccess]` only
-/// admits the process names in AVConference's AVCStreamOutputAccess.plist, and
-/// manzanero is not one of them: it refuses before any stream starts.
+/// Apple's own decoder output (`AVCStreamOutput`) is not an option: its
+/// access check admits only the process names in AVConference's
+/// AVCStreamOutputAccess.plist, and manzanero is not one of them. The bridge
+/// mode built on it was removed (docs/recording.md).
 @available(macOS 26.0, *)
 @MainActor enum NativeFrameCapture {
     /// JPEG quality of saved frames.
@@ -33,7 +33,7 @@ import Foundation
             return capture?.close()
         }
         do {
-            capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version, packets: true)
+            capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version)
             try capture?.start(displayID: Int64(display.id))
             guard let profile = capture?.packetProfile(), let width = profile["width"], let height = profile["height"],
                   let payload = profile["payloadType"], let payloadType = UInt8(exactly: payload) else {

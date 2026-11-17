@@ -131,7 +131,7 @@ struct NativeMediaPacketsTests {
             try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys]).write(to: directory.appendingPathComponent("result.json"))
         }
         do {
-            frames = try NativeMediaFrames(endpoint: endpoint, version: identity.version, packets: true)
+            frames = try NativeMediaFrames(endpoint: endpoint, version: identity.version)
             metadata["stage"] = "start"
             try frames?.start(displayID: Int64(display.id))
             metadata["negotiated"] = frames?.packetProfile()
