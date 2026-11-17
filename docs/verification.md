@@ -268,6 +268,48 @@ A secure field takes the value but reads back as bullets, so `valueMatches` is f
 
 Debug-level lines therefore do not come through physical `console`. An output above the 64 KiB default or the 1 MiB maximum was not produced: the probe has no bulk trigger.
 
+### Handoff with a physical step
+
+**2026-11-17**, same phone and host; the owner at an interactive terminal. The phone has no passcode and no Face ID, so the step was a physical one: rotating it.
+
+| Step | Observed |
+| --- | --- |
+| Before: Safari in front, `tree` | `display.orientation: rot0`; screenshot 1125×2436 |
+| `handoff '<message>' 5` from a non-interactive shell | Exit 1, `host-requirement`, "Handoff needs an interactive terminal, or an MCP host with form elicitation support", `inputSent: none` |
+| `handoff 'Rotate the phone to landscape and leave it there' 300`, run by the owner in a terminal | The request on stderr with the three answers offered; the owner rotated the phone and typed `done`. Receipt: `status: acknowledged`, `mechanism: terminal`, `humanAcknowledged: true`, `verified: false`. The exit status was not noted |
+| After: `screenshot` | 2436×1125, Safari laid out in landscape: the step had been done |
+| After: `tree` | Exit 1, `transport-failed`: "native AX centre selection requires portrait geometry". The tree does not read a phone in landscape |
+
+Not shown: a system prompt (permission, Face ID, passcode, purchase), which this phone cannot raise for a passcode and which was not set up for a permission; `decline`, `cancel` and a timeout on a device; the MCP form flow with a real host; the pause on mutations while a handoff is pending, which is per process and so not visible between a terminal handoff and commands from another process.
+
+### A passcode on the phone: pairing, handoff and the lock screen
+
+**2026-11-17, evening**, same phone and host, after the owner set a passcode on the phone, which had had none.
+
+**Pairing.** The first `readiness` after the passcode was set exited 1 with `connection: disconnected`, `pairing: unpaired`, Developer Mode unknown and the display and lock queries failing; Xcode's device window offered "Pair" for the phone. No prompt appeared on the phone by itself. Setting a passcode on a phone that was paired without one appears to have dropped the pairing; this is one observation.
+
+| Step | Observed |
+| --- | --- |
+| `handoff 'Click Pair in Device Hub, then tap Trust on the phone and enter the passcode' 300`, run by the owner | The owner paired and typed `done`: `status: acknowledged`, `mechanism: terminal`, `humanAcknowledged: true`, `verified: false`, exit 0 |
+| `readiness` afterwards | Exit 0: `connected`, `paired`, Developer Mode `enabled`, developer image services `available`, `passcodeRequired: false` while unlocked. `screenshot` and `tree` worked again |
+
+This is the handoff's first run around a real system step (pairing, with the passcode entered on the phone). What the phone showed was not observed from the Mac.
+
+**The lock screen with a passcode.**
+
+| Command | Observed |
+| --- | --- |
+| `button lock`, then `readiness` | `displayPower: off`, `passcodeRequired: true`, `ui.status: needsUserAction`, with the action "Unlock the selected device directly; do not send its passcode to the tool"; prerequisites still present, exit 0 |
+| `wake` | Exit 1, `status: awake-locked`: `sideButtonPressed: true`, `homePressed: false`, `displayPower: on`, and the action "The device requires a passcode. Unlock it directly; the tool does not enter passcodes" |
+| `wake` again while awake | Exit 0, `already-awake`, no button pressed |
+| `tree` and `tap` once the display had gone off again (within about 10 s) | Both exit 1, `display-off`, `inputSent: none`, `action: wake` |
+| `screenshot` with the display off | Exit 0 and a black image |
+| `tree` right after a `wake` | Exit 0: the lock screen's own tree, 176 nodes, with "Bloqueado", the date and time, "Linterna" and "Cámara" |
+| `tap 0.5 0.5` right after a `wake` | Exit 0, `dispatched`: input is gated on the display being on, not on the lock. The receipt says nothing about the lock |
+| `screenshot` right after | The lock screen |
+
+So `wake` keeps its promise with a passcode (it wakes, does not press Home and enters nothing), and the failures on a sleeping phone are classified. Two things to know: a screenshot of a sleeping phone succeeds with a black image, and touch is sent to a lock screen without any note that the phone is locked. Not shown: the passcode keypad, a phone restarted and not yet unlocked, Face ID, and a notification or call on the lock screen.
+
 ### Web content on the phone
 
 **2026-11-17, later the same day**, same phone and host, Chrome with public test pages. This follows the web form failure in the session above.
