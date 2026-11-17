@@ -79,7 +79,9 @@ struct AccessibilitySessionTests {
         // by EOF. Cleanup is attempted and cannot claim an acknowledgement.
         #expect(throws: CommandFailure.self) { try session.application(pid: 42) }
         #expect(wire.closed)
-        guard case .unconfirmed = session.cleanup else { Issue.record("Cleanup incorrectly confirmed"); return }
+        guard case .unconfirmed(let reason) = session.cleanup else { Issue.record("Cleanup incorrectly confirmed"); return }
+        // The reason says how long the stop exchange ran and what arrived.
+        #expect(reason.contains("(stop exchange: ") && reason.contains(" ms of 3000, ") && reason.hasSuffix(" of 32 cleanup frames read)"))
         #expect(try wire.outgoing.compactMap(selector).last == "clientNeedsAccessibility:")
         let count = wire.outgoing.count
         #expect(throws: CommandFailure.self) { try session.start() }

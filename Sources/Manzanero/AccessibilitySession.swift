@@ -131,14 +131,20 @@ final class AccessibilitySession {
             cleanup = .notSubscribed
             return .notSubscribed
         }
+        let started = now()
         do {
             // Cleanup has its own budget and ignores task cancellation so a
             // cancellation still attempts disable. Transport loss stays unknown.
             _ = try invoke("clientNeedsAccessibility:", argument: NSNumber(value: false),
-                           until: now().advanced(by: .seconds(3)))
+                           until: started.advanced(by: .seconds(3)))
             cleanup = .stopAcknowledged
         } catch {
-            cleanup = .unconfirmed(String(describing: error))
+            // How long the stop ran and how much arrived meanwhile tells a
+            // lost acknowledgement (the full 3 s, few frames) from a device
+            // still sending callbacks (the 32-frame budget) or a closed link.
+            let elapsed = started.duration(to: now())
+            let milliseconds = elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000
+            cleanup = .unconfirmed("\(error) (stop exchange: \(milliseconds) ms of 3000, \(cleanupFrames) of 32 cleanup frames read)")
         }
         return cleanup ?? .unconfirmed("missing cleanup outcome")
     }
