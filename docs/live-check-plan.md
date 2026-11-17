@@ -47,8 +47,9 @@ Everything in [other families](other-families.md) has run on simulators only. On
 
 These need no hardware and no owner decision; they were left out of the simulator runs.
 
-- On the Duo's inner display: the centre-hit fallback when no frontmost application is reported, and four- and five-path `multi-drag` (three paths and `gesture` are [recorded](verification.md#the-duos-inner-display)); only the `rot90` orientation was seen.
-- `fold` on the Duo with nothing else booted: one of five folds was not observed within its 10 s bound while three other simulators were running.
+- On the Duo's inner display: the centre-hit fallback when no frontmost application is reported; only the `rot90` orientation was seen. Four- and five-path `multi-drag` are [recorded](verification.md#the-duos-inner-display).
+- A letterboxed (portrait-only) app on the Duo's inner display: `press` fails at the hit test and the tree's frames are window-relative. Find where the window's origin can be read before changing anything.
+- `fold` on the Duo with nothing else booted: one of five folds was not observed within its 10 s bound while three other simulators were running; five of five were with two others running.
 - `--index` among real duplicates on a simulator: `detect-layout --index` and `handoff --until` with element conditions ran against the probe app ([record](verification.md#selector-by-value-detect-layout-index-masked-read-back-and-the-display-note)), but the probe has no two elements that share a label.
 
 ## Questions still open

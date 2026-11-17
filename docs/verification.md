@@ -986,6 +986,18 @@ Not checked: a physical watch, what the Action button does once an action is cho
 
 Folding took longer here than the 11 reads recorded above, once longer than the 10 s bound; whether the landscape probe in front or the load on the Mac caused that was not separated.
 
+**2026-11-17, 23:30**, the same simulator with two other simulators booted on the Mac (the owner's, left alone), and the probe launched without `-ProbeAllowRotation`, so it stays in portrait.
+
+| Experiment or command | Observed |
+| --- | --- |
+| `unfold` then `fold`, five times | All ten reported `displayObserved: true` within the 10 s bound. Not the "nothing else booted" condition, but one simulator fewer than when a fold was missed |
+| Unfolded, `screenshot` and `tree` | The portrait probe is letterboxed: a 469 × 669-point window centred on the 951 × 669 inner display, black on both sides. The tree's frames are relative to that window (root 0,0 469 × 669) |
+| `press --id probe.touch.reset` there | Refused before anything was sent, at the target hit: "semantic refusal or notification in request response (error 8)". The hit test is asked at window-relative coordinates on the display. Launched with `-ProbeAllowRotation YES` the probe fills the display and the same press was accepted (above) |
+| `multi-drag 0.6` with four paths at x 0.2, 0.4, 0.6, 0.8 and five at x 0.15, 0.3, 0.5, 0.7, 0.85 | The probe received only the contacts inside its window (2 of 4, 3 of 5), at window positions that match a linear mapping of the display's x from about 0.253 to 0.747 |
+| The same with every path inside the window: four at x 0.32 to 0.68, five at x 0.30 to 0.70 | 4 of 4 and 5 of 5 contacts, `maxActive` 4 and 5, each starting at y 0.29995 and at the expected window x (0.135 to 0.865; 0.095 to 0.905) |
+
+So four- and five-path `multi-drag` reach the inner display. New and open: for an app letterboxed on the inner display, selector actions fail at the hit test and normalized touch coordinates are the display's, not the app window's.
+
 ## Retired implementations
 
 These results are preserved as history, not current runtime availability:
