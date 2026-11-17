@@ -12,7 +12,7 @@ If every query to a connected device times out, capture the state of Apple's dev
 
 - `handoff` with a real prompt. Wait for the owner to say when.
 - A held `key` or `button` whose sender is killed, and a hold during which the cable or network path is lost rather than the process: a killed `long-press` ended by itself on the phone ([session](verification.md#phone-session-of-2026-11-17)), these did not run.
-- `tree` with a web page in front in Safari and in an app's own `WKWebView`: in Chrome it failed with "snapshot root identity mismatch". Note the PID the failure selects, if the diagnostic can be made to say it.
+- `tree`, `wait`, `press` and `scroll` with a web page in front in Safari and in an app's own `WKWebView`; a page with frames. In Chrome the page's tree reads and `press` works ([record](verification.md#web-content-on-the-phone)); `scroll` did not run. Count how often the first read after a page load selects the browser instead of the page.
 - Setting the value of a SwiftUI field that has a label or identifier. A UIKit text field and a secure field in Settings ran; the Settings search field has neither label nor identifier and cannot be selected.
 - `rtcp.negotiatedFeedback` in a second recording, to see whether `disabled` is constant.
 - `frames` with the display rotated, on another device, for a long run (minutes, toward the 1000-frame and 1 GiB limits), and with a second process trying to capture or send input meanwhile. Portrait runs on the iPhone 13 mini are [recorded](verification.md#frames-on-the-phone).
@@ -48,9 +48,9 @@ These need no hardware and no owner decision; they were left out of the simulato
 - What do apps' gesture recognizers make of three or more contacts?
 - Which keyboard type (ANSI or ISO) does a phone apply to Indigo keyboard events, and does a phone's iOS version ship the same layouts as the Mac?
 - Was the firewall also behind the earlier intermittent recording startup failures?
-- Why does a subscription stop sometimes go unconfirmed? Seen twice; the second time the socket closed 3 ms into the stop exchange, after one cleanup frame.
+- Why does a subscription stop sometimes go unconfirmed? Three of about thirty selector commands on 2026-11-17; each time the socket closed 2 to 3 ms into the stop exchange, after one cleanup frame.
 - Does a phone keep a key or button held when the process sending it is killed? It ended a contact itself, as a simulator did.
-- Which process does the display-centre selection find over a web page, and why does its root identity not hold between the two checks?
+- Does a web input ever take `set-value`, for example after it has focus?
 - Would the phone accept an offer that asks for RTCP feedback? It negotiated `disabled` for the offer sent today.
 
 ## Stop conditions

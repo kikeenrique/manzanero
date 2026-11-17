@@ -27,6 +27,17 @@ Nodes carry available labels, identifiers, values, frames and native metadata. F
 
 The normalizer caps output at 512 nodes/depth 32, validates declared children and refuses malformed/oversized snapshots rather than returning a partial tree. Raw translation tokens stay internal.
 
+### Web content
+
+A web page is drawn by a content process of its own, inside the browser's or app's `WKWebView`. Once the page's accessibility is awake, the display centre belongs to that process, and its application snapshot comes back rooted at the host's `AXRemoteElement` with the page's elements beneath. The normalizer accepts that one shape: the root node then carries `externalProcessReference: true` and the host's PID in `processIdentifier`, and `application.pid` is the content process. Seen with Chrome on one iPhone 13 mini ([verification](verification.md#web-content-on-the-phone)).
+
+What follows from it:
+
+- The tree is the page alone. The browser's own controls are in the browser's tree (`tree --pid <browser>`), which stops at the remote element; selector actions on them are refused while the page holds the display centre, because the optional PID must agree with it.
+- The first read after a page loads can still select the browser, before the page's accessibility has started. Read again, or `wait` for an element of the page.
+- `press`, `scroll` and `wait` use the same selection, so they act on the page. A link or a field usually shares its label with the text inside it or with its HTML label; when the visible-one rule does not settle that, the selector is ambiguous and web elements carry no identifier to fall back on.
+- `set-value` is acknowledged by a web input but did not change it (`valueMatches: false`). Press the field, then `type`.
+
 ## Current guarded native press
 
 ```sh

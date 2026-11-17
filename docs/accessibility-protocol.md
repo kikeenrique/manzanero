@@ -66,7 +66,7 @@ Incoming archives are interpreted as data, never instantiated as device-supplied
 
 Validation rejects cycles, dangling references, invalid classes, mismatched dictionary arrays, duplicate decoded keys, non-finite numbers and invalid UID widths/values. Traversal uses a bounded explicit work stack rather than unbounded Swift recursion. These custom limits do not audit Foundation's parser allocations.
 
-Snapshot normalization validates declared children, native rectangles and scalar metadata. Repeated identities on distinct paths remain occurrences; foreign-process references are allowed only as explicit leaf references, not foreign subtrees. Geometry stays in logical points; there is no inferred XCUIElementType or generic hittability mapping.
+Snapshot normalization validates declared children, native rectangles and scalar metadata. Repeated identities on distinct paths remain occurrences; foreign-process references are allowed only as explicit leaf references, not foreign subtrees, except at the root: a hosted process (web content) answers rooted at its host's `AXRemoteElement`, which is accepted with the process's own elements beneath ([web content](direct-accessibility.md#web-content)). Geometry stays in logical points; there is no inferred XCUIElementType or generic hittability mapping.
 
 ## Saving and inspecting a callback
 

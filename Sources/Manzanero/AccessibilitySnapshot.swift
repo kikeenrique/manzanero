@@ -103,11 +103,20 @@ enum AccessibilitySnapshot {
             }
             let token = try AccessibilityResponse.token(element)
             if parent == nil {
-                guard token.pid == root.pid, token.objectID == root.objectID, token.isApplicationElement else {
-                    throw invalid("snapshot root identity mismatch")
+                // A process hosted inside another application's view (web
+                // content inside a browser's WKWebView) answers its application
+                // snapshot rooted at the host's AXRemoteElement, with its own
+                // elements beneath. Seen on one iPhone with Chrome.
+                let isApplication = token.pid == root.pid && token.objectID == root.objectID && token.isApplicationElement
+                let isHostedRoot = token.pid != root.pid && !token.isApplicationElement
+                    && attributes["5003"] == .string("AXRemoteElement")
+                guard isApplication || isHostedRoot else {
+                    throw invalid("snapshot root identity mismatch (asked for application pid \(root.pid), object \(root.objectID); "
+                        + "the snapshot's root is pid \(token.pid), object \(token.objectID), application element \(token.isApplicationElement), "
+                        + "class \(attributes["5003"]?.dictionaryKey ?? "unknown"), \(children.count) children)")
                 }
             }
-            if token.pid != root.pid {
+            if token.pid != root.pid, parent != nil {
                 guard attributes["5003"] == .string("AXRemoteElement"), children.isEmpty else {
                     throw invalid("unsupported foreign-process subtree")
                 }

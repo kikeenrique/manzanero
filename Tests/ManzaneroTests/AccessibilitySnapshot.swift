@@ -78,6 +78,23 @@ struct AccessibilitySnapshotTests {
         }
     }
 
+    /// Web content: the content process's snapshot is rooted at the host
+    /// application's remote element, with the page's own elements beneath.
+    @Test func acceptsARootThatIsTheHostsRemoteElement() throws {
+        let remote: [String: Value] = ["5003": .string("AXRemoteElement")]
+        let page = record(3, attributes: ["2001": .string("Username")])
+        let nodes = try AccessibilitySnapshot.normalize(record(2, pid: 43, attributes: remote, children: [page]), root: root())
+        #expect(nodes.count == 2 && nodes[0].children == ["n1"])
+        #expect(nodes[0].externalProcessReference == true && nodes[0].processIdentifier == 43)
+        #expect(nodes[1].label == .string("Username") && nodes[1].externalProcessReference == nil)
+        // Not a remote element, a foreign application element, or a third
+        // process beneath the hosted root: still refused.
+        for snapshot in [record(2, pid: 43, children: [page]), record(1, pid: 43, attributes: remote, children: [page]),
+                         record(2, pid: 43, attributes: remote, children: [record(3, pid: 44)])] {
+            #expect(throws: CommandFailure.self) { try AccessibilitySnapshot.normalize(snapshot, root: root()) }
+        }
+    }
+
     @Test func enforcesExactNodeAndDepthBoundsWithoutPartialOutput() throws {
         let children = (2...512).map { record(UInt64($0)) }
         #expect(try AccessibilitySnapshot.normalize(record(children: children), root: root()).count == 512)

@@ -268,6 +268,24 @@ A secure field takes the value but reads back as bullets, so `valueMatches` is f
 
 Debug-level lines therefore do not come through physical `console`. An output above the 64 KiB default or the 1 MiB maximum was not produced: the probe has no bulk trigger.
 
+### Web content on the phone
+
+**2026-11-17, later the same day**, same phone and host, Chrome with public test pages. This follows the web form failure in the session above.
+
+**Cause.** With the failure made to say what it found, three reads in a row reported: asked for application pid 4802, and the snapshot's root was pid 3919 (Chrome), not an application element, class `AXRemoteElement`, with one child. The first read after the page loaded had selected Chrome itself and succeeded with 135 nodes ending at `WKContentView`; from the second read on, the display centre belonged to the content process. So the page's tree was arriving all along, under the browser's remote element, and the normalizer refused its root. It now accepts that shape ([web content](direct-accessibility.md#web-content)).
+
+| Command, after the change | Observed |
+| --- | --- |
+| `tree` on the login form page | Exit 0, `application.pid` the content process, 32 nodes: the remote element, `WKAccessibilityWebPageObject`, then the page's headings, text, both fields and the button, with frames |
+| `set-value --label Username tomsmith` | Refused as ambiguous, listing three matches (the HTML label, the field and the label's text); no web node carries an identifier. Nothing sent |
+| `wait --label '<icon> Login' --until visible`, then `press` with the same label | `condition-met`; press `accepted`, and the page reloaded with its "Your username is invalid!" banner. The label begins with a private-use icon character (U+F090), so `' Login'` alone has no match |
+| `tree` right after that reload | Chrome's own tree again (135 nodes): the first read after a page load selected the browser |
+| A search page: `tree` twice | Both selected the content process, 131 nodes; almost every link's label appears twice, on the link and on its text |
+| `set-value --label 'Buscar con DuckDuckGo' 'prueba ñ€ 日本'` on its search input | `acknowledged`, `valueMatches: false`: the input kept its placeholder. Web inputs report themselves settable but did not take the value |
+| `press` with that label, then `type --layout spanish-iso 'prueba ñ'` | The field took focus with the keyboard up; the tree read the input's value as `prueba ñ` and the screenshot showed it |
+
+Not shown: Safari, an app's own `WKWebView`, `scroll` on a page, a page with frames, and whether the first read after a load always selects the browser. One of the two presses reported its subscription stop unconfirmed (3 ms, one cleanup frame), the third such report of the day among about thirty selector commands; the others, including failures, were acknowledged.
+
 ## Direct physical input
 
 **2026-11-12 through 2026-11-14 — project-owned in-process Apple backends.**

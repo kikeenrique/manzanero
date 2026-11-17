@@ -36,8 +36,8 @@ Unless a row says otherwise, physical evidence comes from one iPhone 13 mini (iO
 - Physical `logs`: refused as `unsupported-operation` until the native `os_trace_relay` route exists ([app logs](app-logs.md)).
 - `hid-info`, live raw `ax-snapshot`, independent Wi-Fi pairing (`pair wifi`) and `--pairing-file` are no longer commands. Pair through Xcode/CoreDevice; offline `decode-ax-archive` still works.
 - The Apple TV remote's touch surface ([blocked](other-families.md#remote-touch-surface-not-built)).
-- Web content on a phone: with a web page in front in Chrome, `tree` and every selector action failed with "snapshot root identity mismatch" ([session](verification.md#phone-session-of-2026-11-17)). Touch, keys, screenshots and OCR are unaffected.
-- Elements with neither label nor identifier, such as the Settings search field, cannot be selected by `press`, `scroll`, `wait` or `set-value`.
+- One tree for a browser and its page: with a web page in front the tree is the page alone, and the browser's own controls cannot be acted on by selector ([web content](direct-accessibility.md#web-content)). Reading, `wait`, `press` and typing work on a page in Chrome on the one phone; `set-value` does not change a web input.
+- Elements with neither label nor identifier, such as the Settings search field, cannot be selected by `press`, `scroll`, `wait` or `set-value`; nor can one of several elements that share a label and have no identifier, which is common on web pages.
 
 Those retired routes used to reach AXe, idevice or ipb helpers. The CLI no longer contains them (see [retired helpers](dependencies.md#retired-helpers)), and the execution policy would refuse those binaries anyway.
 
