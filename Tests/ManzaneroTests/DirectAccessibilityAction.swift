@@ -135,6 +135,51 @@ struct DirectAccessibilityActionTests {
         #expect(wire.kinds.filter { $0 == 7 }.count == (["none", "duplicate", "hidden-twin", "cleanup", "refused", "lost", "cancel"].contains(failure) ? 1 : 0))
     }
 
+    /// `--index` chooses among distinct matches by position; every later
+    /// guard still applies to the chosen element.
+    @Test func indexChoosesAmongSeveralMatchesAndKeepsTheGuards() throws {
+        func press(_ operands: [String]) throws -> (Wire, Result<[String: Any], any Error>) {
+            let wire = Wire("ambiguous")
+            let action = try DirectAccessibilityAction(.init(device: "fixture", operation: "press-id", operands: operands))
+            let result = Result { () throws -> [String: Any] in
+                let data = try action.execute(session: AccessibilitySession(transport: wire), display: { try AccessibilityDisplay(AccessibilityDisplayTests.data(scale: 3)) })
+                return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            }
+            return (wire, result)
+        }
+        let (firstWire, first) = try press(["42", "fixture.control", "--index", "1"])
+        let receipt = try first.get()
+        #expect(receipt["nativeAccepted"] as? Bool == true && (receipt["selector"] as? [String: Any])?["index"] as? Int == 1)
+        #expect(firstWire.kinds.filter { $0 == 7 }.count == 1)
+        // Beyond the matches: refused before anything is sent, listing them.
+        let (beyondWire, beyond) = try press(["fixture.control", "--index", "3"])
+        #expect(throws: CommandFailure.self) { try beyond.get() }
+        if case .failure(let error) = beyond {
+            #expect(String(describing: error).contains("selector index 3 is beyond the 2 matching element(s)") && String(describing: error).contains("state=not-sent"))
+        }
+        #expect(beyondWire.kinds.filter { $0 == 7 }.isEmpty)
+        // Without the option the same screen stays ambiguous and names it.
+        let (_, plain) = try press(["fixture.control"])
+        if case .failure(let error) = plain { #expect(String(describing: error).contains("with --index")) } else { Issue.record("Ambiguity resolved itself") }
+    }
+
+    @Test func indexOperandsParseOnlyWhereTheyCannotBeASelectorOrValue() throws {
+        func action(_ operands: [String]) throws -> DirectAccessibilityAction { try .init(.init(device: "fixture", operation: "press-label", operands: operands)) }
+        #expect(try action(["Save", "--index", "2"]).index == 2 && action(["7", "Save", "--index", "2"]).pid == 7)
+        #expect(try action(["Save"]).index == nil && action(["Save"]).selector.json["index"] == nil)
+        // Two operands are always PID and selector, even when they look like the option.
+        #expect(try action(["7", "--index"]).text == "--index")
+        #expect(try action(["--index", "--index", "2"]).text == "--index")
+        for operands in [["Save", "--index", "0"], ["Save", "--index", "513"], ["Save", "--index", "two"], ["--index", "2"]] {
+            #expect(throws: CommandFailure.self) { try action(operands) }
+        }
+        func setValue(_ operands: [String]) throws -> DirectAccessibilitySetValue { try .init(.init(device: "fixture", operation: "set-value-label", operands: operands)) }
+        #expect(try setValue(["Field", "text", "--index", "3"]).guards.index == 3 && setValue(["7", "Field", "text", "--index", "3"]).guards.pid == 7)
+        // Three operands are PID, selector and value: a value of "5" after a selector "--index" stays a value.
+        let literal = try setValue(["7", "--index", "5"])
+        #expect(literal.guards.text == "--index" && literal.value == "5" && literal.guards.index == nil)
+    }
+
     @Test(arguments: ["none", "native-false", "post-hidden", "post-identity", "post-frame", "post-hit", "post-root", "post-foreground", "post-display", "post-disabled", "post-lost", "post-cancel", "ambiguous", "disabled", "pid", "display", "lost", "cleanup", "cancel"])
     func scrollSeparatesNativeResultFromFreshPostconditionAndNeverReplays(_ failure: String) throws {
         let wire = Wire(failure, scroll: true)

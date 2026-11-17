@@ -284,7 +284,20 @@ Debug-level lines therefore do not come through physical `console`. An output ab
 | `set-value --label 'Buscar con DuckDuckGo' 'prueba ñ€ 日本'` on its search input | `acknowledged`, `valueMatches: false`: the input kept its placeholder. Web inputs report themselves settable but did not take the value |
 | `press` with that label, then `type --layout spanish-iso 'prueba ñ'` | The field took focus with the keyboard up; the tree read the input's value as `prueba ñ` and the screenshot showed it |
 
-Not shown: Safari, an app's own `WKWebView`, `scroll` on a page, a page with frames, and whether the first read after a load always selects the browser. One of the two presses reported its subscription stop unconfirmed (3 ms, one cleanup frame), the third such report of the day among about thirty selector commands; the others, including failures, were acknowledged.
+**`--index`, added the same afternoon** ([guide](direct-accessibility.md#current-guarded-native-press)), on the login form again:
+
+| Command | Observed |
+| --- | --- |
+| `wait --label 'Login Page' --index 1` | `condition-met`; the receipt's selector carries `index: 1` |
+| `press --label Username` | Refused as before, the message now ending "or by its position in this list with --index" |
+| `press --label Username --index 2`, then `type --layout spanish-iso tomsmith` | `accepted` on the 343×33 field, the second of the three matches; the tree read the field's value as `tomsmith` |
+| `press --label Password --index 2` with the keyboard up | Refused, nothing sent: "target is not wholly inside the primary display". Focusing the first field had zoomed the page, and the Password field was 392 points wide on a 375-point display |
+| `scroll --label Password --index 2` | `nativeResult: true`, `postcondition-failed` (the target's visible state did not hold); the page moved |
+| `tap` at the Password field's frame from a fresh tree, `type` the page's published test password, `press` the Login button | The tree read 20 bullets in the field; the site answered "You logged into a secure area!" |
+
+Two earlier attempts in this run failed through the operator's own script, not the tool: one went on typing after the refused press, and one tapped at a frame read before the scroll had moved the page. Chrome's password manager showed a breach notice for the published test password, dismissed with "Entendido". `--index` has not been run on a simulator or through MCP on a device; unit tests cover both parsers.
+
+Not shown: Safari, an app's own `WKWebView`, a page with frames, and whether the first read after a load always selects the browser. One of the two presses reported its subscription stop unconfirmed (3 ms, one cleanup frame), the third such report of the day among about thirty selector commands; the others, including failures, were acknowledged.
 
 ## Direct physical input
 

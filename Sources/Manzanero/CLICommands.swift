@@ -239,7 +239,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions
-        func request(_ target: Target) throws -> CommandRequest { try .input(target, selector.operation("press"), selector.operands) }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, selector.operation("press"), selector.operands + selector.indexOperands) }
     }
 
     struct Scroll: TargetedCommand {
@@ -248,7 +248,7 @@ extension ManzaneroCLI {
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions
-        func request(_ target: Target) throws -> CommandRequest { try .input(target, selector.operation("scroll"), selector.operands) }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, selector.operation("scroll"), selector.operands + selector.indexOperands) }
     }
 
     struct Wait: TargetedCommand {
@@ -264,7 +264,7 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("Seconds between polls, 0.25...5 (default 0.5).", valueName: "seconds")) var interval: String?
         /// AccessibilityWait reads the options after the selector, by name.
         func request(_ target: Target) throws -> CommandRequest {
-            try .input(target, selector.operation("wait"), selector.operands
+            try .input(target, selector.operation("wait"), selector.operands + selector.indexOperands
                 + [("--until", until), ("--value", value), ("--timeout", timeout), ("--interval", interval)]
                     .flatMap { name, value in value.map { [name, $0] } ?? [] })
         }
@@ -278,7 +278,7 @@ extension ManzaneroCLI {
         @OptionGroup var selector: SelectorOptions
         @Argument(help: "The new value, 1...65536 UTF-8 bytes without NUL.") var text: String
         func request(_ target: Target) throws -> CommandRequest {
-            try .input(target, selector.operation("set-value"), selector.operands + [text])
+            try .input(target, selector.operation("set-value"), selector.operands + [text] + selector.indexOperands)
         }
     }
 

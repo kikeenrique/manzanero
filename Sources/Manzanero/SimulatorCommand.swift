@@ -132,7 +132,7 @@ struct SimulatorInput: Sendable, Equatable {
             let action = try DirectAccessibilityAction(coreDeviceInput)
             plan["backend"] = AccessibilityPlatform.simulator.backend
             plan["operation"] = action.operation
-            plan["selector"] = ["by": action.by, "text": action.text]
+            plan["selector"] = action.selector.json
             plan["pid"] = action.pid.map { Int($0) as Any } ?? NSNull()
             plan["deviceLease"] = "simulator UUID"
             plan["execution"] = "\(route) Foreground selection (frontmost application, else the screen-centre process), two unique snapshots and live state/frame guards before one action, as on physical devices. Press checks an exact hit (client type 2) at the target centre; scroll follows with fresh visibility/frame/hit and selection checks. No fallback or replay."
@@ -140,7 +140,7 @@ struct SimulatorInput: Sendable, Equatable {
             let action = try DirectAccessibilitySetValue(coreDeviceInput)
             plan["backend"] = AccessibilityPlatform.simulator.backend
             plan["operation"] = action.operation
-            plan["selector"] = ["by": action.guards.by, "text": action.guards.text]
+            plan["selector"] = action.guards.selector.json
             plan["pid"] = action.guards.pid.map { Int($0) as Any } ?? NSNull()
             plan["requestedUTF8Bytes"] = action.value.utf8.count
             plan["deviceLease"] = "simulator UUID"

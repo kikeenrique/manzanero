@@ -37,7 +37,7 @@ Unless a row says otherwise, physical evidence comes from one iPhone 13 mini (iO
 - `hid-info`, live raw `ax-snapshot`, independent Wi-Fi pairing (`pair wifi`) and `--pairing-file` are no longer commands. Pair through Xcode/CoreDevice; offline `decode-ax-archive` still works.
 - The Apple TV remote's touch surface ([blocked](other-families.md#remote-touch-surface-not-built)).
 - One tree for a browser and its page: with a web page in front the tree is the page alone, and the browser's own controls cannot be acted on by selector ([web content](direct-accessibility.md#web-content)). Reading, `wait`, `press` and typing work on a page in Chrome on the one phone; `set-value` does not change a web input.
-- Elements with neither label nor identifier, such as the Settings search field, cannot be selected by `press`, `scroll`, `wait` or `set-value`; nor can one of several elements that share a label and have no identifier, which is common on web pages.
+- Elements with neither label nor identifier, such as the Settings search field, cannot be selected by `press`, `scroll`, `wait` or `set-value`. One of several elements that share a label, which is common on web pages, is chosen with `--index` ([guide](direct-accessibility.md#current-guarded-native-press)).
 
 Those retired routes used to reach AXe, idevice or ipb helpers. The CLI no longer contains them (see [retired helpers](dependencies.md#retired-helpers)), and the execution policy would refuse those binaries anyway.
 

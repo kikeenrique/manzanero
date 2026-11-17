@@ -56,6 +56,15 @@ struct MCPToolsTests {
         #expect(dashed == ["press", "--device=phone", "--label=--dry-run", "--pid=-3"])
         let negativePID = try #require(throws: CommandFailure.self) { try CLI.invocation(dashed) }
         #expect(negativePID.description == "Native AX selector PID must be positive.")
+        // index reaches the same parser as --index; the layout probe has no such field.
+        for name in ["press_element", "scroll_to_element", "wait_for_element", "set_element_value"] {
+            let tool = try #require(MCPTools.definitions.first { $0.name == name })
+            #expect(tool.fields.contains { $0.name == "index" && !$0.required })
+        }
+        #expect(try #require(MCPTools.definitions.first { $0.name == "detect_keyboard_layout" }).fields.contains { $0.name == "index" } == false)
+        let indexed = try selector.command(["device": "phone", "by": "label", "text": "Username", "index": 2])
+        #expect(indexed == ["press", "--device=phone", "--label=Username", "--index=2"])
+        #expect(try CLI.invocation(indexed).request == .physicalInput(CoreDeviceInput(device: "phone", operation: "press-label", operands: ["Username", "--index", "2"])))
         let labelled = try selector.command(["device": "phone", "by": "label", "text": "--dry-run", "pid": 3])
         #expect(try CLI.invocation(labelled) == CLIInvocation(
             request: .physicalInput(CoreDeviceInput(device: "phone", operation: "press-label", operands: ["3", "--dry-run"])), dryRun: false, errorFormat: nil))

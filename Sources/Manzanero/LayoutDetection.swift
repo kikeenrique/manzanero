@@ -175,6 +175,9 @@ struct LayoutDetectionCommand: Sendable, Equatable {
         guard !target.identifier.isEmpty, !target.identifier.hasPrefix("-") else {
             throw CommandFailure.usage("Provide a valid device identifier.")
         }
+        guard selector.index == nil else {
+            throw CommandFailure.usage("detect-layout does not take --index: select the field by a selector that matches it alone.")
+        }
         let text = selector.id ?? selector.label ?? ""
         guard (1...4096).contains(text.utf8.count), !text.contains("\0") else {
             throw CommandFailure.usage("detect-layout requires an exact selector of 1...4096 UTF-8 bytes without NUL.")

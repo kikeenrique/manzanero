@@ -25,11 +25,14 @@ struct DirectAccessibilitySetValue {
     let value: String
     var operation: String { guards.operation }
 
+    /// Operands: `[pid] <selector> <text> [--index <n>]`.
     init(_ input: CoreDeviceInput) throws {
-        guard Self.operations.contains(input.operation), (2...3).contains(input.operands.count) else {
+        var operands = input.operands
+        let index = try AccessibilitySelector.takeIndex(&operands, minimumCount: 4)
+        guard Self.operations.contains(input.operation), (2...3).contains(operands.count) else {
             throw CommandFailure.usage("Usage: set-value-id|set-value-label [positive-pid] <exact-selector> <text>; text is 1...\(Self.maximumTextBytes) UTF-8 bytes without NUL.")
         }
-        let selector = input.operands[input.operands.count - 2], value = input.operands[input.operands.count - 1]
+        let selector = operands[operands.count - 2], value = operands[operands.count - 1]
         guard (1...4096).contains(selector.utf8.count), !selector.contains("\0") else {
             throw CommandFailure.usage("Native AX set-value requires an exact selector of 1...4096 UTF-8 bytes without NUL.")
         }
@@ -37,12 +40,12 @@ struct DirectAccessibilitySetValue {
             throw CommandFailure.usage("Native AX set-value text must be 1...\(Self.maximumTextBytes) UTF-8 bytes without NUL.")
         }
         var pid: Int32?
-        if input.operands.count == 3 {
-            guard let value = Int32(input.operands[0]), value > 0 else { throw CommandFailure.usage("Native AX selector PID must be positive.") }
+        if operands.count == 3 {
+            guard let value = Int32(operands[0]), value > 0 else { throw CommandFailure.usage("Native AX selector PID must be positive.") }
             pid = value
         }
         guards = DirectAccessibilityAction(guardsFor: "set-value", by: input.operation.hasSuffix("-id") ? "identifier" : "label",
-                                           text: selector, pid: pid)
+                                           text: selector, pid: pid, index: index)
         self.value = value
     }
 
@@ -85,7 +88,7 @@ struct DirectAccessibilitySetValue {
             var result: [String: Any] = ["backend": platform.backend, "operation": operation,
                 "status": "acknowledged", "verified": false, "atomic": false,
                 "application": ["pid": root.pid, "selection": guards.pid == nil ? platform.selection : "explicit-pid+\(platform.selection)"],
-                "selector": ["by": guards.by, "text": guards.text], "coordinateSpace": "device-logical-points",
+                "selector": guards.selector.json, "coordinateSpace": "device-logical-points",
                 "target": before.json, "requestedUTF8Bytes": value.utf8.count,
                 "limitations": ["Sequential guards are not atomic or a complete hittability check.",
                     "The value replaces the element's whole value; it is not typed at a caret, and no keyboard, clipboard or return key is involved.",

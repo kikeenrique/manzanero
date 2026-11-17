@@ -44,6 +44,10 @@ struct CLIParserTests {
         (["tree", "--pid", "42", "--simulator", simulator], ["simulator", simulator, "tree", "42"]),
         (["press", "--id", "probe.button", "--device", device], ["physical", device, "press-id", "probe.button"]),
         (["press", "--label", "General", "--pid", "7", "--simulator", simulator], ["simulator", simulator, "press-label", "7", "General"]),
+        (["press", "--label", "Username", "--index", "2", "--device", device], ["physical", device, "press-label", "Username", "--index", "2"]),
+        (["scroll", "--label", "Row", "--pid", "7", "--index", "3", "--simulator", simulator], ["simulator", simulator, "scroll-label", "7", "Row", "--index", "3"]),
+        (["set-value", "--label", "Username", "--index", "2", "tom", "--device", device], ["physical", device, "set-value-label", "Username", "tom", "--index", "2"]),
+        (["wait", "--label", "Done", "--index", "2", "--until", "gone", "--device", device], ["physical", device, "wait-label", "Done", "--index", "2", "--until", "gone"]),
         (["scroll", "--label", "Row", "--device", device], ["physical", device, "scroll-label", "Row"]),
         (["scroll", "--id", "row", "--pid", "7", "--device", device], ["physical", device, "scroll-id", "7", "row"]),
         (["wait", "--id", "probe.summary", "--until", "gone", "--timeout", "5", "--simulator", simulator],
@@ -179,6 +183,18 @@ struct CLIParserTests {
             #expect(failure.description == "Give exactly one of --id or --label.")
             #expect(failure.code == .usage && failure.inputSent == .none && failure.retry == .no)
         }
+    }
+
+    @Test func selectorIndexIsValidatedBeforeAnyDeviceQuery() throws {
+        for command in ["press", "scroll", "wait"] {
+            for index in ["0", "513", "two", "-1"] {
+                let failure = try usageFailure([command, "--label", "Row", "--index=\(index)", "--device", Self.device])
+                #expect(failure.description.contains("--index must be a whole number in 1...512") && failure.inputSent == .none)
+            }
+        }
+        #expect(try usageFailure(["set-value", "--label", "Row", "--index", "0", "x", "--device", Self.device]).description.contains("--index must be"))
+        let layout = try usageFailure(["detect-layout", "--id", "field", "--index", "2", "--device", Self.device])
+        #expect(layout.description.hasPrefix("detect-layout does not take --index"))
     }
 
     @Test func selectorValuesMayBeginWithDashes() throws {

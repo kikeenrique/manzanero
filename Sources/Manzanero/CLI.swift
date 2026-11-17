@@ -136,6 +136,9 @@ struct SelectorOptions: ParsableArguments {
     @Option(help: ArgumentHelp("Positive PID of the application to inspect (default: the foreground application).", valueName: "pid"))
     var pid: String?
 
+    @Option(help: ArgumentHelp("Choose among several matching elements by position, counted from 1 in the tree's node order (the order an ambiguous-selector failure lists them). Positional: check the tree first.", valueName: "position"))
+    var index: String?
+
     func validate() throws {
         guard (id == nil) != (label == nil) else { throw ValidationError("Give exactly one of --id or --label.") }
     }
@@ -166,6 +169,9 @@ extension SelectorOptions {
 
     /// `[pid] <text>`, the operands the selector operations validate.
     var operands: [String] { (pid.map { [$0] } ?? []) + [id ?? label ?? ""] }
+
+    /// `--index <n>` when given; it follows every positional operand.
+    var indexOperands: [String] { index.map { [AccessibilitySelector.indexOption, $0] } ?? [] }
 }
 
 struct ManzaneroCLI: ParsableCommand {

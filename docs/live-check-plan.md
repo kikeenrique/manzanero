@@ -13,6 +13,7 @@ If every query to a connected device times out, capture the state of Apple's dev
 - `handoff` with a real prompt. Wait for the owner to say when.
 - A held `key` or `button` whose sender is killed, and a hold during which the cable or network path is lost rather than the process: a killed `long-press` ended by itself on the phone ([session](verification.md#phone-session-of-2026-11-17)), these did not run.
 - `tree`, `wait`, `press` and `scroll` with a web page in front in Safari and in an app's own `WKWebView`; a page with frames. In Chrome the page's tree reads and `press` works ([record](verification.md#web-content-on-the-phone)); `scroll` did not run. Count how often the first read after a page load selects the browser instead of the page.
+- `--index` on a simulator and through the MCP `index` field against a device; on the phone it ran from the CLI on a web form only ([record](verification.md#web-content-on-the-phone)).
 - Setting the value of a SwiftUI field that has a label or identifier. A UIKit text field and a secure field in Settings ran; the Settings search field has neither label nor identifier and cannot be selected.
 - `rtcp.negotiatedFeedback` in a second recording, to see whether `disabled` is constant.
 - `frames` with the display rotated, on another device, for a long run (minutes, toward the 1000-frame and 1 GiB limits), and with a second process trying to capture or send input meanwhile. Portrait runs on the iPhone 13 mini are [recorded](verification.md#frames-on-the-phone).

@@ -293,6 +293,33 @@ struct AccessibilityWaitTests {
         #expect(hidden.json?["status"] as? String == "condition-met" && hidden.observation?["matchCount"] as? Int == 2)
     }
 
+    /// `--index` picks one of several matches by position, in node order.
+    @Test func indexChoosesOneOfSeveralMatchesByPosition() async throws {
+        let screen = Screen(elements: [Element(id: 2, value: "first"), Element(id: 3, value: "second"), Element(id: 4, visible: false)])
+        let second = try await run(["fixture.target", "--index", "2", "--value", "second"]) { _ in screen }
+        #expect(second.json?["status"] as? String == "condition-met")
+        #expect((second.json?["selector"] as? [String: Any])?["index"] as? Int == 2)
+        #expect(second.observation?["matchCount"] as? Int == 3 && !(second.observation?["element"] is NSNull))
+        let first = try await run(["fixture.target", "--index", "1", "--value", "second", "--timeout", "0"]) { _ in screen }
+        #expect(first.observation?["reason"] as? String == "value-differs")
+        // The position is taken as given: a hidden element is not skipped.
+        let hidden = try await run(["fixture.target", "--index", "3", "--timeout", "0"]) { _ in screen }
+        #expect(hidden.observation?["reason"] as? String == "not-visible")
+        let beyond = try await run(["fixture.target", "--index", "4", "--timeout", "0"]) { _ in screen }
+        #expect(beyond.json?["status"] as? String == "timed-out" && beyond.observation?["reason"] as? String == "no-match")
+        // Gone is about that one element, not about every match.
+        let gone = try await run(["fixture.target", "--index", "3", "--until", "gone"]) { _ in screen }
+        #expect(gone.json?["status"] as? String == "condition-met" && gone.observation?["reason"] as? String == "not-visible")
+        let absent = try await run(["fixture.target", "--index", "4", "--until", "gone"]) { _ in screen }
+        #expect(absent.observation?["reason"] as? String == "absent")
+        let shown = try await run(["fixture.target", "--index", "1", "--until", "gone", "--timeout", "0"]) { _ in screen }
+        #expect(shown.observation?["reason"] as? String == "still-visible")
+        for operands in [["fixture.target", "--index", "0"], ["fixture.target", "--index", "513"], ["fixture.target", "--index", "x"],
+                         ["fixture.target", "--index", "1", "--index", "2"], ["fixture.target", "--index"]] {
+            #expect(throws: CommandFailure.self) { try Self.wait(operands) }
+        }
+    }
+
     /// Observed in Settings: a row and the hidden text inside it share a label.
     @Test func oneVisibleMatchAmongExplicitlyHiddenOnesIsTheElement() async throws {
         let row = try await run(["fixture.target"]) { _ in

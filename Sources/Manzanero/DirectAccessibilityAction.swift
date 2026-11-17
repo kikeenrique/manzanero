@@ -8,27 +8,33 @@ struct DirectAccessibilityAction {
     let pid: Int32?
     let by: String
     let text: String
+    /// `--index`: the position among the distinct matches, counted from 1.
+    let index: Int?
     /// Set only by another operation that reuses these guards (set-value);
     /// it names that operation in messages instead of press.
     private var operationName: String? = nil
 
     /// The selector and guards for an operation other than press or scroll
     /// (`DirectAccessibilitySetValue`); `execute` is not used with it.
-    init(guardsFor operation: String, by: String, text: String, pid: Int32?) {
+    init(guardsFor operation: String, by: String, text: String, pid: Int32?, index: Int? = nil) {
         action = .press
         operationName = operation
         self.by = by
         self.text = text
         self.pid = pid
+        self.index = index
     }
 
+    /// Operands: `[pid] <selector> [--index <n>]`.
     init(_ input: CoreDeviceInput) throws {
-        guard ["press-id", "press-label", "scroll-id", "scroll-label"].contains(input.operation), (1...2).contains(input.operands.count),
-              let text = input.operands.last, (1...4096).contains(text.utf8.count), !text.contains("\0") else {
+        var operands = input.operands
+        index = try AccessibilitySelector.takeIndex(&operands, minimumCount: 3)
+        guard ["press-id", "press-label", "scroll-id", "scroll-label"].contains(input.operation), (1...2).contains(operands.count),
+              let text = operands.last, (1...4096).contains(text.utf8.count), !text.contains("\0") else {
             throw CommandFailure.usage("Native AX selector action requires an optional positive PID and 1...4096 UTF-8 bytes of exact selector without NUL.")
         }
-        if input.operands.count == 2 {
-            guard let pid = Int32(input.operands[0]), pid > 0 else { throw CommandFailure.usage("Native AX selector PID must be positive.") }
+        if operands.count == 2 {
+            guard let pid = Int32(operands[0]), pid > 0 else { throw CommandFailure.usage("Native AX selector PID must be positive.") }
             self.pid = pid
         } else { pid = nil }
         action = input.operation.hasPrefix("scroll-") ? .scrollToVisible : .press
@@ -36,7 +42,7 @@ struct DirectAccessibilityAction {
         self.text = text
     }
 
-    var selector: AccessibilitySelector { AccessibilitySelector(by: by, text: text) }
+    var selector: AccessibilitySelector { AccessibilitySelector(by: by, text: text, index: index) }
 
     func resolve(_ snapshot: AccessibilityArchiveValue, root: AccessibilityRequest.Token) throws -> AccessibilitySnapshot.Node {
         // One entry per distinct element; repeated paths must agree.
@@ -50,6 +56,16 @@ struct DirectAccessibilityAction {
             } else { distinct.append(match) }
         }
         guard let first = distinct.first else { throw failure("selector has no match in the fresh bounded snapshot", .targetUnresolved) }
+        // The caller chose by position: the nth distinct element in node
+        // order, whatever its visibility. The guards that follow (a second
+        // snapshot with the same identity, live state, frame and hit) still
+        // apply to it.
+        if let index {
+            guard index <= distinct.count else {
+                throw failure("selector index \(index) is beyond the \(distinct.count) matching element(s): \(Self.describe(distinct.map(\.node)))", .targetUnresolved)
+            }
+            return distinct[index - 1].node
+        }
         if distinct.count == 1 { return first.node }
         // A list row and the text inside it often share one label, with only the
         // row visible (observed in Settings). When exactly one match is visible
@@ -63,8 +79,9 @@ struct DirectAccessibilityAction {
     }
 
     /// What an ambiguous selector matched, so the caller can choose a unique
-    /// identifier instead: at most five elements with their identifier,
-    /// visibility and frame. Nothing is chosen for the caller.
+    /// identifier or a position instead: at most five elements, in the
+    /// order `--index` counts them, with their identifier, visibility and
+    /// frame. Nothing is chosen for the caller.
     static func describe(_ nodes: [AccessibilitySnapshot.Node]) -> String {
         let listed = nodes.prefix(5).map { node -> String in
             var parts: [String] = []
@@ -76,7 +93,7 @@ struct DirectAccessibilityAction {
             return parts.joined(separator: ", ")
         }
         let more = nodes.count > listed.count ? "; and \(nodes.count - listed.count) more" : ""
-        return "\(nodes.count) elements (\(listed.joined(separator: "; "))\(more)). Select one by a unique identifier"
+        return "\(nodes.count) elements (\(listed.joined(separator: "; "))\(more)). Select one by a unique identifier, or by its position in this list with --index"
     }
 
     func execute(session: any AccessibilityExchange, display: () throws -> AccessibilityDisplay) throws -> Data {
@@ -111,7 +128,7 @@ struct DirectAccessibilityAction {
             var result: [String: Any] = ["backend": platform.backend, "operation": operation,
                 "verified": false, "atomic": false,
                 "application": ["pid": root.pid, "selection": pid == nil ? platform.selection : "explicit-pid+\(platform.selection)"],
-                "selector": ["by": by, "text": text], "coordinateSpace": "device-logical-points",
+                "selector": selector.json, "coordinateSpace": "device-logical-points",
                 "limitations": ["Sequential guards are not atomic or a complete hittability check.",
                     "Unit attribute/action replies can lack target/sequence identity; one request is outstanding.",
                     "No coordinate fallback or automatic replay. Inspect a fresh observation before retrying."]]
@@ -224,6 +241,37 @@ struct AccessibilitySelector: Sendable, Equatable {
 
     let by: String
     let text: String
+    /// 1-based position among the distinct matching elements, in the tree's
+    /// node order (the order an ambiguous-selector failure lists them); nil
+    /// requires the selector to settle on one element by itself.
+    var index: Int? = nil
+
+    static let indexOption = "--index"
+    static let indexRange = 1...512
+
+    /// The selector as receipts and plans print it.
+    var json: [String: Any] {
+        var json: [String: Any] = ["by": by, "text": text]
+        if let index { json["index"] = index }
+        return json
+    }
+
+    /// Removes a trailing `--index <n>` from positional selector operands.
+    /// `minimumCount` is the smallest operand count that can carry one, so a
+    /// selector or value that is itself "--index" is not mistaken for it.
+    static func takeIndex(_ operands: inout [String], minimumCount: Int) throws -> Int? {
+        guard operands.count >= minimumCount, operands[operands.count - 2] == indexOption else { return nil }
+        let index = try parseIndex(operands[operands.count - 1])
+        operands.removeLast(2)
+        return index
+    }
+
+    static func parseIndex(_ text: String) throws -> Int {
+        guard let index = Int(text), indexRange.contains(index) else {
+            throw CommandFailure.usage("\(indexOption) must be a whole number in \(indexRange.lowerBound)...\(indexRange.upperBound): the position among the matching elements, counted from 1.")
+        }
+        return index
+    }
 
     /// Normalizes the snapshot (its node/depth bounds apply) and returns every
     /// matching node in traversal order, including repeated paths and foreign

@@ -30,7 +30,7 @@ struct AccessibilityWait {
     }
 
     static let operations = ["wait-id", "wait-label"]
-    static let optionNames: Set<String> = ["--until", "--value", "--timeout", "--interval"]
+    static let optionNames: Set<String> = ["--until", "--value", "--timeout", "--interval", AccessibilitySelector.indexOption]
     static let conditionNames = ["visible", "gone", "enabled", "disabled", "value", "focused"]
     static let timeoutRange: ClosedRange<Double> = 0...60
     static let intervalRange: ClosedRange<Double> = 0.25...5
@@ -59,7 +59,7 @@ struct AccessibilityWait {
               callbackBytes: max(40 * 1024 * 1024, 4 * 1024 * 1024 * maximumPolls))
     }
 
-    private static let usage = "Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--until visible|gone|enabled|disabled|value|focused] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>]."
+    private static let usage = "Native AX wait usage: wait (--id <identifier> | --label <label>) [--pid <positive-pid>] [--index <position 1...512>] [--until visible|gone|enabled|disabled|value|focused] [--value <exact-text>] [--timeout <seconds 0...60, default 10>] [--interval <seconds 0.25...5, default 0.5>]."
 
     init(_ input: CoreDeviceInput) throws {
         guard Self.operations.contains(input.operation), !input.operands.isEmpty else { throw Self.invalid("") }
@@ -77,8 +77,7 @@ struct AccessibilityWait {
         guard (1...4096).contains(text.utf8.count), !text.contains("\0") else {
             throw Self.invalid("Selector must be 1...4096 UTF-8 bytes without NUL.")
         }
-        selector = AccessibilitySelector(by: input.operation == "wait-id" ? "identifier" : "label", text: text)
-        var until: String?, value: String?, timeout: Double?, interval: Double?
+        var until: String?, value: String?, timeout: Double?, interval: Double?, position: Int?
         var index = end
         while index < operands.count {
             let name = operands[index]
@@ -103,12 +102,16 @@ struct AccessibilityWait {
             case "--timeout":
                 guard timeout == nil else { throw Self.invalid("--timeout must appear once.") }
                 timeout = try seconds(Self.timeoutRange)
+            case AccessibilitySelector.indexOption:
+                guard position == nil else { throw Self.invalid("--index must appear once.") }
+                position = try AccessibilitySelector.parseIndex(argument)
             default:
                 guard interval == nil else { throw Self.invalid("--interval must appear once.") }
                 interval = try seconds(Self.intervalRange)
             }
             index += 2
         }
+        selector = AccessibilitySelector(by: input.operation == "wait-id" ? "identifier" : "label", text: text, index: position)
         switch (until, value) {
         case (nil, nil), ("visible", nil): condition = .visible
         case (nil, let value?), ("value", let value?): condition = .value(value)
@@ -141,7 +144,7 @@ struct AccessibilityWait {
 
     func plan(identityArguments: [String]) -> [String: Any] {
         ["backend": "coredevice-direct", "operation": "wait", "readOnly": true, "inputSent": false,
-         "deviceLease": "not taken (observation)", "selector": ["by": selector.by, "text": selector.text],
+         "deviceLease": "not taken (observation)", "selector": selector.json,
          "pid": pid.map { Int($0) as Any } ?? NSNull(), "condition": conditionJSON,
          "timeoutSeconds": Double(timeoutMilliseconds) / 1000, "intervalSeconds": Double(intervalMilliseconds) / 1000,
          "maximumPolls": maximumPolls, "timeoutExitCode": Int(Self.timeoutExitCode),
@@ -237,7 +240,7 @@ struct AccessibilityWait {
             var result: [String: Any] = ["backend": platform.backend, "operation": "wait", "readOnly": true, "inputSent": false,
                 "device": device, platform.resolvedKey: resolved,
                 "status": last.met ? "condition-met" : "timed-out", "conditionMet": last.met,
-                "selector": ["by": selector.by, "text": selector.text], "condition": conditionJSON,
+                "selector": selector.json, "condition": conditionJSON,
                 "timeoutSeconds": Double(timeoutMilliseconds) / 1000, "intervalSeconds": Double(intervalMilliseconds) / 1000,
                 "elapsedSeconds": Self.seconds(elapsed), "polls": polls,
                 "application": ["pid": Int(last.pid), "selection": pid == nil ? "\(platform.selection)-per-poll" : "explicit-pid"],
@@ -319,6 +322,28 @@ struct AccessibilityWait {
         observation.foreignMatches = matches.count - local.count
         if distinct.count == 1 { observation.element = try Self.describe(distinct[0].node) }
 
+        // --index: the nth distinct element in node order stands for the
+        // selector. It is positional, so a page that gains or loses an
+        // earlier match moves it to another element.
+        let chosen = selector.index.flatMap { $0 <= distinct.count ? distinct[$0 - 1] : nil }
+        if let position = selector.index {
+            observation.element = try chosen.map { try Self.describe($0.node) }
+            if condition == .gone {
+                switch chosen?.node.visible {
+                case nil where chosen == nil:
+                    observation.met = true; observation.reason = "absent"
+                    observation.detail = "\(distinct.count) distinct element(s) match; there is no element at index \(position)."
+                case false?:
+                    observation.met = true; observation.reason = "not-visible"; observation.detail = "The element at index \(position) is explicitly not visible."
+                case true?:
+                    observation.reason = "still-visible"; observation.detail = "The element at index \(position) is visible."
+                default:
+                    observation.reason = "visibility-unknown"; observation.detail = "The element at index \(position) has no visibility attribute."
+                }
+                return observation
+            }
+        }
+
         if condition == .gone {
             let shown = matches.filter { $0.node.visible == true }.count
             let unknown = matches.filter { $0.node.visible == nil }.count
@@ -348,7 +373,14 @@ struct AccessibilityWait {
         // and every other is explicitly hidden, the visible one is the element.
         // Any match with unknown visibility keeps the result ambiguous.
         var candidates = distinct
-        if candidates.count > 1, candidates.allSatisfy({ $0.node.visible != nil }) {
+        if let position = selector.index {
+            guard let chosen else {
+                observation.reason = "no-match"
+                observation.detail = "\(distinct.count) distinct element(s) match; there is no element at index \(position)."
+                return observation
+            }
+            candidates = [chosen]
+        } else if candidates.count > 1, candidates.allSatisfy({ $0.node.visible != nil }) {
             let shown = candidates.filter { $0.node.visible == true }
             if shown.count == 1 {
                 candidates = shown
@@ -356,7 +388,7 @@ struct AccessibilityWait {
             }
         }
         guard candidates.count == 1 else {
-            observation.reason = "ambiguous"; observation.detail = "\(distinct.count) distinct elements match; the condition needs exactly one visible."
+            observation.reason = "ambiguous"; observation.detail = "\(distinct.count) distinct elements match; the condition needs exactly one visible, or --index to choose one by position."
             return observation
         }
         guard !inconsistent else {
