@@ -11,7 +11,9 @@ struct SimulatorCrownTests {
     final class Turned: @unchecked Sendable {
         var crowns: [(deltas: [Double], interval: UInt64)] = []
         var consumer: [UInt64] = []
+        var pages: [UInt64] = []
         var buttons: [UInt64] = []
+        var keys = 0
     }
 
     static func service(family: String, _ turned: Turned) -> CommandService {
@@ -25,8 +27,13 @@ struct SimulatorCrownTests {
             #expect(device == uuid)
             turned.crowns.append((deltas, interval))
         }
-        environment.remoteButton = { _, usage, _ in turned.consumer.append(usage) }
+        environment.remoteButton = { _, page, usage, _ in
+            turned.pages.append(page)
+            turned.consumer.append(usage)
+        }
         environment.button = { _, usage, _ in turned.buttons.append(usage) }
+        environment.key = { _, _ in turned.keys += 1 }
+        environment.keyboard = { _, _ in turned.keys += 1 }
         return CommandService(leases: SimulatorAccessibilityTests.usableLeases(), simulator: environment,
                               readinessQuery: { _ in Issue.record("Simulator input queried CoreDevice"); return Data() })
     }
@@ -60,7 +67,7 @@ struct SimulatorCrownTests {
     @Test func crownAndSideButtonAreRefusedOffTheWatch() async throws {
         let turned = Turned()
         for family in ["iPhone", "Apple TV", ""] {
-            for args in [["crown", "100"], ["button", "side"]] {
+            for args in [["crown", "100"], ["button", "side"], ["button", "action"]] {
                 let failure = await #expect(throws: CommandFailure.self) {
                     _ = try await Self.service(family: family, turned).run(args + ["--simulator", Self.uuid])
                 }
@@ -79,7 +86,29 @@ struct SimulatorCrownTests {
         _ = try await service.run(["button", "home", "--simulator", Self.uuid])
         #expect(side["button"] as? String == "side" && turned.consumer == [0x95] && turned.buttons == [64])
         let plan = try SimulatorInputTests.json(await service.run(["button", "side", "--simulator", Self.uuid], dryRun: true))
-        #expect(plan["usage"] as? Int == 0x95)
+        #expect(plan["usage"] as? Int == 0x95 && plan["usagePage"] as? Int == 12)
+    }
+
+    @Test func actionButtonIsVendorPage0xFF01Usage0x200() async throws {
+        let turned = Turned()
+        let service = Self.service(family: "Apple Watch", turned)
+        let receipt = try SimulatorInputTests.json(await service.run(["button", "action", "--simulator", Self.uuid]))
+        #expect(receipt["button"] as? String == "action" && turned.pages == [0xFF01] && turned.consumer == [0x200] && turned.buttons.isEmpty)
+        let plan = try SimulatorInputTests.json(await service.run(["button", "action", "--simulator", Self.uuid], dryRun: true))
+        #expect(plan["usage"] as? Int == 0x200 && plan["usagePage"] as? Int == 0xFF01)
+        let home = try SimulatorInputTests.json(await service.run(["button", "home", "--simulator", Self.uuid], dryRun: true))
+        #expect(home["usage"] as? Int == 64 && home["usagePage"] as? Int == 12)
+    }
+
+    @Test func keyAndTypeAreRefusedOnAWatchBeforeAnyInput() async throws {
+        let turned = Turned()
+        for args in [["key", "return"], ["type", "ab"]] {
+            let failure = await #expect(throws: CommandFailure.self) {
+                _ = try await Self.service(family: "Apple Watch", turned).run(args + ["--simulator", Self.uuid])
+            }
+            #expect(failure?.code == .unsupportedOperation && failure?.inputSent == CommandFailure.InputSent.none)
+        }
+        #expect(turned.keys == 0)
     }
 
     @Test func dryRunAndMCPToolDescribeTheTurn() async throws {

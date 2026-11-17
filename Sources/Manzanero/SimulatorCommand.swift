@@ -92,8 +92,8 @@ struct SimulatorInput: Sendable, Equatable {
             guard operands.count == 1 else { throw CommandFailure.usage("Simulator gesture requires one JSON sequence argument.") }
             _ = try NativeGestureSequence(json: operands[0])
         case "button":
-            guard operands.count == 1, Self.buttons[operands[0]] ?? DigitalCrown.watchButtons[operands[0]] != nil else {
-                throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down; no input sent.")
+            guard operands.count == 1, Self.buttons[operands[0]] != nil || DigitalCrown.watchButtons[operands[0]] != nil else {
+                throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down, and side and action on an Apple Watch; no input sent.")
             }
         case "remote":
             guard operands.count == 1, AppleTVRemote.routes[operands[0]] != nil else { throw CommandFailure.usage(AppleTVRemote.usage) }
@@ -190,7 +190,8 @@ struct SimulatorInput: Sendable, Equatable {
                 service = AppleTVRemote.describe(route)["service"] as! String
             case "button":
                 service = "com.apple.coredevice.feature.remote.hid.button"
-                plan["usage"] = Self.buttons[operands[0]] ?? DigitalCrown.watchButtons[operands[0]]
+                plan["usage"] = Self.buttons[operands[0]] ?? DigitalCrown.watchButtons[operands[0]]?.usage
+                plan["usagePage"] = DigitalCrown.watchButtons[operands[0]]?.page ?? 12
                 plan["holdMilliseconds"] = operands[0] == "lock" ? 400 : 80
             case "key":
                 service = "com.apple.coredevice.feature.remote.hid.keyboard"
@@ -234,8 +235,8 @@ struct SimulatorEnvironment: Sendable {
     var key: @Sendable (String, UInt64) throws -> Void = DirectSimulatorInput.key
     /// One button press: usage and hold in microseconds.
     var button: @Sendable (String, UInt64, UInt32) throws -> Void = DirectSimulatorInput.button
-    /// One Apple TV remote consumer button: usage and hold in microseconds.
-    var remoteButton: @Sendable (String, UInt64, UInt32) throws -> Void = DirectSimulatorInput.remoteButton
+    /// One Apple TV remote or Apple Watch button: usage page, usage and hold in microseconds.
+    var remoteButton: @Sendable (String, UInt64, UInt64, UInt32) throws -> Void = DirectSimulatorInput.remoteButton
     /// Digital Crown steps: per-event deltas and the interval in nanoseconds.
     var crown: @Sendable (String, [Double], UInt64) throws -> Void = DigitalCrown.rotate
     /// The iPhone Duo hinge: one angle in degrees, 0...180.

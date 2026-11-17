@@ -423,19 +423,30 @@ static BOOL ADCSimulatorWaitUntil(uint64_t start, uint64_t offset, ADCInputShoul
     }
 }
 
-int ADCSimulatorPressRemoteButton(void *owner, uint64_t usage, unsigned hold, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+/// A button event on a given usage page (ADCButtonEvent's is the consumer page).
+static xpc_object_t ADCButtonEventOnPage(uint64_t page, uint64_t usage, uint64_t state) {
+    xpc_object_t event = ADCButtonEvent(usage, state, NO);
+    xpc_dictionary_set_uint64(xpc_dictionary_get_value(event, "payload"), "usagePage", page);
+    return event;
+}
+
+int ADCSimulatorPressRemoteButton(void *owner, uint64_t page, uint64_t usage, unsigned hold, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     // Consumer page: Menu (0x40, the TV/Home button), Menu Escape (0x46,
     // Back/Menu), Play/Pause (0xCD) and the watch's side button (0x95, as
-    // DeviceKit's watch chrome names it); docs/other-families.md.
-    if ((usage != 0x40 && usage != 0x46 && usage != 0xCD && usage != 0x95) || hold == 0 || hold > 400000)
+    // DeviceKit's watch chrome names it). Page 0xFF01, usage 0x200: the
+    // Apple Watch Ultra's Action button (the watch6 chrome's
+    // left-side-button); docs/other-families.md.
+    BOOL consumer = page == 12 && (usage == 0x40 || usage == 0x46 || usage == 0xCD || usage == 0x95);
+    BOOL action = page == 0xFF01 && usage == 0x200;
+    if ((!consumer && !action) || hold == 0 || hold > 400000)
         return ADCSimulatorFail(error, capacity, @"Invalid simulator remote button request; no input sent.");
     return ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.hid.button", shouldCancel, NULL,
         ^int(xpc_connection_t connection, ADCInputShouldStop stop) {
             if (stop && stop()) return 1;
-            xpc_connection_send_message(connection, ADCButtonEvent(usage, 1, NO));
+            xpc_connection_send_message(connection, ADCButtonEventOnPage(page, usage, 1));
             BOOL held = ADCSimulatorWaitUntil(clock_gettime_nsec_np(CLOCK_MONOTONIC), (uint64_t)hold * 1000, stop);
             // Release is sent even when stopped, as the shared press does.
-            xpc_connection_send_message(connection, ADCButtonEvent(usage, 2, NO));
+            xpc_connection_send_message(connection, ADCButtonEventOnPage(page, usage, 2));
             return held ? 0 : 1;
         }, error, capacity);
 }

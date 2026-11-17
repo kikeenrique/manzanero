@@ -103,6 +103,7 @@ Swipes on the Siri Remote's touch surface (and its clickpad ring) are not implem
 ```sh
 manzanero crown <units> [--events <n>] --simulator <UUID>   # negative: crown --simulator <UUID> -- -200
 manzanero button side --simulator <UUID>
+manzanero button action --simulator <UUID>                  # Apple Watch Ultra's Action button
 ```
 
 `crown` sends `IndigoScrollEvent` messages to the simulator's `com.apple.coredevice.feature.remote.hid.scroll` service, which only watchOS runtimes publish: `{point: {x: 0, y: <units>, z: 0}, phase: 0, momentum: 0, target: 0}`. Target 0 is the Digital Crown (target 1 is refused as `No dial service found for scroll event`).
@@ -116,6 +117,10 @@ Calibration on the watchOS 27.2 simulator, with a SwiftUI probe whose `digitalCr
 
 So `crown` sends the units as the fewest events of at most 1000 units, one second apart, and `--events <n>` (1...20) splits them evenly: `crown 200` moves a SwiftUI crown binding by 1.0, and `crown 300 --events 3` moved Settings three rows. The receipt lists `unitsPerEvent`. Several events take one second each. Another family is refused as `unsupported-operation` before input, and a physical device before any contact.
 
-**Side button.** DeviceKit's watch chrome (`/Library/Developer/DeviceKit/Chrome/watch*.devicechrome/…/chrome.json`) gives the side button as consumer page 12, usage 149 (0x95), and the crown press as 64 (the existing `button home`). `button side` sends 0x95 on the button service; on the watch face it opened Control Center, and a second press closed it. It is refused on other families. The `watch6` chrome also lists a `left-side-button` (page 0xFF01, usage 512), which was not tried. `button lock` (0x30) still does nothing on the watch.
+**Side button.** DeviceKit's watch chrome (`/Library/Developer/DeviceKit/Chrome/watch*.devicechrome/…/chrome.json`) gives the side button as consumer page 12, usage 149 (0x95), and the crown press as 64 (the existing `button home`). `button side` sends 0x95 on the button service; on the watch face it opened Control Center, and a second press closed it. It is refused on other families. `button lock` (0x30) still does nothing on the watch.
 
-MCP: `rotate_crown`; `press_button` accepts `side`.
+**Action button.** The `watch6` chrome, the Apple Watch Ultra's, also lists a `left-side-button` (image `StingButton`) on the vendor page 0xFF01, usage 512 (0x200). `button action` sends that pair on the button service, held 80 ms. On an Apple Watch Ultra 4 simulator's watch face it opened the Action button's setup ("Choose Action"); on a Series 12 simulator, which has no such button, the same event changed nothing. It is sent to any Apple Watch simulator and refused on other families; the receipt and the dry-run plan give `usagePage` and `usage`.
+
+**No keyboard input.** `key` and `type` are refused on an Apple Watch simulator as `unsupported-operation`, before any input. The keyboard service accepts the events, but nothing arrives: `key down`, `key return` and `type 12` changed nothing in Calculator, and with the system text entry sheet of a SwiftUI `TextField` open, `type 'Hola 12'`, `key backspace` and `key return` left the field empty and the sheet open. `set-value` on that field was acknowledged and changed the text the field shows and reports, but the app's bound string stayed empty, so on watchOS it is not a way to enter text either. The sheet's own keys can be tapped.
+
+MCP: `rotate_crown`; `press_button` accepts `side` and `action`.

@@ -22,8 +22,8 @@ struct SimulatorRemoteTests {
             return info
         }
         environment.key = { _, usage in pressed.keys.append(usage) }
-        environment.remoteButton = { device, usage, hold in
-            #expect(device == uuid)
+        environment.remoteButton = { device, page, usage, hold in
+            #expect(device == uuid && page == 12)
             pressed.remote.append((usage, hold))
         }
         environment.touch = { _, _ in pressed.touches += 1 }

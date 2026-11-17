@@ -669,6 +669,22 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `button side` on the watch face, twice | Control Center opened (screenshot and tree), then closed |
 | `crown 100` on the Apple TV, `button side` on the Duo | Refused before input, `unsupported-operation` |
 
+### Action button and keyboard input on the watch
+
+**2026-11-17**, `manzanero-research-watch` (Series 12, 46mm) and a new `manzanero-research-watch-ultra` (Apple Watch Ultra 4, 49mm), both watchOS 27.2 (24S118), headless; host macOS 27.2.1, Xcode 27.2. Raw events were sent with the research probe first, then through `manzanero`. The text probe was a throwaway SwiftUI app (a `TextField` and a readout of its bound string, built with `swiftc`, untracked in `tmp/watch-left/`).
+
+| Experiment or command | Observed |
+| --- | --- |
+| Raw `IndigoButtonEvent` page 0xFF01, usage 512, down and up, on the Ultra's watch face | The Action button's setup appeared: `Choose Action`, `Choose what you'd like the Action button to do.`, `Cancel` (tree) |
+| The same event on the Series 12 | Watch face unchanged (tree) |
+| `button action` on the Ultra, from the watch face | `dispatched`, `usagePage` 65281, `usage` 512; the Action button's sheet appeared again (tree: `carousel.actionButtonMiniBuddy.button.cancel`) |
+| `button action` on the Duo | Refused before input, `unsupported-operation` |
+| Before the refusal: `type ab` with no field open; `press --id probe.text.field` (the text entry sheet opened, screenshot); `type 'Hola 12'`, `key backspace`, `key return` | Each `dispatched`; the sheet's field stayed empty and the sheet stayed open (screenshots) |
+| `set-value --id probe.text.field 'Hola ñ'` with the sheet closed | `acknowledged`; the field showed and reported `Hola ñ`, the readout of the bound string stayed `value:` (tree and screenshot) |
+| After the change: `key return`, `type ab` on the Series 12 | Refused, `unsupported-operation`, `inputSent: none` |
+
+Not checked: a physical watch, what the Action button does once an action is chosen, and `set-value` in a UIKit or WatchKit field.
+
 ### Fold (iPhone Duo)
 
 **2026-11-16**, `manzanero-research-duo-fold` (iPhone Duo, iOS 27.2, 24B91016s), booted headless with `simctl boot`; host macOS 27.2.1 (26B131), Xcode 27.2 (27B52), CoreDevice 651.32. Commands in [other families](other-families.md#fold-iphone-duo).

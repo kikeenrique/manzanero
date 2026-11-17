@@ -61,14 +61,24 @@ enum DigitalCrown {
         }
     }
 
-    /// Watch-only buttons for `button`: the side button is consumer usage
-    /// 0x95 in DeviceKit's watch chrome (chrome.json); it opened Control Center.
-    static let watchButtons: [String: UInt64] = ["side": 0x95]
+    /// Watch-only buttons for `button`, from DeviceKit's watch chromes
+    /// (chrome.json). The side button is consumer usage 0x95; it opened
+    /// Control Center. The Action button of an Apple Watch Ultra is the
+    /// watch6 chrome's left-side-button, page 0xFF01 usage 0x200; it opened
+    /// the Action button's setup on an Ultra simulator and did nothing on a
+    /// Series 12, which has no such button.
+    static let watchButtons: [String: (page: UInt64, usage: UInt64)] = ["side": (12, 0x95), "action": (0xFF01, 0x200)]
+
+    /// `key` and `type` were dispatched on a watchOS 27.2 simulator and
+    /// changed nothing, in Calculator and in the system text entry sheet of a
+    /// SwiftUI text field (docs/other-families.md).
+    static let keyboardRefusal = "Keyboard events do not reach watchOS: key and type were dispatched on a watchOS 27.2 simulator and changed nothing, even in the system text entry sheet. No input sent."
 
     static func checkFamily(_ input: SimulatorInput, info: SimulatorDeviceInfo) throws {
         if input.operation == "button", let name = input.operands.first, watchButtons[name] != nil, !info.isAppleWatch {
-            throw CommandFailure.unsupported("button \(name) is the Apple Watch side button; this simulator is \(info.family.isEmpty ? "of an unknown family" : "an \(info.family)"). No input sent.")
+            throw CommandFailure.unsupported("button \(name) is an Apple Watch button; this simulator is \(info.family.isEmpty ? "of an unknown family" : "an \(info.family)"). No input sent.")
         }
+        if info.isAppleWatch, ["key", "type"].contains(input.operation) { throw CommandFailure.unsupported(keyboardRefusal) }
         if input.operation == "crown", !info.isAppleWatch {
             throw CommandFailure.unsupported("crown turns an Apple Watch simulator's Digital Crown; this simulator is \(info.family.isEmpty ? "of an unknown family" : "an \(info.family)"). No input sent.")
         }

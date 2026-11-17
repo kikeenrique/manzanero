@@ -32,7 +32,7 @@ Everything in [other families](other-families.md) has run on simulators only. On
 
 - Duo: `displays`, `screenshot` with and without `--display`, `record --display`. `fold`, `unfold` and `hinge` are simulator-only (a physical device's hinge is moved by hand); on hardware, check what the display information reports in each fold state.
 - Apple TV: every `remote` button against an app that reacts to play-pause, touch refused, focus in the tree, `wait --until focused`.
-- Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), and `button side`.
+- Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), `button side`, and `button action` on an Apple Watch Ultra.
 
 ## Not yet run on simulators
 
@@ -40,8 +40,6 @@ These need no hardware and no owner decision; they were left out of the simulato
 
 - On the Duo's inner display: `gesture`, three-to-five-path `multi-drag`, and the centre-hit fallback when no frontmost application is reported; only the `rot90` orientation was seen.
 - Pipelined `fold_device` and `set_hinge_angle` over MCP on the Duo since the per-device call order was added. Checked so far on `iPhone 17e` with taps, a long press and trees only.
-- The watch's left side button (page 0xFF01, usage 512 in the `watch6` chrome) and `key`/`type` on watchOS.
-
 ## Questions still open
 - Why did one tap on the Settings search field have no effect, when the next 36 taps there did?
 - What made Apple's device services stop answering for the phone on 2026-11-16?

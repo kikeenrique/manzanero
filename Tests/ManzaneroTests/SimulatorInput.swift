@@ -429,8 +429,8 @@ struct SimulatorInputTests {
             #expect(try Self.input(args).operation == args[0])
         }
         let invalid: [([String], String)] = [
-            (["button", "power"], "Supported simulator buttons: home, lock, volume-up, volume-down; no input sent."),
-            (["button"], "Supported simulator buttons: home, lock, volume-up, volume-down; no input sent."),
+            (["button", "power"], "Supported simulator buttons: home, lock, volume-up, volume-down, and side and action on an Apple Watch; no input sent."),
+            (["button"], "Supported simulator buttons: home, lock, volume-up, volume-down, and side and action on an Apple Watch; no input sent."),
             (["key", "f1"], "Unknown simulator keyboard key. See --help."),
             (["type", "a→b"], "The us keyboard layout cannot type '→' (U+2192), character 2 of the text: only characters that layout produces with Shift, Option or one dead key can be typed. For other text use set-value with --id or --label, which replaces a named element's whole value without the keyboard. No input sent."),
             (["type", String(repeating: "a", count: 513)], "Typing requires 1...512 characters; no input sent."),

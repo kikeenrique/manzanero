@@ -89,11 +89,14 @@ enum DirectSimulatorInput {
         case "button" where DigitalCrown.watchButtons[input.operands.first ?? ""] != nil:
             let name = input.operands[0]
             try Task.checkCancellation()
-            try environment.remoteButton(input.device, DigitalCrown.watchButtons[name]!, 80_000)
+            let button = DigitalCrown.watchButtons[name]!
+            try environment.remoteButton(input.device, button.page, button.usage, 80_000)
             result["button"] = name
+            result["usagePage"] = button.page
+            result["usage"] = button.usage
         case "button":
             guard let name = input.operands.first, let usage = SimulatorInput.buttons[name] else {
-                throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down; no input sent.")
+                throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down, and side and action on an Apple Watch; no input sent.")
             }
             try Task.checkCancellation()
             // The physical holds: 0.4 s for the side button, 80 ms otherwise.
@@ -114,7 +117,7 @@ enum DirectSimulatorInput {
             try Task.checkCancellation()
             switch route {
             case .key(let usage): try environment.key(input.device, usage)
-            case .button(let usage): try environment.remoteButton(input.device, usage, AppleTVRemote.holdMicroseconds)
+            case .button(let usage): try environment.remoteButton(input.device, 12, usage, AppleTVRemote.holdMicroseconds)
             }
             result["remote"] = name
             result["route"] = AppleTVRemote.describe(route)
@@ -234,7 +237,7 @@ enum DirectSimulatorInput {
         try dispatch(uuid) { owner, error in ADCSimulatorPressButton(owner, usage, hold, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
     }
 
-    static func remoteButton(_ uuid: String, _ usage: UInt64, _ hold: UInt32) throws {
-        try dispatch(uuid) { owner, error in ADCSimulatorPressRemoteButton(owner, usage, hold, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
+    static func remoteButton(_ uuid: String, _ page: UInt64, _ usage: UInt64, _ hold: UInt32) throws {
+        try dispatch(uuid) { owner, error in ADCSimulatorPressRemoteButton(owner, page, usage, hold, { Task.isCancelled ? 1 : 0 }, &error, error.count) }
     }
 }

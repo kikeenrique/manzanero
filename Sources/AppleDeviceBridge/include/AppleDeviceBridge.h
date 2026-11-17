@@ -256,10 +256,11 @@ int ADCSimulatorPressButton(void *owner, uint64_t usage, unsigned holdMicrosecon
                             ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 /// One Apple TV remote or Apple Watch button on the simulator's button
 /// service, consumer page: 0x40 (TV/Home), 0x46 (Menu/Back), 0xCD
-/// (Play/Pause) or 0x95 (the watch's side button); hold
+/// (Play/Pause) or 0x95 (the watch's side button); or page 0xFF01, usage
+/// 0x200, the Apple Watch Ultra's Action button. Hold
 /// 1...400000 microseconds. Down, hold, up (sent even when stopped). Same
 /// status contract as ADCSimulatorPressButton.
-int ADCSimulatorPressRemoteButton(void *owner, uint64_t usage, unsigned holdMicroseconds,
+int ADCSimulatorPressRemoteButton(void *owner, uint64_t usagePage, uint64_t usage, unsigned holdMicroseconds,
                                   ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 /// Digital Crown rotation on a watchOS simulator: one IndigoScrollEvent on
 /// hid.scroll per step ({point: {x: 0, y: delta, z: 0}, phase 0, momentum 0,

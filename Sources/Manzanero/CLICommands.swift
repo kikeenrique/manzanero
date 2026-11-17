@@ -105,11 +105,11 @@ extension ManzaneroCLI {
 
     struct Button: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "button", abstract: "Press a hardware button.",
-                                                        discussion: "lock toggles the display. side is the Apple Watch side button (watch simulators only). \(receiptCaveat)")
+                                                        discussion: "lock toggles the display. side is the Apple Watch side button and action the Apple Watch Ultra's Action button (watch simulators only). \(receiptCaveat)")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        @Argument(help: ArgumentHelp("home, lock, volume-up, volume-down, or side (Apple Watch simulator).", valueName: "button"),
-                  completion: .list(["home", "lock", "volume-up", "volume-down", "side"])) var name: String
+        @Argument(help: ArgumentHelp("home, lock, volume-up, volume-down, or side or action (Apple Watch simulator).", valueName: "button"),
+                  completion: .list(["home", "lock", "volume-up", "volume-down", "side", "action"])) var name: String
         func request(_ target: Target) throws -> CommandRequest { try .input(target, "button", [name]) }
     }
 
