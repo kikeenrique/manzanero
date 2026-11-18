@@ -77,7 +77,17 @@ manzanero scroll --label 'Exact row label' --device <UDID>
 
 Optional PID and selection rules match press, including `--with-value` and `--index`. MCP `scroll_to_element` uses `device`, `by: identifier|label|value`, `text` and optional `pid` and `index`.
 
-The target must already be materialized in the bounded snapshot and resolve to the same unique identity twice. Live state/frame/identifier and application/display guards precede one type-7/action-11 request. Offscreen geometry is allowed at this stage. The operation does not search an unmaterialized list, press the row or synthesize swipes.
+The target must already be materialized in the bounded snapshot and resolve to the same unique identity twice. Live state/frame/identifier and application/display guards precede one type-7/action-11 request. Offscreen geometry is allowed at this stage. Without `--search` the operation does not look through an unmaterialized list; it never presses the row or synthesizes swipes.
+
+### Searching a list that loads its rows: `--search`
+
+```sh
+manzanero scroll --id probe.tv.row.35 --search 40 --simulator <UUID>
+```
+
+A list that loads its rows as it moves holds only the rows near the screen in the tree, so a row further down has no node to select. `--search <steps>` (1...200; MCP `search`) looks forward for it before the guards above. Each step reads the tree; if the selector has no match, it asks for the lowest element that is not visible to be scrolled into view (the lowest element of all when none is hidden) with the same type-7/action-11 request, and reads the tree again. A container taller than the display is never chosen: scrolling to the list itself put a list back at its top. The search ends when the selector matches, when a step changes no element's frame (the end of the list), or when the steps run out; the last two fail as `target-unresolved` and say how many steps were taken. The normal scroll to the target then runs, and the result adds `search: {steps, maximum}`.
+
+It moves forward (down) only, and it does not move the list back when it fails. A target already in the tree takes no step. Run on one tvOS 27.2 simulator, where the [tvOS probe](probe-app.md#tvos-probe)'s list held 13 of 40 rows: `--search 40` reached row 35 in 22 steps and about 8 seconds, the scroll verified, and a `press` on that row was recorded by the probe; a search for a row that does not exist stopped by itself at the end of the list. Not run on an iPhone, an iPad or a physical Apple TV.
 
 After native true or false, one read-only observation re-resolves the target and checks enabled/visible state, matching frame/identifier, a centre that is on the display and hits the exact target (the frame may reach past an edge, as for press), and application/display stability.
 

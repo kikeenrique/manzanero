@@ -10,6 +10,11 @@ struct DirectAccessibilityAction {
     let text: String
     /// `--index`: the position among the distinct matches, counted from 1.
     let index: Int?
+    /// `--search`, scroll only: how many steps to look forward for a target
+    /// that is not in the tree yet (a list that loads its rows as it moves).
+    let search: Int?
+    static let searchOption = "--search"
+    static let searchRange = 1...200
     /// Set only by another operation that reuses these guards (set-value);
     /// it names that operation in messages instead of press.
     private var operationName: String? = nil
@@ -23,11 +28,19 @@ struct DirectAccessibilityAction {
         self.text = text
         self.pid = pid
         self.index = index
+        search = nil
     }
 
-    /// Operands: `[pid] <selector> [--index <n>]`.
+    /// Operands: `[pid] <selector> [--index <n>] [--search <steps>]`.
     init(_ input: CoreDeviceInput) throws {
         var operands = input.operands
+        if operands.count >= 3, operands[operands.count - 2] == Self.searchOption {
+            guard input.operation.hasPrefix("scroll-"), let steps = Int(operands[operands.count - 1]), Self.searchRange.contains(steps) else {
+                throw CommandFailure.usage("\(Self.searchOption) belongs to scroll and must be a whole number of steps in \(Self.searchRange.lowerBound)...\(Self.searchRange.upperBound).")
+            }
+            search = steps
+            operands.removeLast(2)
+        } else { search = nil }
         index = try AccessibilitySelector.takeIndex(&operands, minimumCount: 3)
         guard Self.operations.contains(input.operation), (1...2).contains(operands.count),
               let text = operands.last, (1...4096).contains(text.utf8.count), !text.contains("\0") else {
@@ -81,6 +94,57 @@ struct DirectAccessibilityAction {
         return shown[0].node
     }
 
+    /// Looks forward for a target the tree does not hold yet. A list that
+    /// loads its rows as it moves has only the rows near the screen in the
+    /// tree: the tvOS probe's forty-row list showed 13, and each scroll to
+    /// the lowest of them added one. Each step asks for the lowest element
+    /// that is not visible to be scrolled into view (the lowest element of
+    /// all when none is hidden), then reads the tree again. It stops when
+    /// the selector matches, when a step changes nothing (the end of the
+    /// list), or after `maximum` steps. Forward only, and never repeated.
+    /// Returns the number of steps taken.
+    func searchForward(maximum: Int, root: AccessibilityRequest.Token, session: any AccessibilityExchange,
+                       displayHeight: Double, onSubmission: () -> Void) throws -> Int {
+        func layout(_ nodes: [AccessibilitySnapshot.Node]) -> [String] {
+            nodes.map { "\($0.token.objectID) \($0.frame.map { "\($0.x) \($0.y) \($0.width) \($0.height)" } ?? "")" }
+        }
+        var steps = 0
+        var triedLowestOfAll = false
+        while true {
+            try Task.checkCancellation()
+            let snapshot = try session.snapshot(root)
+            if try !selector.matches(snapshot, root: root, failure: { failure($0, .transportFailed) }).isEmpty { return steps }
+            let sent: CommandFailure.InputSent = steps > 0 ? .possible : .none
+            guard steps < maximum else {
+                throw failure("selector not found after \(steps) search step(s); the list was moved and not moved back", .targetUnresolved, inputSent: sent)
+            }
+            let nodes = try AccessibilitySnapshot.normalize(snapshot, root: root)
+            // Not the list itself: a container taller than the display is the
+            // lowest element of all once its content has grown, and scrolling
+            // to it put the tvOS probe's list back at its top.
+            let placed = nodes.dropFirst().filter {
+                $0.token.pid == root.pid && ($0.frame?.height ?? 0) > 0 && ($0.frame?.height ?? 0) <= displayHeight
+            }
+            func lowest(_ candidates: [AccessibilitySnapshot.Node]) -> AccessibilitySnapshot.Node? {
+                candidates.max { ($0.frame?.y ?? 0) + ($0.frame?.height ?? 0) < ($1.frame?.y ?? 0) + ($1.frame?.height ?? 0) }
+            }
+            let hidden = placed.filter { $0.visible == false }
+            guard let anchor = triedLowestOfAll || hidden.isEmpty ? lowest(placed) : lowest(hidden) else {
+                throw failure("selector not found and the tree has no element to scroll from", .targetUnresolved, inputSent: sent)
+            }
+            _ = try session.performAction(anchor.token, action: .scrollToVisible, onSubmission: onSubmission)
+            steps += 1
+            let after = try AccessibilitySnapshot.normalize(session.snapshot(root), root: root)
+            if layout(after) == layout(nodes) {
+                // Nothing moved. Try once from the lowest element of all, then stop.
+                guard !triedLowestOfAll, !hidden.isEmpty else {
+                    throw failure("selector not found: the list stopped moving after \(steps) search step(s)", .targetUnresolved, inputSent: .possible)
+                }
+                triedLowestOfAll = true
+            } else { triedLowestOfAll = false }
+        }
+    }
+
     /// What an ambiguous selector matched, so the caller can choose a unique
     /// identifier or a position instead: at most five elements, in the
     /// order `--index` counts them, with their identifier, visibility and
@@ -113,6 +177,11 @@ struct DirectAccessibilityAction {
             let process = try actionProcess(selected: selected.pid, session: session)
             stage = "application"
             let root = try session.application(pid: process)
+            var searchSteps: Int?
+            if let search, action == .scrollToVisible {
+                stage = "search"
+                searchSteps = try searchForward(maximum: search, root: root, session: session, displayHeight: geometry.bounds.height, onSubmission: { state = "search-submitted" })
+            }
             stage = "first-snapshot"
             let first = try resolve(session.snapshot(root), root: root)
             stage = "second-snapshot"
@@ -145,6 +214,7 @@ struct DirectAccessibilityAction {
             } else {
                 state = native ? "native-true" : "native-false"
                 result["nativeResult"] = native
+                if let searchSteps { result["search"] = ["steps": searchSteps, "maximum": search ?? 0] }
                 result["before"] = before.json
                 stage = "post-action-observation"
                 do {

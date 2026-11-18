@@ -239,11 +239,15 @@ extension ManzaneroCLI {
 
     struct Scroll: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "scroll", abstract: "Scroll one element into view by exact identifier, label or value.",
-            discussion: "The element must already be in the snapshot. Visibility is observed afterward and reported separately.")
+            discussion: "The element must already be in the snapshot, unless --search is given: a list that loads its rows as it moves holds only the rows near the screen. --search moves forward (down) one step at a time, reading the tree after each, until the element appears, the list stops moving or the steps run out; it does not move the list back. Visibility is observed afterward and reported separately.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions
-        func request(_ target: Target) throws -> CommandRequest { try .input(target, selector.operation("scroll"), selector.operands + selector.indexOperands) }
+        @Option(help: ArgumentHelp("Look forward for an element not yet in the tree, at most this many steps (1...200).", valueName: "steps")) var search: String?
+        func request(_ target: Target) throws -> CommandRequest {
+            try .input(target, selector.operation("scroll"), selector.operands + selector.indexOperands
+                       + (search.map { [DirectAccessibilityAction.searchOption, $0] } ?? []))
+        }
     }
 
     struct Wait: TargetedCommand {
