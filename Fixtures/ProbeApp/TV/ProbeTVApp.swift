@@ -21,7 +21,7 @@ final class RemoteRecord {
     private(set) var counts: [String: Int] = [:]
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "probe.tv", category: "remote")
 
-    static let kinds = ["up", "down", "left", "right", "select", "menu", "play-pause"]
+    static let kinds = ["up", "down", "left", "right", "select", "select-long", "menu", "play-pause"]
 
     func note(_ kind: String, detail: String? = nil) {
         count += 1
@@ -41,14 +41,27 @@ struct ProbeTVView: View {
     @State private var text = ""
 
     var body: some View {
-        HStack(spacing: 60) {
-            controls
-            // Forty rows, more than fit: something off screen to scroll to.
-            List(1...40, id: \.self) { row in
-                Button("Row \(row)") { record.note("select", detail: "row-\(row)") }
-                    .accessibilityIdentifier("probe.tv.row.\(row)")
+        VStack(spacing: 10) {
+            HStack(spacing: 60) {
+                controls
+                // Forty rows, more than fit: something off screen to scroll to.
+                List(1...40, id: \.self) { row in
+                    Button("Row \(row)") { record.note("select", detail: "row-\(row)") }
+                        .accessibilityIdentifier("probe.tv.row.\(row)")
+                }
+                .frame(width: 500)
             }
-            .frame(width: 500)
+            // Thirty columns in a strip that moves sideways.
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 30) {
+                    ForEach(1...30, id: \.self) { column in
+                        Button("Col \(column)") { record.note("select", detail: "col-\(column)") }
+                            .accessibilityIdentifier("probe.tv.col.\(column)")
+                    }
+                }
+                .padding(.horizontal, 40)
+            }
+            .frame(height: 110)
         }
         .onMoveCommand { direction in
             switch direction {
@@ -65,8 +78,8 @@ struct ProbeTVView: View {
     }
 
     private var controls: some View {
-        VStack(spacing: 40) {
-            Text("Probe TV").font(.title)
+        VStack(spacing: 24) {
+            Text("Probe TV").font(.title3)
             HStack(spacing: 40) {
                 ForEach(["a", "b", "c"], id: \.self) { name in
                     Button("Button \(name.uppercased())") { record.note("select", detail: name) }
@@ -80,6 +93,13 @@ struct ProbeTVView: View {
                         .accessibilityIdentifier("probe.tv.twin.\(twin)")
                 }
             }
+            // A long press of select, which a button's own action does not report.
+            Text("Hold")
+                .padding(20)
+                .focusable()
+                .onLongPressGesture(minimumDuration: 1) { record.note("select-long") }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("probe.tv.hold")
             TextField("Text", text: $text)
                 .accessibilityIdentifier("probe.tv.text.field")
                 .frame(width: 800)

@@ -17,6 +17,8 @@ struct ScrollSearchTests {
         var scrolled: [UInt64] = []
         /// A container taller than the display, as the probe's list became.
         var withContainer = false
+        /// A second list that runs sideways, lower on the screen than the rows.
+        var withStrip = false
         var platform: AccessibilityPlatform { .simulator }
 
         init(count: Int) { self.count = count }
@@ -36,6 +38,15 @@ struct ScrollSearchTests {
                 rows.append(HostedProcessActionTests.Session.record(UInt64(100 + row), pid: pid, attributes: [
                     "2001": .string("Row \(row)"), "5019": .string("row.\(row)"),
                     "2003": Self.rectangle(offset * 60), "2025": .boolean(offset < 4)]))
+            }
+            if withStrip {
+                // Three columns side by side below the rows, one of them hidden.
+                for column in 0..<3 {
+                    rows.append(HostedProcessActionTests.Session.record(UInt64(200 + column), pid: pid, attributes: [
+                        "2001": .string("Col \(column)"),
+                        "2003": .object(className: "NSValue", fields: ["NS.rectval": .string("{{\(400 + column * 120), 400}, {100, 60}}")]),
+                        "2025": .boolean(column < 2)]))
+                }
             }
             if withContainer {
                 rows.append(HostedProcessActionTests.Session.record(50, pid: pid, attributes: [
@@ -61,7 +72,7 @@ struct ScrollSearchTests {
 
     private func search(_ row: Int, steps: Int, in session: ListSession) throws -> Int {
         let root = try session.application(pid: session.pid)
-        return try action(row, search: steps).searchForward(maximum: steps, root: root, session: session, displayHeight: 240, onSubmission: {})
+        return try action(row, search: steps).searchForward(maximum: steps, root: root, session: session, displayHeight: 240, onSubmission: {}, pause: {})
     }
 
     @Test func aRowAlreadyInTheTreeTakesNoStep() throws {
@@ -81,6 +92,14 @@ struct ScrollSearchTests {
         session.withContainer = true
         #expect(try search(9, steps: 30, in: session) == 4)
         #expect(!session.scrolled.contains(50))
+    }
+
+    @Test func aListThatRunsTheOtherWayIsLeftAlone() throws {
+        let session = ListSession(count: 20)
+        session.withStrip = true
+        // The strip's columns are the lowest elements, and are never scrolled to.
+        #expect(try search(9, steps: 30, in: session) == 4)
+        #expect(session.scrolled == [105, 106, 107, 108])
     }
 
     @Test func itStopsAtTheStepLimitAndAtTheEndOfTheList() throws {
@@ -112,6 +131,32 @@ struct ScrollSearchTests {
         let both = try DirectAccessibilityAction(CoreDeviceInput(device: "device", operation: "scroll-label",
                                                                 operands: ["Row", "--index", "2", "--search", "9"]))
         #expect(both.index == 2 && both.search == 9 && both.text == "Row")
+    }
+
+    @Test func towardNamesTheEdgeTheSearchScrollsFrom() throws {
+        typealias Direction = DirectAccessibilityAction.SearchDirection
+        let top = AccessibilitySnapshot.Frame(x: 10, y: -40, width: 100, height: 60)
+        let bottom = AccessibilitySnapshot.Frame(x: 500, y: 300, width: 100, height: 60)
+        #expect(Direction.down.reach(bottom) > Direction.down.reach(top) && Direction.up.reach(top) > Direction.up.reach(bottom))
+        #expect(Direction.right.reach(bottom) > Direction.right.reach(top) && Direction.left.reach(top) > Direction.left.reach(bottom))
+
+        let uuid = SimulatorDeviceTests.uuid
+        let operands = ["row.9", "--index", "2", "--search", "25", "--toward", "left"]
+        let parsed = try DirectAccessibilityAction(CoreDeviceInput(device: "device", operation: "scroll-id", operands: operands))
+        #expect(parsed.toward == .left && parsed.search == 25 && parsed.index == 2 && parsed.text == "row.9")
+        #expect(try action(1, search: 5).toward == .down)
+        let expected = CommandRequest.simulatorInput(try SimulatorInput(device: uuid, operation: "scroll-id", operands: ["row.9", "--search", "25", "--toward", "up"]))
+        #expect(try request(["scroll", "--id", "row.9", "--search", "25", "--toward", "up", "--simulator", uuid]) == expected)
+        let tool = try #require(MCPTools.definitions.first { $0.name == "scroll_to_element" })
+        let args = try tool.command(["device": .string(uuid), "platform": "simulator", "by": "identifier", "text": "row.9", "search": 25, "toward": "up"])
+        #expect(try request(args) == expected)
+        // A direction needs a search, and must be one of the four.
+        for bad in [["scroll", "--id", "row.9", "--toward", "up"], ["scroll", "--id", "row.9", "--search", "5", "--toward", "back"]] {
+            #expect(throws: CommandFailure.self) {
+                guard case .simulatorInput(let input) = try request(bad + ["--simulator", uuid]) else { return }
+                _ = try DirectAccessibilityAction(input.coreDeviceInput)
+            }
+        }
     }
 
     @Test func cliAndMCPCarryTheSearch() throws {

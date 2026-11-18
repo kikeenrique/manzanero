@@ -124,12 +124,12 @@ extension ManzaneroCLI {
 
     struct Remote: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "remote", abstract: "Press one Siri Remote button (Apple TV).",
-            discussion: "The arrows move focus and select clicks the focused item (keyboard usages); menu goes back, home opens the Home Screen and play-pause toggles playback (consumer buttons). Apple TV has no touch screen, so touch commands are refused there. Any command to a sleeping Apple TV may switch it on, and its television with it. \(receiptCaveat)")
+            discussion: "The arrows move focus and select clicks the focused item (keyboard usages); menu goes back, home opens the Home Screen and play-pause toggles playback (consumer buttons). swipe-up, swipe-down, swipe-left and swipe-right draw one finger across the remote's touch surface, on simulators only: focus moves several items, where an arrow moves one. Apple TV has no touch screen, so touch commands are refused there. Any command to a sleeping Apple TV may switch it on, and its television with it. \(receiptCaveat)")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        @Argument(help: ArgumentHelp("select, menu, home, play-pause, up, down, left or right.", valueName: "button"),
+        @Argument(help: ArgumentHelp("select, menu, home, play-pause, up, down, left, right, or swipe-up, swipe-down, swipe-left, swipe-right (simulators).", valueName: "button"),
                   completion: .list(AppleTVRemote.names)) var name: String
-        @Option(help: ArgumentHelp("Hold home, menu or play-pause this long, 0.08...3 seconds (Apple TV simulators). A 1.5 s hold on home opens Control Centre.", valueName: "seconds")) var hold: String?
+        @Option(help: ArgumentHelp("Hold the button this long, 0.08...3 seconds (Apple TV simulators). A 1.5 s hold on home opens Control Centre.", valueName: "seconds")) var hold: String?
         func request(_ target: Target) throws -> CommandRequest {
             try .input(target, "remote", [name] + (hold.map { [AppleTVRemote.holdOption, $0] } ?? []))
         }
@@ -251,14 +251,19 @@ extension ManzaneroCLI {
 
     struct Scroll: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "scroll", abstract: "Scroll one element into view by exact identifier, label or value.",
-            discussion: "The element must already be in the snapshot, unless --search is given: a list that loads its rows as it moves holds only the rows near the screen. --search moves forward (down) one step at a time, reading the tree after each, until the element appears, the list stops moving or the steps run out; it does not move the list back. Visibility is observed afterward and reported separately.")
+            discussion: "The element must already be in the snapshot, unless --search is given: a list that loads its rows as it moves holds only the rows near the screen. --search moves down one step at a time, or the way --toward names, reading the tree after each, until the element appears, the list stops moving or the steps run out; it does not move the list back. Visibility is observed afterward and reported separately.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions
         @Option(help: ArgumentHelp("Look forward for an element not yet in the tree, at most this many steps (1...200).", valueName: "steps")) var search: String?
+        @Option(help: ArgumentHelp("The way --search moves: down (the default), up, left or right.", valueName: "direction")) var toward: String?
         func request(_ target: Target) throws -> CommandRequest {
-            try .input(target, selector.operation("scroll"), selector.operands + selector.indexOperands
-                       + (search.map { [DirectAccessibilityAction.searchOption, $0] } ?? []))
+            guard toward == nil || search != nil else {
+                throw CommandFailure.usage("\(DirectAccessibilityAction.towardOption) belongs to scroll \(DirectAccessibilityAction.searchOption).")
+            }
+            return try .input(target, selector.operation("scroll"), selector.operands + selector.indexOperands
+                       + (search.map { [DirectAccessibilityAction.searchOption, $0] } ?? [])
+                       + (toward.map { [DirectAccessibilityAction.towardOption, $0] } ?? []))
         }
     }
 

@@ -1,3 +1,4 @@
+import AppleDeviceBridge
 import Foundation
 
 /// The Apple TV simulator's Siri Remote over the existing Indigo routes
@@ -10,21 +11,59 @@ enum AppleTVRemote {
         case key(UInt64)
         /// A consumer-page usage on hid.button.
         case button(UInt64)
+        /// One finger drawn across the remote's touch surface, on a touch-pad
+        /// service the simulator's universalhidservice creates for the call.
+        /// The direction as a unit step: y grows downward.
+        case swipe(dx: Double, dy: Double)
     }
 
-    static let names = ["select", "menu", "home", "play-pause", "up", "down", "left", "right"]
+    static let names = ["select", "menu", "home", "play-pause", "up", "down", "left", "right",
+                        "swipe-up", "swipe-down", "swipe-left", "swipe-right"]
     static let routes: [String: Route] = [
         "select": .key(40), "up": .key(82), "down": .key(81), "left": .key(80), "right": .key(79),
-        "menu": .button(0x46), "home": .button(0x40), "play-pause": .button(0xCD)]
+        "menu": .button(0x46), "home": .button(0x40), "play-pause": .button(0xCD),
+        "swipe-up": .swipe(dx: 0, dy: -1), "swipe-down": .swipe(dx: 0, dy: 1),
+        "swipe-left": .swipe(dx: -1, dy: 0), "swipe-right": .swipe(dx: 1, dy: 0)]
+
+    /// A swipe's travel as a share of the surface, its duration and its
+    /// frame interval. The finger starts that far before the centre and ends
+    /// that far past it.
+    static let swipeTravel = 0.5
+    static let swipeMilliseconds: UInt64 = 200
+    static let swipeFrameMilliseconds: UInt64 = 20
+
+    /// The reports of one swipe: a contact that goes down, moves in a
+    /// straight line through the centre, and lifts where it stopped.
+    static func swipeFrames(dx: Double, dy: Double) -> (times: [UInt64], reports: [[UInt8]]) {
+        let moves = Int(swipeMilliseconds / swipeFrameMilliseconds)
+        func position(_ progress: Double) -> [Int] {
+            [dx, dy].map { Int(((0.5 + $0 * swipeTravel * (progress - 0.5)) * 65535).rounded()) }
+        }
+        var times: [UInt64] = [], reports: [[UInt8]] = []
+        for step in 0...moves {
+            times.append(UInt64(step) * swipeFrameMilliseconds * 1_000_000)
+            reports.append(NativeTouchFrames.report(positions: [position(Double(step) / Double(moves))], active: [0]))
+        }
+        times.append(UInt64(moves + 1) * swipeFrameMilliseconds * 1_000_000)
+        reports.append(NativeTouchFrames.report(positions: [position(1)], active: []))
+        return (times, reports)
+    }
     /// The remote's button hold, as for the phone's buttons.
     static let holdMicroseconds: UInt32 = 80_000
 
-    /// `--hold <seconds>`: a long press. Simulator only so far, and only
-    /// for the buttons sent on the button service (home, menu, play-pause):
-    /// a 1.5 s hold on home opened Control Centre on a tvOS 27.2 simulator.
+    /// `--hold <seconds>`: a long press. Simulator only so far. A button
+    /// (home, menu, play-pause) is held on the button service: a 1.5 s hold
+    /// on home opened Control Centre on a tvOS 27.2 simulator. A key (select
+    /// and the arrows) is held as one key down and one key up that far apart.
     static let holdOption = "--hold"
     static let holdRange = 0.08...3.0
-    static let holdUsage = "remote \(holdOption) takes seconds in 0.08...3 and applies to home, menu and play-pause on an Apple TV simulator; no input sent."
+    static let holdUsage = "remote \(holdOption) takes seconds in 0.08...3 for a button on an Apple TV simulator, not for a swipe; no input sent."
+
+    /// A held key: down at once, up after the hold.
+    static func heldKey(_ usage: UInt64, holdMicroseconds: UInt32) -> [ADCKeyboardSample] {
+        [ADCKeyboardSample(nanoseconds: 0, usage: usage, state: 1),
+         ADCKeyboardSample(nanoseconds: UInt64(holdMicroseconds) * 1000, usage: usage, state: 2)]
+    }
 
     /// `<button> [--hold <seconds>]`: the button's route and the hold in
     /// microseconds, checked before any contact.
@@ -33,20 +72,26 @@ enum AppleTVRemote {
             throw CommandFailure.usage(usage)
         }
         guard operands.count == 3 else { return (name, route, holdMicroseconds) }
-        guard operands[1] == holdOption, let seconds = Double(operands[2]), holdRange.contains(seconds), case .button = route else {
+        guard operands[1] == holdOption, let seconds = Double(operands[2]), holdRange.contains(seconds) else {
             throw CommandFailure.usage(holdUsage)
         }
+        if case .swipe = route { throw CommandFailure.usage(holdUsage) }
         return (name, route, UInt32((seconds * 1_000_000).rounded()))
     }
 
-    static let usage = "Remote buttons: select, menu, home, play-pause, up, down, left, right; no input sent."
+    static let usage = "Remote buttons: select, menu, home, play-pause, up, down, left, right, and swipe-up, swipe-down, swipe-left, swipe-right on a simulator; no input sent."
 
     static func describe(_ route: Route) -> [String: Any] {
         switch route {
         case .key(let usage): ["service": "com.apple.coredevice.feature.remote.hid.keyboard", "usagePage": 7, "usage": usage]
         case .button(let usage): ["service": "com.apple.coredevice.feature.remote.hid.button", "usagePage": 12, "usage": usage]
+        case .swipe(let dx, let dy):
+            ["service": "com.apple.coredevice.feature.remote.universalhidservice", "usagePage": 13, "usage": 5,
+             "swipe": ["dx": dx, "dy": dy, "travel": swipeTravel, "durationMilliseconds": swipeMilliseconds]]
         }
     }
+
+    static let swipeRefusal = "remote swipes are built for Apple TV simulators only: a touch-pad service is created in the simulator's HID daemon, and no such route is known on a device. No device was contacted."
 
     /// The device type in a physical device's `devicectl` details (`appleTV`).
     static func deviceType(_ details: Data) -> String? {
@@ -68,7 +113,8 @@ enum AppleTVRemote {
         if operands.count == 3, operands[1] == holdOption, routes[operands[0]] != nil {
             throw CommandFailure.unsupported("remote \(holdOption) is built for Apple TV simulators only; on a device, button lock opens Control Centre. No device was contacted.")
         }
-        guard operands.count == 1, physicalRoutes[operands[0]] != nil else { throw CommandFailure.usage(usage) }
+        guard operands.count == 1, let route = physicalRoutes[operands[0]] else { throw CommandFailure.usage(usage) }
+        if case .swipe = route { throw CommandFailure.unsupported(swipeRefusal) }
     }
 
     static func plan(_ input: CoreDeviceInput) throws -> [String: Any] {
@@ -100,6 +146,7 @@ enum AppleTVRemote {
         switch route {
         case .key(let usage): try key(.init(uuid: identity.uuid, version: identity.version, name: name, usage: usage))
         case .button(let usage): try button(.init(uuid: identity.uuid, version: identity.version, usage: usage, holdMicroseconds: holdMicroseconds))
+        case .swipe: throw CommandFailure.unsupported(swipeRefusal)
         }
         var receipt = describe(route)
         receipt.merge(["backend": "coredevice-direct", "operation": "remote", "remote": name, "status": "dispatched",

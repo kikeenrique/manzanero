@@ -41,11 +41,12 @@ One Apple TV 4K has been driven; everything else in [other families](other-famil
 - Duo: `displays`, `screenshot` with and without `--display`, `record --display`. `fold`, `unfold` and `hinge` are simulator-only (a physical device's hinge is moved by hand); on hardware, check what the display information reports in each fold state.
 - Apple TV 4K, where trees with focus, focus waits, `press`, `set-value`, `type`, the touch refusal and every `remote` button have run ([guide](other-families.md#a-physical-apple-tv)). Tell the human owner before the first command: a sleeping Apple TV and its television can come on. Still to run there:
   - What wakes it: with the device asleep (`button lock`, then `remote select` on Power Off) and the human owner watching the television, send `remote home` alone. `readiness` did not wake it. Do not run `tree` until the wake is seen: two of the three stale connections began as a `tree` started.
-  - The tvOS probe's current build, with the list and the twin buttons (the device has the first version; it is installed from Xcode by the human owner), then `scroll`, `scroll --search`, `press` on a row at the bottom edge, `--index` and `batch` against it.
+  - The tvOS probe's current build, with the list, the twin buttons, the strip of columns and the Hold element (the device has the first version; it is installed from Xcode by the human owner), then `scroll`, `scroll --search` in each direction, `press` on a row at the bottom edge, `--index` and `batch` against it.
   - Whether `set-value` leaves tvOS's keyboard in front, as it did on a simulator.
-  - `remote --hold` on `home`, which is refused on a device until it has been tried once.
+  - `remote --hold` on `home`, and on `select` with the focus on the probe's Hold element; a hold is refused on a device until it has been tried once.
   - The connection that goes stale: when it happens, read `remoted`'s log (`log show --predicate 'process == "remoted"'`) for "Device connection interrupted" with no "Handshake complete" after it, and note what command was starting.
-  - The Apple TV HD, and why the video stream arrives blank (recording and `frames` are refused meanwhile).
+  - Why the video stream arrives blank (recording and `frames` are refused meanwhile).
+  - Not the Apple TV HD paired with the same Mac: it runs tvOS 26.6, cannot take 27, and the human owner discarded it for this tool on 2026-11-18.
 - Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), `button side`, and `button action` on an Apple Watch Ultra.
 
 ## Not yet run on simulators
@@ -55,7 +56,9 @@ These need no hardware and no owner decision; they were left out of the simulato
 - On the Duo's inner display: the centre-hit fallback when no frontmost application is reported; only the `rot90` orientation was seen. Four- and five-path `multi-drag` are [recorded](verification.md#the-duos-inner-display).
 - Follow-up to a run already [recorded](verification.md#the-duos-inner-display): a portrait-only app is letterboxed on the Duo's inner display, where `press` fails at the hit test, the tree's frames are window-relative and touch coordinates are the display's. Find where the window's origin can be read before changing anything.
 - `fold` on the Duo straight after boot: with one other simulator running (not one of this project's), the first fold after boot was not observed within its 10 s bound and the next four were, as were five unfolds ([record](verification.md#the-duos-inner-display)). Earlier, one of five was missed with three others running and none with two. So the miss may belong to a simulator that has just booted, not to load; fold once more after a pause to tell. It has still not run with nothing else booted.
-- On an Apple TV simulator, what Power Off in Control Centre does (it is reached with `remote home --hold 1.5`; pressing it was not tried), and a held `select`, which needs a hold for keys that is not built.
+- `scroll --search` on an iPhone or iPad simulator, in each direction, and on a list whose rows do not share an edge. On an Apple TV simulator it ran in four directions with two lists on screen ([record](verification.md#apple-tv-simulator-power-off-held-keys-searches-in-four-directions-and-swipes)).
+- On an Apple TV simulator, whether anything other than a restart wakes it after Power Off: every button and key the tool sends, a swipe and a System Wake Up usage were tried, and none did.
+- On an Apple TV simulator, a swipe of another length or speed and a click of the remote's touch surface; the four fixed swipes ran.
 
 ## Questions still open
 

@@ -114,8 +114,14 @@ enum DirectSimulatorInput {
             let (name, route, hold) = try AppleTVRemote.parse(input.operands)
             try Task.checkCancellation()
             switch route {
+            case .key(let usage) where hold != AppleTVRemote.holdMicroseconds:
+                try environment.keyboard(input.device, AppleTVRemote.heldKey(usage, holdMicroseconds: hold))
             case .key(let usage): try environment.key(input.device, usage)
             case .button(let usage): try environment.remoteButton(input.device, 12, usage, hold)
+            case .swipe(let dx, let dy):
+                let frames = AppleTVRemote.swipeFrames(dx: dx, dy: dy)
+                try environment.remoteTouch(input.device, frames.times, frames.reports.flatMap { $0 })
+                result["frameCount"] = frames.times.count
             }
             if hold != AppleTVRemote.holdMicroseconds { result["holdMilliseconds"] = hold / 1000 }
             result["remote"] = name
@@ -217,6 +223,17 @@ enum DirectSimulatorInput {
             samples.withUnsafeBufferPointer { first in
                 second.withUnsafeBufferPointer {
                     ADCSimulatorPerformTwoContactTouch(owner, first.baseAddress, $0.baseAddress, first.count, { Task.isCancelled ? 1 : 0 }, &error, error.count)
+                }
+            }
+        }
+    }
+
+    static func remoteTouch(_ uuid: String, _ times: [UInt64], _ reports: [UInt8]) throws {
+        try dispatch(uuid) { owner, error in
+            times.withUnsafeBufferPointer { times in
+                reports.withUnsafeBufferPointer { reports in
+                    ADCSimulatorPerformRemoteTouch(owner, times.baseAddress, reports.baseAddress, times.count,
+                                                   { Task.isCancelled ? 1 : 0 }, &error, error.count)
                 }
             }
         }

@@ -241,6 +241,13 @@ int ADCSimulatorPressKeyboardKey(void *owner, uint64_t usage, ADCInputShouldStop
 int ADCSimulatorPerformDigitizerReports(void *owner, const char *displayUUID, const uint64_t *nanoseconds,
                                         const uint8_t *reports, size_t count, ADCInputShouldStop shouldCancel,
                                         uint64_t *surface, char *error, size_t errorCapacity);
+/// The Siri Remote's touch surface on an Apple TV simulator. Asks the
+/// simulator's universalhidservice to create one touch-pad service (usage
+/// page 13, usage 5) for this connection, sends it the same complete-state
+/// reports as ADCSimulatorPerformDigitizerReports, and lets the daemon cancel
+/// the service when the connection closes. Same status contract.
+int ADCSimulatorPerformRemoteTouch(void *owner, const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
+                                   ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 /// One read-only CoreDevice display-information request to the simulator's
 /// dtdeviceinfod. The sink receives JSON in devicectl's shape,
 /// {"info":{"outcome":"success"},"result":{displays, orientation, …}}, borrowed

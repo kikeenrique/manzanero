@@ -1,3 +1,4 @@
+import AppleDeviceBridge
 import Foundation
 import MCP
 import Testing
@@ -11,6 +12,8 @@ struct SimulatorRemoteTests {
     final class Pressed: @unchecked Sendable {
         var keys: [UInt64] = []
         var remote: [(usage: UInt64, hold: UInt32)] = []
+        var held: [[ADCKeyboardSample]] = []
+        var swipes: [(times: [UInt64], reports: [UInt8])] = []
         var touches = 0
     }
 
@@ -26,6 +29,8 @@ struct SimulatorRemoteTests {
             #expect(device == uuid && page == 12)
             pressed.remote.append((usage, hold))
         }
+        environment.keyboard = { _, samples in pressed.held.append(samples) }
+        environment.remoteTouch = { _, times, reports in pressed.swipes.append((times, reports)) }
         environment.touch = { _, _ in pressed.touches += 1 }
         environment.digitizerReports = { _, _, _, _ in pressed.touches += 1; return 1 }
         return CommandService(leases: SimulatorAccessibilityTests.usableLeases(), simulator: environment,
@@ -39,6 +44,7 @@ struct SimulatorRemoteTests {
             let receipt = try SimulatorInputTests.json(await service.run(["remote", name, "--simulator", Self.uuid]))
             #expect(receipt["remote"] as? String == name && receipt["status"] as? String == "dispatched")
         }
+        #expect(pressed.swipes.count == 4)
         // select, up, down, left, right as keyboard usages (return and arrows).
         #expect(pressed.keys == [40, 82, 81, 80, 79])
         // menu (Menu Escape), home (Menu), play-pause, each held 80 ms.
@@ -95,13 +101,18 @@ struct SimulatorRemoteTests {
         let receipt = try SimulatorInputTests.json(await service.run(["remote", "home", "--hold", "1.5", "--simulator", Self.uuid]))
         #expect(receipt["holdMilliseconds"] as? Int == 1500)
         #expect(pressed.remote.count == 1 && pressed.remote[0].usage == 0x40 && pressed.remote[0].hold == 1_500_000)
-        // Keys have no hold, and the length is bounded; nothing is sent.
-        for args in [["remote", "select", "--hold", "1"], ["remote", "home", "--hold", "0.01"], ["remote", "home", "--hold", "3.5"],
+        // A key is held as its down and its up, that far apart.
+        let select = try SimulatorInputTests.json(await service.run(["remote", "select", "--hold", "1", "--simulator", Self.uuid]))
+        #expect(select["holdMilliseconds"] as? Int == 1000 && pressed.held.count == 1)
+        #expect(pressed.held.first?.map(\.nanoseconds) == [0, 1_000_000_000] && pressed.held.first?.map(\.state) == [1, 2])
+        #expect(pressed.held.first?.allSatisfy { $0.usage == 40 } == true)
+        // The length is bounded; nothing is sent.
+        for args in [["remote", "home", "--hold", "0.01"], ["remote", "home", "--hold", "3.5"],
                      ["remote", "home", "--hold", "long"]] {
             let failure = try #require(throws: CommandFailure.self) { try request(args + ["--simulator", Self.uuid]) }
             #expect(failure.code == .usage && failure.description == AppleTVRemote.holdUsage)
         }
-        #expect(pressed.remote.count == 1 && pressed.keys.isEmpty)
+        #expect(pressed.remote.count == 1 && pressed.keys.isEmpty && pressed.held.count == 1)
         let plan = try SimulatorInputTests.json(await service.run(["remote", "menu", "--hold", "2", "--simulator", Self.uuid], dryRun: true))
         #expect(plan["holdMilliseconds"] as? Int == 2000)
         // A physical Apple TV has no hold yet.
@@ -112,6 +123,34 @@ struct SimulatorRemoteTests {
         let args = try tool.command(["device": .string(Self.uuid), "button": "home", "hold_seconds": 1.5])
         #expect(args == ["remote", "--simulator=\(Self.uuid)", "--hold=1.5", "--", "home"])
         #expect(try request(args) == .simulatorInput(try SimulatorInput(device: Self.uuid, operation: "remote", operands: ["home", "--hold", "1.5"])))
+    }
+
+    @Test func aSwipeIsOneContactDrawnThroughTheCentreOfATouchPad() async throws {
+        let pressed = Pressed()
+        let service = Self.service(family: "Apple TV", pressed)
+        let receipt = try SimulatorInputTests.json(await service.run(["remote", "swipe-down", "--simulator", Self.uuid]))
+        let route = try #require(receipt["route"] as? [String: Any])
+        #expect(route["service"] as? String == "com.apple.coredevice.feature.remote.universalhidservice" && route["usagePage"] as? Int == 13)
+        let swipe = try #require(pressed.swipes.first)
+        // Eleven frames down and one release, 20 ms apart, 58 bytes each.
+        #expect(swipe.times.count == 12 && swipe.reports.count == 12 * 58 && receipt["frameCount"] as? Int == 12)
+        #expect(swipe.times[1] == 20_000_000 && swipe.times == swipe.times.sorted())
+        func point(_ frame: Int) -> (active: Bool, x: Int, y: Int) {
+            let bytes = Array(swipe.reports[frame * 58..<(frame + 1) * 58])
+            return (bytes[3] & 0xc0 != 0, Int(bytes[4]) | Int(bytes[5]) << 8, Int(bytes[6]) | Int(bytes[7]) << 8)
+        }
+        // x stays at the centre; y runs from a quarter to three quarters; the last frame lifts where it stopped.
+        #expect(point(0).active && point(0).x == 32768 && point(0).y == 16384)
+        #expect(point(10).active && point(10).y == 49151 && !point(11).active && point(11).y == 49151)
+        let left = AppleTVRemote.swipeFrames(dx: -1, dy: 0)
+        #expect(left.reports.first?[4...5] == [0xff, 0xbf] && left.reports.last?[4...5] == [0x00, 0x40])
+        // No hold, no touch-screen input, and no swipe on a device.
+        let held = try #require(throws: CommandFailure.self) { try request(["remote", "swipe-up", "--hold", "1", "--simulator", Self.uuid]) }
+        #expect(held.code == .usage && pressed.swipes.count == 1 && pressed.touches == 0 && pressed.keys.isEmpty)
+        let physical = try #require(throws: CommandFailure.self) { try request(["remote", "swipe-up", "--device", "tv"]) }
+        #expect(physical.code == .unsupportedOperation && physical.description == AppleTVRemote.swipeRefusal)
+        let plan = try SimulatorInputTests.json(await service.run(["remote", "swipe-left", "--simulator", Self.uuid], dryRun: true))
+        #expect((plan["execution"] as? String)?.contains("touch-pad service") == true && pressed.swipes.count == 1)
     }
 
     @Test func mcpRemoteToolRoutesToTheCommand() throws {

@@ -334,9 +334,11 @@ A second, separate app in the same Tuist project: target and scheme `ProbeTV`, s
 | `probe.tv.row.1` … `probe.tv.row.40` | A list of forty rows beside the controls, more than fit on screen | Selecting one records `select:row-<n>` |
 | `probe.tv.text.field` | A text field | |
 | `probe.tv.text.value` | The field's text | value |
-| `probe.tv.last` | The last command received | value: `up`, `down`, `left`, `right`, `select:<button>`, `menu`, `play-pause`, or `none` |
+| `probe.tv.col.1` … `probe.tv.col.30` | A strip of thirty columns along the bottom, which moves sideways | Selecting one records `select:col-<n>` |
+| `probe.tv.hold` | A focusable `Hold` label | A press of select held a second or longer records `select-long`; a short press records nothing |
+| `probe.tv.last` | The last command received | value: `up`, `down`, `left`, `right`, `select:<button>`, `select-long`, `menu`, `play-pause`, or `none` |
 | `probe.tv.count` | How many commands arrived | value |
-| `probe.tv.summary` | A count per kind | value: `up=1 down=0 left=0 right=0 select=0 menu=0 play-pause=0` |
+| `probe.tv.summary` | A count per kind | value: `up=1 down=0 left=0 right=0 select=0 select-long=0 menu=0 play-pause=0` |
 
 Arrows are recorded through `onMoveCommand`, so one arrives only when focus could not move further in that direction inside the app, as SwiftUI reports it. Menu is recorded and kept (`onExitCommand`), so it does not leave the app: leave with the Home button. Each command also goes to the unified log, category `remote`.
 

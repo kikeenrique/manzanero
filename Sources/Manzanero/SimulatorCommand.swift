@@ -202,7 +202,7 @@ struct SimulatorInput: Sendable, Equatable {
                 plan.merge(DirectPhysicalTyping.fields(text, layout: layout, samples: try layout.samples(text))) { _, new in new }
                 plan["deviceLayoutCheck"] = DeviceKeyboardLayout.simulatorPlan(layout)
             }
-            plan["execution"] = "In-process host XPC to the simulator's dtuhidd (\(service)): readiness barrier, the physical Indigo \(service.hasSuffix(".button") ? "button press" : service.hasSuffix(".scroll") ? "scroll events" : "keyboard schedule") with release on stop, completion barrier and a short drain before disconnect. No clipboard, helper executable or automatic replay."
+            plan["execution"] = "In-process host XPC to the simulator's dtuhidd (\(service)): readiness barrier, the physical Indigo \(service.hasSuffix(".button") ? "button press" : service.hasSuffix(".scroll") ? "scroll events" : service.hasSuffix("universalhidservice") ? "touch reports to a touch-pad service created for this call" : "keyboard schedule") with release on stop, completion barrier and a short drain before disconnect. No clipboard, helper executable or automatic replay."
         }
         return plan
     }
@@ -222,6 +222,8 @@ struct SimulatorEnvironment: Sendable {
     /// touchscreen: device, display unique identifier, nanosecond offsets and
     /// 58-byte reports. Returns the touchscreen's service identifier.
     var digitizerReports: @Sendable (String, String, [UInt64], [UInt8]) throws -> UInt64 = DirectSimulatorInput.digitizerReports
+    /// The Apple TV remote's touch surface: report times and 58-byte reports.
+    var remoteTouch: @Sendable (String, [UInt64], [UInt8]) throws -> Void = DirectSimulatorInput.remoteTouch
     /// The simulator's display information as devicectl-shaped JSON.
     var displayInfo: @Sendable (String) throws -> Data = DirectSimulatorInput.displayInfo
     /// A complete keyboard schedule (`type`).

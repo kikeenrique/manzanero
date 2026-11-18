@@ -574,6 +574,45 @@ int ADCSimulatorPerformDigitizerReports(void *owner, const char *displayUUID, co
     return status;
 }
 
+/// The service ID asked for the remote's touch pad. The daemon's own are
+/// 0x101 (touchscreen), 0x200 (keyboard), 0x300 (pointer), 0x402 (buttons)
+/// and 0x500 (vendor-defined); it accepted this one and answered it back.
+static const uint64_t ADCSimulatorRemoteTouchServiceID = 0x700;
+
+int ADCSimulatorPerformRemoteTouch(void *owner, const uint64_t *times, const uint8_t *reports, size_t count,
+                                   ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    if (ADCValidateDigitizerSchedule(times, reports, count, error, capacity)) return 1;
+    return ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.universalhidservice", shouldCancel,
+        ^int(xpc_connection_t connection, dispatch_queue_t queue, ADCSimulatorReply *state) {
+            // A HID service description, in the shape connectedServices
+            // lists them. The daemon refuses one without a primary usage.
+            xpc_object_t description = xpc_dictionary_create_empty(), pairs = xpc_array_create_empty(), pair = xpc_dictionary_create_empty();
+            xpc_dictionary_set_int64(pair, "DeviceUsagePage", 13);
+            xpc_dictionary_set_int64(pair, "DeviceUsage", 5);
+            xpc_array_append_value(pairs, pair);
+            xpc_dictionary_set_uint64(description, "_ServiceID", ADCSimulatorRemoteTouchServiceID);
+            xpc_dictionary_set_uint64(description, "PrimaryUsagePage", 13);
+            xpc_dictionary_set_uint64(description, "PrimaryUsage", 5);
+            xpc_dictionary_set_string(description, "Product", "Manzanero remote touch surface");
+            xpc_dictionary_set_value(description, "DeviceUsagePairs", pairs);
+            xpc_object_t arguments = xpc_dictionary_create_empty();
+            xpc_dictionary_set_value(arguments, "_0", description);
+            xpc_object_t reply = ADCSimulatorRequest(connection, queue, ADCUniversalRequest("createService", arguments));
+            BOOL created = !state.arrived && reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY &&
+                !xpc_dictionary_get_value(reply, "error") && !xpc_dictionary_get_value(reply, "errorContainer") &&
+                !xpc_dictionary_get_value(reply, "CoreDevice.error") &&
+                xpc_dictionary_get_uint64(reply, "serviceID") == ADCSimulatorRemoteTouchServiceID;
+            if (created) return 0;
+            ADCSimulatorFail(error, capacity, @"The simulator's Universal HID service did not create a touch-pad service for the remote; no report sent.");
+            return 1;
+        },
+        ^int(xpc_connection_t connection, ADCInputShouldStop stop) {
+            return ADCRunDigitizerSchedule(times, reports, count, stop, ^(const uint8_t *bytes) {
+                xpc_connection_send_message(connection, ADCUniversalReport(bytes, ADCSimulatorRemoteTouchServiceID));
+            });
+        }, error, capacity);
+}
+
 // MARK: - Display information
 
 /// XPC to Foundation for JSON: dictionaries, arrays, strings, Booleans,
