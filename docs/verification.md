@@ -1089,7 +1089,9 @@ The checksums of the CI archives differ from the Mac's local ones, as expected o
 | The release | `v0.1.0-beta.1`, a prerelease, not a draft, with four assets: the two archives (6,901,207 bytes each), `SHA256SUMS` and `manzanero.rb` |
 | The assets, downloaded | Both archives have the SHA-256 that `SHA256SUMS` and the formula give; unpacked, the binary reports `manzanero 0.1.0-beta.1` and holds `x86_64` and `arm64` |
 
-Not done here: the tap formula and a real `brew install`, which is also the first test of how Gatekeeper treats the ad hoc signature.
+The formula attached to this release fails `brew style` as shipped, with 5 `FormulaAudit/ComponentsOrder` offenses found when it was added to the tap: `url` and `sha256` inside a top-level `on_arm`/`on_intel`, and `depends_on` after them. The tap's copy wraps the two blocks in `on_macos` and puts `depends_on` first, with URLs and checksums unchanged. `release:formula` now generates that shape for later releases; `brew style` would not inspect the generated file outside a tap, so the new shape is checked only by `ruby -c` here and by the tap's own run on the same layout. The asset on the published release stays as it is, since releases are immutable.
+
+Not done here: a real `brew install`, which is also the first test of how Gatekeeper treats the ad hoc signature.
 
 The Manzanero rename passed all 314 local Swift tests with no build errors or warnings. Native multitouch and timed-gesture sender tests also passed without a device. All 48 mise tasks validated, and 41 documented command forms passed dry-run checks. The renamed stdio MCP server identified itself as `manzanero`, listed 33 tools and exited successfully on EOF without running device operations.
 

@@ -18,17 +18,19 @@ class Manzanero < Formula
   version "$version"
   license "MIT"
 
-  on_arm do
-    url "https://github.com/$repository/releases/download/v$version/manzanero-aarch64-apple-darwin.tar.gz"
-    sha256 "$arm"
-  end
-  on_intel do
-    url "https://github.com/$repository/releases/download/v$version/manzanero-x86_64-apple-darwin.tar.gz"
-    sha256 "$intel"
-  end
-
   depends_on macos: :sequoia
   depends_on xcode: :run
+
+  on_macos do
+    on_arm do
+      url "https://github.com/$repository/releases/download/v$version/manzanero-aarch64-apple-darwin.tar.gz"
+      sha256 "$arm"
+    end
+    on_intel do
+      url "https://github.com/$repository/releases/download/v$version/manzanero-x86_64-apple-darwin.tar.gz"
+      sha256 "$intel"
+    end
+  end
 
   def install
     libexec.install "manzanero", "lib"
