@@ -553,7 +553,9 @@ Then the cause was read and changed: the Apple TV's one display is `type: extern
 
 One of these was the operator's mistake, not the tool's: `remote select` was sent without a fresh read of the focus, which was on Sing and not on Settings as assumed, so an app the owner had not named was opened. It was left with `remote home`.
 
-Not shown: `play-pause` (refused before contact since), typing, `set-value`, `scroll`, recording, `frames`, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
+Later, with the external display let through for capture once: `frames --count 3` saved three images (first frame after 6.4 s) and `record --backend coredevice` a 5-second H.264 movie, each 3168 × 1792 and each a black rectangle on grey, while `screen ocr` read the Home Screen. Both commands refuse an Apple TV since. The [tvOS probe](probe-app.md#tvos-probe) was written and run on a simulator the same day; it is not on the device.
+
+Not shown: `play-pause` (now sent as Space; not sent to this device), typing, `set-value`, `scroll`, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
 
 ## Direct physical input
 

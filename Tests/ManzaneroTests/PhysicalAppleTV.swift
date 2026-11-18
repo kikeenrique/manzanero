@@ -58,12 +58,13 @@ struct PhysicalAppleTVTests {
         #expect(failure?.code == .displayOff)
     }
 
-    @Test func touchIsRefusedAndCaptureAcceptedOnAnExternalDisplay() throws {
+    @Test func touchAndCaptureAreRefusedOnAnExternalDisplay() throws {
         let failure = #expect(throws: CommandFailure.self) { try DirectTouchDisplay(Self.displays()) }
         #expect(failure?.code == .unsupportedOperation && failure?.description == AppleTVRemote.touchRefusal)
-        let capture = try DirectTouchDisplay(Self.displays(), capture: true)
-        #expect(capture.width == 3840 && capture.height == 2160 && capture.rotation == 0)
-        // An integrated display that is off is refused for capture too.
+        // Recording and frames decoded a wrong picture there, so they say so.
+        let capture = #expect(throws: CommandFailure.self) { try DirectTouchDisplay(Self.displays(), capture: true) }
+        #expect(capture?.code == .unsupportedOperation && capture?.description == DirectTouchDisplay.externalCaptureRefusal)
+        // An integrated display that is off is still reported as off.
         let off = #expect(throws: CommandFailure.self) { try DirectTouchDisplay(Self.displays(type: "integrated"), capture: true) }
         #expect(off?.code == .displayOff)
     }
