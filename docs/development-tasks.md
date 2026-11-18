@@ -56,7 +56,7 @@ mise run test:mcp-shutdown --help
 | `test:mcp-cancel-recording <UDID>` | Starts/cancels capture, then records again |
 | `test:mcp-shutdown-recording <UDID> <mode>` | EOF/SIGINT/SIGTERM during recording, separate-process reuse |
 
-Run these as `mise run <task> ...`. They use explicit targets and save private evidence under ignored `tmp/`. Passing receipt assertions is not a substitute for viewing the resulting UI where effect matters.
+Run these as `mise run <task> ...`. They use explicit targets and write their working files under `tmp/`, which is disposable. Passing receipt assertions is not a substitute for viewing the resulting UI where effect matters.
 
 ## Cancellation tests
 

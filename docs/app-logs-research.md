@@ -17,7 +17,7 @@ Each claim carries one label:
 
 Anything about a physical device is at best [S] or [H]. Nothing in this document has been tried against hardware.
 
-Environment for [E] and [H]: macOS 27.2.1, Xcode 27.2 (27B52), `devicectl` 651.32, iOS 27.2 simulator runtime (24B8117), one iPhone Air simulator booted for the experiments and shut down afterwards. Stock Settings (`com.apple.Preferences`) was the test app. Captured output stays private under `tmp/app-logs-research/`; the shapes below are described or invented, not copied.
+Environment for [E] and [H]: macOS 27.2.1, Xcode 27.2 (27B52), `devicectl` 651.32, iOS 27.2 simulator runtime (24B8117), one iPhone Air simulator booted for the experiments and shut down afterwards. Stock Settings (`com.apple.Preferences`) was the test app. The shapes below are described or invented, not copied.
 
 ## 1. What an agent needs
 

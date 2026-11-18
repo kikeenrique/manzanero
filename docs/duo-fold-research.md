@@ -20,9 +20,8 @@
 - Simulator `manzanero-research-duo-fold`: iPhone Duo (`com.apple.CoreSimulator.SimDeviceType.iPhone-Duo`, `iPhone19,4`),
   runtime `com.apple.CoreSimulator.SimRuntime.iOS-27-2-iPhone19-4` (24B91016s). Booted headless with `simctl boot`;
   no Xcode, Device Hub or simulator UI was opened. Shut down at the end and left in place.
-- Scratch material in `tmp/duo-fold/` (untracked): `fold.m` / `fold` (the probe), screenshots `s*.png`,
-  `log-unfold.txt`, string dumps, `extract.c` (shared-cache extractor using Apple's `dsc_extractor.bundle`) and
-  `dsc/` (3.3 GB of extracted simulator dylibs; safe to delete).
+- Two throwaway programs were written for this: a probe, `fold.m`, and a shared-cache extractor, `extract.c`,
+  which uses Apple's `dsc_extractor.bundle`. Neither is part of the project.
 
 ## Conclusion
 
@@ -100,9 +99,9 @@ Apple:
 
 ## Experiments
 
-All with the throwaway probe `tmp/duo-fold/fold.m` (Foundation + IOKit, `-[SimDevice lookup:error:]` →
+All with the throwaway probe `fold.m` (Foundation + IOKit, `-[SimDevice lookup:error:]` →
 `xpc_endpoint_create_mach_port_4sim` → `xpc_connection_create_from_endpoint` → `xpc_connection_enable_sim2host_4sim`,
-as in `tmp/other-families/probe.m`).
+as in the other families' probe).
 
 ### Setting the hinge [O]
 
@@ -175,7 +174,7 @@ So `fold` should send 0 and `unfold` 180, then wait until the display informatio
 
 ### SpringBoard log during an unfold [O]
 
-`log show` in the simulator (`tmp/duo-fold/log-unfold.txt`): `dtuhidd` accepts a peer on
+`log show` in the simulator: `dtuhidd` accepts a peer on
 `com.apple.coredevice.feature.remote.hid.vendordefined.peer`; then SpringBoard logs
 `[com.apple.locationd.Motion:DeviceState] Sending MagicPose event to client …`,
 `Ambient magic pose event detected [… hingeState : PO …]`, `updateIdleTimerForReason:"Hinge Motion"`,

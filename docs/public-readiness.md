@@ -22,7 +22,7 @@ Done before any tag exists, because a published tag makes a later history change
 
 - **A device identifier was found and removed.** A check of tracked files for this project's test phone and Mac found the phone's hardware UDID in one test file, in two lines, added on 2026-11-17 and already pushed. At the owner's decision it was replaced with the test fixture's UDID in the file and in history (`git filter-repo --replace-text`, contents and messages). The 11 commits from that one to the tip have new IDs; the 242 before it are unchanged. Authors, committers and dates were preserved, and the only difference between the old and new trees is those two lines. The build and all 702 tests passed afterwards. The owner force-pushed the rewritten `main` before the release was tagged. GitHub can keep the replaced commits reachable by their IDs for some time after a force push; only GitHub Support can purge them at once.
 - **Other identifiers.** Across every revision: no other hardware UDID than test fixtures, no CoreDevice or host UUID of the test machines, no home-directory path, no email address in file contents, no network name.
-- **Secrets.** Gitleaks 8.30.1, default rules, full redaction, allow-comments disabled: no findings in the rewritten history (every reachable commit) and none in an export of the 323 tracked files. Source and reports were not uploaded; the reports are under `tmp/public-audit/`.
+- **Secrets.** Gitleaks 8.30.1, default rules, full redaction, allow-comments disabled: no findings in the rewritten history (every reachable commit) and none in an export of the 323 tracked files. Source and reports were not uploaded.
 - **Tracked files.** No movies, app packages, pairing records, `.env` files, key or certificate exports, provisioning profiles or crash reports; the three tracked images are the project's own artwork in `docs/assets/`.
 
 A UDID is not a credential, and the device cannot be reached with it; it was removed because no device identifier belongs in the repository. These are results for the state checked, not a guarantee about what is added later: repeat the identifier check and the scan before each release. A recovery bundle of the history as it was stays under ignored `tmp/`.
@@ -33,8 +33,7 @@ The local audit on 2026-11-14 used Gitleaks 8.30.1 against the then-current trac
 
 That audit also found no tracked screenshots, movies, commercial app packages, pairing records, `.env` files, key or certificate exports, provisioning profiles or phone crash reports. Targeted checks found no designated-phone identifiers in tracked files or history.
 
-These are historical results, not a guarantee that every private value is absent. The owner requested no additional secrets scan during this cleanup. Targeted checks for removed paths, files and references still verify the requested history changes. Private audit reports remain under `tmp/public-audit/`.
-
+These are historical results, not a guarantee that every private value is absent. The owner requested no additional secrets scan during this cleanup. Targeted checks for removed paths, files and references still verify the requested history changes.
 ## Public description
 
 > Manzanero is an independent Swift command-line tool for inspecting and automating Apple devices, with an optional MCP server for agents.

@@ -15,7 +15,7 @@ This page decides how `manzanero` should get simulator input (`tap`, `swipe`, `d
 
 All experiments ran on one machine: macOS 27.2.1 (26B131), Xcode 27.2 (27B52), CoreSimulator 1174.21, SimulatorKit 1005.14, CoreDevice 651.32. The simulator was an iPhone 17e (390 × 844 points at 3×) on the iOS 27.2 (24B8117) runtime, freshly booted with `simctl boot` and Simulator.app not running. It was shut down afterwards. The test apps were the project's probe app (`Fixtures/ProbeApp`, built unsigned for the simulator) and Settings.
 
-The throwaway probe program is `tmp/simulator-research/probe.m` (untracked; it may be deleted). It loads the frameworks with `dlopen`, resolves names with `dlsym`/`objc_lookUpClass`, and messages the classes with `objc_msgSend`. It does not link or run any third-party code.
+The probe program, `probe.m`, was throwaway and is not part of the project. It loads the frameworks with `dlopen`, resolves names with `dlsym`/`objc_lookUpClass`, and messages the classes with `objc_msgSend`. It does not link or run any third-party code.
 
 Each claim below carries one of these labels:
 
@@ -51,7 +51,7 @@ Its physical-device review is in [axe-physical-review.md](axe-physical-review.md
 | `XCUIDeviceRemoteAutomationSession` (163 instance methods, including `synthesizeEvent:completion:`, `requestSnapshotForElement:attributes:parameters:reply:`, `performAccessibilityAction:onElement:value:reply:`, `requestElementAtPoint:reply:`, `updateDeviceOrientation:completion:`, `requestScreenshotWithRequest:withReply:`), `XCUIDeviceRemoteDaemonConnectionProvider`, `XCSynthesizedEventRecord`, `XCPointerEventPath` | `$(xcode-select -p)/../SharedFrameworks/XCUIAutomation.framework` (private; the public macOS `XCUIAutomation.framework` headers in the SDK expose none of this) | **[S]** `otool -ov`; **[E]** a session was created for the simulator in 0.8 s; automation mode was *not* enabled |
 | simctl subcommands | `xcrun simctl help` | **[E]** no tap, touch, swipe, key or HID subcommand exists |
 
-Large dumps are in `tmp/simulator-research/` (`simulatorkit-nm.txt`, `coresimulator-nm.txt`, `xcuiautomation-otool-ov.txt`, `xcuidevice-remote-methods.txt`, `displayinfo-reply.txt`).
+The symbol and method dumps this section draws on were made with `nm` and `otool` from the frameworks named above and can be made again the same way.
 
 ## Options for input
 

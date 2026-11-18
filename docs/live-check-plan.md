@@ -8,7 +8,7 @@ The test phone has had a passcode since the evening of 2026-11-17 and its defaul
 
 Run from the repository root with the device paired and unlocked. Replace `<UDID>` with the hardware UDID from `mise run cli devices`. If the display is off, `mise run cli wake --device <UDID>` turns it on. Take a screenshot before choosing where to touch, and inspect the screen after every action; a receipt is not an effect. Do not replay an input automatically.
 
-If every query to a connected device times out, capture the state of Apple's device services before restarting them: a wide `log stream` or `log show` window for `CoreDeviceService` and `remotepairingd`, and a `sample` of each process (`mise run diagnose:device-services` saves all of it under `tmp/device-services/`). On 2026-11-16 restarting them fixed the hang, but nothing was captured first and the cause is unknown.
+If every query to a connected device times out, read the state of Apple's device services before restarting them: a wide `log stream` or `log show` window for `CoreDeviceService` and `remotepairingd`, and a `sample` of each process (`mise run diagnose:device-services` collects them), and write what they show into [verification](verification.md). On 2026-11-16 restarting them fixed the hang, but nothing was read first and the cause is unknown.
 
 ## Not yet run on hardware
 

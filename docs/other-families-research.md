@@ -12,7 +12,7 @@ The existing simulator commands were run unchanged against one new simulator per
   - `manzanero-research-watch`: Apple Watch Series 12 (46mm), watchOS 27.2 (24S118), 208 × 248 points.
   - `manzanero-research-duo`: iPhone Duo (`iPhone19,4`), iOS 27.2 (24B91016s, the Duo-only runtime `iOS-27-2-iPhone19-4`).
 - All three are shut down and left in place. No other simulator and no physical device was used.
-- Scratch material is in `tmp/other-families/` (untracked): `m.sh` (runs a command and logs stdout, stderr and exit code under `logs/`), `probe.m` (sends raw XPC messages to the simulator's `dtuhidd`/`dtdeviceinfod` services through the same `_4sim` connection the bridge uses), screenshots, and string dumps of the injected daemons.
+- A throwaway probe, `probe.m`, sent raw XPC messages to the simulator's `dtuhidd`/`dtdeviceinfod` services through the same `_4sim` connection the bridge uses. It is not part of the project.
 
 **[O]** observed (ran it, saw the result). **[I]** inferred (from strings, plists or analogy; not exercised).
 

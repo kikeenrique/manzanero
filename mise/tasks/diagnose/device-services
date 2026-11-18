@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description = "Capture evidence about Apple's device services (CoreDeviceService, remotepairingd) under tmp/ before anyone restarts them; restarts nothing"
+#MISE description = "Collect the logs and samples of Apple's device services (CoreDeviceService, remotepairingd) to read before anyone restarts them; restarts nothing"
 #USAGE flag "--minutes <minutes>" default="15" help="How far back the unified-log window reaches, 1...120"
 #USAGE flag "--sample-seconds <seconds>" default="5" help="How long each process is sampled, 1...30"
 

@@ -236,8 +236,7 @@ So the relay works over Apple's native tunnel on this phone, a PID filter holds 
 
 ### Phone session of 2026-11-17
 
-**2026-11-17, at `01988bf`**, the same iPhone 13 mini (unlocked, portrait, reached over `apple-network-rsd`), macOS 27.2.1, Xcode 27.2 (27B52), `devicectl` 651.32. Evidence is under `tmp/session-1117/` (not tracked).
-
+**2026-11-17, at `01988bf`**, the same iPhone 13 mini (unlocked, portrait, reached over `apple-network-rsd`), macOS 27.2.1, Xcode 27.2 (27B52), `devicectl` 651.32.
 **Recording and `frames` after the bridge became packet-only.**
 
 | Command | Observed |
@@ -505,8 +504,7 @@ Not shown: Safari, an app's own `WKWebView`, a page with frames, and whether the
 
 ### First look at a physical Apple TV
 
-On 2026-11-18, one Apple TV 4K (3rd generation, `AppleTV14,1`), paired over the network and asleep at the start, with the build from `main`, macOS 27.2.1, Xcode 27.2 (27B52), `devicectl` 651.32. The tvOS version was not recorded. Only commands meant to observe were run; no input was sent. Evidence is under `tmp/appletv-4k3/`.
-
+On 2026-11-18, one Apple TV 4K (3rd generation, `AppleTV14,1`), paired over the network and asleep at the start, with the build from `main`, macOS 27.2.1, Xcode 27.2 (27B52), `devicectl` 651.32. The tvOS version was not recorded. Only commands meant to observe were run; no input was sent.
 **The session switched the Apple TV on, and the television connected to it.** The owner saw both come on. Which command did it is not known: `readiness`, `apps` and `media-status` ran first, then `screenshot`, which returned a black image, then a refused `tree`, then `screen ocr`, whose capture seconds later showed the Home Screen. So on an Apple TV these commands are not free of effect, and a television may follow the Apple TV over HDMI.
 
 | Command | Result |
@@ -555,7 +553,7 @@ One of these was the operator's mistake, not the tool's: `remote select` was sen
 
 Later, with the external display let through for capture once: `frames --count 3` saved three images (first frame after 6.4 s) and `record --backend coredevice` a 5-second H.264 movie, each 3168 × 1792 and each a black rectangle on grey, while `screen ocr` read the Home Screen. Both commands refuse an Apple TV since. The [tvOS probe](probe-app.md#tvos-probe) was written and run on a simulator the same day; it is not on the device.
 
-In the afternoon the owner ran the tvOS probe onto the device from Xcode. Six seconds after that run's connection was released (14:05:25), `remotepairingd`'s heartbeat to the Apple TV began to fail at once (`failed after 0ms`) and every query timed out, for twenty minutes, while the network tunnel still carried packets and the Mac listed the device as connected; evidence is under `tmp/device-services/`. With the owner's word both services were restarted and the first query answered. Then, against the probe:
+In the afternoon the owner ran the tvOS probe onto the device from Xcode. Six seconds after that run's connection was released (14:05:25), `remotepairingd`'s heartbeat to the Apple TV began to fail at once (`failed after 0ms`) and every query timed out, for twenty minutes, while the network tunnel still carried packets and the Mac listed the device as connected. With the owner's word both services were restarted and the first query answered. Then, against the probe:
 
 | Command | The probe's record afterwards |
 | --- | --- |
@@ -573,8 +571,7 @@ Later: `type ' abc'` with the probe's field focused and the keyboard closed made
 
 Power, from 15:13: `button lock` with the screen saver in front brought the Home Screen; again, with the Home Screen in front, it opened Control Centre with Power Off in focus (read from a screenshot and seen by the human owner in Device Hub; the tree gave `PineBoard` and no nodes). At 16:17:16 `remote select` there put the device to sleep: from 16:17:22 `screenshot` failed with "Display reports zero-sized native size", while `readiness` (16:17:19) and the display query (16:17:38) answered as if awake and did not wake it.
 
-The connection went stale twice more: at 15:14:06, as a `tree` started with Control Centre open, and at 16:17:39, as a `tree` started on the sleeping device. Each time `remoted` logged "Device connection interrupted" with no "Handshake complete" after it, then "Heartbeat failed: not connected" every 30 seconds. The same interruption, followed by a handshake, was logged for the iPhone 13 mini during two of five `tree` runs, one of them with a random peer identity in manzanero's directory handshake (a scratch change, not kept), and in the second before one of them only `devicectl` had been active. Logs are under `tmp/appletv-4k3/power/` and `tmp/device-services/`.
-
+The connection went stale twice more: at 15:14:06, as a `tree` started with Control Centre open, and at 16:17:39, as a `tree` started on the sleeping device. Each time `remoted` logged "Device connection interrupted" with no "Handshake complete" after it, then "Heartbeat failed: not connected" every 30 seconds. The same interruption, followed by a handshake, was logged for the iPhone 13 mini during two of five `tree` runs, one of them with a random peer identity in manzanero's directory handshake (a scratch change, not kept), and in the second before one of them only `devicectl` had been active.
 On the tvOS 27.2 simulator the same afternoon, with a forty-row list added to the probe: the tree held rows 1 to 13; `scroll --id probe.tv.row.13` returned `nativeResult: true`, the row moved from y 1020 to 954 and row 14 joined the tree, but the status was `postcondition-failed` ("target centre hit is another native element"), five checks 250 ms apart included. The element that answered the hit test belonged to `PineBoard`, not to the probe. With the hit test left out on an Apple TV, rows 18, 19 and 20 each scrolled into view as `postcondition-verified`, and `press --id probe.tv.row.20` was recorded as `select:row-20`. `button lock` on the simulator did not open Control Centre, so the power sequence is a hardware matter.
 
 `scroll --search`, built that evening, on the same simulator with the probe relaunched and its list at the top (rows 1 to 13 in the tree): `scroll --id probe.tv.row.35` alone failed with no match; with `--search 40` it took 22 steps in about 8 seconds and ended `postcondition-verified` with row 35 at y 954, and `press --id probe.tv.row.35` was recorded as `select:row-35`. `scroll --id probe.tv.row.99 --search 60` stopped after 30 steps with "the list stopped moving". Two faults were found and fixed on the way: with a 40-step limit the first version reached only row 17, because every few steps the lowest element was the list's own container, 3200 points tall, and scrolling to it put the list back at the top; and a search started straight after launch found no rows, because the list was not in the tree yet (`wait --id probe.tv.row.1` first).
@@ -1061,7 +1058,7 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 
 ### Action button and keyboard input on the watch
 
-**2026-11-17**, `manzanero-research-watch` (Series 12, 46mm) and a new `manzanero-research-watch-ultra` (Apple Watch Ultra 4, 49mm), both watchOS 27.2 (24S118), headless; host macOS 27.2.1, Xcode 27.2. Raw events were sent with the research probe first, then through `manzanero`. The text probe was a throwaway SwiftUI app (a `TextField` and a readout of its bound string, built with `swiftc`, untracked in `tmp/watch-left/`).
+**2026-11-17**, `manzanero-research-watch` (Series 12, 46mm) and a new `manzanero-research-watch-ultra` (Apple Watch Ultra 4, 49mm), both watchOS 27.2 (24S118), headless; host macOS 27.2.1, Xcode 27.2. Raw events were sent with the research probe first, then through `manzanero`. The text probe was a throwaway SwiftUI app (a `TextField` and a readout of its bound string, built with `swiftc`).
 
 | Experiment or command | Observed |
 | --- | --- |
