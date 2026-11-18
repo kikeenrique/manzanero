@@ -78,21 +78,19 @@ struct PhysicalAppleTVTests {
 
     @Test func remoteUsesKeysAndTheHomeButton() throws {
         var keys: [UInt64] = [], buttons: [(UInt64, UInt32)] = []
-        for name in ["select", "up", "down", "left", "right", "menu", "home"] {
+        for name in ["select", "up", "down", "left", "right", "menu", "play-pause", "home"] {
             let input = try CoreDeviceInput.validated(device: Self.uuid, operation: "remote", operands: [name])
             let data = try AppleTVRemote.execute(input, query: Self.query, key: { keys.append($0.usage) },
                                                  button: { buttons.append(($0.usage, $0.holdMicroseconds)) })
             let receipt = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
             #expect(receipt["remote"] as? String == name && receipt["status"] as? String == "dispatched")
         }
-        // Menu is Escape on a physical Apple TV, not the consumer usage.
-        #expect(keys == [40, 82, 81, 80, 79, 41])
+        // Menu is Escape and play-pause is Space on a physical Apple TV, not the consumer usages.
+        #expect(keys == [40, 82, 81, 80, 79, 41, 44])
         #expect(buttons.count == 1 && buttons[0] == (0x40, 80_000))
     }
 
-    @Test func remoteIsRefusedForPlayPauseAndForOtherDevices() throws {
-        let playPause = #expect(throws: CommandFailure.self) { try request(["remote", "play-pause", "--device", Self.uuid]) }
-        #expect(playPause?.code == .unsupportedOperation && playPause?.description == AppleTVRemote.playPauseRefusal)
+    @Test func remoteIsRefusedForUnknownButtonsAndOtherDevices() throws {
         let unknown = #expect(throws: CommandFailure.self) { try request(["remote", "siri", "--device", Self.uuid]) }
         #expect(unknown?.code == .usage)
         let input = try CoreDeviceInput.validated(device: Self.uuid, operation: "remote", operands: ["home"])

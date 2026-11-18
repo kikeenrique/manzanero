@@ -323,6 +323,33 @@ Activating it (`manzanero press --id probe.permission.request (--device <UDID> |
 
 On the iPhone 13 mini on 2026-11-17 the press raised "Probe quiere enviarte notificaciones", which the tree read with both buttons, and after the owner's choice the value read `denied` ([verification](verification.md#handoff-with-an-app-permission-prompt)). On an iPhone 17e simulator the same press raised "“Probe” Would Like to Send You Notifications" a few seconds later, and `press --label Allow` from a second process answered it while a handoff watched ([verification](verification.md#handoff-watch-a-timeout-on-the-phone-and-runs-on-a-simulator)).
 
+## tvOS probe
+
+A second, separate app in the same Tuist project: target and scheme `ProbeTV`, sources in `Fixtures/ProbeApp/TV/`, bundle identifier `com.lemambo.manzanero.probetv` (`Config/ProbeTV.xcconfig`; `PROBE_TV_BUNDLE_ID` in the untracked signing file replaces it), tvOS 18.0 or later. It shares nothing with the iOS probe and does not use ProbeCore. It answers one question: which Siri Remote command did the app receive?
+
+| Identifier | Element | Reads as |
+| --- | --- | --- |
+| `probe.tv.button.a`, `.b`, `.c` | Three buttons in a row | Selecting one records `select:a` (or `b`, `c`) |
+| `probe.tv.text.field` | A text field | |
+| `probe.tv.text.value` | The field's text | value |
+| `probe.tv.last` | The last command received | value: `up`, `down`, `left`, `right`, `select:<button>`, `menu`, `play-pause`, or `none` |
+| `probe.tv.count` | How many commands arrived | value |
+| `probe.tv.summary` | A count per kind | value: `up=1 down=0 left=0 right=0 select=0 menu=0 play-pause=0` |
+
+Arrows are recorded through `onMoveCommand`, so one arrives only when focus could not move further in that direction inside the app, as SwiftUI reports it. Menu is recorded and kept (`onExitCommand`), so it does not leave the app: leave with the Home button. Each command also goes to the unified log, category `remote`.
+
+```sh
+mise run probe-app:generate
+xcodebuild build -workspace tmp/probe-app/generated/ProbeApp.xcworkspace -scheme ProbeTV \
+  -destination 'generic/platform=tvOS Simulator' -derivedDataPath tmp/probe-app/DerivedData 2>&1 | xcsift -f toon --warnings
+manzanero install tmp/probe-app/DerivedData/Build/Products/Debug-appletvsimulator/ProbeTV.app --simulator <UUID>
+manzanero launch com.lemambo.manzanero.probetv --simulator <UUID>
+```
+
+`build-run` does not build for tvOS. A build for a physical Apple TV needs a tvOS development profile for the bundle identifier; without one already on the Mac, `xcodebuild` asks for `-allowProvisioningUpdates`, which acts on the Apple developer account and is the owner's decision.
+
+Checked on one tvOS 27.2 simulator on 2026-11-18: each of the seven `remote` buttons was recorded once, and the keys Space, Escape and Return were recorded as `play-pause`, `menu` and `select`. Not installed on a physical Apple TV.
+
 ## Verification status
 
 The records below are dated; those before 2026-11-16 spell commands in the earlier grammar (`simulator <UUID> build-run`, `press-id`).

@@ -37,16 +37,16 @@ enum AppleTVRemote {
     }
 
     /// A physical Apple TV's routes. Its button service closed the connection
-    /// on the consumer usages for Menu (0x46) and Play/Pause (0xCD), and
-    /// Escape went back one level, as a keyboard's does on tvOS. Seen on one
-    /// Apple TV 4K (3rd generation), tvOS 27.2.
-    static let physicalRoutes: [String: Route] = routes.merging(["menu": .key(41)]) { $1 }.filter { $0.key != "play-pause" }
-    static let playPauseRefusal = "remote play-pause has no route to a physical Apple TV yet: its button service closed the connection on that usage. No device was contacted."
+    /// on the consumer usages for Menu (0x46) and Play/Pause (0xCD), so both
+    /// go as the keys a keyboard uses for them on tvOS: Escape and Space.
+    /// Escape went back one level on an Apple TV 4K (3rd generation, tvOS
+    /// 27.2). Space was seen as play-pause in the tvOS probe on a simulator
+    /// only; it has not been sent to hardware (docs/other-families.md).
+    static let physicalRoutes: [String: Route] = routes.merging(["menu": .key(41), "play-pause": .key(44)]) { $1 }
 
     /// Operands for a physical device, checked before any contact.
     static func validatePhysical(_ operands: [String]) throws {
-        guard operands.count == 1, routes[operands[0]] != nil else { throw CommandFailure.usage(usage) }
-        guard physicalRoutes[operands[0]] != nil else { throw CommandFailure.unsupported(playPauseRefusal) }
+        guard operands.count == 1, physicalRoutes[operands[0]] != nil else { throw CommandFailure.usage(usage) }
     }
 
     static func plan(_ input: CoreDeviceInput) throws -> [String: Any] {

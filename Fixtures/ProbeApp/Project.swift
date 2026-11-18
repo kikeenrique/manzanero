@@ -24,6 +24,8 @@ let swiftSettings: SettingsDictionary = [
 // value in the untracked tmp/probe-app/Signing.xcconfig it includes.
 let signingConfig: Path = .relativeToManifest("\(fixture)/Config/ProbeApp.xcconfig")
 
+let tvSigningConfig: Path = .relativeToManifest("\(fixture)/Config/ProbeTV.xcconfig")
+
 let project = Project(
     name: "ProbeApp",
     options: .options(automaticSchemesOptions: .disabled),
@@ -79,6 +81,33 @@ let project = Project(
             sources: [.glob(.relativeToManifest("\(fixture)/UITests/**/*.swift"))],
             dependencies: [.target(name: "ProbeApp")]
         ),
+        // The tvOS probe (docs/probe-app.md#tvos-probe): its own sources and
+        // no dependency on ProbeCore.
+        .target(
+            name: "ProbeTV",
+            destinations: [.appleTv],
+            product: .app,
+            bundleId: "$(PROBE_TV_BUNDLE_ID)",
+            deploymentTargets: .tvOS("18.0"),
+            infoPlist: .dictionary([
+                "CFBundleDevelopmentRegion": "en",
+                "CFBundleDisplayName": "Probe TV",
+                "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+                "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+                "CFBundleInfoDictionaryVersion": "6.0",
+                "CFBundleName": "$(PRODUCT_NAME)",
+                "CFBundlePackageType": "APPL",
+                "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+                "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
+                "UILaunchScreen": [:],
+                "UIUserInterfaceStyle": "Automatic",
+            ]),
+            sources: [.glob(.relativeToManifest("\(fixture)/TV/**/*.swift"))],
+            settings: .settings(configurations: [
+                .debug(name: "Debug", xcconfig: tvSigningConfig),
+                .release(name: "Release", xcconfig: tvSigningConfig),
+            ])
+        ),
     ],
     schemes: [
         .scheme(
@@ -86,6 +115,11 @@ let project = Project(
             buildAction: .buildAction(targets: ["ProbeApp"]),
             testAction: .targets(["ProbeAppUITests"]),
             runAction: .runAction(executable: "ProbeApp")
+        ),
+        .scheme(
+            name: "ProbeTV",
+            buildAction: .buildAction(targets: ["ProbeTV"]),
+            runAction: .runAction(executable: "ProbeTV")
         ),
     ]
 )
