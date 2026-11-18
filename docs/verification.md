@@ -521,7 +521,19 @@ On 2026-11-18, one Apple TV 4K (3rd generation, `AppleTV14,1`), paired over the 
 
 Found: the display state the tool reads says `off` on this Apple TV while it is drawing its Home Screen, so `tree` is refused, the screenshot note would be wrong for a second capture, and touch, which is gated on the same reading, is expected to be refused too. `wake`'s plan presses the side button, which an Apple TV does not have; it was not run.
 
-Not shown: any input, a tree, recording, `frames`, which command wakes the device, and whether the television also switches off with it.
+Later the same day, with the owner's word and the Apple TV still on, showing a screen saver:
+
+| Command | Result, each read from a screenshot afterwards |
+| --- | --- |
+| `key right` over the screen saver | `dispatched`; the screen saver stayed. Whether the key arrived is not known |
+| `button home` | `dispatched`; the screen saver gave way to the Home Screen |
+| `key right` | Focus moved one app to the right |
+| `key left` | Focus moved back to the app it started on |
+| `tree` | Still refused as display off |
+
+Keys and buttons are not gated on the display reading, so they were sent while `readiness` still said `displayPower: off`. The receipts say `verified: false`; the effects above are from the screenshots.
+
+Not shown: `select`, `menu` and `play-pause`, up and down, a tree, touch, recording, `frames`, which command wakes the device, and whether the television also switches off with it.
 
 ## Direct physical input
 
