@@ -113,6 +113,15 @@ extension ManzaneroCLI {
         func request(_ target: Target) throws -> CommandRequest { try .input(target, "button", [name]) }
     }
 
+    struct Batch: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "batch", abstract: "Run several commands for one device in one call, in order.",
+            discussion: "The steps are a JSON array; each step is the words of one command without --device or --simulator, which the batch supplies, for example '[[\"press\",\"--id\",\"login\"],[\"wait\",\"--label\",\"Welcome\"]]'. At most 30 steps. Every step is checked before any runs. Each then runs as it would alone; the batch stops at the first step that fails or exits non-zero (a wait that times out), reports what ran and what did not, and exits 1. Earlier steps are not undone and nothing is repeated. handoff and batch cannot be steps. With --dry-run every step prints its plan.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "The JSON array of steps.") var steps: String
+        func request(_ target: Target) throws -> CommandRequest { .batch(try BatchCommand(target: target, json: steps)) }
+    }
+
     struct Remote: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "remote", abstract: "Press one Siri Remote button (Apple TV).",
             discussion: "The arrows move focus and select clicks the focused item (keyboard usages); menu goes back, home opens the Home Screen and play-pause toggles playback (consumer buttons). Apple TV has no touch screen, so touch commands are refused there. Any command to a sleeping Apple TV may switch it on, and its television with it. \(receiptCaveat)")

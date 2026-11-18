@@ -32,6 +32,8 @@ enum CommandRequest: Sendable, Equatable {
     case doctor
     /// The keyboard layouts `type` accepts, read from this Mac.
     case keyboardLayouts
+    /// `batch`: several commands for one device, in order.
+    case batch(BatchCommand)
 }
 
 /// A wrapped Apple tool invocation and the operation it implements.
@@ -84,6 +86,7 @@ extension CommandRequest {
         case .diagnostics(let diagnostics): (diagnostics.physical ? "physical" : "simulator", diagnostics.device, diagnostics.operation)
         case .tool(let tool): (tool.platform.rawValue, tool.device, tool.operation)
         case .simulatorDisplay(let display): ("simulator", display.device, display.operation)
+        case .batch(let batch): (batch.target.platform.rawValue, batch.target.identifier, "batch")
         case .decodeArchive, .ocr, .devices, .doctor, .keyboardLayouts: nil
         }
     }
@@ -92,6 +95,8 @@ extension CommandRequest {
     /// Their failures cannot have sent input. Any other command is not
     /// assumed read-only.
     var isReadOnly: Bool {
+        // A batch is read-only only when every step is.
+        if case .batch(let batch) = self { return batch.requests.allSatisfy(\.isReadOnly) }
         guard let addressed else { return true }
         return (CommandService.observationOperations + ["media-status", DeviceQuarantine.operation]).contains(addressed.operation)
     }
@@ -107,6 +112,7 @@ extension CommandRequest {
         case .physicalInput: "physical input"
         case .frames: "frame capture"
         case .detectLayout: "layout detection"
+        case .batch(let batch): batch.requests.contains { $0.signalContext != nil } ? "batch" : nil
         default: nil
         }
     }

@@ -25,7 +25,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 ## Tool catalog
 
-`tools/list` is the exact schema reference: 46 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
+`tools/list` is the exact schema reference: 47 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
 
 | Tools | Current purpose |
 | --- | --- |
@@ -45,6 +45,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `type_text`, `paste_text`, `press_key`, `press_button` | [Typing in a named keyboard layout](physical-typing.md#layouts) (`layout`, default `us`), named keys and hardware buttons (physical or simulator, the same four buttons), and physical clipboard-replacing paste |
 | `list_keyboard_layouts` | The layout names `type_text` accepts: the Mac's own layouts, read-only, no device contact |
 | `detect_keyboard_layout` | [Which layout a device applies](physical-typing.md#finding-the-layout-detect-layout): types a probe into one named settable field, compares it with every Mac layout, reports `detected`, `ambiguous` or `no-match` with the `--layout` value, and restores the field; physical (default) or simulator. Sends input |
+| `run_batch` | [Several commands for one device in one call](#several-steps-in-one-call-run_batch), in order, stopping at the first failure |
 | `press_remote` | [Siri Remote](other-families.md#siri-remote-apple-tv) buttons on an Apple TV: D-pad, select, menu, home and play-pause, on a simulator (the default `platform`) or [a physical Apple TV](other-families.md#a-physical-apple-tv); `hold_seconds` for a long press on a simulator; other families are refused |
 | `rotate_crown` | [Digital Crown](other-families.md#digital-crown-and-side-button-apple-watch) on an Apple Watch simulator: integer units, optional event count; `press_button` also takes `side` and `action` there |
 | `fold_device`, `set_hinge_angle`, `get_hinge_angle` | [Fold](other-families.md#fold-iphone-duo) an iPhone Duo simulator: fold or unfold and wait (bounded) for the matching display, set any hinge angle 0...180 without a display promise, or read the angle once (read-only); other simulators and physical devices are refused |
@@ -100,6 +101,29 @@ Other downloads are not embedded, parsed or symbolicated automatically.
 - Dispatch receipts retain unverified effect/release fields. Scroll callers must inspect `postconditionVerified`, even when the call exits successfully.
 
 Follow actions with fresh observations or app-specific assertions. A completed call can have partial side effects or uncertain cleanup.
+
+## Several steps in one call: `run_batch`
+
+Each tool call is a round trip for the model that drives the host. `run_batch` (CLI `batch`) runs up to 30 commands for one device in the order given:
+
+```sh
+manzanero batch '[["press","--id","login"],["type","hello"],["wait","--label","Welcome","--timeout","5"]]' --device <UDID>
+```
+
+```json
+{"name": "run_batch", "arguments": {"platform": "simulator", "device": "<UUID>",
+  "steps": [["remote", "right"], ["wait", "--id", "probe.tv.button.b", "--until", "focused"], ["remote", "select"]]}}
+```
+
+A step is the words of one CLI command, as `manzanero --help` lists them, without `--device` or `--simulator`: the batch supplies its own target to every step. They are CLI words, not MCP tool names.
+
+- **Every step is parsed before any runs**, by the same parser as a single command. A mistake in step 3 fails the call as a usage error and sends nothing.
+- **Each step runs as it would alone**: the same guards, device lease, handoff pause and quarantine check, one after the other. Nothing is added between steps, so put a `wait` where the interface needs time.
+- **It stops at the first step that fails or exits non-zero**, such as a `wait` that times out. The result then has `status: failed`, `failedStep`, one entry in `steps` for each step that ran (its `output`, or its `error` with the usual `code`, `inputSent` and `retry`), and the steps that did not run in `notRun`. The CLI exits 1; the MCP call answers with that result and `isError: false`, because the receipt is the answer.
+- **Nothing is undone and nothing is repeated.** After a failed batch the earlier steps have taken effect: look at the device before continuing.
+- `handoff` and another `batch` cannot be steps, and a step must act on the batch's device, so `devices`, `doctor`, `keyboard-layouts` and `ocr` are refused there. With `--dry-run` every step returns its plan and the status is `planned`.
+
+Run on one tvOS 27.2 simulator against the [tvOS probe](probe-app.md#tvos-probe): five steps (a remote press, a focus wait, a select, a searching scroll and a press) completed in about six seconds; a batch whose second step waited for an element that does not exist stopped there, and its third step, a press, did not happen. Through a real MCP session one batch completed and one failed at its first step. Not run on a physical device.
 
 ## Calls sent without waiting
 

@@ -2,7 +2,8 @@ import Foundation
 import MCP
 
 struct MCPField: Sendable {
-    enum Kind: String, Sendable { case string, number, integer, boolean, array, stringArray }
+    /// `commandArray` is an array of arrays of strings: a batch's steps.
+    enum Kind: String, Sendable { case string, number, integer, boolean, array, stringArray, commandArray }
     let name: String
     var kind: Kind = .string
     var description: String = ""
@@ -10,7 +11,12 @@ struct MCPField: Sendable {
     var choices: [String] = []
 
     var schema: Value {
-        var value: [String: Value] = ["type": .string(kind == .stringArray ? "array" : kind.rawValue), "description": .string(description)]
+        var value: [String: Value] = ["type": .string(kind == .stringArray || kind == .commandArray ? "array" : kind.rawValue), "description": .string(description)]
+        if kind == .commandArray {
+            value["items"] = .object(["type": "array", "items": .object(["type": "string"]), "minItems": 1])
+            value["minItems"] = 1
+            value["maxItems"] = .int(BatchCommand.maximumSteps)
+        }
         if !choices.isEmpty { value["enum"] = .array(choices.map(Value.string)) }
         if kind == .array { value["items"] = .object(["type": "number"]) }
         if kind == .stringArray { value["items"] = .object(["type": "string"]) }
@@ -31,6 +37,11 @@ struct MCPField: Sendable {
             valid = values.allSatisfy { if case .int = $0 { return true }; if case .double(let n) = $0 { return n.isFinite }; return false }
         case (.stringArray, .array(let values)):
             valid = values.count <= 64 && values.allSatisfy { if case .string(let text) = $0 { return !text.contains("\0") }; return false }
+        case (.commandArray, .array(let steps)):
+            valid = (1...BatchCommand.maximumSteps).contains(steps.count) && steps.allSatisfy { step in
+                guard case .array(let words) = step, !words.isEmpty, words.count <= 64 else { return false }
+                return words.allSatisfy { if case .string(let text) = $0 { return !text.contains("\0") }; return false }
+            }
         default: valid = false
         }
         guard valid else { throw MCPError.invalidParams("Invalid parameter type or value: \(name)") }
@@ -227,7 +238,12 @@ enum MCPTools {
         .init(name: "list_displays", description: "Simulator only: list a booted simulator's displays from its display information (dtdeviceinfod): screen ID, name, device name, type, pixel and point size, backlight state, active flag, current orientation, whether it is primary and whether it can be captured. An iPhone Duo lists two integrated displays (LCD, primary; LCD-1). interfaceDisplay is the one trees, waits, actions, touch and default captures follow: the primary display, or the one awake integrated display when that is another one (LCD-1 while the Duo is unfolded). Captures take display to choose another. On a foldable simulator, hinge gives one angle sample and a posture (closed, partially-open, flat) that manzanero derives from it. Read-only.", fields: [device], readOnly: true) {
             $0.command(["displays"], platform: "simulator")
         },
-        .init(name: "press_remote", description: "Apple TV: press one Siri Remote button in process. platform defaults to simulator (booted, by UUID; the simulator's dtuhidd); physical sends the same usages over CoreDevice to an Apple TV, after reading from its details that it is one. Any call to a sleeping physical Apple TV may switch it on, and its television with it. up/down/left/right move focus and select clicks the focused item (keyboard usages, which tvOS treats as the remote's arrows and click); menu goes back one level (consumer 0x46), home opens the Home Screen (consumer 0x40) and play-pause toggles playback (consumer 0xCD). Apple TV has no touch screen: tap and other touch tools are refused there. Another family is refused before any input. Dispatch does not verify the UI effect; inspect the tree or a screenshot.", fields: [device, .init(name: "platform", description: "simulator (default) or physical.", required: false, choices: ["physical", "simulator"]), .init(name: "button", choices: AppleTVRemote.names), .init(name: "hold_seconds", kind: .number, description: "Optional long press, 0.08...3 seconds, for home, menu or play-pause on an Apple TV simulator; 1.5 on home opens Control Centre. Refused on a physical device.", required: false)]) {
+        .init(name: "run_batch", description: "Run several commands for one device in one call, in the order given, instead of one tool call per step. steps is an array of commands; each command is an array of the words of one manzanero CLI command without its target, for example [[\"press\",\"--id\",\"login\"],[\"type\",\"hello\"],[\"wait\",\"--label\",\"Welcome\",\"--timeout\",\"5\"]]. At most 30 steps. Every step is checked before any runs, so a mistake in a later step sends nothing. Each step then runs exactly as it would alone, with the same guards, lease and quarantine; the batch stops at the first step that fails or exits non-zero (a wait that times out), and returns one result per step that ran, failedStep, and the steps not run. Earlier steps are not undone and nothing is repeated: inspect the device before continuing. handoff and another batch cannot be steps. The CLI words are those of `manzanero --help`, not MCP tool names.", fields: [platform, device, .init(name: "steps", kind: .commandArray, description: "The commands, each an array of CLI words without --device or --simulator.")], answerExitCodes: [0, 1]) { arguments in
+            let steps = (arguments["steps"]?.arrayValue ?? []).map { ($0.arrayValue ?? []).compactMap(\.stringValue) }
+            let json = (try? JSONSerialization.data(withJSONObject: steps)).map { String(decoding: $0, as: UTF8.self) } ?? "[]"
+            return arguments.command(["batch"], operands: [json])
+        },
+        .init(name: "press_remote",description: "Apple TV: press one Siri Remote button in process. platform defaults to simulator (booted, by UUID; the simulator's dtuhidd); physical sends the same usages over CoreDevice to an Apple TV, after reading from its details that it is one. Any call to a sleeping physical Apple TV may switch it on, and its television with it. up/down/left/right move focus and select clicks the focused item (keyboard usages, which tvOS treats as the remote's arrows and click); menu goes back one level (consumer 0x46), home opens the Home Screen (consumer 0x40) and play-pause toggles playback (consumer 0xCD). Apple TV has no touch screen: tap and other touch tools are refused there. Another family is refused before any input. Dispatch does not verify the UI effect; inspect the tree or a screenshot.", fields: [device, .init(name: "platform", description: "simulator (default) or physical.", required: false, choices: ["physical", "simulator"]), .init(name: "button", choices: AppleTVRemote.names), .init(name: "hold_seconds", kind: .number, description: "Optional long press, 0.08...3 seconds, for home, menu or play-pause on an Apple TV simulator; 1.5 on home opens Control Centre. Refused on a physical device.", required: false)]) {
             $0.command(["remote"], platform: $0.text("platform", default: "simulator"),
                        options: $0.options([("hold_seconds", "--hold")], numeric: true), operands: [$0.text("button")])
         },

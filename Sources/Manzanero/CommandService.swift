@@ -132,6 +132,33 @@ actor CommandService {
         case .doctor:
             guard !dryRun else { throw CommandFailure.usage(CLI.noPlanMessage) }
             return try Doctor.run { try runner.run($0) }
+        case .batch(let batch):
+            // Each step runs as it would alone: its own lease, pause check and
+            // quarantine. The batch stops at the first failure or non-zero
+            // exit code, and repeats nothing.
+            var results: [[String: Any]] = []
+            var failedStep: Int?
+            for (index, step) in batch.requests.enumerated() {
+                try Task.checkCancellation()
+                var result: [String: Any] = ["step": index + 1, "command": batch.steps[index]]
+                do {
+                    let output = try await execute(step, dryRun: dryRun)
+                    result["exitCode"] = Int(output.exitCode)
+                    result["output"] = BatchCommand.output(output.data)
+                    if output.exitCode != 0 { failedStep = index + 1 }
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw CancellationError() }
+                    let failure = CommandFailure.classify(error)
+                    result["exitCode"] = Int(CommandFailure.exitCode(for: error))
+                    result["error"] = failure.fields.compactMapValues { $0 }
+                    failedStep = index + 1
+                }
+                results.append(result)
+                if failedStep != nil { break }
+            }
+            let receipt = BatchCommand.receipt(batch, results: results, failedStep: failedStep, dryRun: dryRun)
+            return CommandOutput(data: try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys]),
+                                 exitCode: failedStep == nil ? 0 : 1)
         case .keyboardLayouts:
             guard !dryRun else { throw CommandFailure.usage(CLI.noPlanMessage) }
             return try json(KeyboardLayout.available().map {
