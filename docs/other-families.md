@@ -78,11 +78,32 @@ manzanero remote <select|menu|home|play-pause|up|down|left|right> --simulator <U
 | `home` | Consumer usage 0x40 (as `button home`) | Went to the Home Screen |
 | `play-pause` | Consumer usage 0xCD | SwiftUI's `onPlayPauseCommand` fired once per press |
 
-Buttons are held 80 ms, like the phone's. `remote` takes the simulator lease, sends no touch and is refused as `unsupported-operation` before any input on a simulator whose CoreSimulator product family is not Apple TV, and before any device contact with `--device`. The product family comes from the simulator's device type.
+Buttons are held 80 ms, like the phone's. `remote` takes the simulator lease, sends no touch and is refused as `unsupported-operation` before any input on a simulator whose CoreSimulator product family is not Apple TV. The product family comes from the simulator's device type. With `--device` it drives [a physical Apple TV](#a-physical-apple-tv).
 
 Apple TV has no touch screen: `tap`, `long-press`, `swipe`, `drag`, `pinch`, `multi-tap`, `multi-drag` and `gesture` on an Apple TV simulator are refused as `unsupported-operation` with a pointer to `remote`, before the display is read. Swipes on the remote's touch surface are [not implemented](#remote-touch-surface-not-built). `key`, `type`, `button home`, trees, waits and `press` work as on a phone.
 
-MCP: `press_remote`.
+MCP: `press_remote` (`platform`: `simulator`, the default, or `physical`).
+
+### A physical Apple TV
+
+Run on one Apple TV 4K (3rd generation, tvOS 27.2) on 2026-11-18 ([record](verification.md#first-look-at-a-physical-apple-tv)). Nothing here is known for another model or tvOS version.
+
+**Any command may switch it on.** A first pass of commands that only observe (`readiness`, `apps`, `media-status`, `screenshot`) switched a sleeping Apple TV on, and the television connected to it. Which command did it is not known. Tell whoever is in the room first.
+
+```sh
+manzanero remote <select|menu|home|up|down|left|right> --device <UDID>
+manzanero tree --device <UDID>
+manzanero wait --label Settings --until focused --device <UDID>
+manzanero press --label Settings --device <UDID>
+```
+
+- **The display is external.** An Apple TV reports one primary display of type `external` (`TVOut`, the television) with `backlightState: off` whether or not it is drawing. So `readiness` and the screenshot receipt say `displayPower: external`, with no advice to wake it and no "probably black" note, and `tree`, selector actions and waits accept that display. Whether the television itself is on cannot be read.
+- **The foreground application is the frontmost one.** The centre hit test a phone uses was refused there (error 8), so on an external display the tree asks for the frontmost application, as the simulator route does; the result says `selection: frontmost`. The tree marks the focused node, as on the simulator.
+- **Points.** The display information gives 3840 × 2160 pixels at point scale 1, while the tree's frames fill 1920 × 1080. An external display's bounds are therefore taken as 1920 points wide, and the result's `display` says so.
+- **`remote` routes.** The arrows and `select` are the keyboard usages the simulator command sends, and `home` is consumer usage 0x40. `menu` is the Escape key (usage 41): the device's button service closed the connection on the consumer usage 0x46 the simulator takes, and Escape went back one level. `play-pause` is refused as `unsupported-operation` before any contact, because the same service closed the connection on 0xCD and no other route is known. `remote` reads the device's details first and is refused on a device whose type is not `appleTV`.
+- **Touch is refused** with the pointer to `remote`, after the display read and before any input. `wake` presses nothing and answers `external-display` with exit 1: there is no side button. `remote home` left the screen saver.
+- **`key` and `button home`** work as on a phone. A `key right` sent over the screen saver changed nothing visible.
+- **Not shown:** `play-pause`, typing, `set-value`, `scroll`, recording and `frames` (both now accept an external display and have not run), a second Apple TV, and an app of the owner's own. The probe app has no tvOS target, so `select` and `menu` were checked with Settings and Music only.
 
 ### Focus in the tree and in waits
 

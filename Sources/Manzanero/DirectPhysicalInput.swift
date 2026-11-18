@@ -35,7 +35,7 @@ enum DirectPhysicalInput {
         return (uuid, version)
     }
 
-    private static func dispatch(_ button: Button) throws {
+    static func dispatch(_ button: Button) throws {
         var error = [CChar](repeating: 0, count: 1024)
         let status = ADCPressButton(button.uuid, button.version, button.usage, button.holdMicroseconds, { Task.isCancelled ? 1 : 0 }, &error, error.count)
         try Task.checkCancellation()

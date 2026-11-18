@@ -241,6 +241,7 @@ actor CommandService {
                                 "execution": "In-process Apple Indigo keyboard at current focus; no clipboard operation or helper executable."]) { _, new in new }
                     return try json(plan)
                 }
+                if native.operation == "remote" { return try json(AppleTVRemote.plan(native)) }
                 guard (["button", "key"] + DirectPhysicalTouch.operations).contains(native.operation) else {
                     throw CommandFailure.unsupported("Unsupported native physical operation: \(native.operation).")
                 }
@@ -310,6 +311,9 @@ actor CommandService {
             }
             if native.operation == "key" {
                 return sent(try DirectPhysicalKeyboard.execute(native, query: query))
+            }
+            if native.operation == "remote" {
+                return sent(try AppleTVRemote.execute(native, query: query))
             }
             if DirectPhysicalGesture.handles(native) {
                 return sent(try DirectPhysicalGesture.execute(native, query: query))

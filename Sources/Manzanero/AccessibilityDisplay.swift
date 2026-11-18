@@ -15,10 +15,18 @@ struct AccessibilityDisplay: Equatable, Encodable {
     let pointScale: Double
     /// Always "rot0" from Apple's display JSON; a simulator reports what it assumes.
     let orientation: String
+    /// An external primary display: an Apple TV's television. Not printed.
+    /// There the foreground application is asked for by the frontmost
+    /// request, because the centre hit test was refused (error 8) on an
+    /// Apple TV 4K.
+    let external: Bool
     var center: (x: Double, y: Double) { (bounds.x + bounds.width / 2, bounds.y + bounds.height / 2) }
+
+    private enum CodingKeys: String, CodingKey { case bounds, displayId, pointScale, orientation }
 
     /// A display described by another source, such as CoreSimulator's screen.
     init(bounds: Bounds, displayId: Int64, pointScale: Double, orientation: String) {
+        external = false
         self.bounds = bounds
         self.displayId = displayId
         self.pointScale = pointScale
@@ -42,7 +50,9 @@ struct AccessibilityDisplay: Equatable, Encodable {
             return value.boolValue
         }
         guard primary.count == 1 else { throw invalid() }
-        guard primary[0]["backlightState"] as? String == "activeOn" else {
+        // An external display (an Apple TV's television) has no backlight to read.
+        external = DeviceUIReadiness.isExternal(primary[0])
+        guard primary[0]["backlightState"] as? String == "activeOn" || external else {
             throw CommandFailure(.displayOff, "Primary display is off or its awake state is unknown. Wake/unlock the selected device before foreground AX inspection; no point query sent.", inputSent: .none)
         }
         guard primary.count == 1, let display = primary.first,
@@ -57,8 +67,12 @@ struct AccessibilityDisplay: Equatable, Encodable {
                   value.doubleValue.isFinite, abs(value.doubleValue) <= 10_000_000 else { throw invalid() }
             return value.doubleValue
         }
-        let scale = try number(display["pointScale"])
+        var scale = try number(display["pointScale"])
         guard scale > 0, scale <= 100 else { throw invalid() }
+        // tvOS lays its interface out 1920 points wide whatever the
+        // television's mode. An Apple TV 4K reported 3840 pixels at point
+        // scale 1 while its tree's frames filled 1920 × 1080.
+        if external, let pixels = try? number(rawBounds[1][0]), pixels >= 1920 { scale = pixels / 1920 }
         let x = try number(rawBounds[0][0]) / scale, y = try number(rawBounds[0][1]) / scale
         let width = try number(rawBounds[1][0]) / scale, height = try number(rawBounds[1][1]) / scale
         guard width > 0, height > 0, [x, y, width, height].allSatisfy({ $0.isFinite && abs($0) <= 10_000_000 }) else { throw invalid() }

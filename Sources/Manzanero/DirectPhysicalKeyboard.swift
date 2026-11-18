@@ -43,7 +43,7 @@ enum DirectPhysicalKeyboard {
             "device": input.device, "resolvedCoreDeviceUUID": identity.uuid], options: [.prettyPrinted, .sortedKeys])
     }
 
-    private static func dispatch(_ key: Key) throws {
+    static func dispatch(_ key: Key) throws {
         var error = [CChar](repeating: 0, count: 1024)
         let status = ADCPressKeyboardKey(key.uuid, key.version, key.usage, { Task.isCancelled ? 1 : 0 }, &error, error.count)
         try Task.checkCancellation()

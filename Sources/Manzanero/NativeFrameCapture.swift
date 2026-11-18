@@ -21,7 +21,7 @@ import Foundation
         defer { assertion.close() }
         let inventory = try runner.run(["devicectl", "list", "devices", "--timeout", "15", "--json-output", "-", "--quiet"])
         let endpoint = try NativeMediaEndpoint.resolve(details: details, inventory: inventory, requested: command.device)
-        let display = try DirectTouchDisplay(runner.run(AccessibilityDisplay.plan(device: identity.uuid).arguments, timeout: 15))
+        let display = try DirectTouchDisplay(runner.run(AccessibilityDisplay.plan(device: identity.uuid).arguments, timeout: 15), capture: true)
         try await NativeRecordingSessions.shared.begin(endpoint.uuid)
         var capture: NativeMediaFrames?
         var decoder: NativeHEVCDecoder?

@@ -84,7 +84,7 @@ struct ScreenCommand: Sendable, Equatable {
         guard let tree = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               tree["format"] as? String == "accessibility-tree", tree["parsedHierarchy"] as? Bool == true,
               tree["coordinateSpace"] as? String == "device-logical-points",
-              ["centre-hit-test", AccessibilityPlatform.simulator.selection].contains((tree["application"] as? [String: Any])?["selection"] as? String ?? ""),
+              ["centre-hit-test", "frontmost", AccessibilityPlatform.simulator.selection].contains((tree["application"] as? [String: Any])?["selection"] as? String ?? ""),
               let nodes = tree["nodes"] as? [[String: Any]], tree["nodeCount"] as? Int == nodes.count else { return false }
         return nodes.dropFirst().contains { node in
             node["visible"] as? Bool != false && ["label", "identifier", "value"].contains { !(node[$0] as? String ?? "").isEmpty }

@@ -90,7 +90,13 @@ final class AccessibilitySession {
     /// The process that owns the display centre. Asked as a container hit, so
     /// an app whose centre has no accessibility element (a canvas, a game, an
     /// empty area) is still selected instead of refused.
+    ///
+    /// On an external display (an Apple TV) the frontmost application is
+    /// asked for instead, as on a simulator: tvOS has no touch point to test.
     func foregroundProcess(_ display: AccessibilityDisplay) throws -> AccessibilityRequest.Token {
+        if display.external {
+            return try AccessibilityResponse.token(try exchange(AccessibilityRequest.frontmost(), expected: .frontmost))
+        }
         let result = try exchange(AccessibilityRequest.hit(x: display.center.x, y: display.center.y, container: true), expected: .hit)
         return try AccessibilityResponse.token(result)
     }

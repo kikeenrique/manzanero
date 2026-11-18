@@ -54,7 +54,8 @@ struct SimulatorRemoteTests {
             #expect(failure?.code == .unsupportedOperation && failure?.inputSent == CommandFailure.InputSent.none)
         }
         #expect(pressed.keys.isEmpty && pressed.remote.isEmpty)
-        let physical = try #require(throws: CommandFailure.self) { try request(["remote", "menu", "--device", "tv"]) }
+        // A physical Apple TV takes the remote, except play-pause (PhysicalAppleTVTests).
+        let physical = try #require(throws: CommandFailure.self) { try request(["remote", "play-pause", "--device", "tv"]) }
         #expect(physical.code == .unsupportedOperation)
         let unknown = try #require(throws: CommandFailure.self) { try request(["remote", "siri", "--simulator", Self.uuid]) }
         #expect(unknown.code == .usage && unknown.description == AppleTVRemote.usage)

@@ -8,7 +8,7 @@ struct CoreDeviceInput: Sendable, Equatable {
     let operands: [String]
 
     /// The operations that run in process on a physical device.
-    static let operations = ["button", "key", "type", "paste", "gesture", "multi-tap", "tree", DirectPhysicalWake.operation]
+    static let operations = ["button", "key", "remote", "type", "paste", "gesture", "multi-tap", "tree", DirectPhysicalWake.operation]
                              + DirectAccessibilityAction.operations + DirectAccessibilitySetValue.operations
                              + AccessibilityWait.operations + DirectPhysicalTouch.operations
 
@@ -30,6 +30,8 @@ struct CoreDeviceInput: Sendable, Equatable {
             _ = try AccessibilityWait(Self(device: device, operation: operation, operands: operands))
         } else if operation == DirectPhysicalWake.operation {
             try DirectPhysicalWake.validate(operands)
+        } else if operation == "remote" {
+            try AppleTVRemote.validatePhysical(operands)
         } else if operation == "tree" {
             if !operands.isEmpty {
                 guard operands.count == 1, let pid = Int32(operands[0]), pid > 0 else {

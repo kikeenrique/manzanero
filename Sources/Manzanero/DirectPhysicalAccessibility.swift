@@ -145,7 +145,8 @@ enum DirectPhysicalAccessibility {
             let root = try session.application(pid: selectedPID)
             let snapshot = try session.snapshot(root)
             var nodes = try AccessibilitySnapshot.normalize(snapshot, root: root)
-            if readFocus, let focused = try focusedElement(of: root, session: session),
+            // An Apple TV is driven by focus, so its tree marks the focused node.
+            if readFocus || selectedDisplay?.external == true, let focused = try focusedElement(of: root, session: session),
                let index = nodes.firstIndex(where: { $0.token.pid == focused.pid && $0.token.objectID == focused.objectID }) {
                 nodes[index].focused = true
             }
@@ -162,7 +163,7 @@ enum DirectPhysicalAccessibility {
             let cleanup = Cleanup(session.close())
             try Task.checkCancellation()
             return try JSONEncoder().encode(Observation(platform: platform, device: device, resolvedCoreDeviceUUID: resolved,
-                application: Application(pid: selectedPID, selection: pid == nil ? platform.selection : "explicit-pid"),
+                application: Application(pid: selectedPID, selection: pid != nil ? "explicit-pid" : selectedDisplay?.external == true ? "frontmost" : platform.selection),
                 display: selectedDisplay, nodes: nodes, cleanup: cleanup))
         } catch {
             let cleanup = Cleanup(session.close())

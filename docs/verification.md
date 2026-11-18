@@ -533,7 +533,27 @@ Later the same day, with the owner's word and the Apple TV still on, showing a s
 
 Keys and buttons are not gated on the display reading, so they were sent while `readiness` still said `displayPower: off`. The receipts say `verified: false`; the effects above are from the screenshots.
 
-Not shown: `select`, `menu` and `play-pause`, up and down, a tree, touch, recording, `frames`, which command wakes the device, and whether the television also switches off with it.
+Then the cause was read and changed: the Apple TV's one display is `type: external` (`TVOut`, 3840 × 2160, point scale 1) and reports `backlightState: off` while it draws. With the display check changed to accept an external display, and `remote` opened to a physical Apple TV ([guide](other-families.md#a-physical-apple-tv)), on the same device:
+
+| Command | Result |
+| --- | --- |
+| `readiness`, `screenshot` | `displayPower: external`, status `observed`, no note about a black image |
+| `tree` with the centre hit test | Refused by the device (error 8) |
+| `tree` asking for the frontmost application | The screen saver's process (`PineBoard`), then the Home Screen (`HeadBoard`, 233 nodes) with frames in 1920 × 1080 points and the focused app marked |
+| `screen` | Method `accessibility` |
+| `remote right`, `remote left`, each followed by `wait --until focused` | Focus on the next app and back; both waits met |
+| `press --label Settings` | Settings opened; its tree marked the focused row |
+| `remote menu` as consumer usage 0x46, and `remote play-pause` as 0xCD | The transport failed after the press was attempted, each time; the device was quarantined, inspected by tree, and cleared |
+| `key escape` | Settings went back to the Home Screen |
+| `remote menu` as Escape | In Music, opened the sidebar |
+| `remote down`, `remote select` | Opened Music's Sing page, the app under focus |
+| `remote home`, `remote up` twice | Home Screen, and focus back on the app it started on, read from the tree |
+| `tap` | Refused: no touch screen |
+| `wake` | `external-display`, nothing pressed, exit 1 |
+
+One of these was the operator's mistake, not the tool's: `remote select` was sent without a fresh read of the focus, which was on Sing and not on Settings as assumed, so an app the owner had not named was opened. It was left with `remote home`.
+
+Not shown: `play-pause` (refused before contact since), typing, `set-value`, `scroll`, recording, `frames`, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
 
 ## Direct physical input
 

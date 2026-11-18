@@ -104,7 +104,7 @@ The wait polls inside one AX session until a condition holds or the timeout expi
 | `gone` | No path matches, or every matching path is explicitly not visible. |
 | `enabled` / `disabled` | `visible`, plus the live enabled attribute (27) is true / false. |
 | `value` | `visible`, plus the snapshot value is exactly the `--value` string. `--value` alone implies `--until value`. |
-| `focused` | `visible`, plus the live focused attribute (28) is true. Accepted on every platform; checked only on an Apple TV simulator, where focus moves with `remote`. |
+| `focused` | `visible`, plus the live focused attribute (28) is true. Accepted on every platform; checked on an Apple TV simulator and on one physical Apple TV 4K, where focus moves with `remote`. |
 
 Visibility is the native snapshot attribute, not hittability or pixel evidence. A missing visibility or enabled attribute never satisfies a condition, including `gone`. Non-string values never match `--value`.
 

@@ -74,6 +74,9 @@ enum DirectPhysicalWake {
         let before = try observe()
         result["displayPowerBefore"] = before.displayPower
         if before.displayPower == "on" { return try finish("already-awake", before) }
+        if before.displayPower == DeviceUIReadiness.externalPower {
+            return try finish("external-display", before, action: "\(DeviceUIReadiness.externalNote) Such a device has no side button, so nothing was pressed; remote home leaves an Apple TV's screen saver.", exitCode: 1)
+        }
         guard before.displayPower == "off" else {
             return try finish("unknown-display-state", before, action: "Display power could not be read; no button pressed. Check the device and try again.", exitCode: 1)
         }

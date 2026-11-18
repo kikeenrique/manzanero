@@ -40,7 +40,7 @@ struct DeviceUIReadiness: Encodable, Sendable {
 
     static let displayOffNote = "The display was off when this was checked right after the capture, so the image is probably black. Wake the device (wake) and capture again."
 
-    /// Adds `displayPower` (on, off or unknown) to a physical screenshot's
+    /// Adds `displayPower` (on, off, external or unknown) to a physical screenshot's
     /// receipt, and a `displayNote` when it is off: a sleeping phone answers
     /// a screenshot with a black image and no error. One read-only display
     /// query after the capture; a failed read never fails the screenshot.
@@ -64,13 +64,27 @@ struct DeviceUIReadiness: Encodable, Sendable {
         return value.boolValue
     }
 
-    /// on, off or unknown, from a `devicectl device info displays` result:
-    /// the backlight of the one primary display.
+    /// The power value for a primary display that is external, such as the
+    /// television of an Apple TV.
+    static let externalPower = "external"
+    static let externalNote = "The primary display is external (an Apple TV's television). It has no backlight state to read, so whether it is switched on is not known; the device draws to it either way."
+
+    /// An external display has no backlight: an Apple TV 4K reported
+    /// `backlightState: off` for its television while it drew the Home Screen
+    /// (docs/verification.md, first look at a physical Apple TV).
+    static func isExternal(_ display: [String: Any]) -> Bool {
+        (display["type"] as? [String: Any])?["external"] is [String: Any]
+    }
+
+    /// on, off, external or unknown, from a `devicectl device info displays`
+    /// result: the backlight of the one primary display, or `external` when
+    /// that display has none.
     static func displayPower(_ output: [String: Any]) -> String {
         guard let displays = output["displays"] as? [[String: Any]], (1...16).contains(displays.count),
               displays.allSatisfy({ boolean($0["primary"]) != nil }) else { return "unknown" }
         let primary = displays.filter { boolean($0["primary"]) == true }
         guard primary.count == 1 else { return "unknown" }
+        if isExternal(primary[0]) { return externalPower }
         switch primary[0]["backlightState"] as? String {
         case "activeOn": return "on"
         case "off": return "off"
@@ -112,6 +126,7 @@ struct DeviceUIReadiness: Encodable, Sendable {
         }
         let power = try result("displays").map(displayPower) ?? "unknown"
         if power == "unknown" { diagnostics.append("displayPowerUnknown: no unique primary display with a recognized power state.") }
+        if power == externalPower { diagnostics.append("displayExternal: \(externalNote)") }
         let lock = try result("lockState")
         let passcode = boolean(lock?["passcodeRequired"]), sinceBoot = boolean(lock?["unlockedSinceBoot"])
         if passcode == nil || sinceBoot == nil { diagnostics.append("passcodeStateUnknown: required Boolean fields were not reported.") }

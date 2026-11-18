@@ -137,7 +137,7 @@ struct NativeRecordingReceipt: Sendable {
         let endpoint = try NativeMediaEndpoint.resolve(
             details: details, inventory: inventory, requested: command.device)
         let display = try DirectTouchDisplay(
-            runner.run(AccessibilityDisplay.plan(device: identity.uuid).arguments, timeout: 15))
+            runner.run(AccessibilityDisplay.plan(device: identity.uuid).arguments, timeout: 15), capture: true)
         let encoder = try NativeVideoEncoder(destination: staging, seconds: command.seconds, codec: command.codec)
         try await sessions.begin(endpoint.uuid)
         var capture: NativeMediaFrames?

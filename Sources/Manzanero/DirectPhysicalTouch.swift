@@ -19,7 +19,11 @@ struct DirectTouchDisplay: Equatable {
     /// The display marked primary, or with `displayId` the integrated display
     /// with that ID (a simulator whose interface is on another display, such
     /// as an unfolded iPhone Duo's LCD-1); the same checks apply to either.
-    init(_ data: Data, displayId requested: Int? = nil) throws {
+    ///
+    /// `capture` is for recording and `frames`: it also accepts an external
+    /// primary display (an Apple TV's television), which has no backlight
+    /// state. Touch never does, because such a device has no touch screen.
+    init(_ data: Data, displayId requested: Int? = nil, capture: Bool = false) throws {
         func invalid() -> CommandFailure {
             CommandFailure(.transportFailed, "Expected one integrated primary display with valid typed geometry/orientation; no touch or capture started.", inputSent: .none)
         }
@@ -35,9 +39,11 @@ struct DirectTouchDisplay: Equatable {
             return requested.map { (display["displayId"] as? NSNumber)?.intValue == $0 } ?? value.boolValue
         }
         let rotations = ["rot0": 0, "rot90": 90, "rot180": 180, "rot270": 270]
-        guard primary.count == 1, let display = primary.first,
-              (display["type"] as? [String: Any])?["integrated"] is [String: Any] else { throw invalid() }
-        guard display["backlightState"] as? String == "activeOn" else {
+        guard primary.count == 1, let display = primary.first else { throw invalid() }
+        let external = DeviceUIReadiness.isExternal(display)
+        if external, !capture { throw CommandFailure.unsupported(AppleTVRemote.touchRefusal) }
+        guard external || (display["type"] as? [String: Any])?["integrated"] is [String: Any] else { throw invalid() }
+        guard external || display["backlightState"] as? String == "activeOn" else {
             let subject = requested == nil ? "Primary display" : "Display"
             let state = display["backlightState"] as? String == "off" ? "\(subject) is off." : "\(subject) awake state is unknown or unsupported."
             throw CommandFailure(.displayOff, "\(state) Wake and unlock the selected device, then try again; no touch or capture started.", inputSent: .none)
