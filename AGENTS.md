@@ -94,5 +94,6 @@ One SwiftPM package, three targets: the `Manzanero` executable, the Objective-C 
 - Check installed tool help or authoritative sources before relying on Apple tool flags or private protocol details.
 - Record OS/tool versions and limitations for device integration checks. A successful build or dry run does not prove live-device functionality.
 - Look before you say what a device shows. Take a screenshot or a tree before telling the owner that something is on the screen, and again after an action; on 2026-11-17 a prompt was reported as "should now be on the phone" without a look, and the owner had to ask for the check.
+- Observing an Apple TV is not free of effect. On 2026-11-18 a pass of `readiness`, `apps`, `media-status`, `screenshot` and `screen ocr` on a sleeping Apple TV switched it on, and the television connected to it; which command did it is unknown. Tell the owner before the first command to an Apple TV, and say that the television may come on.
 - A device session covers the device and the apps the owner named. Ask before opening a third-party website, another of the owner's apps, or changing a setting; on 2026-11-17 a browser and two public sites were used without asking.
 - An MCP host keeps running the server binary it started. After a rebuild, have the owner reconnect the server before testing a change through the host.

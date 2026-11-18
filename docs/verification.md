@@ -503,6 +503,26 @@ Two earlier attempts in this run failed through the operator's own script, not t
 
 Not shown: Safari, an app's own `WKWebView`, a page with frames, and whether the first read after a load always selects the browser. One of the two presses reported its subscription stop unconfirmed (3 ms, one cleanup frame), the third such report of the day among about thirty selector commands; the others, including failures, were acknowledged.
 
+### First look at a physical Apple TV
+
+On 2026-11-18, one Apple TV 4K (3rd generation, `AppleTV14,1`), paired over the network and asleep at the start, with the build from `main`, macOS 27.2.1, Xcode 27.2 (27B52), `devicectl` 651.32. The tvOS version was not recorded. Only commands meant to observe were run; no input was sent. Evidence is under `tmp/appletv-4k3/`.
+
+**The session switched the Apple TV on, and the television connected to it.** The owner saw both come on. Which command did it is not known: `readiness`, `apps` and `media-status` ran first, then `screenshot`, which returned a black image, then a refused `tree`, then `screen ocr`, whose capture seconds later showed the Home Screen. So on an Apple TV these commands are not free of effect, and a television may follow the Apple TV over HDMI.
+
+| Command | Result |
+| --- | --- |
+| `readiness` | Paired, developer mode enabled, services available. `displayPower: off`, before the Home Screen was captured and again after it |
+| `apps`, `reports list`, `media-status` | Answered (`media-status`: not running, no session) |
+| `screenshot` | 3840 × 2160. The first image was black; the receipt's note that the display was off was right for it |
+| `screen ocr` | Captured the Home Screen and read the app names on it |
+| `tree` | Refused twice as display off, the second time with the Home Screen showing; no point query sent |
+| `remote`, `displays` | Refused before any contact: simulators only |
+| `wake`, `button home`, `key up`, `tap` with `--dry-run` | Each printed a plan for a physical device; none was sent |
+
+Found: the display state the tool reads says `off` on this Apple TV while it is drawing its Home Screen, so `tree` is refused, the screenshot note would be wrong for a second capture, and touch, which is gated on the same reading, is expected to be refused too. `wake`'s plan presses the side button, which an Apple TV does not have; it was not run.
+
+Not shown: any input, a tree, recording, `frames`, which command wakes the device, and whether the television also switches off with it.
+
 ## Direct physical input
 
 **2026-11-12 through 2026-11-14 — project-owned in-process Apple backends.**
