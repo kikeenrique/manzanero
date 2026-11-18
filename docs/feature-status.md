@@ -33,7 +33,7 @@ Unless a row says otherwise, physical evidence comes from one iPhone 13 mini (iO
 ## Unavailable or missing
 
 - Simulator `wake`: refused as not implemented (`unsupported-operation`). Simulator `paste` is refused because `simctl pbcopy` did not reach the pasteboard. `type` of text the named layout cannot produce is refused in favour of `set-value`, on both platforms.
-- Physical `logs`: refused as `unsupported-operation` until the native `os_trace_relay` route exists ([app logs](app-logs.md)). It is the only way to debug-level lines from a phone: `console` mirrors info and above. An opt-in experiment read such lines through the relay on the test phone on 2026-11-18; no command uses it.
+- Physical `logs`: refused as `unsupported-operation` until the native `os_trace_relay` route exists ([app logs](app-logs.md)). It is the only way to debug-level lines from a phone: `console` mirrors info and above. An opt-in experiment read such lines through the relay on the test phone on 2026-11-18; no command uses it yet, and building the command is a pending task in the [roadmap](roadmap.md#not-built).
 - `tree` and the selector commands on a phone in landscape: refused, "native AX centre selection requires portrait geometry".
 - `hid-info`, live raw `ax-snapshot`, independent Wi-Fi pairing (`pair wifi`) and `--pairing-file` are no longer commands. Pair through Xcode/CoreDevice; offline `decode-ax-archive` still works.
 - The Apple TV remote's touch surface ([blocked](other-families.md#remote-touch-surface-not-built)).

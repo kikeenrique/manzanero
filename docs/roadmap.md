@@ -66,13 +66,11 @@ On the phone:
 
 ## Pending
 
-The order below is a suggested order, not one the owner set. It follows the standing priorities of this page: dependable physical testing first, then coverage of more devices, then the gaps in other families, then delivery. The first group is not work but a choice that unblocks an item further down.
+The order below is a suggested order, not one the owner set. It follows the standing priorities of this page: dependable physical testing first, then coverage of more devices, then the gaps in other families, then delivery. The first group is for choices that unblock an item further down.
 
 ### Decisions waiting for the owner
 
-1. **Is debug-level log output from a phone wanted?** Physical `console --os-log` mirrors info and above only. Debug lines need physical `logs`, the native `os_trace_relay` route ([research](app-logs-research.md)), which is refused as `unsupported-operation` today. On 2026-11-18 two experiments showed the route works on the test phone: the service is a plain, unencrypted shim, and a bounded stream for one PID delivered an app's debug lines over the native tunnel ([record](verification.md#the-log-relay-on-the-phone)). What a command would still need: bounds on raw bytes, filtering by subsystem and level on the Mac, following a relaunch, and the generalised handshake check. The owner has not decided whether to build it.
-
-Decided on 2026-11-17 and listed with the [decisions](#owner-decisions-2026-11-17) below: `press` on an element partly off the display, a selector by value, a PID for the browser around a page, and one experiment with an offer that asks for RTCP feedback.
+None at the moment. Decided on 2026-11-17 and 2026-11-18 and listed with the [decisions](#owner-decisions-2026-11-17) below: `press` on an element partly off the display, a selector by value, a PID for the browser around a page, one experiment with an offer that asks for RTCP feedback, and physical `logs`, which is now a [pending task](#not-built).
 
 ### Dependable physical testing
 
@@ -104,6 +102,7 @@ Decided on 2026-11-17 and listed with the [decisions](#owner-decisions-2026-11-1
 
 ### Not built
 
+- **`logs` for physical devices.** Pending since the owner's word on 2026-11-18. It is refused as `unsupported-operation` today, and it is the only way to an app's debug-level lines on a phone, because `console --os-log` mirrors info and above. The route is the native `os_trace_relay` service ([research](app-logs-research.md), section P-B), and two experiments showed it works on the test phone: the service is a plain, unencrypted shim, and a bounded stream for one PID delivered the probe app's lines at every level over the native tunnel ([record](verification.md#the-log-relay-on-the-phone)). The opt-in task `test:os-trace-relay` and the bridge's shim-port function are the starting point. Still to build: the command with the options simulator `logs` has, a bound on raw bytes received as well as entries kept, filtering by subsystem, category and level on the Mac, bundle-to-PID resolution and what to do when a relaunch changes the PID, a dry-run plan, the MCP mapping, and the `doctor` and dependency notes. Still to learn on the device: long streams, a stream of every process, and records with unusual fields.
 25. **Simulator `wake` and `paste`.** Both are refused as `unsupported-operation`; `simctl pbcopy` did not reach the simulator's pasteboard, so `set-value` is the Unicode route there.
 26. **Agent features.** Durable sessions, reusable element handles, symbolication, `.xcappdata` export, build progress and a build deadline. Prompt detection exists only in the form a caller asks for: `handoff --until gone` on a prompt's button. Nothing notices a prompt by itself.
 
@@ -140,7 +139,7 @@ Decided on 2026-11-17 and listed with the [decisions](#owner-decisions-2026-11-1
 | A selector for elements with neither label nor identifier | Yes, by value | Built as `--with-value` (MCP `by: value`) for `press`, `scroll`, `set-value`, `wait` and `handoff --until`, and run on a simulator ([record](verification.md#selector-by-value-detect-layout-index-masked-read-back-and-the-display-note)). Open: the Settings search field on the phone |
 | One tree for a browser and its page | No graft; let `--pid` name the browser | Built: a selector action accepts the PID of the process hosting the display-centre one ([guide](direct-accessibility.md#web-content)). Unit-tested; open: a browser on the phone |
 | An offer that asks for RTCP feedback | One time-boxed experiment; drop keyframe requests if it stays `disabled` | Run: the phone still negotiated `disabled` and the recording was normal ([record](verification.md#an-offer-that-asks-for-rtcp-feedback)). Keyframe requests are dropped; recovery is to be a stream restart |
-| Debug-level logs from a phone (`os_trace_relay`) | Look before deciding: read what the service advertises, without connecting | Read on 2026-11-18: a plain shim, not RemoteXPC and not encrypted. A bounded stream then worked over the native tunnel, with the probe app's debug lines in it ([record](verification.md#the-log-relay-on-the-phone)). Whether to build physical `logs` on it is the owner's to decide |
+| Debug-level logs from a phone (`os_trace_relay`) | Look before deciding: read what the service advertises, without connecting | Read on 2026-11-18: a plain shim, not RemoteXPC and not encrypted. A bounded stream then worked over the native tunnel, with the probe app's debug lines in it ([record](verification.md#the-log-relay-on-the-phone)). On 2026-11-18 the owner marked physical `logs` as a [pending task](#not-built) |
 | Finishing handoff | "Now and for all" | Done that night on the phone and a simulator ([timeout and simulator](verification.md#handoff-watch-a-timeout-on-the-phone-and-runs-on-a-simulator), [with the owner](verification.md#the-last-handoff-runs-on-the-phone)). Open only: a second host and a real biometric prompt |
 
 ## Architecture constraints
