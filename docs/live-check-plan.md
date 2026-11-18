@@ -50,6 +50,7 @@ These need no hardware and no owner decision; they were left out of the simulato
 - On the Duo's inner display: the centre-hit fallback when no frontmost application is reported; only the `rot90` orientation was seen. Four- and five-path `multi-drag` are [recorded](verification.md#the-duos-inner-display).
 - Follow-up to a run already [recorded](verification.md#the-duos-inner-display): a portrait-only app is letterboxed on the Duo's inner display, where `press` fails at the hit test, the tree's frames are window-relative and touch coordinates are the display's. Find where the window's origin can be read before changing anything.
 - `fold` on the Duo with nothing else booted: one of five folds was not observed within its 10 s bound while three other simulators were running; five of five were with two others running.
+- Holding a Siri Remote button on an Apple TV simulator (`remote` has no hold option): on the device a held TV button is the usual way to Control Centre, and `button lock` did not open it on the simulator.
 - `--index` among real duplicates on a simulator: `detect-layout --index` and `handoff --until` with element conditions ran against the probe app ([record](verification.md#selector-by-value-detect-layout-index-masked-read-back-and-the-display-note)), but the probe has no two elements that share a label.
 
 ## Questions still open

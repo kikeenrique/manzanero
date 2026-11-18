@@ -31,10 +31,19 @@ struct SimulatorDisplayEntry: Sendable, Equatable {
     /// id, name and device name, as receipts name a display.
     var summary: [String: Any] { ["id": id, "name": name, "deviceName": deviceName] }
 
+    /// The scale the interface is laid out at. An Apple TV's display is
+    /// external and primary and reports scale 1 whatever its mode, while
+    /// tvOS lays out 1920 points wide: a 4K Apple TV simulator reported
+    /// 3840 pixels at scale 1 with a tree 1920 × 1080, as the device did.
+    var interfaceScale: Double {
+        primary && kind == "external" && widthPixels > 1920 ? widthPixels / 1920 : pointScale
+    }
+
     var json: [String: Any] {
-        ["id": id, "name": name, "deviceName": deviceName, "primary": primary, "type": kind,
-         "widthPixels": widthPixels, "heightPixels": heightPixels, "pointScale": pointScale,
-         "widthPoints": pointScale > 0 ? widthPixels / pointScale : 0, "heightPoints": pointScale > 0 ? heightPixels / pointScale : 0,
+        let scale = interfaceScale
+        return ["id": id, "name": name, "deviceName": deviceName, "primary": primary, "type": kind,
+         "widthPixels": widthPixels, "heightPixels": heightPixels, "pointScale": scale,
+         "widthPoints": scale > 0 ? widthPixels / scale : 0, "heightPoints": scale > 0 ? heightPixels / scale : 0,
          "backlightState": backlight, "active": active, "currentOrientation": orientation, "capturable": capturable]
     }
 }

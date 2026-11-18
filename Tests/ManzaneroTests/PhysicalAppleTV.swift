@@ -62,6 +62,22 @@ struct PhysicalAppleTVTests {
         #expect(failure?.code == .displayOff)
     }
 
+    /// A 4K Apple TV simulator reported what the device did: 3840 pixels at
+    /// scale 1, with an interface 1920 points wide.
+    @Test func aSimulatedTelevisionListsItsInterfaceAt1920Points() {
+        func entry(primary: Bool, kind: String, width: Double, height: Double) -> [String: Any] {
+            SimulatorDisplayEntry(id: 1, name: "TVOut", deviceName: "primary", primary: primary, kind: kind, widthPixels: width,
+                                  heightPixels: height, pointScale: 1, backlight: "off", active: true, orientation: "rot0").json
+        }
+        let fourK = entry(primary: true, kind: "external", width: 3840, height: 2160)
+        #expect(fourK["widthPoints"] as? Double == 1920 && fourK["heightPoints"] as? Double == 1080 && fourK["pointScale"] as? Double == 2)
+        let fullHD = entry(primary: true, kind: "external", width: 1920, height: 1080)
+        #expect(fullHD["widthPoints"] as? Double == 1920 && fullHD["pointScale"] as? Double == 1)
+        // A phone's television output is external but not primary: unchanged.
+        let phoneOutput = entry(primary: false, kind: "external", width: 3840, height: 2160)
+        #expect(phoneOutput["widthPoints"] as? Double == 3840 && phoneOutput["pointScale"] as? Double == 1)
+    }
+
     @Test func touchAndCaptureAreRefusedOnAnExternalDisplay() throws {
         let failure = #expect(throws: CommandFailure.self) { try DirectTouchDisplay(Self.displays()) }
         #expect(failure?.code == .unsupportedOperation && failure?.description == AppleTVRemote.touchRefusal)
