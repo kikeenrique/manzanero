@@ -12,6 +12,15 @@ Most live evidence comes from one iPhone 13 mini; Apple TV, Apple Watch, iPad an
 
 *Manzanero* is Spanish for an apple tree or a person who grows or gathers apples—a fitting name for a tool that tends to your Apple devices.
 
+## Install the beta
+
+```sh
+brew install kikeenrique/tap/manzanero
+manzanero doctor
+```
+
+The first beta, [v0.1.0-beta.1](https://github.com/kikeenrique/manzanero/releases/tag/v0.1.0-beta.1), was published on 2026-11-18. Install it through the tap: the archive is ad hoc signed and not notarized, which Homebrew runs at once and a hand-downloaded copy is expected not to. That first beta still ships a universal binary and says macOS 15; the requirements below are the real ones, and the next beta states them. See [beta installation](docs/beta-testing.md), [release preparation](docs/releasing.md) and the [public-readiness review](docs/public-readiness.md).
+
 ## Build and start
 
 You need an Apple silicon Mac with macOS 26.6 or later and Xcode 27 or later selected, plus [mise](https://mise.jdx.dev/) and xcsift to build. Every device operation goes through Xcode's tools and frameworks, and Xcode 27 has no Intel build, so there is no Intel version. The package declares Swift 6.2 language support, but its pinned dependency graph currently requires the Swift 6.4 toolchain that Xcode 27 ships. `manzanero doctor` checks the Xcode and macOS minimums.
@@ -27,8 +36,6 @@ mise run cli doctor
 `mise run cli` runs the built executable; it does not build it. In the guides below, substitute `mise run cli` for bare `manzanero` when working from this checkout, or run `.build/debug/manzanero` directly. A source build does not install a global command. `manzanero <command> --help` describes one command; `mise run completions` writes shell completion scripts under `tmp/completions`.
 
 Commands name the operation first and the target as an option: `--device <UDID>` for a physical device or `--simulator <UUID>` for a simulator. Set `MANZANERO_DEVICE` or `MANZANERO_SIMULATOR` to use one target for a whole session; an explicit option always wins. Replace angle-bracket placeholders with your values. For physical commands, choose the hardware UDID from the physical inventory, rather than a simulator UUID. Create output parent directories before capturing or copying files.
-
-There is no published beta release or Homebrew formula yet. See [beta installation](docs/beta-testing.md), [release preparation](docs/releasing.md) and the [public-readiness review](docs/public-readiness.md).
 
 ## Prepare a physical device
 
@@ -57,7 +64,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Pinch or coordinated contacts | [Multitouch](docs/multitouch.md), [timed sequences](docs/gesture-sequences.md) |
 | Text entry | [Typing in a named keyboard layout](docs/physical-typing.md) ([layout research](docs/keyboard-layouts.md), [finding the device's layout](docs/physical-typing.md#finding-the-layout-detect-layout)), [Unicode text by set-value](docs/simulator-input.md#unicode-text-set-value), [Unicode paste](docs/native-input.md#direct-unicode-paste) |
 | Screen, hierarchy, OCR | [Screen inspection](docs/screen-understanding.md), [accessibility](docs/direct-accessibility.md) |
-| Exact accessibility press or scroll, and choosing among elements that share a label (`--index`) | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
+| Exact accessibility press or scroll by identifier, label or current value (`--with-value`), and choosing among elements that share one (`--index`) | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
 | Reading and pressing a web page | [Web content](docs/direct-accessibility.md#web-content) |
 | Video, or many screenshots in a row | [Recording](docs/recording.md), [frames](docs/recording.md#frames-repeated-screenshots-from-one-stream) |
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
@@ -65,7 +72,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Input sent to a locked phone | [Lock state in receipts](docs/native-input.md#receipts-and-partial-effects) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
 | Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown | [Other simulator families](docs/other-families.md) |
-| Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical `logs` is not implemented) |
+| Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical `logs` is not implemented yet: the phone's log relay was read in an experiment and the command is a pending task) |
 | What a failure means and whether to retry | [Errors and exit codes](docs/errors.md) |
 | Input refused as `device-quarantined` | [Quarantine and `clear-quarantine`](docs/native-input.md#quarantine-after-an-uncertain-release) |
 
@@ -111,7 +118,7 @@ Host configuration formats vary. Set a suitable working directory: relative file
 ## Limits that matter
 
 - Native input and AX actions are experimental. Successful transport acknowledgements are not UI assertions.
-- Native video has scoped CLI/MCP verification, including one five-minute capture and one recording with AX inspection and Home control. With the macOS firewall on, the executable needs an allow rule or recordings get no video; `doctor` reports it ([recording](docs/recording.md#the-macos-firewall-can-drop-the-video)). Keyframe, crash and disconnect recovery are unfinished.
+- Native video has scoped CLI/MCP verification, including one five-minute capture and one recording with AX inspection and Home control. With the macOS firewall on, the executable needs an allow rule or recordings get no video; `doctor` reports it ([recording](docs/recording.md#the-macos-firewall-can-drop-the-video)). Recovery from loss, a crash or a disconnect is not built; it is to be a restart of the stream, because the test phone declines the RTCP feedback that keyframe requests would need.
 - SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Forced exits and failed transports do not have a release guarantee: after one during an input, further input to that device is refused until you have looked at it and run `clear-quarantine` ([quarantine](docs/native-input.md#quarantine-after-an-uncertain-release)). A second `manzanero` process is refused input to a device another one is controlling.
 - A web page is read and pressed as a tree of its own, apart from the browser around it, and has been checked in Chrome only ([web content](docs/direct-accessibility.md#web-content)).
 - Live screen mirroring, stable reusable element handles, broad Apple-family coverage and several simulator/diagnostic paths remain incomplete.

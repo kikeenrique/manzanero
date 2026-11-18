@@ -31,6 +31,10 @@ Validation for this pass checked 135 local links/anchors, 41 current command for
 
 After two days of features that each updated only their nearest docs, every page was checked against the built CLI's help, dry runs and the MCP tool list rather than against other pages. The roadmap was rewritten as achieved and pending work. Corrections included waits, the device lease, container files, physical Build & Run, physical `console`/`last-crash` and the probe app, all described as unverified on hardware although [verification](verification.md) records phone runs; simulator `screen` described as having no tree; physical `set-value` described as refused; and retired helper sources described as kept. All relative links resolved, every documented `manzanero` command line parsed with `--dry-run` or was checked against `--help`, and no device or simulator was contacted.
 
+## Consistency pass, 2026-11-18
+
+After the first beta, every page except the dated research files was read against a list of what the night of 2026-11-17 and the following day had changed: the Apple silicon, macOS 26.6 and Xcode 27 requirement, `doctor`'s requirement entry, selection by value, the off-edge press and the browser PID, the masked read-back, the screenshot display note, the second pass of error categories, handoff finished, the RTCP result, the log relay, the Duo runs, and the release. About sixty statements were corrected, among them a readme that still said no beta was published, a tester guide that described two archives, guides that named `--id` and `--label` only, and summary sentences in the verification record that later sections contradict, which got "Later:" notes rather than rewrites. The roadmap was rewritten again as achieved and pending work, renumbered. All 644 relative links and anchors resolved, the documented commands were compared with the CLI's command definitions, the MCP guide lists the 46 tools the server defines, and no device or simulator was contacted for the pass.
+
 ## Reviewing a future change
 
 Check these before describing a capability as available:

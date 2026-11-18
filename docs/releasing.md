@@ -65,18 +65,22 @@ First run the workflow manually to inspect its artifacts without publishing:
 gh workflow run release.yml --ref main
 ```
 
-After validation, update `Sources/Manzanero/Version.swift`, commit and push the version change, then run:
+After validation, repeat the identifier check and the secrets scan of the [public-readiness audit](public-readiness.md#audit-before-the-first-release-2026-11-18), update `Sources/Manzanero/Version.swift`, commit and push the version change, wait for CI on that commit, then run, with the new version:
 
 ```sh
-mise run release v0.1.0-beta.1
+mise run release v0.1.0-beta.2
 ```
+
+Run the pushes and this task from your own terminal. A shell inside an agent session has no access to the SSH key: on 2026-11-18 the task created the local tag there and then failed at the push; run again from a terminal, it reused the tag and published.
 
 Use the tag matching the committed version. The task rejects a dirty worktree or mismatched version, creates a missing tag, and reuses an existing tag only when it points at HEAD. It pushes that tag to `origin`; this triggers real prerelease publication. It never moves a tag or overwrites release assets. If a published release needs changes, choose a new version.
 
 ## Update the tap
 
-After publishing, copy the attached formula to `Formula/manzanero.rb` in [kikeenrique/homebrew-tap](https://github.com/kikeenrique/homebrew-tap). Check URLs/checksums, test actual Homebrew installation and `brew test`, then commit/push the tap change.
+After publishing, copy the attached formula to `Formula/manzanero.rb` in [kikeenrique/homebrew-tap](https://github.com/kikeenrique/homebrew-tap). Check URLs/checksums, run `brew style` on it there and `brew audit --strict --online kikeenrique/tap/manzanero` once Homebrew's clone of the tap has it (`brew audit` takes a name, not a path), test an actual `brew install` and `brew test`, then commit/push the tap change.
+
+For v0.1.0-beta.1 this was done on 2026-11-18 ([record](verification.md#homebrew-install-from-the-tap)). The formula attached to that release needed its blocks reordered to pass `brew style`, and it still names an Intel archive and macOS 15; the generator has since changed to one Apple silicon archive with `arch: :arm64`, `macos: :tahoe` and Xcode 27.0, a shape `brew style` has not seen yet. The tap's beta.1 formula is still to be corrected the same way.
 
 The release repository's default token is not assumed to write to the separate tap. Formula generation produces a reviewable artifact; cross-repository automation needs a separately configured narrow token or GitHub App. No token is stored here.
 
-Before first publication, complete the [public-readiness review](public-readiness.md). See [tester setup](beta-testing.md) for the intended installation experience.
+The [public-readiness review](public-readiness.md) was completed before the first publication. See [tester setup](beta-testing.md) for the installation experience.

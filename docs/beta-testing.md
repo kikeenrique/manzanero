@@ -2,11 +2,11 @@
 
 `manzanero` is a macOS CLI with optional MCP over stdio. The verified physical-control paths do not install an app, profile or helper on the phone.
 
-The beta package contains an Apple silicon (arm64) executable, any required Swift compatibility libraries under `lib/`, this guide and third-party notices. It does not contain Apple device frameworks, device helpers, signing credentials or device data.
+The beta package contains the executable, any required Swift compatibility libraries under `lib/`, this guide and third-party notices. It does not contain Apple device frameworks, device helpers, signing credentials or device data. From the beta after v0.1.0-beta.1 the executable is Apple silicon (arm64) only; v0.1.0-beta.1 itself was a universal binary, whose Intel half cannot work.
 
-## Installation status
+## Installation
 
-The initial GitHub release and tap formula are **not published yet**. For source builds, follow [README](../readme.md#build-and-start) and substitute `mise run cli` for the bare executable below. Once published, installation is intended to be:
+The first beta, [v0.1.0-beta.1](https://github.com/kikeenrique/manzanero/releases/tag/v0.1.0-beta.1), was published on 2026-11-18 and its formula is in the tap. The install, `brew test` and a first run passed on one Mac, the development one ([record](verification.md#homebrew-install-from-the-tap)). For source builds, follow the [readme](../readme.md#build-and-start) and substitute `mise run cli` for the bare executable below.
 
 ```sh
 brew install kikeenrique/tap/manzanero
@@ -16,14 +16,14 @@ manzanero doctor
 
 Updates use `brew update && brew upgrade manzanero`. The formula records the beta version explicitly so Homebrew can distinguish prereleases.
 
-For a manual release archive, download matching assets and `SHA256SUMS` from the same release. The full checksum file lists both archive names, so download both for `shasum -a 256 -c SHA256SUMS`. Extract one archive, keep `lib/` beside the executable and add that directory to PATH.
+For a manual release archive, download matching assets and `SHA256SUMS` from the same release. v0.1.0-beta.1's checksum file lists two archive names (the same file twice), so download both for `shasum -a 256 -c SHA256SUMS`; later betas have one archive, `manzanero-aarch64-apple-darwin.tar.gz`. Extract it, keep `lib/` beside the executable and add that directory to PATH.
 
-Archives are ad-hoc signed, without Developer ID notarization. They do not provide Apple-verified publisher identity. Installed with Homebrew, the tool ran at once on the one Mac tried, because Homebrew's download is not quarantined; an archive downloaded by hand in a browser is quarantined, and Gatekeeper is expected to refuse it, so install through the tap.
+Archives are ad-hoc signed, without Developer ID notarization. They do not provide Apple-verified publisher identity. Installed with Homebrew, the tool ran at once on the one Mac tried, because Homebrew's download is not quarantined; an archive downloaded by hand in a browser is quarantined, and Gatekeeper is expected to refuse it, which nobody has tried; install through the tap.
 
 ## Prepare the Mac and device
 
 - An Apple silicon Mac with macOS 26.6 or later. There is no Intel version: the tool works through Xcode 27, which does not run on Intel.
-- Xcode 27 or later, the full application, selected as the active developer directory, license accepted and developer components installed. `manzanero doctor` reports an older Xcode as an unmet requirement.
+- Xcode 27 or later, the full application, selected as the active developer directory, license accepted and developer components installed. From the beta after v0.1.0-beta.1, `manzanero doctor` reports an older Xcode as an unmet requirement; v0.1.0-beta.1 has no such check, and its formula still says macOS 15.
 - A paired, trusted device with Developer Mode enabled, or a booted simulator addressed by its UUID (`--simulator <UUID>`).
 - For the verified UI flows: awake/unlocked device and **Settings → Developer → Enable UI Automation** enabled.
 - For native recording with the macOS firewall on: a rule allowing incoming connections for the installed `manzanero` executable. The beta archive is ad-hoc signed, so it is not allowed automatically. `manzanero doctor` reports the state and the path; see [recording](recording.md#the-macos-firewall-can-drop-the-video).

@@ -321,7 +321,7 @@ The permission probe raises a genuine system prompt when asked, so that [handoff
 
 Activating it (`manzanero press --id probe.permission.request (--device <UDID> | --simulator <UUID>)`) calls `requestAuthorization(options: [.alert])`. Notification permission was chosen because it needs no usage string and no entitlement. The system shows its prompt only while the status is `notDetermined`; after a decision a request changes nothing, and getting the prompt again means uninstalling the app and installing it once more. The status is read again when the app becomes active, so a change made in Settings shows up.
 
-On the iPhone 13 mini on 2026-11-17 the press raised "Probe quiere enviarte notificaciones", which the tree read with both buttons, and after the owner's choice the value read `denied` ([verification](verification.md#handoff-with-an-app-permission-prompt)). Not run on a simulator.
+On the iPhone 13 mini on 2026-11-17 the press raised "Probe quiere enviarte notificaciones", which the tree read with both buttons, and after the owner's choice the value read `denied` ([verification](verification.md#handoff-with-an-app-permission-prompt)). On an iPhone 17e simulator the same press raised "“Probe” Would Like to Send You Notifications" a few seconds later, and `press --label Allow` from a second process answered it while a handoff watched ([verification](verification.md#handoff-watch-a-timeout-on-the-phone-and-runs-on-a-simulator)).
 
 ## Verification status
 

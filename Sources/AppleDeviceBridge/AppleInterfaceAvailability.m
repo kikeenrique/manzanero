@@ -179,7 +179,7 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCMultiContactInput, ADC_COUNT(ADCMultiContactInput) },
     { "tunnel-assertion", "Exact-UDID tunnel assertion through the public XPC pairing-daemon service; nothing is resolved dynamically", 0, 1,
       NULL, 0 },
-    { "rsd-accessibility", "Native physical accessibility (tree, press/scroll by id or label) through a Network RemoteXPC RSD directory", 0, 1,
+    { "rsd-accessibility", "Native physical accessibility (tree, press/scroll/set-value by exact selector, waits) through a Network RemoteXPC RSD directory", 0, 1,
       ADCRSDAccessibility, ADC_COUNT(ADCRSDAccessibility) },
     { "media-inspection", "Read-only native media support and status through a CoreDevice RemoteXPC media socket", 0, 1,
       ADCMediaInspectionRequirements, ADC_COUNT(ADCMediaInspectionRequirements) },
@@ -189,7 +189,7 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCSimulatorInput, ADC_COUNT(ADCSimulatorInput) },
     { "simulator-hinge", "iPhone Duo simulator fold, unfold and hinge through host XPC to dtuhidd's vendor-defined HID service, confirmed with display information from dtdeviceinfod; the hinge angle from its monitormotion stream", 0, 1,
       ADCSimulatorHinge, ADC_COUNT(ADCSimulatorHinge) },
-    { "simulator-accessibility", "Simulator accessibility (tree, press/scroll by id or label, waits) through CoreSimulator AXPTranslator requests", 0, 1,
+    { "simulator-accessibility", "Simulator accessibility (tree, press/scroll/set-value by exact selector, waits) through CoreSimulator AXPTranslator requests", 0, 1,
       ADCSimulatorAccessibility, ADC_COUNT(ADCSimulatorAccessibility) },
     { "keyed-archive-uid", "Reading keyed-archive UID values in AX archives and decode-ax-archive", 0, 1,
       ADCKeyedArchiveUID, ADC_COUNT(ADCKeyedArchiveUID) },};

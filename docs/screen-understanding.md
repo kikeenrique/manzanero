@@ -26,6 +26,8 @@ The screenshot precedes the hierarchy query. These are different observations of
 
 ## Output
 
+A physical `screenshot` receipt is `devicectl`'s JSON with two fields added: `displayPower` (`on`, `off` or `unknown`, read once right after the capture) and, when it is `off`, a `displayNote`. A sleeping phone answers a screenshot with a black image and no error, so check the field, or `wake` first.
+
 Images are saved under a new `tmp/screen-<UUID>/` directory. JSON includes image path, decoded pixel dimensions, capture time, selected method, coordinate space and diagnostics. Successful analysis reports `status: captured`; automatic image-only fallback reports `status: partial`. An empty OCR result has an explicit diagnostic.
 
 MCP `get_screen` accepts `platform`, `device` and optional `method` and `display`. JSON appears under `structuredContent.result`; the saved PNG stays full resolution, and a reduced copy (longest edge 1568 pixels by default) is included as image content, adjustable per call (see [inline image options](mcp.md#inline-image-options)).

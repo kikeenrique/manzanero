@@ -29,10 +29,10 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 | Tools | Current purpose |
 | --- | --- |
-| `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks plus host-only private-interface availability per capability ([doctor output](dependencies.md#reading-doctor-output)); apps and physical details/processes/media status. |
+| `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks, the host requirement (Xcode 27 or later, macOS 26.6 or later) and host-only private-interface availability per capability ([doctor output](dependencies.md#reading-doctor-output)); apps and physical details/processes/media status. |
 | `device_readiness` | CoreDevice prerequisites plus separate display/passcode observations; see [readiness](readiness.md). |
 | `get_ui_tree` | Native AX hierarchy with optional PID, physical or [simulator](simulator-input.md). |
-| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Auto mode prefers the tree on both platforms. Optional `display` chooses a simulator display ([iPhone Duo](other-families.md#displays-iphone-duo)). |
+| `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Auto mode prefers the tree on both platforms. Optional `display` chooses a simulator display ([iPhone Duo](other-families.md#displays-iphone-duo)). A physical `screenshot` result carries `displayPower` and, when the display is off, a `displayNote`: the image is then black. |
 | `list_displays` | A simulator's displays: screen ID, name, size, backlight, active and primary state, the display the interface is on, and on a foldable simulator the hinge angle with a derived posture ([other families](other-families.md#displays-iphone-duo)); read-only |
 | `press_element`, `scroll_to_element` | [Fresh exact AX selectors](direct-accessibility.md), guarded native press/scroll, physical or simulator. These two, `set_element_value` and `wait_for_element` take `by: identifier`, `label` or `value` (the element's exact current value, for one with neither) and an optional `index` to choose among several matches by position; `detect_keyboard_layout` takes `index` too |
 | `set_element_value` | [Unicode entry by AX set-value](simulator-input.md#unicode-text-set-value): replaces one settable element's whole value, with the press guards, on a physical device (the default) or a simulator |
@@ -54,13 +54,13 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `list_reports`, `download_report` | Saved physical report listing/download |
 | `capture_logs`, `capture_console`, `latest_crash` | [App output and crashes](app-logs.md): a bounded unified-log capture for one app (simulator only, read-only), launch with stdout/stderr tails (launches an app, so not read-only; the CLI form is verified on a simulator and the iPhone 13 mini, the MCP tools by unit tests only), and the newest crash report parsed (read-only) |
 | `build_run` | [Xcode build/install/launch](build-run.md). Optional physical-only booleans `allow_provisioning_updates` and `allow_device_registration` let Xcode change certificates, profiles and device registrations in the user's developer account; ask the user before setting them. |
-| `request_handoff` | [A step for a person](handoff.md): with `until`, watches the device and ends by itself; otherwise a form with the host's Accept and Decline |
+| `request_handoff` | [A step for a person](handoff.md): with `until`, watches the device and ends by itself (`by: identifier`, `label` or `value`, `text`, optional `index` and `value` for an element condition); otherwise a form with the host's Accept and Decline |
 
 Device operations use Apple executables or in-process Apple interfaces. AXe/idevice/ipb executables are blocked at runtime, and neither the catalogue nor the shared CLI command service has any route to them: simulator selector taps, live raw callback archives, finite OS traces, `hid-info`, `pairing_file` and the input `backend` choice are gone. Physical input and trees always use the in-process CoreDevice route; simulator input and trees use the in-process [CoreSimulator route](simulator-input.md) and need a booted simulator addressed by UUID. Simulator operations that are not implemented (paste, wake) are not reachable from the tools above, and the CLI refuses them as `unsupported-operation`.
 
 ## Choose platform and coordinates explicitly
 
-`get_ui_tree`, `type_text`, `press_element`, `scroll_to_element`, `wait_for_element`, `press_key`, `long_press`, `multi_tap`, `multi_drag`, `pinch` and `perform_gesture` default to `platform: "physical"`, so calls written before simulator support route as before. Other device tools require an explicit `platform` where they accept one.
+`get_ui_tree`, `type_text`, `press_element`, `scroll_to_element`, `wait_for_element`, `set_element_value`, `detect_keyboard_layout`, `press_key`, `long_press`, `multi_tap`, `multi_drag`, `pinch` and `perform_gesture` default to `platform: "physical"`, so calls written before simulator support route as before. Other device tools require an explicit `platform` where they accept one.
 
 Touch coordinates are normalized `0...1` in the current interface on both platforms; a simulator's orientation is read and mapped like a phone's. AX frames use logical points; screenshots use pixels. OCR text regions are not guaranteed tap targets.
 
@@ -95,7 +95,7 @@ Other downloads are not embedded, parsed or symbolicated automatically.
 - Unknown tools and invalid schema parameters produce JSON-RPC invalid-parameter errors.
 - Backend/domain failures produce `isError: true` and diagnostics as text, plus `structuredContent.error` with the failure's `code`, `message`, `inputSent`, `retry` and `action`, the same object the CLI prints with `--error-format json`. See [errors](errors.md) for the categories and what each asks of a caller.
 - A `wait_for_element` timeout is an answer: `status: timed-out` with the last observation and `isError: false` (the CLI exits 124). Session or transport failure sets `isError: true`.
-- Unsuccessful readiness/doctor results preserve structured data and set `isError: true`. For doctor that means an unavailable Xcode, CoreDevice or CoreSimulator tool; a missing private interface is reported in its capability entry without `isError`.
+- Unsuccessful readiness/doctor results preserve structured data and set `isError: true`. For doctor that means an unavailable Xcode, CoreDevice or CoreSimulator tool, or an unmet requirement (an Xcode older than 27, a macOS below 26.6); a requirement that could not be checked (`unknown`) and a missing private interface are reported in their own entries without `isError`.
 - Readiness's top-level status describes CoreDevice prerequisites; inspect `ui` separately.
 - Dispatch receipts retain unverified effect/release fields. Scroll callers must inspect `postconditionVerified`, even when the call exits successfully.
 

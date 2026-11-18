@@ -1,6 +1,6 @@
 # Human handoff
 
-Handoff asks a person to perform a step on the selected device. It does not detect prompts, perform the step or verify its effect.
+Handoff asks a person to perform a step on the selected device. It does not notice a prompt by itself and never performs the step. With `--until` it watches the device for a condition the caller names and verifies only that; without it, the person's answer is not verified at all.
 
 ```sh
 manzanero handoff 'Unlock the phone' --until unlocked --device <hardware-UDID>      # ends by itself

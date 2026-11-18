@@ -54,7 +54,7 @@ Give exactly one of `--id`, `--label` or `--with-value`. `--with-value` compares
 
 Before one native press, the operation requires:
 
-1. An awake portrait primary display and its centre-selected process.
+1. An awake portrait primary display and its centre-selected process or, with `--pid`, the process that hosts it.
 2. The same unique native target in two fresh snapshots.
 3. Matching live identifier/frame and known enabled/visible state.
 4. A positive-size frame whose centre is on the display and hits that exact target. The frame may reach past an edge.
@@ -62,7 +62,7 @@ Before one native press, the operation requires:
 
 Repeated paths for one identity are accepted only when the full native attributes agree. Different matching identities, foreign processes, hidden/disabled/ambiguous targets and mismatches are refused. When several distinct elements match and the visible-one rule does not settle it, the failure lists up to five of them with their identifier, visibility and frame (`… multiple distinct or inconsistent matches: 5 elements (identifier 'com.apple.settings.general', visible, frame 20,254 280x52; …). Select one by a unique identifier, or by its position in this list with --index`), so the call can be repeated with `--id` or `--index`. Nothing is chosen for the caller.
 
-**`--index <n>`** (MCP `index`) chooses among several matches when no identifier tells them apart, as on web pages, where a field shares its label with its HTML label. It takes the nth distinct matching element, counted from 1 in the tree's node order, which is the order the failure lists them and the order of `tree`'s node IDs. `press`, `scroll`, `set-value`, `wait` and `detect-layout` take it. With it the visible-one rule is not applied and a hidden element is not skipped: the position is taken as given. A position beyond the matches is refused with the list. Every guard after the choice still applies to the chosen element: the second snapshot must give the same identity at that position, and live state, frame and hit are checked as usual. The receipt's `selector` carries the `index`. A position is not an identity: content that gains or loses an earlier match moves it to another element, so read the tree or the failure's list first, and prefer `--id` when an identifier exists.
+**`--index <n>`** (MCP `index`) chooses among several matches when no identifier tells them apart, as on web pages, where a field shares its label with its HTML label. It takes the nth distinct matching element, counted from 1 in the tree's node order, which is the order the failure lists them and the order of `tree`'s node IDs. `press`, `scroll`, `set-value`, `wait`, `detect-layout` and `handoff --until` take it. With it the visible-one rule is not applied and a hidden element is not skipped: the position is taken as given. A position beyond the matches is refused with the list. Every guard after the choice still applies to the chosen element: the second snapshot must give the same identity at that position, and live state, frame and hit are checked as usual. The receipt's `selector` carries the `index`. A position is not an identity: content that gains or loses an earlier match moves it to another element, so read the tree or the failure's list first, and prefer `--id` when an identifier exists.
 
 Only then is one type-7/action-5 request submitted with a fresh token. No coordinate fallback, stale snapshot handle, automatic retry or replay is used. Sequential guards reduce stale targeting but do not make the action atomic or implement XCTest's full hittability calculation.
 
@@ -75,11 +75,11 @@ manzanero scroll --id com.example.row --device <UDID>
 manzanero scroll --label 'Exact row label' --device <UDID>
 ```
 
-Optional PID and selection rules match press. MCP `scroll_to_element` uses `device`, `by`, `text` and optional `pid`.
+Optional PID and selection rules match press, including `--with-value` and `--index`. MCP `scroll_to_element` uses `device`, `by: identifier|label|value`, `text` and optional `pid` and `index`.
 
 The target must already be materialized in the bounded snapshot and resolve to the same unique identity twice. Live state/frame/identifier and application/display guards precede one type-7/action-11 request. Offscreen geometry is allowed at this stage. The operation does not search an unmaterialized list, press the row or synthesize swipes.
 
-After native true or false, one read-only observation re-resolves the target and checks enabled/visible state, matching frame/identifier, full display containment, exact centre hit and application/display stability.
+After native true or false, one read-only observation re-resolves the target and checks enabled/visible state, matching frame/identifier, a centre that is on the display and hits the exact target (the frame may reach past an edge, as for press), and application/display stability.
 
 - Passing observation: `status: postcondition-verified`, `postconditionVerified: true`.
 - Completed native reply but failed observation: `status: postcondition-failed`, `postconditionVerified: false`, with `postconditionFailure`.
@@ -94,7 +94,7 @@ manzanero wait --label 'Loading' --until gone --timeout 20 --device <UDID>
 manzanero wait --id com.example.field --pid <pid> --until value --value 'Done' --interval 1 --device <UDID>
 ```
 
-MCP `wait_for_element` takes `device`, `by: identifier|label`, `text` and optional `pid`, `until`, `value`, `timeout_seconds` and `interval_seconds`. It is annotated read-only. On the iPhone 13 mini, `visible`, `gone`, `enabled`, `disabled` and `value` were each met in Settings, and timeouts exited 124 ([verification](verification.md#remaining-phone-checks-keys-files-waits-prompts-and-a-live-mcp-session)); `focused` has been checked on an Apple TV simulator only ([other families](other-families.md#focus-in-the-tree-and-in-waits)).
+MCP `wait_for_element` takes `device`, `by: identifier|label|value`, `text` and optional `pid`, `index`, `until`, `value`, `timeout_seconds` and `interval_seconds`. It is annotated read-only. On the iPhone 13 mini, `visible`, `gone`, `enabled`, `disabled` and `value` were each met in Settings, and timeouts exited 124 ([verification](verification.md#remaining-phone-checks-keys-files-waits-prompts-and-a-live-mcp-session)); `focused` has been checked on an Apple TV simulator only ([other families](other-families.md#focus-in-the-tree-and-in-waits)).
 
 The wait polls inside one AX session until a condition holds or the timeout expires. It sends no input, takes no per-device lease and is not paused by a pending handoff, the same as `tree`. Each poll is a fresh, non-atomic, bounded snapshot evaluated with the exact selector matcher that press and scroll use.
 
@@ -108,7 +108,7 @@ The wait polls inside one AX session until a condition holds or the timeout expi
 
 Visibility is the native snapshot attribute, not hittability or pixel evidence. A missing visibility or enabled attribute never satisfies a condition, including `gone`. Non-string values never match `--value`.
 
-Options may come in any order. `--id`, `--label` and `--value` take the next argument as their value even when it begins with `-`; attach a value that spells a global option with `=`, as for press. With `--pid`, the selector cannot be exactly `--until`, `--value`, `--timeout` or `--interval`: the wait reads its options after the selector by name.
+Options may come in any order. `--id`, `--label`, `--with-value` and `--value` take the next argument as their value even when it begins with `-`; attach a value that spells a global option with `=`, as for press. With `--pid`, the selector cannot be exactly `--until`, `--value`, `--timeout` or `--interval`: the wait reads its options after the selector by name.
 
 | Option | Range | Default |
 | --- | --- | --- |

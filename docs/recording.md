@@ -14,7 +14,7 @@ manzanero media-status --device <device>
 - Output codec: `h264` (default) or `hevc`.
 - Destination: new `.mp4`; its parent directory must already exist.
 - Simulator: explicit UUID.
-- Native physical route: macOS 26+, explicit hardware UDID, pairing/Developer Mode, and an awake display.
+- Native physical route: explicit hardware UDID, pairing/Developer Mode, and an awake display. (It used to be gated on macOS 26; the whole tool now requires macOS 26.6.)
 
 Existing destinations are refused, including a path created while capture runs. Display preflight distinguishes off, unknown power and invalid geometry. Wake/unlock guidance is not proof that the host can detect current UI unlock.
 
@@ -76,7 +76,7 @@ Keyframe requests over negotiated feedback are therefore not planned: that phone
 
 ## Frames: repeated screenshots from one stream
 
-`frames` opens the same owned native stream as `record --backend coredevice` and saves frames as JPEG files instead of a movie. The stream is negotiated once, so after the first frame each further one costs tens of milliseconds rather than a `devicectl` run. Physical devices only, macOS 26+; on a simulator it is refused as `unsupported-operation`, and `screenshot` is the tool there.
+`frames` opens the same owned native stream as `record --backend coredevice` and saves frames as JPEG files instead of a movie. The stream is negotiated once, so after the first frame each further one costs tens of milliseconds rather than a `devicectl` run. Physical devices only; on a simulator it is refused as `unsupported-operation`, and `screenshot` is the tool there.
 
 ```sh
 manzanero frames tmp/shots --count 10 --device <UDID>

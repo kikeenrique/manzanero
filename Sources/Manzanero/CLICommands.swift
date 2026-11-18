@@ -350,7 +350,7 @@ extension ManzaneroCLI {
 
     struct Record: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "record", abstract: "Record the screen to a new MP4 file.",
-            discussion: "The destination must not exist and its parent directory must. --backend coredevice records a physical device in process (macOS 26+).")
+            discussion: "The destination must not exist and its parent directory must. --backend coredevice records a physical device in process.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "New output path ending in .mp4.", completion: .file(extensions: ["mp4"])) var output: String
@@ -370,7 +370,7 @@ extension ManzaneroCLI {
     struct Frames: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "frames", abstract: "Save live screen frames as numbered JPEG files (physical devices).",
             discussion: """
-            Opens one in-process video stream (as record --backend coredevice does, macOS 26+) and saves frames as \
+            Opens one in-process video stream (as record --backend coredevice does) and saves frames as \
             frame-0001.jpg, frame-0002.jpg, … with an index, \(FramesCommand.indexName): file, time offset from the first \
             frame, pixel size and bytes of each. Repeated screenshots without a devicectl run per image. Stops at --count \
             frames (default \(FramesCommand.defaultCount); at most \(FramesCommand.maximumCount)), after --seconds from the \

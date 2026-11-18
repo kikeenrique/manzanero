@@ -4,7 +4,7 @@ An agent that sees a wrong screen needs to know why. Three commands read what th
 
 | Command | Simulator | Physical device |
 | --- | --- | --- |
-| `logs` | `simctl spawn <UUID> log stream\|show --style ndjson`. Verified on one simulator | Not implemented: refused as `unsupported-operation` |
+| `logs` | `simctl spawn <UUID> log stream\|show --style ndjson`. Verified on one simulator | Not implemented yet: refused as `unsupported-operation`. A pending task since 2026-11-18, after the phone's log relay was read in an experiment ([below](#not-implemented)) |
 | `console` | `simctl launch --stdout=<file> --stderr=<file>`. Verified on one simulator | `devicectl device process launch --console`. Checked on one iPhone 13 mini |
 | `last-crash` | Host `~/Library/Logs/DiagnosticReports`. Verified on one simulator | Existing `reports`/`report` route plus the same parser. Checked on one iPhone 13 mini |
 
@@ -108,7 +108,7 @@ Returns the newest crash report (bug type 309) for the app, or `{"found":false,â
 
 ## Not implemented
 
-- Physical `logs` (the native `os_trace_relay` route in the research, section P-B).
+- Physical `logs` (the native `os_trace_relay` route in the research, section P-B). On 2026-11-18 the opt-in task `mise run test:os-trace-relay <UDID> <pid>` read the probe app's log lines at every level, debug included, from the iPhone 13 mini through that relay ([record](verification.md#the-log-relay-on-the-phone)), and the owner made the command a pending task ([roadmap](roadmap.md#not-built)). Until it exists, `console --os-log` is the only route on a phone, and it stops at info.
 - Symbolication with a dSYM (`atos`).
 - Crash reports in `Retired/`, and hang or other non-crash report types.
 - Extensions: `--bundle` matching covers anything inside the `.app`, but no extension was tested.

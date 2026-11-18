@@ -20,7 +20,7 @@ mise tasks validate
 | --- | --- |
 | `build`, `test`, `cli`, `completions` | Main executable, local regression checks and shell completion scripts |
 | `package`, `test:package`, `release:formula` | [Beta packaging](releasing.md), archive smoke and tap formula generation |
-| `release <version>` | Check version/worktree/tag, then push the tag to publish a beta through CI |
+| `release <version>` | Check version/worktree/tag, then push the tag to publish a beta through CI. Run it from your own terminal: a shell inside an agent session has no access to the SSH key and fails at the push |
 | `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device. `test:mcp-live <UUID>` runs against a booted simulator |
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*` | Opt-in native transport/media diagnostics |
 | `test:os-trace-relay <UDID> <pid>` | Opt-in experiment: a bounded read of one process's log entries from a phone's `os_trace_relay`, then a reopen; read-only, result under `tmp/os-trace-relay/` ([research, Q6](app-logs-research.md#6-open-questions-and-settling-experiments)) |
