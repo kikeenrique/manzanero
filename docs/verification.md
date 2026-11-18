@@ -1077,7 +1077,19 @@ The current policy is project-owned Apple API/framework calls or Apple executabl
 | The owner ran `gh workflow run release.yml --ref main` (run 44206257584) | `package` succeeded in 7 min 37 s (two release builds, 702 tests, packaging) and uploaded `beta-dist`; `publish` was skipped, as a manual run should. The workflow's first pass: its one earlier run had failed |
 | The artifact, downloaded | `SHA256SUMS` and the formula agree, and the archive's own SHA-256 matches. Unpacked, the binary reports `manzanero 0.1.0-beta.1`, holds `x86_64` and `arm64`, is ad hoc signed, and has the commands of that commit |
 
-The checksums of the CI archives differ from the Mac's local ones, as expected of separate builds; a published release takes CI's. Not done: the tag and publication, the tap, and a real `brew install`, which is also the first test of how Gatekeeper treats the ad hoc signature on another Mac.
+The checksums of the CI archives differ from the Mac's local ones, as expected of separate builds; a published release takes CI's.
+
+### First beta published
+
+**2026-11-18, 00:49 UTC.** After the [audit and the small history rewrite](public-readiness.md#audit-before-the-first-release-2026-11-18), the owner force-pushed `main`, CI passed on it (702 tests), and the owner ran `mise run release v0.1.0-beta.1` from his own terminal. A first attempt from inside an agent session created the local tag and failed at the push, because that shell has no access to the SSH key; the repeat reused the tag.
+
+| Step | Observed |
+| --- | --- |
+| The tag's workflow run (44209986413) | `package` and `publish` both succeeded |
+| The release | `v0.1.0-beta.1`, a prerelease, not a draft, with four assets: the two archives (6,901,207 bytes each), `SHA256SUMS` and `manzanero.rb` |
+| The assets, downloaded | Both archives have the SHA-256 that `SHA256SUMS` and the formula give; unpacked, the binary reports `manzanero 0.1.0-beta.1` and holds `x86_64` and `arm64` |
+
+Not done here: the tap formula and a real `brew install`, which is also the first test of how Gatekeeper treats the ad hoc signature.
 
 The Manzanero rename passed all 314 local Swift tests with no build errors or warnings. Native multitouch and timed-gesture sender tests also passed without a device. All 48 mise tasks validated, and 41 documented command forms passed dry-run checks. The renamed stdio MCP server identified itself as `manzanero`, listed 33 tools and exited successfully on EOF without running device operations.
 
