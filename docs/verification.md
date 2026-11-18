@@ -1135,6 +1135,8 @@ Folding took longer here than the 11 reads recorded above, once longer than the 
 
 So four- and five-path `multi-drag` reach the inner display. New and open: for an app letterboxed on the inner display, selector actions fail at the hit test and normalized touch coordinates are the display's, not the app window's.
 
+**2026-11-18**, `manzanero-research-duo-fold` just booted, with one other simulator running on the Mac (an iPhone 18 Pro that is not this project's): five rounds of `fold` then `unfold`. The first `fold`, seconds after boot, was not observed (`displayObserved: false` after all 40 reads); the other four were, after 12 to 16 reads, and all five unfolds after 1 to 10 reads.
+
 ## Retired implementations
 
 These results are preserved as history, not current runtime availability:
