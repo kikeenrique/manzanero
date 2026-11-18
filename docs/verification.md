@@ -569,7 +569,9 @@ In the afternoon the owner ran the tvOS probe onto the device from Xcode. Six se
 | `set-value --id probe.tv.text.field 'héllo tv'` | `acknowledged`; the field and the app's bound text both read `héllo tv` |
 | `remote home` | The Home Screen |
 
-Not shown: `type`, `scroll`, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
+Later: `type ' abc'` with the probe's field focused and the keyboard closed made the app's text `héllo tv abc`. In Settings › Accessibility, opened by `press --label`, the tree held only the rows on screen (each as a visible cell plus inner texts marked not visible), so there was nothing off screen to scroll to; `scroll --label Motion` on a row already shown answered `postcondition-verified`, `nativeResult: false`, and the screenshot was unchanged. No setting was pressed.
+
+Not shown: a scroll that moves a list, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
 
 ## Direct physical input
 

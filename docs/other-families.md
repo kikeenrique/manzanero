@@ -106,7 +106,9 @@ manzanero press --label Settings --device <UDID>
 - **Recording and `frames` are refused.** With the external display let through once, `frames` saved three images and `record --backend coredevice` a 5-second movie, both 3168 × 1792 and both wrong: a black rectangle about three quarters of the width on a grey ground, while a screenshot at that moment showed the Home Screen. Why is not known (the stream's layout or its protection). Both now answer `unsupported-operation` before any stream starts; `screenshot` works.
 - **`set-value`** put `héllo tv` into the probe's SwiftUI text field, and the app's own bound text read the same. `select` on a focused text field opens tvOS's full-screen keyboard, where the arrows move among its keys and Menu closes it.
 - **The connection can go stale.** After a run from Xcode ended, every query to the Apple TV timed out for twenty minutes while the Mac still listed it as connected: `remotepairingd` logged `RSD Heartbeat … failed after 0ms` every 30 seconds, starting six seconds after it released the assertions of a peer that had disconnected. Restarting `remotepairingd` and `CoreDeviceService`, with the owner's word, brought it back at the first query.
-- **Not shown:** `type`, `scroll`, a second Apple TV, and an app of the owner's own.
+- **`type`** appended ` abc` to the probe's focused text field with tvOS's keyboard closed; the space was typed, not taken as play-pause.
+- **`scroll` reaches only what the tree holds.** In Settings › Accessibility the rows below the screen's edge are not in the tree at all, so no selector can name them; move focus down with `remote down` instead. `scroll --label Motion`, on a row already on screen, answered `postcondition-verified` with `nativeResult: false` and moved nothing. Each row there appears several times in the tree, once as a visible cell and again as inner texts marked `visible: false`, so read `visible` on the cell.
+- **Not shown:** a scroll that moves a list, a second Apple TV, and an app of the owner's own.
 
 ### Focus in the tree and in waits
 
