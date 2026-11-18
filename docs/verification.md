@@ -1066,6 +1066,19 @@ The current policy is project-owned Apple API/framework calls or Apple executabl
 
 ## Distribution and privacy checkpoints
 
+### Release rehearsal
+
+**2026-11-18**, version 0.1.0-beta.1 as in `Version.swift`. Nothing was published and no tag exists.
+
+| Step | Observed |
+| --- | --- |
+| On the Mac: `mise run package`, `mise run test:package`, `mise run release:formula kikeenrique/manzanero` | All passed: two byte-identical universal archives, ad hoc signed and not notarized; extraction, signatures, architectures, notices, symlink and CLI smoke; a formula with matching checksums, syntax OK; linkage to system libraries only |
+| The owner pushed `main`; the ordinary CI run | Passed: build and 702 tests |
+| The owner ran `gh workflow run release.yml --ref main` (run 44206257584) | `package` succeeded in 7 min 37 s (two release builds, 702 tests, packaging) and uploaded `beta-dist`; `publish` was skipped, as a manual run should. The workflow's first pass: its one earlier run had failed |
+| The artifact, downloaded | `SHA256SUMS` and the formula agree, and the archive's own SHA-256 matches. Unpacked, the binary reports `manzanero 0.1.0-beta.1`, holds `x86_64` and `arm64`, is ad hoc signed, and has the commands of that commit |
+
+The checksums of the CI archives differ from the Mac's local ones, as expected of separate builds; a published release takes CI's. Not done: the tag and publication, the tap, and a real `brew install`, which is also the first test of how Gatekeeper treats the ad hoc signature on another Mac.
+
 The Manzanero rename passed all 314 local Swift tests with no build errors or warnings. Native multitouch and timed-gesture sender tests also passed without a device. All 48 mise tasks validated, and 41 documented command forms passed dry-run checks. The renamed stdio MCP server identified itself as `manzanero`, listed 33 tools and exited successfully on EOF without running device operations.
 
 Both architecture builds and the universal `manzanero` beta archives passed packaging checks. Extraction into a Homebrew-style layout verified signatures, architectures, notices, symlink execution, version/help and a dry-run command. The `manzanero.rb` formula generated with valid Ruby syntax using a placeholder `example/manzanero` repository; that is a local generation check, not a real release URL or public Homebrew installation. Test environment variables now use the `MANZANERO_` prefix. No live-device verification was repeated for this rename.
