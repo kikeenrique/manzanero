@@ -555,7 +555,21 @@ One of these was the operator's mistake, not the tool's: `remote select` was sen
 
 Later, with the external display let through for capture once: `frames --count 3` saved three images (first frame after 6.4 s) and `record --backend coredevice` a 5-second H.264 movie, each 3168 × 1792 and each a black rectangle on grey, while `screen ocr` read the Home Screen. Both commands refuse an Apple TV since. The [tvOS probe](probe-app.md#tvos-probe) was written and run on a simulator the same day; it is not on the device.
 
-Not shown: `play-pause` (now sent as Space; not sent to this device), typing, `set-value`, `scroll`, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
+In the afternoon the owner ran the tvOS probe onto the device from Xcode. Six seconds after that run's connection was released (14:05:25), `remotepairingd`'s heartbeat to the Apple TV began to fail at once (`failed after 0ms`) and every query timed out, for twenty minutes, while the network tunnel still carried packets and the Mac listed the device as connected; evidence is under `tmp/device-services/`. With the owner's word both services were restarted and the first query answered. Then, against the probe:
+
+| Command | The probe's record afterwards |
+| --- | --- |
+| `remote play-pause` (Space) | `play-pause` |
+| `remote select` with focus on the text field | Nothing recorded: tvOS opened its keyboard, and the arrows and Menu that followed went to it |
+| `remote up` | `up`; focus on Button B |
+| `remote select` | `select:b` |
+| `remote left`, twice | `left` each time; focus on Button A |
+| `remote right` | `right`; focus on Button B |
+| `remote menu` (Escape) | `menu`, on the second try: the first call timed out before anything was sent |
+| `set-value --id probe.tv.text.field 'héllo tv'` | `acknowledged`; the field and the app's bound text both read `héllo tv` |
+| `remote home` | The Home Screen |
+
+Not shown: `type`, `scroll`, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
 
 ## Direct physical input
 

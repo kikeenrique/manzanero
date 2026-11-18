@@ -39,9 +39,8 @@ enum AppleTVRemote {
     /// A physical Apple TV's routes. Its button service closed the connection
     /// on the consumer usages for Menu (0x46) and Play/Pause (0xCD), so both
     /// go as the keys a keyboard uses for them on tvOS: Escape and Space.
-    /// Escape went back one level on an Apple TV 4K (3rd generation, tvOS
-    /// 27.2). Space was seen as play-pause in the tvOS probe on a simulator
-    /// only; it has not been sent to hardware (docs/other-families.md).
+    /// The tvOS probe recorded both, and the other buttons, on an Apple TV 4K
+    /// (3rd generation, tvOS 27.2) (docs/other-families.md).
     static let physicalRoutes: [String: Route] = routes.merging(["menu": .key(41), "play-pause": .key(44)]) { $1 }
 
     /// Operands for a physical device, checked before any contact.

@@ -348,7 +348,7 @@ manzanero launch com.lemambo.manzanero.probetv --simulator <UUID>
 
 `build-run` does not build for tvOS. A build for a physical Apple TV needs a tvOS development profile for the bundle identifier; without one already on the Mac, `xcodebuild` asks for `-allowProvisioningUpdates`, which acts on the Apple developer account and is the owner's decision.
 
-Checked on one tvOS 27.2 simulator on 2026-11-18: each of the seven `remote` buttons was recorded once, and the keys Space, Escape and Return were recorded as `play-pause`, `menu` and `select`. Not installed on a physical Apple TV.
+Checked on one tvOS 27.2 simulator on 2026-11-18: each of the seven `remote` buttons was recorded once, and the keys Space, Escape and Return were recorded as `play-pause`, `menu` and `select`. The same day the owner ran it from Xcode onto an Apple TV 4K (3rd generation, tvOS 27.2), where it recorded `play-pause`, `select:b`, `menu`, `up`, `left` twice and `right` as `remote` sent them, and its text field took `set-value` ([record](verification.md#first-look-at-a-physical-apple-tv)). The app starts with focus on the text field, so move up to the buttons before `select`.
 
 ## Verification status
 
