@@ -1091,7 +1091,7 @@ The checksums of the CI archives differ from the Mac's local ones, as expected o
 | The release | `v0.1.0-beta.1`, a prerelease, not a draft, with four assets: the two archives (6,901,207 bytes each), `SHA256SUMS` and `manzanero.rb` |
 | The assets, downloaded | Both archives have the SHA-256 that `SHA256SUMS` and the formula give; unpacked, the binary reports `manzanero 0.1.0-beta.1` and holds `x86_64` and `arm64` |
 
-The formula attached to this release fails `brew style` as shipped, with 5 `FormulaAudit/ComponentsOrder` offenses found when it was added to the tap: `url` and `sha256` inside a top-level `on_arm`/`on_intel`, and `depends_on` after them. The tap's copy wraps the two blocks in `on_macos` and puts `depends_on` first, with URLs and checksums unchanged. `release:formula` now generates that shape for later releases; `brew style` would not inspect the generated file outside a tap, so the new shape is checked only by `ruby -c` here and by the tap's own run on the same layout. The asset on the published release stays as it is, since releases are immutable.
+The formula attached to this release fails `brew style` as shipped, with 5 `FormulaAudit/ComponentsOrder` offenses found when it was added to the tap: `url` and `sha256` inside a top-level `on_arm`/`on_intel`, and `depends_on` after them. The tap's copy wraps the two blocks in `on_macos` and puts `depends_on` first, with URLs and checksums unchanged. `release:formula` now generates that shape for later releases; `brew style` would not inspect the generated file outside a tap, so the new shape is checked only by `ruby -c` here and by the tap's own run on the same layout. Later: the generator's shape changed again to Apple silicon only, and that one passed `brew style` in the tap ([record](#the-taps-formula-apple-silicon-only)). The asset on the published release stays as it is, since releases are immutable.
 
 ### Homebrew install from the tap
 
@@ -1117,7 +1117,24 @@ So a Homebrew install runs straight away, because Homebrew's download carries no
 | `doctor` gains a `Requirements` entry (Xcode 27, macOS 26.6, arm64) | `available` on this Mac; unit tests cover an older Xcode and macOS 26.5 (`unavailable`, exit 1) and an unreadable Xcode version (`unknown`) |
 | `mise run package`, `test:package`, `release:formula` | One archive, `manzanero-aarch64-apple-darwin.tar.gz`; the executable is `arm64` only with `minos 26.6`; `SHA256SUMS` lists that one file; the formula has a single `url`, `depends_on arch: :arm64`, `macos: :tahoe` and `xcode: ["27.0", :run]`, `ruby -c` OK |
 
-Not run: the hosted workflow with these changes (its runner is macOS 27.0.1 with Xcode 27.2, above the floor), and `brew style` on the new formula shape.
+Not run: the hosted workflow with these changes (its runner is macOS 27.0.1 with Xcode 27.2, above the floor). `brew style` on the new formula shape ran later that day, below.
+
+### The tap's formula, Apple silicon only
+
+**2026-11-18**, on the development Mac (Apple silicon, macOS 27.2.1, Xcode 27.2), reported by the session working in the tap repository; the owner pushed the tap and ran the reinstall.
+
+The tap's formula for v0.1.0-beta.1 was replaced with the shape the generator now emits, pointing at the archive already published: one `url` and `sha256`, `depends_on arch: :arm64`, `depends_on macos: :tahoe`, `depends_on xcode: ["27.0", :run]`, and the caveat naming Xcode 27 and macOS 26.6.
+
+| Step | Observed |
+| --- | --- |
+| `brew style` | "1 file inspected, no offenses detected". The explicit `version` beside the `url` is not flagged |
+| `brew audit --strict --online kikeenrique/tap/manzanero` | No findings |
+| `brew reinstall kikeenrique/tap/manzanero` | Used the new formula (the install receipt names the new tap commit, and the installed copy of the formula has the new caveat). `brew upgrade` did nothing, the version being the same |
+| `brew info` | "Required: arm64 architecture, macOS >= 26, Xcode >= 27.0", all three accepted on this Mac |
+| `brew test`, `manzanero --version` | Passed; `manzanero 0.1.0-beta.1` |
+| Quarantine | Still none on the binary |
+
+So the generated formula can go into the tap unchanged. What the formula cannot say is 26.6: Homebrew compares macOS by major version, and the published beta.1 binary, built before the change, neither refuses to load on 26.0 to 26.5 nor has the `doctor` requirement. Not tried: Homebrew refusing the install on an Intel Mac, on macOS 15 or with an older Xcode.
 
 ### Earlier checkpoints
 
