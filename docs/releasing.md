@@ -17,12 +17,12 @@ mise run release:formula <github-owner/repository>
 
 Output is under ignored `tmp/dist/<version>/`:
 
-- two byte-identical universal macOS archives under architecture-specific names;
+- one Apple silicon archive, `manzanero-aarch64-apple-darwin.tar.gz` (v0.1.0-beta.1 shipped a universal binary under two names; an Intel slice cannot work, because Xcode 27 does not run on Intel);
 - `SHA256SUMS`;
 - a dynamic-linkage report;
 - generated `manzanero.rb`.
 
-The package task builds each architecture, combines with lipo, removes machine-specific runtime paths, signs ad hoc and smoke-tests native version/help. The archive test checks extraction, signatures, architectures, notices and CLI execution through a Homebrew-style symlink.
+The package task builds for arm64, removes machine-specific runtime paths, signs ad hoc and smoke-tests native version/help. The archive test checks extraction, the signature, that the executable is arm64 with a macOS 26.6 deployment target, notices and CLI execution through a Homebrew-style symlink. The formula declares `arch: :arm64`, `macos: :tahoe` and Xcode 27.0 at run time; Homebrew names macOS by major version only, so the 26.6 line is held by the executable's deployment target and by `manzanero doctor`.
 
 Swift 6.4+ is needed by the resolved graph. Apple’s `swift-stdlib-tool` bundles compatibility libraries when needed; the verified optimized beta needed none. Homebrew preserves payload layout in libexec and symlinks the executable into bin.
 

@@ -63,7 +63,6 @@ struct RecordingCommand: Sendable, Equatable {
         do {
             var nativeReceipt: NativeRecordingReceipt?
             if native {
-                guard #available(macOS 26.0, *) else { throw CommandFailure(.hostRequirement, "Native recording requires macOS 26 or later.", inputSent: .none) }
                 nativeReceipt = try await NativeRecording.execute(self, staging: staging, runner: runner)
             } else if physical {
                 let plan = try command(staging: staging)

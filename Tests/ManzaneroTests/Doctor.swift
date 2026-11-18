@@ -220,6 +220,37 @@ struct DoctorTests {
             }
         }
         let entries = try Self.entries(try Doctor.report(tools: Self.tools, host: .current(xcodeOutput: nil), capabilities: capabilities))
-        #expect(entries.count == 3 + 1 + capabilities.count)
+        // Three tools, the host, its requirements, then the capabilities.
+        #expect(entries.count == 3 + 2 + capabilities.count)
+        // Without Xcode's output the Xcode minimum is not checked, and says so.
+        #expect(entries["Requirements"]?["status"] as? String == "unknown")
+    }
+
+    /// The tool needs Xcode 27 or later, which runs on Apple silicon with
+    /// macOS 26.6 or later; an older one is an unavailable requirement.
+    @Test func requirementsNameTheXcodeAndMacOSMinimums() throws {
+        func requirements(_ host: DoctorHost) throws -> (entry: [String: Any], exitCode: Int32) {
+            let output = try Doctor.report(tools: Self.tools, host: host, capabilities: [])
+            return (try #require(try Self.entries(output)["Requirements"]), output.exitCode)
+        }
+        let met = try requirements(Self.host())
+        #expect(met.entry["status"] as? String == "available" && met.exitCode == 0 && met.entry["detail"] == nil)
+        #expect(met.entry["minimumXcode"] as? String == "27" && met.entry["minimumMacOS"] as? String == "26.6")
+        #expect(met.entry["architecture"] as? String == "arm64" && met.entry["kind"] as? String == "requirement")
+        var oldXcode = Self.host()
+        oldXcode.xcodeVersion = "26.4"
+        let xcode = try requirements(oldXcode)
+        #expect(xcode.entry["status"] as? String == "unavailable" && xcode.exitCode == 1)
+        #expect((xcode.entry["detail"] as? String)?.contains("Xcode 27 or later is required; the selected Xcode is 26.4") == true)
+        // macOS 26.5 is below the floor, 26.6 and 27.0 are not.
+        for (major, minor, expected) in [(26, 5, "unavailable"), (26, 6, "available"), (27, 0, "available"), (15, 7, "unavailable")] {
+            var host = Self.host()
+            host.macOS = OperatingSystemVersion(majorVersion: major, minorVersion: minor, patchVersion: 0)
+            #expect(try requirements(host).entry["status"] as? String == expected, "macOS \(major).\(minor)")
+        }
+        var unread = Self.host()
+        unread.xcodeVersion = nil
+        let unknown = try requirements(unread)
+        #expect(unknown.entry["status"] as? String == "unknown" && unknown.exitCode == 0)
     }
 }

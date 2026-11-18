@@ -125,8 +125,8 @@ struct DoctorHost: Sendable {
 
 /// `doctor`: Apple tool checks, host facts and private-interface availability.
 /// Output stays a JSON array; the three tool entries keep their original keys.
-/// Exit code is 1 only when an entry has status "unavailable", which only tool
-/// entries use. Private capabilities report available/degraded/missing/
+/// Exit code is 1 only when an entry has status "unavailable", which the tool
+/// entries and the `Requirements` entry (Xcode 27, macOS 26.6) use. Private capabilities report available/degraded/missing/
 /// unsupported-host and never change the exit code.
 enum Doctor {
     struct ToolCheck: Sendable {
@@ -157,6 +157,42 @@ enum Doctor {
         return try report(tools: checks, host: .current(xcodeOutput: xcodeOutput), capabilities: capabilities(), firewall: firewall())
     }
 
+    /// Every device operation uses Xcode's tools and frameworks, and the
+    /// interfaces this tool calls are those of Xcode 27. Xcode 27 runs on
+    /// Apple silicon with macOS 26.6 or later, which is also this
+    /// executable's deployment target, so the macOS line can only fail for a
+    /// build made with another target.
+    static let minimumXcodeMajor = 27
+    static let minimumMacOS = OperatingSystemVersion(majorVersion: 26, minorVersion: 6, patchVersion: 0)
+
+    /// The `Requirements` entry: `available` when the selected Xcode and the
+    /// host's macOS meet the minimums, `unavailable` (exit 1) when one is
+    /// known to be older, `unknown` when the Xcode version could not be read.
+    static func requirementsEntry(_ host: DoctorHost) -> [String: Any] {
+        var entry: [String: Any] = ["name": "Requirements", "kind": "requirement",
+            "minimumXcode": "\(minimumXcodeMajor)", "minimumMacOS": "\(minimumMacOS.majorVersion).\(minimumMacOS.minorVersion)",
+            "architecture": "arm64"]
+        var unmet: [String] = []
+        let macOS = host.macOS
+        if (macOS.majorVersion, macOS.minorVersion) < (minimumMacOS.majorVersion, minimumMacOS.minorVersion) {
+            unmet.append("macOS \(minimumMacOS.majorVersion).\(minimumMacOS.minorVersion) or later is required; this host runs \(host.macOSVersionString).")
+        }
+        let xcodeMajor = host.xcodeVersion.flatMap { $0.split(separator: ".").first }.flatMap { Int($0) }
+        if let xcodeMajor, xcodeMajor < minimumXcodeMajor {
+            unmet.append("Xcode \(minimumXcodeMajor) or later is required; the selected Xcode is \(host.xcodeVersion ?? "?"). Select a newer one with xcode-select or DEVELOPER_DIR.")
+        }
+        if !unmet.isEmpty {
+            entry["status"] = "unavailable"
+            entry["detail"] = unmet.joined(separator: " ")
+        } else if xcodeMajor == nil {
+            entry["status"] = "unknown"
+            entry["detail"] = "The selected Xcode's version could not be read, so the Xcode \(minimumXcodeMajor) minimum was not checked."
+        } else {
+            entry["status"] = "available"
+        }
+        return entry
+    }
+
     static func report(tools: [ToolCheck], host: DoctorHost, capabilities: [PrivateCapability],
                        firewall: HostFirewall? = nil) throws -> CommandOutput {
         var entries: [[String: Any]] = tools.map { tool in
@@ -170,6 +206,7 @@ enum Doctor {
             if let value { hostEntry[key] = value }
         }
         entries.append(hostEntry)
+        entries.append(requirementsEntry(host))
         // A firewall finding never changes the exit code: it affects native
         // recording only, and fixing it is an administrator's decision.
         if let firewall { entries.append(firewall.doctorEntry) }

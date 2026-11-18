@@ -79,7 +79,6 @@ final class NativeHEVCDecoder {
         }
     }
 
-    @available(macOS 26.0, *)
     func decodePixels(_ unit: MediaHEVCAccessUnit, emit: Bool) throws -> CVReadOnlyPixelBuffer? {
         let context = context
         return try decodeOutput(unit) { image in

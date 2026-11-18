@@ -19,7 +19,7 @@ Both process runners refuse non-Apple device-control executables, including AXe,
 
 ## Build requirements
 
-The executable targets macOS 15+. Native video needs macOS 26+. Swift language mode is 6 with strict concurrency; the manifest's tools floor is 6.2, while the resolved `swift-collections` dependency requires Swift 6.4+ to build the current graph.
+The executable targets macOS 26.6 and Apple silicon, and needs Xcode 27 or later selected: every device operation uses Xcode's tools (`devicectl`, `simctl`, `xcodebuild`) or the private frameworks that come with it, Xcode 27 has no Intel build, and it runs on macOS 26.6 or later. Before 2026-11-18 the manifest said macOS 15 and the release carried an x86_64 slice that could never have worked. `doctor`'s `Requirements` entry reports an older Xcode or macOS as `unavailable`. Swift language mode is 6 with strict concurrency; the manifest's tools floor is 6.2, while the resolved `swift-collections` dependency requires Swift 6.4+ to build the current graph.
 
 Use a full Xcode installation selected as the active developer directory. Command Line Tools alone do not supply the physical-device services. Development tasks use mise and xcsift:
 

@@ -2,7 +2,7 @@
 
 `manzanero` is a macOS CLI with optional MCP over stdio. The verified physical-control paths do not install an app, profile or helper on the phone.
 
-The beta package contains a universal arm64/x86_64 executable, any required Swift compatibility libraries under `lib/`, this guide and third-party notices. It does not contain Apple device frameworks, device helpers, signing credentials or device data.
+The beta package contains an Apple silicon (arm64) executable, any required Swift compatibility libraries under `lib/`, this guide and third-party notices. It does not contain Apple device frameworks, device helpers, signing credentials or device data.
 
 ## Installation status
 
@@ -22,8 +22,8 @@ Archives are ad-hoc signed, without Developer ID notarization. They do not provi
 
 ## Prepare the Mac and device
 
-- macOS 15+ for the executable; macOS 26+ for native video.
-- Full Xcode selected as the active developer directory, license accepted and developer components installed.
+- An Apple silicon Mac with macOS 26.6 or later. There is no Intel version: the tool works through Xcode 27, which does not run on Intel.
+- Xcode 27 or later, the full application, selected as the active developer directory, license accepted and developer components installed. `manzanero doctor` reports an older Xcode as an unmet requirement.
 - A paired, trusted device with Developer Mode enabled, or a booted simulator addressed by its UUID (`--simulator <UUID>`).
 - For the verified UI flows: awake/unlocked device and **Settings → Developer → Enable UI Automation** enabled.
 - For native recording with the macOS firewall on: a rule allowing incoming connections for the installed `manzanero` executable. The beta archive is ad-hoc signed, so it is not allowed automatically. `manzanero doctor` reports the state and the path; see [recording](recording.md#the-macos-firewall-can-drop-the-video).
@@ -38,7 +38,7 @@ manzanero button home --device <hardware-UDID>
 
 Ensure the output parent directory exists. Readiness reports CoreDevice prerequisites and separate display/passcode observations; it does not verify UI Automation or prove current UI unlock.
 
-The live evidence is mostly iPhone 13 mini on iOS 27.2.1, with macOS 27.2.1/Xcode 27.2. Building Intel output or accepting another device ID does not verify that hardware.
+The live evidence is mostly iPhone 13 mini on iOS 27.2.1, with macOS 27.2.1/Xcode 27.2. Accepting another device ID does not verify that hardware.
 
 ## Testing safely and usefully
 

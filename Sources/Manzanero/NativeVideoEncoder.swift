@@ -3,7 +3,6 @@ import CoreImage
 import CoreVideo
 import Foundation
 
-@available(macOS 26.0, *)
 actor NativeVideoEncoder {
     private let destination: URL
     private let codec: String
@@ -121,7 +120,6 @@ struct NativeRecordingReceipt: Sendable {
     let negotiatedFeedback: String
 }
 
-@available(macOS 26.0, *)
 @MainActor enum NativeRecording {
     private static var sessions: NativeRecordingSessions { .shared }
 

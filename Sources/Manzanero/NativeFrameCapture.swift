@@ -8,7 +8,6 @@ import Foundation
 /// access check admits only the process names in AVConference's
 /// AVCStreamOutputAccess.plist, and manzanero is not one of them. The bridge
 /// mode built on it was removed (docs/recording.md).
-@available(macOS 26.0, *)
 @MainActor enum NativeFrameCapture {
     /// JPEG quality of saved frames.
     static let quality = 0.85

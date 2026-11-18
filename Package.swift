@@ -3,7 +3,9 @@ import PackageDescription
 
 let package = Package(
     name: "Manzanero",
-    platforms: [.macOS(.v15)],
+    // Every device operation goes through Xcode 27 or later, which runs on
+    // Apple silicon with macOS 26.6 or later.
+    platforms: [.macOS("26.6")],
     products: [.executable(name: "manzanero", targets: ["Manzanero"])],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", exact: "1.8.2"),

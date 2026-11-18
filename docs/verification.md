@@ -1103,7 +1103,19 @@ The formula attached to this release fails `brew style` as shipped, with 5 `Form
 | Through the installed `bin` symlink: `manzanero --version`, `manzanero --help` | `manzanero 0.1.0-beta.1`; the full command list. Exit 0 both |
 | Gatekeeper | The binary ran at once, with no dialog. `com.apple.quarantine` is set nowhere in the installed files or on Homebrew's cached archive (only `com.apple.provenance`). `codesign -dv`: universal, `Signature=adhoc`, no team identifier. `spctl -a -t execute`: rejected, as expected of ad hoc, unnotarized code |
 
-So a Homebrew install runs straight away, because Homebrew's download carries no quarantine and Gatekeeper then does not assess the binary at launch. An archive downloaded by hand in a browser would be quarantined, and `spctl` says it would be rejected; that path has not been tried. One Mac, the one that built nothing of this release but has Xcode and every development tool installed; a tester's clean Mac and an Intel Mac have not been tried.
+So a Homebrew install runs straight away, because Homebrew's download carries no quarantine and Gatekeeper then does not assess the binary at launch. An archive downloaded by hand in a browser would be quarantined, and `spctl` says it would be rejected; that path has not been tried. One Mac, the one that built nothing of this release but has Xcode and every development tool installed; a tester's clean Mac has not been tried.
+
+### Apple silicon only, Xcode 27 and macOS 26.6
+
+**2026-11-18.** The owner pointed out that the tool needs Xcode 27 or later, that Xcode 27 has no Intel build and that it needs macOS 26.6 or later, so v0.1.0-beta.1's x86_64 slice, its `on_intel` formula block and the "macOS 15+" in the manifest and guides described Macs the tool could never work on. On this Mac the selected Xcode 27.2's own executable holds `arm64` only. Changed for the next beta, and checked locally:
+
+| Change | Observed |
+| --- | --- |
+| `Package.swift` deployment target 26.6, with the two `macOS 26` availability guards and the attributes removed | Build with no warnings; all tests pass; the debug executable's `LC_BUILD_VERSION` says `minos 26.6` |
+| `doctor` gains a `Requirements` entry (Xcode 27, macOS 26.6, arm64) | `available` on this Mac; unit tests cover an older Xcode and macOS 26.5 (`unavailable`, exit 1) and an unreadable Xcode version (`unknown`) |
+| `mise run package`, `test:package`, `release:formula` | One archive, `manzanero-aarch64-apple-darwin.tar.gz`; the executable is `arm64` only with `minos 26.6`; `SHA256SUMS` lists that one file; the formula has a single `url`, `depends_on arch: :arm64`, `macos: :tahoe` and `xcode: ["27.0", :run]`, `ruby -c` OK |
+
+Not run: the hosted workflow with these changes (its runner is macOS 27.0.1 with Xcode 27.2, above the floor), and `brew style` on the new formula shape.
 
 The Manzanero rename passed all 314 local Swift tests with no build errors or warnings. Native multitouch and timed-gesture sender tests also passed without a device. All 48 mise tasks validated, and 41 documented command forms passed dry-run checks. The renamed stdio MCP server identified itself as `manzanero`, listed 33 tools and exited successfully on EOF without running device operations.
 

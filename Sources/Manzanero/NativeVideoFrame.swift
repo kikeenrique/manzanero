@@ -4,7 +4,6 @@ import Foundation
 
 /// Own pixels before crossing actors. Copy during the decoder callback, then
 /// consume the mutable buffer into Apple's Sendable read-only wrapper.
-@available(macOS 26.0, *)
 struct NativeVideoFrame: Sendable {
     let nanoseconds: UInt64
     let pixels: CVReadOnlyPixelBuffer

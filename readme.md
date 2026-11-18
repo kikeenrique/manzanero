@@ -14,7 +14,7 @@ Most live evidence comes from one iPhone 13 mini; Apple TV, Apple Watch, iPad an
 
 ## Build and start
 
-You need macOS 15+, a full selected Xcode installation, Swift 6.4+, [mise](https://mise.jdx.dev/) and xcsift. The package declares Swift 6.2 language support, but its pinned dependency graph currently requires a Swift 6.4 toolchain. Native physical video requires macOS 26+.
+You need an Apple silicon Mac with macOS 26.6 or later and Xcode 27 or later selected, plus [mise](https://mise.jdx.dev/) and xcsift to build. Every device operation goes through Xcode's tools and frameworks, and Xcode 27 has no Intel build, so there is no Intel version. The package declares Swift 6.2 language support, but its pinned dependency graph currently requires the Swift 6.4 toolchain that Xcode 27 ships. `manzanero doctor` checks the Xcode and macOS minimums.
 
 ```sh
 mise run build

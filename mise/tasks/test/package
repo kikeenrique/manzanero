@@ -10,8 +10,9 @@ payload="$work/Cellar/manzanero/$version/libexec"
 mkdir -p "$payload" "$work/bin"
 tar -xzf "$directory/manzanero-aarch64-apple-darwin.tar.gz" -C "$payload"
 codesign --verify --strict "$payload/manzanero"
-xcrun lipo "$payload/manzanero" -verify_arch arm64
-xcrun lipo "$payload/manzanero" -verify_arch x86_64
+test "$(xcrun lipo -archs "$payload/manzanero")" = "arm64"
+# The executable refuses to load on anything older than the Xcode 27 host floor.
+otool -l "$payload/manzanero" | grep -A4 LC_BUILD_VERSION | grep -q 'minos 26.6'
 test -f "$payload/ThirdParty/Package.resolved"
 test -f "$payload/ThirdParty/packages/swift-nio/CNIOLLHTTP/LICENSE"
 test -f "$payload/ThirdParty/packages/swift-argument-parser/LICENSE.txt"

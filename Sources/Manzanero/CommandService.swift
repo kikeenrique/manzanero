@@ -406,9 +406,6 @@ actor CommandService {
     /// lease is held for the whole stream, as for a native recording.
     private func executeFrames(_ frames: FramesCommand) async throws -> CommandOutput {
         do {
-            guard #available(macOS 26.0, *) else {
-                throw CommandFailure(.hostRequirement, "frames requires macOS 26 or later.", inputSent: .none)
-            }
             try frames.prepareDirectory()
             try preflight(frames.device, operation: "capture frames")
             let lease = try leases.acquire(device: CoreDeviceInput.resolve(readinessQuery(frames.device), requested: frames.device), operation: "frames")
