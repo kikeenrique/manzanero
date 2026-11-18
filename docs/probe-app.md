@@ -330,6 +330,7 @@ A second, separate app in the same Tuist project: target and scheme `ProbeTV`, s
 | Identifier | Element | Reads as |
 | --- | --- | --- |
 | `probe.tv.button.a`, `.b`, `.c` | Three buttons in a row | Selecting one records `select:a` (or `b`, `c`) |
+| `probe.tv.row.1` … `probe.tv.row.40` | A list of forty rows beside the controls, more than fit on screen | Selecting one records `select:row-<n>` |
 | `probe.tv.text.field` | A text field | |
 | `probe.tv.text.value` | The field's text | value |
 | `probe.tv.last` | The last command received | value: `up`, `down`, `left`, `right`, `select:<button>`, `menu`, `play-pause`, or `none` |

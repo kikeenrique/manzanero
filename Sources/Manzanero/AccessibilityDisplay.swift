@@ -20,13 +20,19 @@ struct AccessibilityDisplay: Equatable, Encodable {
     /// request, because the centre hit test was refused (error 8) on an
     /// Apple TV 4K.
     let external: Bool
+    /// An Apple TV, physical or simulated: driven by focus, with no pointer.
+    /// Not printed. A hit test says nothing about whether an element can be
+    /// activated there: on a tvOS simulator the system process answered it
+    /// for a list row just inside the bottom edge.
+    let focusDriven: Bool
     var center: (x: Double, y: Double) { (bounds.x + bounds.width / 2, bounds.y + bounds.height / 2) }
 
     private enum CodingKeys: String, CodingKey { case bounds, displayId, pointScale, orientation }
 
     /// A display described by another source, such as CoreSimulator's screen.
-    init(bounds: Bounds, displayId: Int64, pointScale: Double, orientation: String) {
+    init(bounds: Bounds, displayId: Int64, pointScale: Double, orientation: String, focusDriven: Bool = false) {
         external = false
+        self.focusDriven = focusDriven
         self.bounds = bounds
         self.displayId = displayId
         self.pointScale = pointScale
@@ -52,6 +58,7 @@ struct AccessibilityDisplay: Equatable, Encodable {
         guard primary.count == 1 else { throw invalid() }
         // An external display (an Apple TV's television) has no backlight to read.
         external = DeviceUIReadiness.isExternal(primary[0])
+        focusDriven = external
         guard primary[0]["backlightState"] as? String == "activeOn" || external else {
             throw CommandFailure(.displayOff, "Primary display is off or its awake state is unknown. Wake/unlock the selected device before foreground AX inspection; no point query sent.", inputSent: .none)
         }

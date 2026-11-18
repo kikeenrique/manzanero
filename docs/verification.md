@@ -575,7 +575,9 @@ Power, from 15:13: `button lock` with the screen saver in front brought the Home
 
 The connection went stale twice more: at 15:14:06, as a `tree` started with Control Centre open, and at 16:17:39, as a `tree` started on the sleeping device. Each time `remoted` logged "Device connection interrupted" with no "Handshake complete" after it, then "Heartbeat failed: not connected" every 30 seconds. The same interruption, followed by a handshake, was logged for the iPhone 13 mini during two of five `tree` runs, one of them with a random peer identity in manzanero's directory handshake (a scratch change, not kept), and in the second before one of them only `devicectl` had been active. Logs are under `tmp/appletv-4k3/power/` and `tmp/device-services/`.
 
-Not shown: a scroll that moves a list, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
+On the tvOS 27.2 simulator the same afternoon, with a forty-row list added to the probe: the tree held rows 1 to 13; `scroll --id probe.tv.row.13` returned `nativeResult: true`, the row moved from y 1020 to 954 and row 14 joined the tree, but the status was `postcondition-failed` ("target centre hit is another native element"), five checks 250 ms apart included. The element that answered the hit test belonged to `PineBoard`, not to the probe. With the hit test left out on an Apple TV, rows 18, 19 and 20 each scrolled into view as `postcondition-verified`, and `press --id probe.tv.row.20` was recorded as `select:row-20`. `button lock` on the simulator did not open Control Centre, so the power sequence is a hardware matter.
+
+Not shown: a scroll that moves a list on the physical device, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
 
 ## Direct physical input
 

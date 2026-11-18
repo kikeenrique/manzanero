@@ -41,6 +41,30 @@ struct ProbeTVView: View {
     @State private var text = ""
 
     var body: some View {
+        HStack(spacing: 60) {
+            controls
+            // Forty rows, more than fit: something off screen to scroll to.
+            List(1...40, id: \.self) { row in
+                Button("Row \(row)") { record.note("select", detail: "row-\(row)") }
+                    .accessibilityIdentifier("probe.tv.row.\(row)")
+            }
+            .frame(width: 500)
+        }
+        .onMoveCommand { direction in
+            switch direction {
+            case .up: record.note("up")
+            case .down: record.note("down")
+            case .left: record.note("left")
+            case .right: record.note("right")
+            @unknown default: record.note("move-unknown")
+            }
+        }
+        // Menu is recorded and kept: leave the probe with the Home button.
+        .onExitCommand { record.note("menu") }
+        .onPlayPauseCommand { record.note("play-pause") }
+    }
+
+    private var controls: some View {
         VStack(spacing: 40) {
             Text("Probe TV").font(.title)
             HStack(spacing: 40) {
@@ -57,18 +81,6 @@ struct ProbeTVView: View {
             readout("probe.tv.count", "Count", String(record.count))
             readout("probe.tv.summary", "Summary", record.summary)
         }
-        .onMoveCommand { direction in
-            switch direction {
-            case .up: record.note("up")
-            case .down: record.note("down")
-            case .left: record.note("left")
-            case .right: record.note("right")
-            @unknown default: record.note("move-unknown")
-            }
-        }
-        // Menu is recorded and kept: leave the probe with the Home button.
-        .onExitCommand { record.note("menu") }
-        .onPlayPauseCommand { record.note("play-pause") }
     }
 
     /// One labelled line whose accessibility value is the reading.

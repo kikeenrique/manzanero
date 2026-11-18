@@ -50,6 +50,10 @@ struct PhysicalAppleTVTests {
     @Test func theTreeAcceptsAnExternalDisplayInTVPoints() throws {
         let display = try AccessibilityDisplay(Self.displays())
         #expect(display.external && display.pointScale == 2)
+        // Focus-driven: selector actions make no hit test there.
+        #expect(display.focusDriven)
+        let phone = AccessibilityDisplay(bounds: .init(x: 0, y: 0, width: 375, height: 812), displayId: 1, pointScale: 3, orientation: "rot0")
+        #expect(!phone.focusDriven && !phone.external)
         #expect(display.bounds == .init(x: 0, y: 0, width: 1920, height: 1080))
         // The flag is not printed, so a phone's tree keeps its shape.
         let printed = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(display)) as? [String: Any])

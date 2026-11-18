@@ -217,6 +217,9 @@ struct DirectAccessibilityAction {
         guard x >= bounds.x, y >= bounds.y, x < bounds.x + bounds.width, y < bounds.y + bounds.height else {
             throw failure("target centre is outside the primary display", .targetUnresolved)
         }
+        // An Apple TV has no pointer: activation goes to the element, not to
+        // a point, and the hit test there can answer the system process.
+        if geometry.focusDriven { return }
         let hit = try session.hit(x: x, y: y)
         guard sameIdentity(hit, target.token) else { throw failure("target centre hit is another native element", .targetUnresolved) }
     }

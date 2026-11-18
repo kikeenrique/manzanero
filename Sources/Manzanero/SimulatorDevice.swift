@@ -187,7 +187,8 @@ struct SimulatorDisplay: Equatable {
         let native = native(info)
         return AccessibilityDisplay(bounds: .init(x: 0, y: 0, width: quarterTurned ? native.height : native.width,
                                                   height: quarterTurned ? native.width : native.height),
-                                    displayId: 0, pointScale: native.scale, orientation: "rot\(rotation)")
+                                    displayId: 0, pointScale: native.scale, orientation: "rot\(rotation)",
+                                    focusDriven: info.isAppleTV)
     }
 
     /// The `screen` object of simulator results. A non-primary interface
