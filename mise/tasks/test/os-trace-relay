@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Experiment: read at most 50 log records of one process from a phone's os_trace_relay over the native tunnel, then reopen it; read-only, result under tmp/os-trace-relay/"
+#USAGE arg "<device>" help="Explicit hardware UDID of a paired, connected physical device"
+#USAGE arg "<pid>" help="Positive PID of the process whose log entries are streamed (see processes)"
+#USAGE flag "--seconds <seconds>" default="5" help="Seconds to read the first stream, 1...60"
+#USAGE flag "--limit <records>" default="50" help="Records to read from the first stream at most, 1...5000"
+
+set -e -o pipefail
+
+MANZANERO_OS_TRACE_LIMIT="${usage_limit:-50}" MANZANERO_OS_TRACE_SECONDS="${usage_seconds:-5}" MANZANERO_OS_TRACE_DEVICE="$usage_device" MANZANERO_OS_TRACE_PID="$usage_pid" swift test --cache-path tmp/swift-cache --filter OSTraceRelayProbeTests 2>&1 | xcsift -f toon --warnings

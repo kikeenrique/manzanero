@@ -31,6 +31,12 @@ int ADCOpenRSDDirectoryNetwork(const void *address, size_t addressLength, const 
                                char *error, size_t errorCapacity);
 void ADCCloseRSDDirectory(void *owner);
 int ADCIsRSDDirectoryActive(void *owner);
+/// The port an open directory's handshake advertises for one lockdown shim
+/// service (a name ending in ".shim.remote"), accepted only when it is
+/// advertised as not RemoteXPC and not encrypted. Reads the retained
+/// handshake; opens nothing. Returns zero on success.
+int ADCCopyRSDShimServicePort(void *owner, const char *serviceName, uint16_t *port,
+                              char *error, size_t errorCapacity);
 
 /// Exact-UDID pairing-daemon assertion, without initiating pairing. Open owns
 /// browse/device connections and an opaque assertion UUID; close consumes owner

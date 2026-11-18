@@ -216,6 +216,22 @@ This answers the research note's first two open questions for this phone: `devic
 
 **The phone stopped answering before this run.** Every `devicectl` query timed out while the phone was still listed as connected; replugging and unlocking did not help. Stopping `CoreDeviceService` and `remotepairingd` on the Mac, which macOS restarts on demand, restored it at once. The services' state was not captured before they were stopped and the system log held no entries for them, so the cause is unknown. It followed a period of very high load on the Mac and two console launches that failed to start.
 
+### The log relay on the phone
+
+**2026-11-18, about 01:00**, the iPhone 13 mini (iOS 27.2.1), macOS 27.2.1. Two experiments the owner approved before deciding whether physical `logs` is worth building. Neither is a command: the second is the opt-in task `test:os-trace-relay`.
+
+What the service advertises, read from `/usr/libexec/remotectl dumpstate` on the Mac without opening anything on the phone: `com.apple.os_trace_relay.shim.remote` has `UsesRemoteXPC => false` and `EncryptSocketData => false`, and nothing else; `syslog_relay` and `crashreportcopymobile` shims the same.
+
+The stream, over the route accessibility uses (tunnel assertion, port discovery, RSD directory), then a plain TCP socket to the port the directory advertises for the shim:
+
+| Step | Observed |
+| --- | --- |
+| Settings' PID, 50 records or 5 s | `RSDCheckin` and `StartService` answered, `StartActivity` returned `RequestSuccessful` after one leading byte (1). No records in 5 s: Settings was idle. The reopen on the same directory failed, because the directory connection was no longer active 5 s after its handshake |
+| The probe app's PID, 50 records, a directory of its own for each stream, `press --id probe.log.emit` from a second process | 50 records in 0.3 s (19,379 bytes), all from that PID, none failing to parse: 49 debug and 1 notice, mostly UIKit's. A second stream on a new directory read 5 records |
+| The same with a bound of 3000 records and 15 s, the log trigger pressed twice | 165 records (64,853 bytes), no parse failures; levels 148 debug, 5 info, 8 notice, 2 error, 2 fault. From the probe's own subsystem 12 records: per press 2 notice, 1 info, 1 debug, 1 error and 1 fault. The rest were UIKit (132), hangtracer, network and Siri subsystems in the same process. The second stream again read 5 records; the tunnel assertion was released each time |
+
+So the relay works over Apple's native tunnel on this phone, a PID filter holds on the device, the reference's record layout decoded every record seen, and debug-level lines of an app arrive, which `console` never shows. Not shown: entries with long or unusual fields, a stream of every process (`Pid: -1`), minutes-long streams, what a relaunch does to a PID stream, and whether closing the socket ends the subscription on the phone (a new stream opening is the only evidence). One phone, one iOS version.
+
 ### Phone session of 2026-11-17
 
 **2026-11-17, at `01988bf`**, the same iPhone 13 mini (unlocked, portrait, reached over `apple-network-rsd`), macOS 27.2.1, Xcode 27.2 (27B52), `devicectl` 651.32. Evidence is under `tmp/session-1117/` (not tracked).

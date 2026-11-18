@@ -366,6 +366,39 @@ int ADCIsRSDDirectoryActive(void *owner) {
     return lifetime.state && !lifetime.state.failed;
 }
 
+int ADCCopyRSDShimServicePort(void *owner, const char *serviceName, uint16_t *port, char *error, size_t capacity) {
+    @autoreleasepool {
+        if (port) *port = 0;
+        ADCRSDDirectoryOwner *lifetime = owner ? (__bridge ADCRSDDirectoryOwner *)owner : nil;
+        xpc_object_t root = lifetime.state && !lifetime.state.failed ? lifetime.state.reply : nil;
+        size_t length = serviceName ? strnlen(serviceName, 257) : 0;
+        static const char suffix[] = ".shim.remote";
+        if (!port || !root || xpc_get_type(root) != XPC_TYPE_DICTIONARY || length <= sizeof(suffix) - 1 || length > 256 ||
+            strcmp(serviceName + length - (sizeof(suffix) - 1), suffix))
+            return ADCFail(error, capacity, @"Invalid RSD directory or shim service name; no service connection started.");
+        xpc_object_t services = xpc_dictionary_get_dictionary(root, "Services");
+        xpc_object_t service = services ? xpc_dictionary_get_dictionary(services, serviceName) : NULL;
+        const char *text = service ? xpc_dictionary_get_string(service, "Port") : NULL;
+        xpc_object_t options = service ? xpc_dictionary_get_dictionary(service, "Properties") : NULL;
+        xpc_object_t remote = options ? xpc_dictionary_get_value(options, "UsesRemoteXPC") : nil;
+        xpc_object_t encrypted = options ? xpc_dictionary_get_value(options, "EncryptSocketData") : nil;
+        // A shim is the opposite of the AX service: not RemoteXPC, and its
+        // socket carries the lockdown-style plist protocol unencrypted.
+        if (!text || strnlen(text, 6) == 0 || strnlen(text, 6) > 5 ||
+            !remote || xpc_get_type(remote) != XPC_TYPE_BOOL || xpc_bool_get_value(remote) ||
+            !encrypted || xpc_get_type(encrypted) != XPC_TYPE_BOOL || xpc_bool_get_value(encrypted))
+            return ADCFail(error, capacity, @"The shim service is not advertised with a port as a plain, unencrypted service; no service connection started.");
+        unsigned value = 0;
+        for (const char *p = text; *p; p++) {
+            if (*p < '0' || *p > '9') return ADCFail(error, capacity, @"Invalid advertised shim service port; no service connection started.");
+            value = value * 10 + (unsigned)(*p - '0');
+        }
+        if (!value || value > UINT16_MAX) return ADCFail(error, capacity, @"Invalid advertised shim service port; no service connection started.");
+        *port = (uint16_t)value;
+        return 0;
+    }
+}
+
 static int ADCCompleteRSDDirectory(ADCRSDDirectoryOwner *lifetime, const char *expectedUDID, NSUUID *host, uint64_t versionFlags,
                          int (^shouldCancel)(void), uint16_t *axPort, void **owner,
                          char *error, size_t capacity) {
