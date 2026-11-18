@@ -96,7 +96,7 @@ struct SimulatorInput: Sendable, Equatable {
                 throw CommandFailure.usage("Supported simulator buttons: home, lock, volume-up, volume-down, and side and action on an Apple Watch; no input sent.")
             }
         case "remote":
-            guard operands.count == 1, AppleTVRemote.routes[operands[0]] != nil else { throw CommandFailure.usage(AppleTVRemote.usage) }
+            _ = try AppleTVRemote.parse(operands)
         case "crown":
             guard (1...2).contains(operands.count) else { throw CommandFailure.usage(DigitalCrown.usage) }
             let units = try DigitalCrown.units(operands[0])
@@ -183,10 +183,10 @@ struct SimulatorInput: Sendable, Equatable {
                 plan["family"] = "Refused unless CoreSimulator reports the Apple Watch product family."
                 service = "com.apple.coredevice.feature.remote.hid.scroll"
             case "remote":
-                let route = AppleTVRemote.routes[operands[0]]!
+                let (_, route, hold) = try AppleTVRemote.parse(operands)
                 plan.merge(AppleTVRemote.describe(route)) { $1 }
                 plan["family"] = "Refused unless CoreSimulator reports the Apple TV product family."
-                plan["holdMilliseconds"] = AppleTVRemote.holdMicroseconds / 1000
+                plan["holdMilliseconds"] = hold / 1000
                 service = AppleTVRemote.describe(route)["service"] as! String
             case "button":
                 service = "com.apple.coredevice.feature.remote.hid.button"

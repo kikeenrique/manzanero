@@ -438,7 +438,8 @@ int ADCSimulatorPressRemoteButton(void *owner, uint64_t page, uint64_t usage, un
     // left-side-button); docs/other-families.md.
     BOOL consumer = page == 12 && (usage == 0x40 || usage == 0x46 || usage == 0xCD || usage == 0x95);
     BOOL action = page == 0xFF01 && usage == 0x200;
-    if ((!consumer && !action) || hold == 0 || hold > 400000)
+    // Up to three seconds: a long press on the remote (remote --hold).
+    if ((!consumer && !action) || hold == 0 || hold > 3000000)
         return ADCSimulatorFail(error, capacity, @"Invalid simulator remote button request; no input sent.");
     return ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.hid.button", shouldCancel, NULL,
         ^int(xpc_connection_t connection, ADCInputShouldStop stop) {

@@ -120,7 +120,10 @@ extension ManzaneroCLI {
         @OptionGroup var common: CommonOptions
         @Argument(help: ArgumentHelp("select, menu, home, play-pause, up, down, left or right.", valueName: "button"),
                   completion: .list(AppleTVRemote.names)) var name: String
-        func request(_ target: Target) throws -> CommandRequest { try .input(target, "remote", [name]) }
+        @Option(help: ArgumentHelp("Hold home, menu or play-pause this long, 0.08...3 seconds (Apple TV simulators). A 1.5 s hold on home opens Control Centre.", valueName: "seconds")) var hold: String?
+        func request(_ target: Target) throws -> CommandRequest {
+            try .input(target, "remote", [name] + (hold.map { [AppleTVRemote.holdOption, $0] } ?? []))
+        }
     }
 
     struct Crown: TargetedCommand {

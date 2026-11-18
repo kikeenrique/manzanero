@@ -68,6 +68,7 @@ The [touch runner](probe-touch-runner.md)'s built-in plan later ran once on `LCD
 
 ```sh
 manzanero remote <select|menu|home|play-pause|up|down|left|right> --simulator <UUID>
+manzanero remote home --hold 1.5 --simulator <UUID>     # a long press: Control Centre
 ```
 
 | Button | Sent | Observed effect (tvOS 27.2 simulator) |
@@ -78,7 +79,7 @@ manzanero remote <select|menu|home|play-pause|up|down|left|right> --simulator <U
 | `home` | Consumer usage 0x40 (as `button home`) | Went to the Home Screen |
 | `play-pause` | Consumer usage 0xCD | SwiftUI's `onPlayPauseCommand` fired once per press |
 
-Buttons are held 80 ms, like the phone's. `remote` takes the simulator lease, sends no touch and is refused as `unsupported-operation` before any input on a simulator whose CoreSimulator product family is not Apple TV. The product family comes from the simulator's device type. With `--device` it drives [a physical Apple TV](#a-physical-apple-tv).
+Buttons are held 80 ms, like the phone's. `--hold <seconds>` (0.08...3; MCP `hold_seconds`) holds `home`, `menu` or `play-pause` longer: `remote home --hold 1.5` opened Control Centre on the tvOS 27.2 simulator, with Power Off, Audio, Do Not Disturb and Sleep Timer read off the screen, and `remote menu` closed it. The arrows and `select` are keys and take no hold. Control Centre is not in the tree (the frontmost application is `PineBoard`, 24 nodes, none of them an item), so read it with `screen ocr` and move in it with the arrows. A hold is refused on a physical Apple TV, where it has not been tried; `button lock` opens Control Centre there. `remote` takes the simulator lease, sends no touch and is refused as `unsupported-operation` before any input on a simulator whose CoreSimulator product family is not Apple TV. The product family comes from the simulator's device type. With `--device` it drives [a physical Apple TV](#a-physical-apple-tv).
 
 Apple TV has no touch screen: `tap`, `long-press`, `swipe`, `drag`, `pinch`, `multi-tap`, `multi-drag` and `gesture` on an Apple TV simulator are refused as `unsupported-operation` with a pointer to `remote`, before the display is read. Swipes on the remote's touch surface are [not implemented](#remote-touch-surface-not-built). `key`, `type`, `button home`, trees, waits and `press` work as on a phone.
 

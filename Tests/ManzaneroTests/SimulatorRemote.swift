@@ -89,6 +89,31 @@ struct SimulatorRemoteTests {
         #expect(pressed.remote.isEmpty)
     }
 
+    @Test func aHoldLengthensTheButtonPressOnly() async throws {
+        let pressed = Pressed()
+        let service = Self.service(family: "Apple TV", pressed)
+        let receipt = try SimulatorInputTests.json(await service.run(["remote", "home", "--hold", "1.5", "--simulator", Self.uuid]))
+        #expect(receipt["holdMilliseconds"] as? Int == 1500)
+        #expect(pressed.remote.count == 1 && pressed.remote[0].usage == 0x40 && pressed.remote[0].hold == 1_500_000)
+        // Keys have no hold, and the length is bounded; nothing is sent.
+        for args in [["remote", "select", "--hold", "1"], ["remote", "home", "--hold", "0.01"], ["remote", "home", "--hold", "3.5"],
+                     ["remote", "home", "--hold", "long"]] {
+            let failure = try #require(throws: CommandFailure.self) { try request(args + ["--simulator", Self.uuid]) }
+            #expect(failure.code == .usage && failure.description == AppleTVRemote.holdUsage)
+        }
+        #expect(pressed.remote.count == 1 && pressed.keys.isEmpty)
+        let plan = try SimulatorInputTests.json(await service.run(["remote", "menu", "--hold", "2", "--simulator", Self.uuid], dryRun: true))
+        #expect(plan["holdMilliseconds"] as? Int == 2000)
+        // A physical Apple TV has no hold yet.
+        let physical = try #require(throws: CommandFailure.self) { try request(["remote", "home", "--hold", "1", "--device", "tv"]) }
+        #expect(physical.code == .unsupportedOperation)
+        // MCP carries it as an option, before the operands.
+        let tool = try #require(MCPTools.definitions.first { $0.name == "press_remote" })
+        let args = try tool.command(["device": .string(Self.uuid), "button": "home", "hold_seconds": 1.5])
+        #expect(args == ["remote", "--simulator=\(Self.uuid)", "--hold=1.5", "--", "home"])
+        #expect(try request(args) == .simulatorInput(try SimulatorInput(device: Self.uuid, operation: "remote", operands: ["home", "--hold", "1.5"])))
+    }
+
     @Test func mcpRemoteToolRoutesToTheCommand() throws {
         let tool = try #require(MCPTools.definitions.first { $0.name == "press_remote" })
         let args = try tool.command(["device": .string(Self.uuid), "button": "play-pause"])

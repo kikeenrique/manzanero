@@ -19,6 +19,26 @@ enum AppleTVRemote {
     /// The remote's button hold, as for the phone's buttons.
     static let holdMicroseconds: UInt32 = 80_000
 
+    /// `--hold <seconds>`: a long press. Simulator only so far, and only
+    /// for the buttons sent on the button service (home, menu, play-pause):
+    /// a 1.5 s hold on home opened Control Centre on a tvOS 27.2 simulator.
+    static let holdOption = "--hold"
+    static let holdRange = 0.08...3.0
+    static let holdUsage = "remote \(holdOption) takes seconds in 0.08...3 and applies to home, menu and play-pause on an Apple TV simulator; no input sent."
+
+    /// `<button> [--hold <seconds>]`: the button's route and the hold in
+    /// microseconds, checked before any contact.
+    static func parse(_ operands: [String]) throws -> (name: String, route: Route, holdMicroseconds: UInt32) {
+        guard let name = operands.first, let route = routes[name], operands.count == 1 || operands.count == 3 else {
+            throw CommandFailure.usage(usage)
+        }
+        guard operands.count == 3 else { return (name, route, holdMicroseconds) }
+        guard operands[1] == holdOption, let seconds = Double(operands[2]), holdRange.contains(seconds), case .button = route else {
+            throw CommandFailure.usage(holdUsage)
+        }
+        return (name, route, UInt32((seconds * 1_000_000).rounded()))
+    }
+
     static let usage = "Remote buttons: select, menu, home, play-pause, up, down, left, right; no input sent."
 
     static func describe(_ route: Route) -> [String: Any] {
@@ -45,6 +65,9 @@ enum AppleTVRemote {
 
     /// Operands for a physical device, checked before any contact.
     static func validatePhysical(_ operands: [String]) throws {
+        if operands.count == 3, operands[1] == holdOption, routes[operands[0]] != nil {
+            throw CommandFailure.unsupported("remote \(holdOption) is built for Apple TV simulators only; on a device, button lock opens Control Centre. No device was contacted.")
+        }
         guard operands.count == 1, physicalRoutes[operands[0]] != nil else { throw CommandFailure.usage(usage) }
     }
 

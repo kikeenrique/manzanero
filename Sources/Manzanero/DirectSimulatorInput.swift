@@ -111,14 +111,13 @@ enum DirectSimulatorInput {
             result["key"] = name
             result["usage"] = usage
         case "remote":
-            guard input.operands.count == 1, let name = input.operands.first, let route = AppleTVRemote.routes[name] else {
-                throw CommandFailure.usage(AppleTVRemote.usage)
-            }
+            let (name, route, hold) = try AppleTVRemote.parse(input.operands)
             try Task.checkCancellation()
             switch route {
             case .key(let usage): try environment.key(input.device, usage)
-            case .button(let usage): try environment.remoteButton(input.device, 12, usage, AppleTVRemote.holdMicroseconds)
+            case .button(let usage): try environment.remoteButton(input.device, 12, usage, hold)
             }
+            if hold != AppleTVRemote.holdMicroseconds { result["holdMilliseconds"] = hold / 1000 }
             result["remote"] = name
             result["route"] = AppleTVRemote.describe(route)
         case "crown":

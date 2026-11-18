@@ -583,6 +583,8 @@ More simulator runs that evening, against the probe. On the 1080p simulator, aft
 
 A new simulator, `manzanero-research-tv-4k` (`Apple TV 4K (3rd generation)`, tvOS 27.2), reported its display as the device had: `TVOut`, external, 3840 × 2160 pixels, point scale 1, with a tree 1920 × 1080 points. `displays` listed 3840 × 2160 points there, now corrected to 1920 × 1080 at scale 2. On it `press`, `scroll --search 30` (17 steps to row 30), `press` on that row (recorded `select:row-30`) and `remote` worked. `handoff --until focused --id probe.tv.button.b` ended as `observed` 5 seconds in, when a second process sent `remote right`; with the condition already true it returned at once, and with a 4-second limit and no change it ended `timedOut` with exit 1.
 
+A held remote button, on the 1080p simulator: with the hold raised to 1.5 s in a scratch build, `home` opened Control Centre (OCR read Power Off, Audio, Ethernet, Do Not Disturb, Sleep Timer), while `menu` and `play-pause` held as long showed Settings unchanged. Built as `remote --hold`: `remote home --hold 1.5` returned `holdMilliseconds: 1500` and opened Control Centre again; the tree then gave `PineBoard` with 24 nodes and no item; `remote menu` closed it. `--hold` on `select`, a hold of 9 seconds, and a hold with `--device` were each refused before anything was sent.
+
 Not shown: a scroll that moves a list on the physical device, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
 
 ## Direct physical input
