@@ -51,7 +51,6 @@ These need no hardware and no owner decision; they were left out of the simulato
 - Follow-up to a run already [recorded](verification.md#the-duos-inner-display): a portrait-only app is letterboxed on the Duo's inner display, where `press` fails at the hit test, the tree's frames are window-relative and touch coordinates are the display's. Find where the window's origin can be read before changing anything.
 - `fold` on the Duo straight after boot: with one other simulator running (not one of this project's), the first fold after boot was not observed within its 10 s bound and the next four were, as were five unfolds ([record](verification.md#the-duos-inner-display)). Earlier, one of five was missed with three others running and none with two. So the miss may belong to a simulator that has just booted, not to load; fold once more after a pause to tell. It has still not run with nothing else booted.
 - On an Apple TV simulator, what Power Off in Control Centre does (it is reached with `remote home --hold 1.5`; pressing it was not tried), and a held `select`, which needs a hold for keys that is not built.
-- `--index` among real duplicates on a simulator: `detect-layout --index` and `handoff --until` with element conditions ran against the probe app ([record](verification.md#selector-by-value-detect-layout-index-masked-read-back-and-the-display-note)), but the probe has no two elements that share a label.
 
 ## Questions still open
 

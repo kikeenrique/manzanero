@@ -112,7 +112,7 @@ None at the moment. What was decided on 2026-11-17 and 2026-11-18 is in the [dec
 
 9. **A second iPhone and an iPad.** Everything physical ran on one iPhone 13 mini; iPad was measured on a simulator only. The 200 ms input drain was measured on that phone alone. Other iPhones and iPads are paired with the development Mac; none is used until the owner names it.
 10. **`set-value` in more fields.** It ran in the probe's field, in a UIKit text field and a secure field in Settings, and through MCP. A SwiftUI field with a label or identifier is untried.
-11. **`--index` among real duplicates on a simulator, and through MCP against a device.** It ran on the phone from the CLI, on a web form; on a simulator only `detect-layout --index` ran, on a field that has no duplicate.
+11. **`--index` through MCP against a device.** It ran on the phone from the CLI, on a web form, and on a tvOS simulator among two buttons that share a label, from the CLI and through MCP ([record](verification.md#first-look-at-a-physical-apple-tv)). The MCP `index` field has not been used against a physical device.
 12. **Keyboard layouts on a phone.** Only Spanish – ISO, the layout the test phone uses on its own, has been typed and detected on hardware. A phone's layout cannot be read; `detect-layout` is the substitute. Whether a phone applies the ISO or ANSI table to the 13 layouts where they differ is unchecked.
 13. **`frames` beyond one portrait phone.** Other devices, long runs toward the 1000-frame and 1 GiB limits, and a second process competing for the stream.
 14. **What apps' recognizers make of three to five contacts.** Delivery is measured; recognition in real apps is not.

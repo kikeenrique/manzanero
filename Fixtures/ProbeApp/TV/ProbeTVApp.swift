@@ -73,6 +73,13 @@ struct ProbeTVView: View {
                         .accessibilityIdentifier("probe.tv.button.\(name)")
                 }
             }
+            // Two buttons that share one label, to choose between by position.
+            HStack(spacing: 40) {
+                ForEach([1, 2], id: \.self) { twin in
+                    Button("Twin") { record.note("select", detail: "twin-\(twin)") }
+                        .accessibilityIdentifier("probe.tv.twin.\(twin)")
+                }
+            }
             TextField("Text", text: $text)
                 .accessibilityIdentifier("probe.tv.text.field")
                 .frame(width: 800)

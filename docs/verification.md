@@ -585,6 +585,8 @@ A new simulator, `manzanero-research-tv-4k` (`Apple TV 4K (3rd generation)`, tvO
 
 A held remote button, on the 1080p simulator: with the hold raised to 1.5 s in a scratch build, `home` opened Control Centre (OCR read Power Off, Audio, Ethernet, Do Not Disturb, Sleep Timer), while `menu` and `play-pause` held as long showed Settings unchanged. Built as `remote --hold`: `remote home --hold 1.5` returned `holdMilliseconds: 1500` and opened Control Centre again; the tree then gave `PineBoard` with 24 nodes and no item; `remote menu` closed it. `--hold` on `select`, a hold of 9 seconds, and a hold with `--device` were each refused before anything was sent.
 
+`--index` among real duplicates, on the same simulator, with two buttons labelled `Twin` added to the probe: `press --label Twin` was refused as ambiguous and listed both, with their identifiers and frames; `--index 2` and `--index 1` were recorded as `select:twin-2` and `select:twin-1`; `--index 3` was refused as beyond the two matches; `wait --label Twin --index 2` and `scroll --label Twin --index 2` both succeeded. Through a real MCP session, `press_element` by label answered `ambiguous-or-missing-target` without `index` and pressed the second with `index: 2`.
+
 Not shown: a scroll that moves a list on the physical device, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
 
 ## Direct physical input
