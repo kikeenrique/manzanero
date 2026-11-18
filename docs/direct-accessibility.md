@@ -57,7 +57,7 @@ Before one native press, the operation requires:
 1. An awake portrait primary display and its centre-selected process or, with `--pid`, the process that hosts it.
 2. The same unique native target in two fresh snapshots.
 3. Matching live identifier/frame and known enabled/visible state.
-4. A positive-size frame whose centre is on the display and hits that exact target. The frame may reach past an edge.
+4. A positive-size frame whose centre is on the display and hits that exact target. The frame may reach past an edge. On an Apple TV, physical or simulated, the hit test is left out: there is no pointer, and the system process can answer it ([Apple TV](other-families.md#a-physical-apple-tv)).
 5. Rechecked application root, centre process and display geometry.
 
 Repeated paths for one identity are accepted only when the full native attributes agree. Different matching identities, foreign processes, hidden/disabled/ambiguous targets and mismatches are refused. When several distinct elements match and the visible-one rule does not settle it, the failure lists up to five of them with their identifier, visibility and frame (`… multiple distinct or inconsistent matches: 5 elements (identifier 'com.apple.settings.general', visible, frame 20,254 280x52; …). Select one by a unique identifier, or by its position in this list with --index`), so the call can be repeated with `--id` or `--index`. Nothing is chosen for the caller.

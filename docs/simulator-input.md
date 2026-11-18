@@ -86,7 +86,7 @@ Both routes are private interfaces of CoreSimulator, libxpc and AccessibilityPla
 | Address | Hardware UDID or CoreDevice UUID, resolved through CoreDevice | Simulator UUID only |
 | Preparation | Developer Mode, pairing, tunnel, awake unlocked display | `Booted` state; nothing else is checked |
 | Display | Apple display JSON: backlight, geometry, orientation (`rot0` for AX) | CoreSimulator's main-screen size and scale, plus the same display JSON from the simulator's `dtdeviceinfod`: backlight and orientation for touch, any orientation for AX (interface frames, native hit points) |
-| Foreground process | Hit test at the display centre | Frontmost-application request (type 4); when the simulator reports none, a hit test at the screen centre with client type 2. `application.selection` is `frontmost-or-centre-hit` and `foregroundSelection` counts which was used |
+| Foreground process | Hit test at the display centre (on an Apple TV, the frontmost-application request) | Frontmost-application request (type 4); when the simulator reports none, a hit test at the screen centre with client type 2. `application.selection` is `frontmost-or-centre-hit` and `foregroundSelection` counts which was used |
 | AX carrier | Tunnel assertion, RSD directory, raw DTX, subscription enable/disable | One CoreSimulator request per call; no subscription (`cleanup.subscriptionStop: not-applicable`), no `connectionCleanup`, no `deviceAPIVersion` |
 | Result keys | `backend: coredevice-direct`, `resolvedCoreDeviceUUID` | `backend: coresimulator-ax` or `coresimulator-dtuhid`, `resolvedSimulatorUUID`, `platform: simulator`, `screen` |
 | Buttons | home, lock, volume-up, volume-down | The same four; volume showed the system volume HUD going up and down |

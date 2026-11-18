@@ -27,7 +27,7 @@ Explicit readiness resolves one fresh CoreDevice UUID, then runs Apple's `device
 
 | Field | Interpretation |
 | --- | --- |
-| `ui.displayPower` | `on`, `off` or `unknown`, from one recognized primary display |
+| `ui.displayPower` | `on`, `off` or `unknown`, from one recognized primary display; `external` when that display is a television (an Apple TV), which has no backlight state: the device reports `off` for it whether or not it is drawing, so no wake is advised and `ui.diagnostics` says why ([Apple TV](other-families.md#a-physical-apple-tv)) |
 | `ui.passcodeRequired` | Apple's Boolean field; omitted when unavailable/unrecognized |
 | `ui.unlockedSinceBoot` | Apple's Boolean field; omitted when unavailable/unrecognized |
 | `ui.status` | `needsUserAction`, `unknown` or `observed` |

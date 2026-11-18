@@ -6,7 +6,7 @@ The project is in beta.
 
 Physical iPhone control is the current priority, and reliable unattended testing is still unfinished. iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope, with support varying by device and operation.
 
-Most live evidence comes from one iPhone 13 mini; Apple TV, Apple Watch, iPad and iPhone Duo have been run on simulators only. See [feature status](docs/feature-status.md) before relying on another device or operation, and the [roadmap](docs/roadmap.md) for what is achieved and what is pending.
+Most live evidence comes from one iPhone 13 mini; one Apple TV 4K has been driven too, on the development branch and not yet in a release. Apple Watch, iPad and iPhone Duo have been run on simulators only. See [feature status](docs/feature-status.md) before relying on another device or operation, and the [roadmap](docs/roadmap.md) for what is achieved and what is pending.
 
 <img src="docs/assets/manzanero-clay.png" alt="A cheerful orchard worker biting an apple beside a tree growing a phone, a foldable iPhone Duo, a tablet, a watch and an Apple TV with its remote." width="560">
 
@@ -72,7 +72,9 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Several commands in one call | [`batch`](docs/mcp.md#several-steps-in-one-call-run_batch): up to 30 steps in order, stopped at the first failure |
 | Input sent to a locked phone | [Lock state in receipts](docs/native-input.md#receipts-and-partial-effects) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
-| Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown | [Other simulator families](docs/other-families.md) |
+| Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown | [Other families](docs/other-families.md) |
+| A physical Apple TV: trees with focus, the Siri Remote, sleep | [A physical Apple TV](docs/other-families.md#a-physical-apple-tv) |
+| A row further down a long list | [`scroll --search`](docs/direct-accessibility.md#searching-a-list-that-loads-its-rows---search) |
 | Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical `logs` is not implemented yet: the phone's log relay was read in an experiment and the command is a pending task) |
 | What a failure means and whether to retry | [Errors and exit codes](docs/errors.md) |
 | Input refused as `device-quarantined` | [Quarantine and `clear-quarantine`](docs/native-input.md#quarantine-after-an-uncertain-release) |

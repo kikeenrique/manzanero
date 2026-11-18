@@ -25,7 +25,7 @@ mise tasks validate
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*` | Opt-in native transport/media diagnostics |
 | `test:os-trace-relay <UDID> <pid>` | Opt-in experiment: a bounded read of one process's log entries from a phone's `os_trace_relay`, then a reopen; read-only, result under `tmp/os-trace-relay/` ([research, Q6](app-logs-research.md#6-open-questions-and-settling-experiments)) |
 | `test:cli-interrupt`, `test:ocr` | CLI signal handling during a physical hold; Vision OCR on a local image (no device) |
-| `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core and measurement-runner tests on macOS; Tuist workspace generation under `tmp/probe-app/generated` |
+| `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core and measurement-runner tests on macOS; Tuist workspace generation under `tmp/probe-app/generated`, with both schemes: `ProbeApp` (iOS) and `ProbeTV` ([tvOS](probe-app.md#tvos-probe)) |
 | `test:probe-touch <UDID>` | Opt-in [touch measurement](probe-touch-runner.md) against the foreground probe app; `--dry-run` contacts no device |
 | `diagnose:device-services` | When every query to a connected device times out: saves a `sample` of `CoreDeviceService` and `remotepairingd`, one unified-log window for both (`--minutes`, default 15), a timed `devicectl list devices` and the OS and Xcode versions under `tmp/device-services/<timestamp>/`. Sends nothing to a device and restarts nothing; run it before anyone restarts those services |
 

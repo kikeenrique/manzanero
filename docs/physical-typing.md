@@ -74,7 +74,7 @@ mise run test:mcp-type <UDID> 'mCp2!x'
 mise run test:mcp-type <UDID> 'Año ¿qué? <º>' spanish-iso
 ```
 
-The live task types into the current field and saves screenshots/receipt under ignored `tmp/`. It does not choose or clear a field or change the phone's layout. Do not use secrets as test text.
+The live task types into the current field and writes its screenshots and receipt as working files under `tmp/`. It does not choose or clear a field or change the phone's layout. Do not use secrets as test text.
 
 ## Historical implementation
 

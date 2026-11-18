@@ -2,7 +2,7 @@
 
 This page lists what still has to be run on hardware. It is a plan, not a record: results go in [verification](verification.md), and items are removed from here once they are recorded there. The [roadmap](roadmap.md#pending) puts these runs in order with the work that is not about hardware.
 
-Done on the iPhone 13 mini so far: wake, the command service queue, the device lease across two processes, interruption, the accessibility tree, press, scroll and every wait condition except `focused`, touch delivery measured with the probe app (one to five contacts), keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, `frames` in portrait, app console output and the last crash, system-prompt handling through the tree, the operation-first grammar, `set-value` and Spanish – ISO typing and detection in the probe's field, live MCP sessions, and on 2026-11-17 recording and `frames` after the bridge change, a killed `long-press` with quarantine, `set-value` in Settings, pipelined MCP calls, bounded `console` output, a web page in Chrome read and filled with `--index`, `wake` and the lock screen with a passcode, and `handoff` at a terminal, from an MCP host and watching the device; and that night and on 2026-11-18 the last handoff runs with the owner, a screenshot of the sleeping phone, a recording whose offer asked for RTCP feedback, and a bounded read of the log relay. See [verification](verification.md).
+Done on the iPhone 13 mini so far: wake, the command service queue, the device lease across two processes, interruption, the accessibility tree, press, scroll and every wait condition except `focused`, touch delivery measured with the probe app (one to five contacts), keys and buttons, app lifecycle, files, reports, `build-run` with signing, native recording, `frames` in portrait, app console output and the last crash, system-prompt handling through the tree, the operation-first grammar, `set-value` and Spanish – ISO typing and detection in the probe's field, live MCP sessions, and on 2026-11-17 recording and `frames` after the bridge change, a killed `long-press` with quarantine, `set-value` in Settings, pipelined MCP calls, bounded `console` output, a web page in Chrome read and filled with `--index`, `wake` and the lock screen with a passcode, and `handoff` at a terminal, from an MCP host and watching the device; and that night and on 2026-11-18 the last handoff runs with the owner, a screenshot of the sleeping phone, a recording whose offer asked for RTCP feedback, and a bounded read of the log relay. Done on one Apple TV 4K on 2026-11-18: `readiness`, `screenshot`, `screen`, trees with focus, focus waits, `press`, `set-value`, `type`, every `remote` button against the tvOS probe, and sleep. See [verification](verification.md).
 
 The test phone has had a passcode since the evening of 2026-11-17 and its default browser is Safari; before that it had no passcode and links opened in Chrome. Most records were made without a passcode.
 
@@ -36,11 +36,16 @@ If every query to a connected device times out, read the state of Apple's device
 
 ## Not yet run on Apple TV, Apple Watch or iPhone Duo hardware
 
-Everything in [other families](other-families.md) has run on simulators only. On real devices nothing is known, including whether the commands apply at all:
+One Apple TV 4K has been driven; everything else in [other families](other-families.md) has run on simulators only, and on those real devices nothing is known, including whether the commands apply at all:
 
 - Duo: `displays`, `screenshot` with and without `--display`, `record --display`. `fold`, `unfold` and `hinge` are simulator-only (a physical device's hinge is moved by hand); on hardware, check what the display information reports in each fold state.
-- Apple TV, after the [first look](verification.md#first-look-at-a-physical-apple-tv) of 2026-11-18: which observing command wakes a sleeping Apple TV (one command at a time, the owner watching the television), and what the device reports as its display state when awake. Tell the owner first: the television came on with it.
-- Apple TV: trees with focus, focus waits, `press`, the touch refusal and `remote` without play-pause ran on one Apple TV 4K ([guide](other-families.md#a-physical-apple-tv)). Still to run: `type` and `set-value` in a search field, `scroll`, the Apple TV HD, why the video stream decodes to a black rectangle on grey (recording and `frames` are refused there meanwhile), and a `scroll` that moves a list, which needs a long list in the [tvOS probe](probe-app.md#tvos-probe) (it is installed on the device and recorded every remote button; Settings' tree holds only the rows on screen).
+- Apple TV 4K, where trees with focus, focus waits, `press`, `set-value`, `type`, the touch refusal and every `remote` button have run ([guide](other-families.md#a-physical-apple-tv)). Tell the human owner before the first command: a sleeping Apple TV and its television can come on. Still to run there:
+  - What wakes it: with the device asleep (`button lock`, then `remote select` on Power Off) and the human owner watching the television, send `remote home` alone. `readiness` did not wake it. Do not run `tree` until the wake is seen: two of the three stale connections began as a `tree` started.
+  - The tvOS probe's current build, with the list and the twin buttons (the device has the first version; it is installed from Xcode by the human owner), then `scroll`, `scroll --search`, `press` on a row at the bottom edge, `--index` and `batch` against it.
+  - Whether `set-value` leaves tvOS's keyboard in front, as it did on a simulator.
+  - `remote --hold` on `home`, which is refused on a device until it has been tried once.
+  - The connection that goes stale: when it happens, read `remoted`'s log (`log show --predicate 'process == "remoted"'`) for "Device connection interrupted" with no "Handshake complete" after it, and note what command was starting.
+  - The Apple TV HD, and why the video stream arrives blank (recording and `frames` are refused meanwhile).
 - Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), `button side`, and `button action` on an Apple Watch Ultra.
 
 ## Not yet run on simulators
@@ -63,6 +68,9 @@ These need no hardware and no owner decision; they were left out of the simulato
 - Does a phone keep a key or button held when the process sending it is killed? It ended a contact itself, as a simulator did.
 - Does a web input ever take `set-value`, for example after it has focus?
 - Does setting or removing a passcode always drop the pairing?
+- What makes the Mac's connection to the Apple TV go stale, three times on 2026-11-18, and why does `remoted` not reconnect?
+- What wakes a sleeping Apple TV, and why did observation alone switch it on the first time?
+- Why does the Apple TV's video stream arrive blank for this tool and not for Apple's Device Hub?
 - Does a host remove a form that the server withdraws? If it does, a watching handoff could keep a form up as its "I will not do it" button.
 
 ## Stop conditions

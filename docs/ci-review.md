@@ -16,7 +16,7 @@ The test now explicitly marks that task closure `@Sendable`, requiring the compi
 - Dependency and debug caches are shared by CI and packaging; release products have a separate cache. Keys distinguish OS, architecture, compiler toolchain, package inputs and build commits.
 - Superseded ordinary CI runs are cancelled. Release runs on a ref are serialized without cancellation.
 - `mise run release <version>` checks a clean worktree, the declared version and any existing tag before pushing a tag. Published assets remain immutable.
-- The compiler cache is defined at project level in mise, preventing task-relative cache paths. Stale local compiler output from the checkout rename was moved aside under ignored `tmp/`.
+- The compiler cache is defined at project level in mise, preventing task-relative cache paths. Stale local compiler output from the checkout rename was moved aside under `tmp/`.
 
 ## Validation
 

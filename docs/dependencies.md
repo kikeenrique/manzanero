@@ -28,7 +28,7 @@ mise run build
 mise run test
 ```
 
-Build products live under `.build/`; task caches and investigation artifacts use ignored `tmp/`. See [development tasks](development-tasks.md).
+Build products live under `.build/`; task caches and working files use `tmp/`, which is untracked, not ignored, and disposable. See [development tasks](development-tasks.md).
 
 ## Linked packages
 

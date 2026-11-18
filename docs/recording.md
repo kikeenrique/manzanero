@@ -14,6 +14,7 @@ manzanero media-status --device <device>
 - Output codec: `h264` (default) or `hevc`.
 - Destination: new `.mp4`; its parent directory must already exist.
 - Simulator: explicit UUID.
+- Not an Apple TV: `record` and `frames` are refused there as `unsupported-operation` before any stream starts, because its stream arrived blank ([Apple TV](other-families.md#a-physical-apple-tv)). `screenshot` works.
 - Native physical route: explicit hardware UDID, pairing/Developer Mode, and an awake display. (It used to be gated on macOS 26; the whole tool now requires macOS 26.6.)
 
 Existing destinations are refused, including a path created while capture runs. Display preflight distinguishes off, unknown power and invalid geometry. Wake/unlock guidance is not proof that the host can detect current UI unlock.

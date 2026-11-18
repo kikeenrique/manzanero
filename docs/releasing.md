@@ -15,7 +15,7 @@ mise run test:package
 mise run release:formula <github-owner/repository>
 ```
 
-Output is under ignored `tmp/dist/<version>/`:
+Output is under `tmp/dist/<version>/`:
 
 - one Apple silicon archive, `manzanero-aarch64-apple-darwin.tar.gz` (v0.1.0-beta.1 shipped a universal binary under two names; an Intel slice cannot work, because Xcode 27 does not run on Intel);
 - `SHA256SUMS`;
@@ -55,7 +55,7 @@ Both workflows use the same mise tasks and cache these generated paths:
 
 Keys include the runner OS/architecture, a fingerprint of Xcode and Swift versions, and `Package.swift`/`Package.resolved`. Build-product keys also include the commit, with restore prefixes for incremental reuse. Debug and release products remain separate. The project-level mise environment sets the compiler cache path so nested tasks use the same root cache.
 
-Caches contain disposable generated state. Moving a checkout can invalidate absolute paths inside compiler modules; move affected caches aside under ignored `tmp/` and rebuild rather than changing source to work around stale output.
+Caches contain disposable generated state. Moving a checkout can invalidate absolute paths inside compiler modules; delete the affected caches under `tmp/` and rebuild rather than changing source to work around stale output.
 
 ## Publish a beta
 
@@ -73,7 +73,7 @@ mise run release v0.1.0-beta.2
 
 Run the pushes and this task from your own terminal. A shell inside an agent session has no access to the SSH key: on 2026-11-18 the task created the local tag there and then failed at the push; run again from a terminal, it reused the tag and published.
 
-Use the tag matching the committed version. The task rejects a dirty worktree or mismatched version, creates a missing tag, and reuses an existing tag only when it points at HEAD. It pushes that tag to `origin`; this triggers real prerelease publication. It never moves a tag or overwrites release assets. If a published release needs changes, choose a new version.
+Use the tag matching the committed version. The task rejects a dirty worktree (leaving `tmp/` out of that check, since it is untracked on purpose) or mismatched version, creates a missing tag, and reuses an existing tag only when it points at HEAD. It pushes that tag to `origin`; this triggers real prerelease publication. It never moves a tag or overwrites release assets. If a published release needs changes, choose a new version.
 
 ## Update the tap
 

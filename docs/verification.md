@@ -16,7 +16,7 @@ The latest physical checks used the designated iPhone 13 mini, iOS 27.2.1 (24B15
 
 The phone had Developer Mode and Enable UI Automation enabled for the successful UI checks. It had no passcode until the evening of 2026-11-17, when the owner set one for testing; records before that describe a phone without one. Its default browser was Chrome until the same evening and is Safari since. Later checks found its display off. User preparation is not continuous proof that the device remains awake/unlocked.
 
-Raw screenshots, movies, app/process inventories, addresses, device IDs, archives and stderr remain under ignored `tmp/`. They are not public fixtures. The Git commits named below retain the detailed implementation checkpoints; temporary artifact UUID lists and intermediate test counts are omitted here.
+Raw screenshots, movies, app/process inventories, addresses, device IDs, archives and stderr are working files and are not kept or published; this page is the record. The Git commits named below retain the detailed implementation checkpoints; temporary artifact UUID lists and intermediate test counts are omitted here.
 
 Checkpoint hashes below refer to the rewritten public history. The publication cleanup changed paths and documentation, not the recorded device observations.
 

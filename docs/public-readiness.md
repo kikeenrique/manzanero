@@ -14,7 +14,7 @@ The project uses the [MIT license](../license), and its public source repository
 | Project description | Independent Apple-device wording is used in current files and historical revisions, including source and test identifiers. Targeted checks across reachable history passed. The server identifier rename passed all 314 tests with no build errors or warnings. |
 | Hosting and releases | Public source repository created; v0.1.0-beta.1 published as a prerelease on 2026-11-18. The formula is in the tap and a real Homebrew install passed on one Mac ([record](verification.md#homebrew-install-from-the-tap)). That first beta shipped a universal binary, an Intel block in its formula and a macOS 15 claim, none of which the tool can honour; the sources are corrected for the next beta, and the tap's formula was corrected the same day. See [releasing](releasing.md). |
 
-History cleanup changes commit IDs. Recovery copies and investigation artifacts stay under ignored `tmp/`; never publish that directory or include it in a source archive. Required attribution remains in [dependencies](dependencies.md) and `ThirdParty/`.
+History cleanup changes commit IDs. `tmp/` is untracked working space: never publish that directory or include it in a source archive. Required attribution remains in [dependencies](dependencies.md) and `ThirdParty/`.
 
 ## Audit before the first release, 2026-11-18
 
@@ -25,8 +25,7 @@ Done before any tag exists, because a published tag makes a later history change
 - **Secrets.** Gitleaks 8.30.1, default rules, full redaction, allow-comments disabled: no findings in the rewritten history (every reachable commit) and none in an export of the 323 tracked files. Source and reports were not uploaded.
 - **Tracked files.** No movies, app packages, pairing records, `.env` files, key or certificate exports, provisioning profiles or crash reports; the three tracked images are the project's own artwork in `docs/assets/`.
 
-A UDID is not a credential, and the device cannot be reached with it; it was removed because no device identifier belongs in the repository. These are results for the state checked, not a guarantee about what is added later: repeat the identifier check and the scan before each release. A recovery bundle of the history as it was stays under ignored `tmp/`.
-
+A UDID is not a credential, and the device cannot be reached with it; it was removed because no device identifier belongs in the repository. These are results for the state checked, not a guarantee about what is added later: repeat the identifier check and the scan before each release.
 ## Earlier audit
 
 The local audit on 2026-11-14 used Gitleaks 8.30.1 against the then-current tracked snapshot and all 88 then-reachable commits. Both scans reported no findings with default rules, full redaction and allow-comments disabled. Source and reports were not uploaded.

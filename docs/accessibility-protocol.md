@@ -22,7 +22,7 @@ After attempting `clientNeedsAccessibility: true`, requests are keyed archives p
 | Scroll-to-visible | Type 7, action 11 | One native scroll request |
 | Set value | Type 8, attribute 53, parameter `value` | Replace an element's whole value |
 
-On an Apple TV simulator the tree also reads attribute 19 (focused UI element) on the application to mark the focused node ([other families](other-families.md#focus-in-the-tree-and-in-waits)). The same requests go to a simulator through CoreSimulator instead of DTX ([simulator input](simulator-input.md#how-it-works)).
+On an Apple TV, simulated or physical, the tree also reads attribute 19 (focused UI element) on the application to mark the focused node ([other families](other-families.md#focus-in-the-tree-and-in-waits)). The same requests go to a simulator through CoreSimulator instead of DTX ([simulator input](simulator-input.md#how-it-works)).
 
 Snapshot options request attributes `[2001,2002,2003,2004,5019,2006,2025,5003,5004,3003]`, parent-to-child traversal, depth 48 and child/array caps 512. Host normalization separately caps the returned tree at 512 nodes/depth 32.
 

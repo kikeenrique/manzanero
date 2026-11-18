@@ -1,6 +1,6 @@
-# Apple TV, Apple Watch and iPhone Duo simulators
+# Apple TV, Apple Watch and iPhone Duo
 
-The simulator commands in [simulator input](simulator-input.md) also run on tvOS, watchOS and the foldable iPhone Duo; [the research](other-families-research.md) recorded what worked unchanged. This page covers what was added for those families and what each addition was checked against. Evidence is in [verification](verification.md#other-simulator-families).
+The simulator commands in [simulator input](simulator-input.md) also run on tvOS, watchOS and the foldable iPhone Duo; [the research](other-families-research.md) recorded what worked unchanged. One physical device of these families has been driven, [an Apple TV 4K](#a-physical-apple-tv); the watch and the Duo are simulators only. This page covers what was added for those families and what each addition was checked against. Evidence is in [verification](verification.md#other-simulator-families).
 
 ## Displays (iPhone Duo)
 

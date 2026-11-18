@@ -53,7 +53,8 @@ enum AccessibilityRequest {
     /// Read-only query for the frontmost application of a display (0, the
     /// primary one, unless the interface is on another display), used by the
     /// simulator route. It carries the same synthetic PID-zero translation as
-    /// a hit test; the physical route never sends it.
+    /// a hit test. The physical route sends it only for an Apple TV, whose
+    /// display is external (docs/other-families.md).
     static func frontmost(displayId: Int = 0) throws -> Data {
         try archive(kind: 4, parameters: ["displayId": displayId], token: nil, pointQuery: true)
     }
