@@ -1,6 +1,6 @@
 # Public repository readiness
 
-The project uses the [MIT license](../license), and its public source repository is [kikeenrique/manzanero](https://github.com/kikeenrique/manzanero). The first beta's release assets were published on 2026-11-18; the Homebrew formula has not been added to the tap yet.
+The project uses the [MIT license](../license), and its public source repository is [kikeenrique/manzanero](https://github.com/kikeenrique/manzanero). The first beta's release assets were published on 2026-11-18 and its formula is in the [tap](https://github.com/kikeenrique/homebrew-tap).
 
 ## Publication checklist
 
@@ -12,7 +12,7 @@ The project uses the [MIT license](../license), and its public source repository
 | History privacy | Complete: all 95 existing commits were rewritten to remove personal home paths, local execution configuration and the private investigation document. Targeted checks passed across reachable history; author/committer identities and timestamps were preserved. On 2026-11-18 a second, small rewrite removed the test phone's UDID from 11 commits ([below](#audit-before-the-first-release-2026-11-18)). |
 | Documentation | Describe supported operations and distinguish implementation from observed device behavior. See [verification](verification.md). |
 | Project description | Independent Apple-device wording is used in current files and historical revisions, including source and test identifiers. Targeted checks across reachable history passed. The server identifier rename passed all 314 tests with no build errors or warnings. |
-| Hosting and releases | Public source repository created; v0.1.0-beta.1 published as a prerelease on 2026-11-18. Adding the formula to the tap and testing a real Homebrew install remain. See [releasing](releasing.md). |
+| Hosting and releases | Public source repository created; v0.1.0-beta.1 published as a prerelease on 2026-11-18. The formula is in the tap and a real Homebrew install passed on one Mac ([record](verification.md#homebrew-install-from-the-tap)). See [releasing](releasing.md). |
 
 History cleanup changes commit IDs. Recovery copies and investigation artifacts stay under ignored `tmp/`; never publish that directory or include it in a source archive. Required attribution remains in [dependencies](dependencies.md) and `ThirdParty/`.
 

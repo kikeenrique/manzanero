@@ -18,7 +18,7 @@ Updates use `brew update && brew upgrade manzanero`. The formula records the bet
 
 For a manual release archive, download matching assets and `SHA256SUMS` from the same release. The full checksum file lists both archive names, so download both for `shasum -a 256 -c SHA256SUMS`. Extract one archive, keep `lib/` beside the executable and add that directory to PATH.
 
-Archives are ad-hoc signed, without Developer ID notarization. They do not provide Apple-verified publisher identity.
+Archives are ad-hoc signed, without Developer ID notarization. They do not provide Apple-verified publisher identity. Installed with Homebrew, the tool ran at once on the one Mac tried, because Homebrew's download is not quarantined; an archive downloaded by hand in a browser is quarantined, and Gatekeeper is expected to refuse it, so install through the tap.
 
 ## Prepare the Mac and device
 

@@ -1091,7 +1091,19 @@ The checksums of the CI archives differ from the Mac's local ones, as expected o
 
 The formula attached to this release fails `brew style` as shipped, with 5 `FormulaAudit/ComponentsOrder` offenses found when it was added to the tap: `url` and `sha256` inside a top-level `on_arm`/`on_intel`, and `depends_on` after them. The tap's copy wraps the two blocks in `on_macos` and puts `depends_on` first, with URLs and checksums unchanged. `release:formula` now generates that shape for later releases; `brew style` would not inspect the generated file outside a tap, so the new shape is checked only by `ruby -c` here and by the tap's own run on the same layout. The asset on the published release stays as it is, since releases are immutable.
 
-Not done here: a real `brew install`, which is also the first test of how Gatekeeper treats the ad hoc signature.
+### Homebrew install from the tap
+
+**2026-11-18, morning**, on the development Mac (Apple silicon, Homebrew 7.0.x), reported by the session working in the tap repository; the owner ran the install himself.
+
+| Step | Observed |
+| --- | --- |
+| The formula in `kikeenrique/homebrew-tap`, in the adapted layout | `brew style`: no offenses. `brew audit --strict --online kikeenrique/tap/manzanero`: no findings |
+| `brew install kikeenrique/tap/manzanero` | Succeeded: 27 files, 25.1 MB, the caveats shown |
+| `brew test manzanero` | Passed |
+| Through the installed `bin` symlink: `manzanero --version`, `manzanero --help` | `manzanero 0.1.0-beta.1`; the full command list. Exit 0 both |
+| Gatekeeper | The binary ran at once, with no dialog. `com.apple.quarantine` is set nowhere in the installed files or on Homebrew's cached archive (only `com.apple.provenance`). `codesign -dv`: universal, `Signature=adhoc`, no team identifier. `spctl -a -t execute`: rejected, as expected of ad hoc, unnotarized code |
+
+So a Homebrew install runs straight away, because Homebrew's download carries no quarantine and Gatekeeper then does not assess the binary at launch. An archive downloaded by hand in a browser would be quarantined, and `spctl` says it would be rejected; that path has not been tried. One Mac, the one that built nothing of this release but has Xcode and every development tool installed; a tester's clean Mac and an Intel Mac have not been tried.
 
 The Manzanero rename passed all 314 local Swift tests with no build errors or warnings. Native multitouch and timed-gesture sender tests also passed without a device. All 48 mise tasks validated, and 41 documented command forms passed dry-run checks. The renamed stdio MCP server identified itself as `manzanero`, listed 33 tools and exited successfully on EOF without running device operations.
 
