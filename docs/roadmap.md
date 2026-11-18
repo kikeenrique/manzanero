@@ -91,7 +91,7 @@ Decisions the owner took that night, built and run as far as the last column say
 
 ## Pending
 
-The order below is a suggested order, not one the owner set. It follows the standing priorities of this page: dependable physical testing first, then coverage of more devices, then the gaps in other families, then what is not built, then delivery.
+The order below is a suggested order, not one the owner set. It follows the standing priorities of this page: dependable physical testing first, then coverage of more devices, then the gaps in other families, then what is not built, then commands to add, then delivery.
 
 ### Decisions waiting for the owner
 
@@ -132,14 +132,29 @@ None at the moment. What was decided on 2026-11-17 and 2026-11-18 is in the [dec
 22. **Simulator `wake` and `paste`.** Both are refused as `unsupported-operation`; `simctl pbcopy` did not reach the simulator's pasteboard, so `set-value` is the Unicode route there.
 23. **Agent features.** Durable sessions, reusable element handles, symbolication, `.xcappdata` export, build progress and a build deadline. Prompt detection exists only in the form a caller asks for: `handoff --until gone` on a prompt's button. Nothing notices a prompt by itself.
 
+### Commands to add
+
+Listed on 2026-11-18. None is designed yet; each needs a dry-run plan, an MCP mapping and help text like every other operation. The first five matter most to a caller that works through MCP, where every step is a round trip.
+
+24. **Several steps in one call.** A `batch` command and MCP tool that take a list of existing commands, run them through the same parser in the order given and stop at the first failure, with one receipt per step. It must keep the lease, the handoff pause and quarantine as they are for single commands, and must not replay a step.
+25. **Scroll until an element is found.** `scroll` reaches only an element the tree already holds. Add a search: move the list, read the tree again and stop when the selector matches or a bound on moves or time is reached. On a phone the move is a swipe; on an Apple TV it is `remote down` or `up`, since rows below the screen's edge are not in its tree ([guide](other-families.md#a-physical-apple-tv)).
+26. **Selectors that are not exact.** Add `contains` and regular-expression kinds for labels, identifiers and values in `AccessibilitySelector.kinds`, with exact matching still the default and `--index` for ties.
+27. **Device settings.** A `settings` group: appearance (light or dark), text size, contrast and the other accessibility switches, a simulated location with a way to clear it, and status bar overrides on simulators. Check what `devicectl` and `simctl` offer for each before choosing a route; a setting changed on the owner's device is the owner's call.
+28. **Launch options, and terminate by bundle identifier.** `launch` with arguments, environment variables, language and locale; physical `terminate` by bundle identifier, resolving the process first, instead of only by process identifier.
+29. **Rotation.** A command that turns the device or simulator to a named orientation. On a phone it is only useful once trees work in landscape (item 3).
+30. **Gesture presets.** `double-tap`, swipes from each screen edge and the system gestures (Home, app switcher, Control Centre, Notification Centre), as named presets over `tap` and `gesture` with no new input route.
+31. **A permission-alert helper.** One command that reads the system prompt in front and presses the button named, or Allow or Don't Allow. A convenience: the tree already reads and dismisses a prompt, and `handoff --until gone` covers the case where a person decides.
+32. **Reading the clipboard.** `paste` writes the device's clipboard; nothing reads it. Find out what `devicectl` allows first.
+33. **Smaller additions.** Opening Settings at a named page, and creating a simulator of a named device type and runtime before `boot`.
+
 ### Delivery
 
 The first beta is out: v0.1.0-beta.1, published on 2026-11-18 and installable with `brew install kikeenrique/tap/manzanero` ([record](verification.md#first-beta-published)). The tap's formula is Apple silicon only since the same day, with Xcode 27.0 and macOS Tahoe as requirements, and it passed `brew style`, `brew audit` and a reinstall ([record](verification.md#the-taps-formula-apple-silicon-only)). What is left:
 
-24. **The next beta.** The Apple silicon, macOS 26.6 and Xcode 27 changes are on `main` and in no release: the hosted release workflow has not run with them. v0.1.0-beta.1's archive still holds an x86_64 slice and its own `doctor` has no requirement check; only its formula was corrected.
-25. **An install on a tester's Mac.** Only the development Mac has installed it, and that Mac has Xcode and every tool already.
-26. **Signing.** The archives are ad hoc signed and not notarized. Through Homebrew that runs at once; an archive downloaded by hand would be quarantined and Gatekeeper is expected to refuse it, which nobody has tried. Developer ID signing and notarization are not planned and would be the owner's decision ([releasing](releasing.md)).
-27. **Before each release:** repeat the identifier check and the secrets scan of the [public-readiness audit](public-readiness.md#audit-before-the-first-release-2026-11-18), and run the publishing commands from the owner's own terminal, because an agent session's shell has no access to the SSH key.
+34. **The next beta.** The Apple silicon, macOS 26.6 and Xcode 27 changes are on `main` and in no release: the hosted release workflow has not run with them. v0.1.0-beta.1's archive still holds an x86_64 slice and its own `doctor` has no requirement check; only its formula was corrected.
+35. **An install on a tester's Mac.** Only the development Mac has installed it, and that Mac has Xcode and every tool already.
+36. **Signing.** The archives are ad hoc signed and not notarized. Through Homebrew that runs at once; an archive downloaded by hand would be quarantined and Gatekeeper is expected to refuse it, which nobody has tried. Developer ID signing and notarization are not planned and would be the owner's decision ([releasing](releasing.md)).
+37. **Before each release:** repeat the identifier check and the secrets scan of the [public-readiness audit](public-readiness.md#audit-before-the-first-release-2026-11-18), and run the publishing commands from the owner's own terminal, because an agent session's shell has no access to the SSH key.
 
 ## Owner decisions, 2026-11-16
 
