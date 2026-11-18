@@ -571,6 +571,10 @@ In the afternoon the owner ran the tvOS probe onto the device from Xcode. Six se
 
 Later: `type ' abc'` with the probe's field focused and the keyboard closed made the app's text `héllo tv abc`. In Settings › Accessibility, opened by `press --label`, the tree held only the rows on screen (each as a visible cell plus inner texts marked not visible), so there was nothing off screen to scroll to; `scroll --label Motion` on a row already shown answered `postcondition-verified`, `nativeResult: false`, and the screenshot was unchanged. No setting was pressed.
 
+Power, from 15:13: `button lock` with the screen saver in front brought the Home Screen; again, with the Home Screen in front, it opened Control Centre with Power Off in focus (read from a screenshot and seen by the human owner in Device Hub; the tree gave `PineBoard` and no nodes). At 16:17:16 `remote select` there put the device to sleep: from 16:17:22 `screenshot` failed with "Display reports zero-sized native size", while `readiness` (16:17:19) and the display query (16:17:38) answered as if awake and did not wake it.
+
+The connection went stale twice more: at 15:14:06, as a `tree` started with Control Centre open, and at 16:17:39, as a `tree` started on the sleeping device. Each time `remoted` logged "Device connection interrupted" with no "Handshake complete" after it, then "Heartbeat failed: not connected" every 30 seconds. The same interruption, followed by a handshake, was logged for the iPhone 13 mini during two of five `tree` runs, one of them with a random peer identity in manzanero's directory handshake (a scratch change, not kept), and in the second before one of them only `devicectl` had been active. Logs are under `tmp/appletv-4k3/power/` and `tmp/device-services/`.
+
 Not shown: a scroll that moves a list, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
 
 ## Direct physical input
