@@ -850,7 +850,9 @@ Opening the tunnel took about 1.4 s of each command (eight relayed connections t
 
 So a tunnel on the cable ends when the cable is pulled, and the command that was using it fails once and is not retried; the next one opens a tunnel over the network. A tunnel over the network is not disturbed by the cable arriving. The failed `wait` of the earlier run fits this, as the command straight after an unplugging, though it failed sooner. `remoted` logged no interruption, only its own handshake with the phone at each plugging.
 
-Not shown: an Apple TV, or any device `usbmuxd` does not list, since the default changed; an action, not a `wait`, in flight when the cable is pulled; a tunnel kept by one process (a `batch`, an MCP session) across a change of link; an MCP session; a phone that leaves the network during a command; whether the phone's "connect over the network" setting must be on for `usbmuxd` to list it; the cable pulled while a tunnel is open; another device. The Apple TV is still out of reach: `usbmuxd` does not list it.
+**One more attempt for `tree` and the waits.** Built after that run, on the human owner's word: such a command whose own tunnel ends under it runs once more on a new connection and reports the first failure in `retriedAfter`. It is unit-tested only. A loop of 60 rounds of `wait` and `tree` with that build ran entirely on the cable, 120 results of 120 on the tunnel with no failure and no interruption of `remoted`; the cable was not pulled during it, so no retry happened.
+
+Not shown: that retry on a device; an Apple TV, or any device `usbmuxd` does not list, since the default changed; an action, not a `wait`, in flight when the cable is pulled; a tunnel kept by one process (a `batch`, an MCP session) across a change of link; an MCP session; a phone that leaves the network during a command; whether the phone's "connect over the network" setting must be on for `usbmuxd` to list it; the cable pulled while a tunnel is open; another device. The Apple TV is still out of reach: `usbmuxd` does not list it.
 
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 

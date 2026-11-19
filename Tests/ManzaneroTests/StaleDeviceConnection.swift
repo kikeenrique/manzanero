@@ -137,6 +137,22 @@ struct StaleDeviceConnectionTests {
             release: .init(confirmed: true, status: "acknowledged", diagnostic: nil), serviceDirectory: "own-tunnel", ownTunnelLink: "network")
         let tunnelRoot = try #require(try JSONSerialization.jsonObject(with: onTunnel) as? [String: Any])
         #expect(tunnelRoot["ownTunnelLink"] as? String == "network" && tunnelRoot["ownTunnelUnavailable"] == nil)
+        // A second attempt's result carries the first one's failure.
+        let second = try DirectPhysicalAccessibility.annotateNativeCleanup(Data("{}".utf8),
+            release: .init(confirmed: true, status: "acknowledged", diagnostic: nil), serviceDirectory: "own-tunnel", ownTunnelLink: "network",
+            retriedAfter: "Accessibility socket deadline exceeded.")
+        let secondRoot = try #require(try JSONSerialization.jsonObject(with: second) as? [String: Any])
+        #expect(secondRoot["retriedAfter"] as? String == "Accessibility socket deadline exceeded." && tunnelRoot["retriedAfter"] == nil)
+        // Only a command that sends no input, on the tool's own tunnel, with
+        // a failure of the connection, is tried once more.
+        let dropped = CommandFailure(.transportFailed, "Accessibility socket deadline exceeded.", inputSent: .none)
+        let missing = CommandFailure(.targetUnresolved, "No element matched.", inputSent: .none)
+        #expect(DirectPhysicalAccessibility.retriesOnce(sendsInput: false, serviceDirectory: "own-tunnel", error: dropped))
+        #expect(!DirectPhysicalAccessibility.retriesOnce(sendsInput: true, serviceDirectory: "own-tunnel", error: dropped))
+        #expect(!DirectPhysicalAccessibility.retriesOnce(sendsInput: false, serviceDirectory: "reused-saved-port", error: dropped))
+        #expect(!DirectPhysicalAccessibility.retriesOnce(sendsInput: false, serviceDirectory: nil, error: dropped))
+        #expect(!DirectPhysicalAccessibility.retriesOnce(sendsInput: false, serviceDirectory: "own-tunnel", error: missing))
+        #expect(!DirectPhysicalAccessibility.retriesOnce(sendsInput: false, serviceDirectory: "own-tunnel", error: CancellationError()))
         // A failure has no result, so its message names the route.
         #expect(DirectPhysicalAccessibility.routeNote(serviceDirectory: "own-tunnel", ownTunnelLink: "network", ownTunnelUnavailable: nil)
             == "Route: serviceDirectory=own-tunnel, ownTunnelLink=network.")

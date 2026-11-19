@@ -13,11 +13,43 @@ enum DirectPhysicalAccessibility {
     /// Attempts at the read-only connection setup before giving up.
     static let connectionAttempts = 3
 
+    /// A command whose own tunnel ended under it, wrapped so that the caller
+    /// can run it once more.
+    private struct TunnelEnded: Error { let failure: CommandFailure }
+
+    /// Whether a failed command is run once more on a new connection: only
+    /// one that sends the device no input (`tree` and the waits), only when
+    /// it was on the tool's own tunnel, which ends when the device's cable
+    /// is pulled, and only for a failure of the connection, not of the
+    /// command. An action is never repeated.
+    static func retriesOnce(sendsInput: Bool, serviceDirectory: String?, error: any Error) -> Bool {
+        !sendsInput && serviceDirectory == "own-tunnel" && !(error is CancellationError) && AccessibilityServicePorts.doubts(error)
+    }
+
     static func executeNativeRSD(_ input: CoreDeviceInput, isolation: isolated (any Actor)? = #isolation,
                                  ports: AccessibilityServicePorts = .shared,
                                  staleCheck: (_ udid: String, _ operation: String) throws -> Void = { try StaleDeviceConnection.refuseIfStale(device: $0, operation: $1) },
                                  ownTunnel: OwnTunnelSource = .pooled,
                                  query: (DeviceCommand) throws -> Data) async throws -> Data {
+        do {
+            return try await attemptNativeRSD(input, isolation: isolation, ports: ports, staleCheck: staleCheck, ownTunnel: ownTunnel,
+                                              retriedAfter: nil, query: query)
+        } catch let ended as TunnelEnded {
+            // The first attempt has released its tunnel as unhealthy, so
+            // this one opens another, over whichever link the device has now.
+            return try await attemptNativeRSD(input, isolation: isolation, ports: ports, staleCheck: staleCheck, ownTunnel: ownTunnel,
+                                              retriedAfter: String(ended.failure.description.prefix(300)), query: query)
+        }
+    }
+
+    /// One attempt. `retriedAfter` is the first attempt's failure when this
+    /// is the second; a second attempt is never followed by a third.
+    private static func attemptNativeRSD(_ input: CoreDeviceInput, isolation: isolated (any Actor)?,
+                                         ports: AccessibilityServicePorts,
+                                         staleCheck: (_ udid: String, _ operation: String) throws -> Void,
+                                         ownTunnel: OwnTunnelSource,
+                                         retriedAfter: String?,
+                                         query: (DeviceCommand) throws -> Data) async throws -> Data {
         try Task.checkCancellation()
         let action: DirectAccessibilityAction?
         let wait: AccessibilityWait?
@@ -154,7 +186,7 @@ enum DirectPhysicalAccessibility {
             }
             try Task.checkCancellation()
             return try annotateNativeCleanup(bytes, release: release, serviceDirectory: reused ?? "opened", ownTunnelUnavailable: tunnelNote,
-                                             ownTunnelLink: tunnelLink)
+                                             ownTunnelLink: tunnelLink, retriedAfter: retriedAfter)
         } catch {
             if reused == "own-tunnel", AccessibilityServicePorts.doubts(error) { tunnelHealthy = false }
             if reused != nil, reused != "own-tunnel", AccessibilityServicePorts.doubts(error) { ports.forget(device: udid, tunnelAddress: address) }
@@ -164,7 +196,11 @@ enum DirectPhysicalAccessibility {
                 throw CancellationError()
             }
             let route = routeNote(serviceDirectory: reused ?? "opened", ownTunnelLink: tunnelLink, ownTunnelUnavailable: tunnelNote)
-            let failure = CommandFailure("\(error) \(route) Tunnel assertion release: \(release.status); confirmed=\(release.confirmed). \(release.diagnostic ?? "")", wrapping: error)
+            let again = retriedAfter.map { " This was the second attempt, on a new connection; the first failed: \($0)" } ?? ""
+            let failure = CommandFailure("\(error) \(route) Tunnel assertion release: \(release.status); confirmed=\(release.confirmed). \(release.diagnostic ?? "")\(again)", wrapping: error)
+            if retriedAfter == nil, retriesOnce(sendsInput: action != nil || setValue != nil, serviceDirectory: reused, error: error) {
+                throw TunnelEnded(failure: failure.noInputSent())
+            }
             switch actionStage {
             case 0: throw failure.noInputSent()
             case 1: throw failure
@@ -184,7 +220,8 @@ enum DirectPhysicalAccessibility {
     }
 
     static func annotateNativeCleanup(_ bytes: Data, release: NativeTunnelAssertion.Release, serviceDirectory: String = "opened",
-                                      ownTunnelUnavailable: String? = nil, ownTunnelLink: String? = nil) throws -> Data {
+                                      ownTunnelUnavailable: String? = nil, ownTunnelLink: String? = nil,
+                                      retriedAfter: String? = nil) throws -> Data {
         guard var root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
             throw CommandFailure(.internal, "Invalid internal native AX result.", inputSent: .unknown)
         }
@@ -198,6 +235,9 @@ enum DirectPhysicalAccessibility {
         if let ownTunnelUnavailable { root["ownTunnelUnavailable"] = ownTunnelUnavailable }
         // Present only on the tool's own tunnel: "cable" or "network".
         if let ownTunnelLink { root["ownTunnelLink"] = ownTunnelLink }
+        // Present only when this result comes from a second attempt: the
+        // first one's failure. Only `tree` and the waits are tried again.
+        if let retriedAfter { root["retriedAfter"] = retriedAfter }
         var cleanup: [String: Any] = ["tunnelAssertionRelease": release.status, "confirmed": release.confirmed]
         if let diagnostic = release.diagnostic { cleanup["diagnostic"] = diagnostic }
         root["connectionCleanup"] = cleanup
