@@ -51,13 +51,15 @@ enum AppleTVRemote {
     /// The remote's button hold, as for the phone's buttons.
     static let holdMicroseconds: UInt32 = 80_000
 
-    /// `--hold <seconds>`: a long press. Simulator only so far. A button
-    /// (home, menu, play-pause) is held on the button service: a 1.5 s hold
-    /// on home opened Control Centre on a tvOS 27.2 simulator. A key (select
-    /// and the arrows) is held as one key down and one key up that far apart.
+    /// `--hold <seconds>`: a long press. A button (home, menu, play-pause on
+    /// a simulator) is held on the button service: a 1.5 s hold on home
+    /// opened Control Centre on a tvOS 27.2 simulator. A key (select and the
+    /// arrows) is held as one key down and one key up that far apart. On a
+    /// device the keys can be held (a held select was a long press on an
+    /// Apple TV 4K) and home cannot.
     static let holdOption = "--hold"
     static let holdRange = 0.08...3.0
-    static let holdUsage = "remote \(holdOption) takes seconds in 0.08...3 for a button on an Apple TV simulator, not for a swipe; no input sent."
+    static let holdUsage = "remote \(holdOption) takes seconds in 0.08...3 for a button on an Apple TV, not for a swipe; no input sent."
 
     /// A held key: down at once, up after the hold.
     static func heldKey(_ usage: UInt64, holdMicroseconds: UInt32) -> [ADCKeyboardSample] {
@@ -109,19 +111,33 @@ enum AppleTVRemote {
     static let physicalRoutes: [String: Route] = routes.merging(["menu": .key(41), "play-pause": .key(44)]) { $1 }
 
     /// Operands for a physical device, checked before any contact.
-    static func validatePhysical(_ operands: [String]) throws {
-        if operands.count == 3, operands[1] == holdOption, routes[operands[0]] != nil {
-            throw CommandFailure.unsupported("remote \(holdOption) is built for Apple TV simulators only; on a device, button lock opens Control Centre. No device was contacted.")
-        }
-        guard operands.count == 1, let route = physicalRoutes[operands[0]] else { throw CommandFailure.usage(usage) }
-        if case .swipe = route { throw CommandFailure.unsupported(swipeRefusal) }
+    static func validatePhysical(_ operands: [String]) throws { _ = try parsePhysical(operands) }
+
+    /// `<button> [--hold <seconds>]` for a physical Apple TV: its route
+    /// there, and the hold when one was asked for. A held button goes on the
+    /// button service with that hold; a held key (select, the arrows, and
+    /// Menu and Play/Pause, which are keys on a device) is one key down and
+    /// one key up that far apart, as on a simulator.
+    static func parsePhysical(_ operands: [String]) throws -> (name: String, route: Route, held: UInt32?) {
+        if let name = operands.first, case .swipe? = routes[name] { throw CommandFailure.unsupported(swipeRefusal) }
+        let parsed = try parse(operands)
+        guard let route = physicalRoutes[parsed.name] else { throw CommandFailure.usage(usage) }
+        let held = operands.count == 3 ? parsed.holdMicroseconds : nil
+        if held != nil, case .button = route { throw CommandFailure.unsupported(physicalHomeHoldRefusal) }
+        return (parsed.name, route, held)
     }
 
+    /// Home is the one remote button a device takes on its button service,
+    /// and that service does not hold it: on an Apple TV 4K (tvOS 27.2) a
+    /// 1.5 s hold ended with the connection failing during the hold, and
+    /// neither Control Centre nor the Home Screen appeared.
+    static let physicalHomeHoldRefusal = "remote home \(holdOption) works on Apple TV simulators only: a device's button service failed during the hold and nothing opened. select, the arrows, menu and play-pause can be held on a device. No device was contacted."
+
     static func plan(_ input: CoreDeviceInput) throws -> [String: Any] {
-        try validatePhysical(input.operands)
-        guard let route = physicalRoutes[input.operands[0]] else { throw CommandFailure.usage(usage) }
+        let (_, route, held) = try parsePhysical(input.operands)
         var plan = describe(route)
-        if case .button = route { plan["holdMilliseconds"] = holdMicroseconds / 1000 }
+        if let held { plan["holdMilliseconds"] = held / 1000 }
+        else if case .button = route { plan["holdMilliseconds"] = holdMicroseconds / 1000 }
         plan.merge(["backend": "coredevice-direct", "operation": "remote", "remote": input.operands[0],
             "identityArguments": try input.identityPlan().arguments,
             "execution": "Read the device's details; only if they say it is an Apple TV, send one press in process over Apple CoreDevice/RemoteXPC. No helper executable, no retry."]) { $1 }
@@ -133,10 +149,10 @@ enum AppleTVRemote {
     /// anything is sent; another device is refused.
     static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
                         key: (DirectPhysicalKeyboard.Key) throws -> Void = DirectPhysicalKeyboard.dispatch,
-                        button: (DirectPhysicalInput.Button) throws -> Void = DirectPhysicalInput.dispatch) throws -> Data {
-        try validatePhysical(input.operands)
-        guard input.operation == "remote", let route = physicalRoutes[input.operands[0]] else { throw CommandFailure.usage(usage) }
-        let name = input.operands[0]
+                        button: (DirectPhysicalInput.Button) throws -> Void = DirectPhysicalInput.dispatch,
+                        heldKey: (DirectPhysicalKeyboard.Sequence) throws -> Void = DirectPhysicalKeyboard.dispatchSequence) throws -> Data {
+        let (name, route, held) = try parsePhysical(input.operands)
+        guard input.operation == "remote" else { throw CommandFailure.usage(usage) }
         let details = try query(input.identityPlan())
         let identity = try DirectPhysicalInput.identity(input, query: { _ in details })
         guard deviceType(details) == "appleTV" else {
@@ -144,11 +160,16 @@ enum AppleTVRemote {
         }
         try Task.checkCancellation()
         switch route {
-        case .key(let usage): try key(.init(uuid: identity.uuid, version: identity.version, name: name, usage: usage))
-        case .button(let usage): try button(.init(uuid: identity.uuid, version: identity.version, usage: usage, holdMicroseconds: holdMicroseconds))
+        case .key(let usage):
+            if let held {
+                try heldKey(.init(uuid: identity.uuid, version: identity.version, samples: Self.heldKey(usage, holdMicroseconds: held)))
+            } else { try key(.init(uuid: identity.uuid, version: identity.version, name: name, usage: usage)) }
+        case .button(let usage):
+            try button(.init(uuid: identity.uuid, version: identity.version, usage: usage, holdMicroseconds: held ?? holdMicroseconds))
         case .swipe: throw CommandFailure.unsupported(swipeRefusal)
         }
         var receipt = describe(route)
+        if let held { receipt["holdMilliseconds"] = held / 1000 }
         receipt.merge(["backend": "coredevice-direct", "operation": "remote", "remote": name, "status": "dispatched",
             "verified": false, "releaseVerified": false, "device": input.device, "resolvedCoreDeviceUUID": identity.uuid]) { $1 }
         return try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])

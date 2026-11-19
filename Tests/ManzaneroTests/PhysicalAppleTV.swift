@@ -1,3 +1,4 @@
+import AppleDeviceBridge
 import Foundation
 import MCP
 import Testing
@@ -109,6 +110,27 @@ struct PhysicalAppleTVTests {
         // Menu is Escape and play-pause is Space on a physical Apple TV, not the consumer usages.
         #expect(keys == [40, 82, 81, 80, 79, 41, 44])
         #expect(buttons.count == 1 && buttons[0] == (0x40, 80_000))
+    }
+
+    /// A held button carries the hold on the button service; a held key is
+    /// one key down and one key up the hold apart.
+    @Test func aHeldRemoteButtonCarriesItsHold() throws {
+        var keys = 0, buttons: [(UInt64, UInt32)] = [], held: [[ADCKeyboardSample]] = []
+        for name in ["select", "menu"] {
+            let input = try CoreDeviceInput.validated(device: Self.uuid, operation: "remote", operands: [name, "--hold", "1.5"])
+            let data = try AppleTVRemote.execute(input, query: Self.query, key: { _ in keys += 1 },
+                                                 button: { buttons.append(($0.usage, $0.holdMicroseconds)) },
+                                                 heldKey: { held.append($0.samples) })
+            let receipt = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            #expect(receipt["holdMilliseconds"] as? Int == 1500)
+            #expect(try AppleTVRemote.plan(input)["holdMilliseconds"] as? UInt32 == 1500)
+        }
+        #expect(keys == 0 && buttons.isEmpty)
+        #expect(throws: CommandFailure.self) {
+            try CoreDeviceInput.validated(device: Self.uuid, operation: "remote", operands: ["home", "--hold", "1.5"])
+        }
+        #expect(held.map { $0.map(\.usage) } == [[40, 40], [41, 41]])
+        #expect(held.allSatisfy { $0[0].state == 1 && $0[0].nanoseconds == 0 && $0[1].state == 2 && $0[1].nanoseconds == 1_500_000_000 })
     }
 
     @Test func remoteIsRefusedForUnknownButtonsAndOtherDevices() throws {

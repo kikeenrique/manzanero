@@ -115,9 +115,14 @@ struct SimulatorRemoteTests {
         #expect(pressed.remote.count == 1 && pressed.keys.isEmpty && pressed.held.count == 1)
         let plan = try SimulatorInputTests.json(await service.run(["remote", "menu", "--hold", "2", "--simulator", Self.uuid], dryRun: true))
         #expect(plan["holdMilliseconds"] as? Int == 2000)
-        // A physical Apple TV has no hold yet.
-        let physical = try #require(throws: CommandFailure.self) { try request(["remote", "home", "--hold", "1", "--device", "tv"]) }
-        #expect(physical.code == .unsupportedOperation)
+        // A physical Apple TV takes the hold too, within the same range.
+        // A physical Apple TV takes the hold for the keys, within the same
+        // range, and refuses it for home, its one consumer button.
+        #expect(throws: Never.self) { try request(["remote", "select", "--hold", "1", "--device", "tv"]) }
+        let physical = try #require(throws: CommandFailure.self) { try request(["remote", "select", "--hold", "9", "--device", "tv"]) }
+        #expect(physical.code == .usage)
+        let home = try #require(throws: CommandFailure.self) { try request(["remote", "home", "--hold", "1", "--device", "tv"]) }
+        #expect(home.code == .unsupportedOperation && home.description == AppleTVRemote.physicalHomeHoldRefusal)
         // MCP carries it as an option, before the operands.
         let tool = try #require(MCPTools.definitions.first { $0.name == "press_remote" })
         let args = try tool.command(["device": .string(Self.uuid), "button": "home", "hold_seconds": 1.5])

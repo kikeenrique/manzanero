@@ -998,6 +998,9 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     // The remote's Menu (0x46) and Play/Pause (0xCD) are left out on purpose:
     // an Apple TV 4K closed the connection on each (docs/other-families.md).
+    // No long hold either: a Home held 1.5 s on that Apple TV ended with the
+    // connection failing during the hold, and neither Control Centre nor the
+    // Home Screen appeared (docs/other-families.md).
     if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
         return ADCFail(error, capacity, @"Invalid direct button request.");
     return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, NULL, NULL, NULL, 0, shouldCancel, error, capacity);

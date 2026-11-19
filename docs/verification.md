@@ -889,6 +889,21 @@ So the search up that failed on 2026-11-18 was a long search, not a search upwar
 
 Not shown: `remote --hold` on the device, which the tool still refuses there; the error for the stale state, as no connection went stale; recording and `frames`; a search to the right or left of more than twenty steps. The probe was left in front.
 
+### Held remote buttons on the Apple TV 4K
+
+Later the same evening, the same device and versions, on the human owner's word; `remote --hold` had been refused on a device until then. The device had gone back to sleep: one `remote home` woke it and `launch` brought the tvOS probe in front. The focus was read from a tree before any select.
+
+| Run | Result |
+| --- | --- |
+| One `batch`: `remote down` twice, `wait --until focused --id probe.tv.hold`, `remote select --hold 1.5`, a wait for `probe.tv.last` to read `select-long`, `remote select`, `remote select --hold 1.2`, `tree` | 8 of 8 steps; the probe's summary went from `select=20 select-long=0` to `select=20 select-long=2`: both holds recorded as long presses, the plain press on that element as nothing, as on the simulator |
+| `remote home --hold 1.5`, first | Exit 1 before any contact, "Invalid direct button request.": the bridge allows a button 0.4 s at most |
+| The same with that limit raised for Home | Exit 1 after about the hold: "Input stopped after cancellation or transport failure; release was attempted …". Two screenshots and a tree afterwards showed the probe unchanged, with no Control Centre and no Home Screen. The device was marked quarantined, as built; `clear-quarantine` after the look |
+| One `batch`: `remote right`, `remote down --hold 1.5`, `tree`, `remote menu --hold 1`, `remote play-pause --hold 1`, `tree` | 6 of 6 steps. The first tree had the focus on `probe.tv.row.14`: the held arrow repeated. The second tree was the Home Screen's: the held Menu had left the probe, and its counts did not change. The held Play/Pause therefore went to the Home Screen, where a screenshot showed nothing changed |
+
+So on a device the keys hold as on a simulator, and the button service does not hold Home. The limit in the bridge was put back and `remote home --hold` is refused on a device with that reason. The held Play/Pause was sent outside the probe by mistake: the step before it had left the app, and the batch was written without allowing for that.
+
+Not shown: what a held Play/Pause does inside an app; why the button service fails during a hold, and whether a shorter one, between 0.4 s and 1.5 s, would pass; Control Centre on a device.
+
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
 On the evening of 2026-11-18, on one Apple TV simulator at 1080p (tvOS 27.2), macOS 27.2.1, Xcode 27.2, with the build from `main` plus the changes named here. No device was used.
