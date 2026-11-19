@@ -922,6 +922,20 @@ So the request is the same and the stream is not marked protected. The differenc
 
 Not shown: whether starting the audio stream too gives this tool a picture, which is now a task ([roadmap](roadmap.md)); how much data Device Hub received.
 
+### Accessibility Inspector on the Apple TV
+
+Late on 2026-11-19 the human owner opened Xcode 27.2's Accessibility Inspector while the Mac's log was captured for device connections in every process; this tool sent the Apple TV nothing. A first capture, of the Inspector's own process only, showed no device connection: the work is done by two helpers, `axAuditService` inside the Inspector and MobileDevice's `MDRemoteServiceSupport`. What the human owner saw and browsed in the Inspector was not reported.
+
+| Time | From `remoted`'s log, for the Apple TV 4K (`AppleTV14,1`, tvOS 27.2) |
+| --- | --- |
+| 23:44:51 | `MDRemoteServiceSupport` browses the devices `remoted` knows and lists this one's 81 services, three times |
+| 23:44:54 | "Fetching service `com.apple.accessibility.axAuditDaemon.remoteserver.shim.remote` … (client pid of `MDRemoteServiceSupport`)", then "Returning service", "Accepting service connection" and "Got CONNECT command" |
+| The whole session, to 23:46:19 | No "Connection reset by peer" and no interruption of that device's connection. Two other connections, made at 23:45:03 and 23:45:50, were ended at 23:46:16 with "Peer connection canceled", when the Inspector quit |
+
+So Apple's Inspector reaches the device's accessibility daemon through `remoted`, by the shim of its older service name, asked for by MobileDevice's helper, which holds the entitlement the shims name (`com.apple.mobile.lockdown.remote.trusted`). It opens no service directory connection of its own, and the device did not reset the Mac's. This tool asks for another service of the same daemon, `…axAuditDaemon.remoteAXService`, which `remoted` refuses it, and therefore reads the directory itself, which is what makes the device reset `remoted`.
+
+Not shown: whether this process can get the same connection by calling the MobileDevice framework (`AMDeviceCreateWithRemoteDevice` and a service start are exported; nothing was tried); whether the service behind the shim speaks what this tool's accessibility code speaks (the log names `com.apple.accessibility.axAuditDaemon.protocolVersion` over DTX, which is the family this tool uses); what the Inspector showed.
+
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
 On the evening of 2026-11-18, on one Apple TV simulator at 1080p (tvOS 27.2), macOS 27.2.1, Xcode 27.2, with the build from `main` plus the changes named here. No device was used.
