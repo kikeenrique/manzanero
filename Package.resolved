@@ -1,5 +1,5 @@
 {
-  "originHash" : "0f231f0b1f01353f185715f55f769dfdcbdd315978aa67a37b60aed965c1bf80",
+  "originHash" : "3ce8cc87f41a966114fd25f4f91a30f01974647d8212217b3f9ccc9e97160b6c",
   "pins" : [
     {
       "identity" : "eventsource",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "bb4b61273b5a976bb571859c17f903ebc3439df1",
         "version" : "1.6.0"
+      }
+    },
+    {
+      "identity" : "lwip",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kikeenrique/lwip.git",
+      "state" : {
+        "revision" : "728f189b05d02d3562a084baa96e2abacdd4404b",
+        "version" : "2.2.1-swiftpm-dev.1"
       }
     },
     {

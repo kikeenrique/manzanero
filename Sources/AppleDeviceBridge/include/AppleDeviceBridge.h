@@ -316,4 +316,31 @@ typedef struct {
 /// Calls sink synchronously once per capability. Every pointer, including the
 /// static strings, is borrowed only for the duration of the call.
 void ADCCheckCapabilities(__attribute__((noescape)) void (^sink)(const ADCCapabilityCheck *capability));
+
+/// A tunnel of the tool's own to a device on a cable (AppleDeviceTunnel.m).
+/// Apple's private MobileDevice framework finds the device, uses the trust
+/// the Mac already has, and starts the device's tunnel service
+/// (com.apple.internal.devicecompute.CoreDeviceProxy); after its greeting the
+/// service exchanges raw IPv6 packets, which the caller carries. No pairing
+/// is started, and a locked device refuses the service.
+typedef struct {
+    uint8_t clientAddress[16];  // the Mac's end of the tunnel
+    uint8_t serverAddress[16];  // the device's end
+    uint16_t mtu;
+    uint16_t serviceDirectoryPort;  // the device's RSD port on the tunnel
+} ADCDeviceTunnelInfo;
+/// Returns zero with an owner to close. Nothing but the service's greeting
+/// is exchanged. On failure the error says what refused it.
+int ADCOpenDeviceTunnel(const char *udid, ADCDeviceTunnelInfo *info, void **owner, char *error, size_t errorCapacity);
+/// Sends one IPv6 packet. Returns zero. May be called while another thread
+/// is blocked in ADCDeviceTunnelReceive, and from one thread at a time.
+int ADCDeviceTunnelSend(void *owner, const uint8_t *packet, size_t length);
+/// Blocks for one IPv6 packet and returns its length, zero when the tunnel
+/// was closed, or -1 on an error or a packet larger than the buffer. Call
+/// from one thread only.
+long ADCDeviceTunnelReceive(void *owner, uint8_t *buffer, size_t capacity);
+/// Ends the service connection, which unblocks a waiting receive. The owner
+/// stays valid until ADCReleaseDeviceTunnel.
+void ADCCloseDeviceTunnel(void *owner);
+void ADCReleaseDeviceTunnel(void *owner);
 #endif

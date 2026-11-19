@@ -16,6 +16,7 @@ enum DirectPhysicalAccessibility {
     static func executeNativeRSD(_ input: CoreDeviceInput, isolation: isolated (any Actor)? = #isolation,
                                  ports: AccessibilityServicePorts = .shared,
                                  staleCheck: (_ udid: String, _ operation: String) throws -> Void = { try StaleDeviceConnection.refuseIfStale(device: $0, operation: $1) },
+                                 ownTunnel: OwnTunnelSource = .pooled,
                                  query: (DeviceCommand) throws -> Data) async throws -> Data {
         try Task.checkCancellation()
         let action: DirectAccessibilityAction?
@@ -48,8 +49,14 @@ enum DirectPhysicalAccessibility {
         try staleCheck(udid, input.operation)
         let assertion = try NativeTunnelAssertion(device: udid, details: details)
         defer { assertion.close() }
-        /// "reused-port" or "reused-saved-port" once a remembered port is in use.
+        /// "reused-port" or "reused-saved-port" once a remembered port is in
+        /// use, "own-tunnel" on a tunnel of the tool's own.
         var reused: String?
+        var openedTunnel: DeviceTunnel?
+        var tunnelHealthy = true
+        /// Why the tool's own tunnel was asked for and not used.
+        var tunnelNote: String?
+        defer { if let openedTunnel { ownTunnel.release(openedTunnel, tunnelHealthy) } }
         // Classifies a failure of an action: before it nothing was sent, it
         // classifies its own failures, and after it the input has been sent.
         var actionStage = 0
@@ -63,7 +70,38 @@ enum DirectPhysicalAccessibility {
             // process or another, connect straight to the port it gave,
             // which spares the Mac's remoted the reset each directory
             // connection causes.
-            if let known = ports.port(device: udid, tunnelAddress: address) {
+            // First choice when it is offered: a tunnel of the tool's own,
+            // on which reading the directory disturbs nobody. Any failure to
+            // set it up (no cable, a locked device, another tunnel open in
+            // this process) leaves the route over Apple's tunnel below.
+            switch ownTunnel.acquire(udid) {
+            case .success(let tunnel):
+                openedTunnel = tunnel
+                do {
+                    // The directory is read once per tunnel; a tunnel kept
+                    // by the process remembers the port it gave.
+                    let servicePort: UInt16
+                    if let known = tunnel.accessibilityPort { servicePort = known } else {
+                        let directoryPort = try tunnel.relay(to: tunnel.info.serviceDirectoryPort)
+                        let directory = try RSDDirectoryConnection(tunnelAddress: "::1", port: directoryPort, expectedUDID: udid, relayed: true)
+                        servicePort = directory.accessibilityPort
+                        directory.close()
+                        tunnel.accessibilityPort = servicePort
+                    }
+                    let relayed = try tunnel.relay(to: servicePort)
+                    connected = (nil, try RSDDirectoryConnection.openAccessibility(tunnelAddress: "::1", port: relayed, relayed: true))
+                    reused = "own-tunnel"
+                } catch {
+                    ownTunnel.release(tunnel, false)
+                    openedTunnel = nil
+                    tunnelNote = String("\(error)".prefix(500))
+                }
+            case .failure(let failure):
+                tunnelNote = failure.description
+            case nil:
+                break
+            }
+            if connected == nil, let known = ports.port(device: udid, tunnelAddress: address) {
                 if let transport = try? RSDDirectoryConnection.openAccessibility(tunnelAddress: address, port: known.port) {
                     connected = (nil, transport)
                     reused = known.source
@@ -113,9 +151,10 @@ enum DirectPhysicalAccessibility {
                 FileHandle.standardError.write(Data("Native AX action completed, but cancellation withheld its receipt. Inspect before retrying. No automatic replay.\n".utf8))
             }
             try Task.checkCancellation()
-            return try annotateNativeCleanup(bytes, release: release, serviceDirectory: reused ?? "opened")
+            return try annotateNativeCleanup(bytes, release: release, serviceDirectory: reused ?? "opened", ownTunnelUnavailable: tunnelNote)
         } catch {
-            if reused != nil, AccessibilityServicePorts.doubts(error) { ports.forget(device: udid, tunnelAddress: address) }
+            if reused == "own-tunnel", AccessibilityServicePorts.doubts(error) { tunnelHealthy = false }
+            if reused != nil, reused != "own-tunnel", AccessibilityServicePorts.doubts(error) { ports.forget(device: udid, tunnelAddress: address) }
             let release = assertion.close()
             if Task.isCancelled || error is CancellationError {
                 if !release.confirmed { FileHandle.standardError.write(Data("\(release.diagnostic ?? "Native tunnel release unconfirmed")\n".utf8)) }
@@ -130,7 +169,8 @@ enum DirectPhysicalAccessibility {
         }
     }
 
-    static func annotateNativeCleanup(_ bytes: Data, release: NativeTunnelAssertion.Release, serviceDirectory: String = "opened") throws -> Data {
+    static func annotateNativeCleanup(_ bytes: Data, release: NativeTunnelAssertion.Release, serviceDirectory: String = "opened",
+                                      ownTunnelUnavailable: String? = nil) throws -> Data {
         guard var root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
             throw CommandFailure(.internal, "Invalid internal native AX result.", inputSent: .unknown)
         }
@@ -139,6 +179,9 @@ enum DirectPhysicalAccessibility {
         // "reused-port": it connected to the port an earlier command of this
         // process read; "reused-saved-port": to one another process saved.
         root["serviceDirectory"] = serviceDirectory
+        // Present only when the tool's own tunnel was asked for and the
+        // command ran on the other route: the reason.
+        if let ownTunnelUnavailable { root["ownTunnelUnavailable"] = ownTunnelUnavailable }
         var cleanup: [String: Any] = ["tunnelAssertionRelease": release.status, "confirmed": release.confirmed]
         if let diagnostic = release.diagnostic { cleanup["diagnostic"] = diagnostic }
         root["connectionCleanup"] = cleanup

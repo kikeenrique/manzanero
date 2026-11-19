@@ -14,7 +14,15 @@ enum RSDPortDiscovery {
         let bytes: [UInt8]
         let scope: UInt32
 
-        init(_ text: String) throws {
+        /// `relayed` accepts the loopback address and nothing else: a relay
+        /// of the tool's own tunnel (`DeviceTunnel.relay`).
+        init(_ text: String, relayed: Bool = false) throws {
+            if relayed {
+                guard text == "::1" else { throw failure("A relayed connection uses the loopback address.") }
+                bytes = Array(repeating: 0, count: 15) + [1]
+                scope = 0
+                return
+            }
             let parts = text.split(separator: "%", omittingEmptySubsequences: false)
             var address = in6_addr()
             guard parts.count <= 2, let host = parts.first,
@@ -51,8 +59,8 @@ enum RSDPortDiscovery {
         return address
     }
 
-    static func socketAddress(_ text: String, port: UInt16) throws -> sockaddr_in6 {
-        let parsed = try Address(text)
+    static func socketAddress(_ text: String, port: UInt16, relayed: Bool = false) throws -> sockaddr_in6 {
+        let parsed = try Address(text, relayed: relayed)
         guard port > 0 else { throw failure("Invalid zero port.") }
         var address = sockaddr_in6()
         address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)

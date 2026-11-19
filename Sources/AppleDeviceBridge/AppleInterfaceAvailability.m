@@ -172,6 +172,23 @@ static const ADCRequirementSpec ADCKeyedArchiveUID[] = {
     ADC_SYMBOL("_CFKeyedArchiverUIDGetValue"),
 };
 
+// ADCOpenDeviceTunnel (AppleDeviceTunnel.m).
+static const ADCRequirementSpec ADCDeviceTunnel[] = {
+    ADC_FRAMEWORK("/System/Library/PrivateFrameworks/MobileDevice.framework/MobileDevice", RTLD_NOW | RTLD_GLOBAL),
+    ADC_SYMBOL("AMDCreateDeviceList"),
+    ADC_SYMBOL("AMDeviceCopyDeviceIdentifier"),
+    ADC_SYMBOL("AMDeviceGetInterfaceType"),
+    ADC_SYMBOL("AMDeviceConnect"),
+    ADC_SYMBOL("AMDeviceValidatePairing"),
+    ADC_SYMBOL("AMDeviceStartSession"),
+    ADC_SYMBOL("AMDeviceStopSession"),
+    ADC_SYMBOL("AMDeviceDisconnect"),
+    ADC_SYMBOL("AMDeviceSecureStartService"),
+    ADC_SYMBOL("AMDServiceConnectionSend"),
+    ADC_SYMBOL("AMDServiceConnectionReceive"),
+    ADC_SYMBOL("AMDServiceConnectionInvalidate"),
+};
+
 static const ADCCapabilitySpec ADCCapabilities[] = {
     { "physical-input", "button, key, type, paste, tap, long-press, drag, swipe, pinch and two-contact multi-drag through CoreDevice Indigo HID", 0, 1,
       ADCPhysicalInput, ADC_COUNT(ADCPhysicalInput) },
@@ -181,6 +198,8 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       NULL, 0 },
     { "rsd-accessibility", "Native physical accessibility (tree, press/scroll/set-value by exact selector, waits) through a Network RemoteXPC RSD directory", 0, 1,
       ADCRSDAccessibility, ADC_COUNT(ADCRSDAccessibility) },
+    { "device-tunnel", "The tool's own tunnel to a device on a cable for the physical accessibility commands, opt-in with MANZANERO_OWN_TUNNEL=1: Apple's MobileDevice framework opens the device's tunnel service and lwIP, linked in, carries it", 0, 1,
+      ADCDeviceTunnel, ADC_COUNT(ADCDeviceTunnel) },
     { "media-inspection", "Read-only native media support and status through a CoreDevice RemoteXPC media socket", 0, 1,
       ADCMediaInspectionRequirements, ADC_COUNT(ADCMediaInspectionRequirements) },
     { "native-recording", "record --backend coredevice and frames: AVConference negotiation over the media socket, standard-RTP packets decoded in process", 26, 1,

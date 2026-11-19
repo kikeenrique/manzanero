@@ -705,6 +705,91 @@ Just before midnight on 2026-11-18, the Apple TV 4K (tvOS 27.2), macOS 27.2.1, X
 
 Not shown: an MCP session, which shares the process in the same way; a reused port after its tunnel was replaced inside one process; an entry refused for its age; the refusal of a command on a connection that is already stale, which is unit-tested only.
 
+### A tunnel of the tool's own, tried again
+
+In the first hours of 2026-11-19, macOS 27.2.1, Xcode 27.2. The retired bridge was exported from git history (`Backends/IDevice` as it stood before the commit that removed it), built unchanged with its pinned Rust toolchain, and run by hand as an experiment; it is not part of the tool and nothing of it was restored. Its route: ask Apple's `usbmuxd` for the device, start the device's CoreDevice proxy service with the trust the Mac already has, run a software tunnel over that, and read the service directory on that tunnel.
+
+| Device | Command | Result | `Device connection interrupted` in `remoted`'s log |
+| --- | --- | --- | --- |
+| Apple TV 4K (network only) | `tree` | Refused before any contact: "Device not available through usbmuxd" | 0 |
+| iPhone 13 mini (iOS 27.2.1), locked | `tree` | "CoreDevice proxy: unknown error `PasswordProtected` returned from device" | 0 |
+| iPhone 13 mini, unlocked by the human owner (`handoff --until unlocked` answered `observed`) | `tree`, three times, six seconds apart | Each exited 0 with a tree of 78,943 bytes: the Home Screen's labels ("Wi-Fi", "Mapas", "Watch" among them) | 0 |
+| The same phone, the current route, as a control | `tree` | 242 nodes, `serviceDirectory: opened` | 1 |
+
+No pairing prompt appeared on the phone at any point. `remotectl dumpstate` listed every connection as `connected (connectable)` before and after.
+
+So on a tunnel of its own the tool does not disturb `remoted`, and for a device the Mac reaches through `usbmuxd` it needs no pairing of its own. For a device it does not reach that way, the Apple TV here, the old bridge's only other route was its own Wi-Fi pairing with a PIN shown on the device, which was not run.
+
+**The same tunnel service through Apple's own framework.** A scratch test (removed afterwards) loaded `/System/Library/PrivateFrameworks/MobileDevice.framework` and called it directly, with no third-party code:
+
+| Step | Result |
+| --- | --- |
+| `AMDCreateDeviceList` | Five entries: the phone twice, with interface type 2 (network) and type 1 (cable), and three other network entries, not identified |
+| `AMDeviceConnect` on the phone's network entry | `0xe8000065`; nothing further was tried on it |
+| `AMDeviceConnect` on the cable entry | 0 |
+| `AMDeviceIsPaired`, `AMDeviceValidatePairing`, `AMDeviceStartSession` | 1, 0, 0 |
+| `AMDeviceSecureStartService` for `com.apple.internal.devicecompute.CoreDeviceProxy` | 0, with a service connection |
+| The tunnel greeting sent on it (`CDTunnel`, a two-byte length, `{"type":"clientHandshakeRequest","mtu":1280}`) | 54 bytes sent; the reply began `CDTunnel` and carried `type: serverHandshakeResponse` with `clientParameters` (mtu 1280), `serverAddress`, `serverRSDPort` (55210) and `flags` |
+
+The phone was unlocked, showed no prompt, and `remoted` logged no interruption. The connection was closed after the reply; no packet was exchanged on the tunnel.
+
+**Without the cable.** The human owner then unplugged the phone; `devicectl` listed it as `connected`.
+
+| Route | Result | Interruptions of `remoted` |
+| --- | --- | --- |
+| The retired bridge, `tree`, twice | Each exited 0 with a tree of 40,922 bytes | 0 |
+| Apple's framework: `AMDCreateDeviceList` gave the phone one entry, interface type 2; `AMDeviceConnect` | `0xe8000065` | 0 |
+| Apple's framework again, with the devices taken from `AMDeviceNotificationSubscribe` after three seconds of run loop (four attached, the phone among them, type 2) | `AMDeviceConnect`: `0xe8000065` again | 0 |
+
+So over the network the retired bridge reaches the phone and Apple's framework, as called here, does not: it lists the device and fails to connect. Why was not found; the error is the one the framework gives when its connection through `usbmuxd` fails, and the bridge's library connects to a network device by another path.
+
+So over the cable Apple's framework finds the device, uses the Mac's existing trust and starts the tunnel service. What it does not do is carry the tunnel: after the greeting the service exchanges raw IPv6 packets, and turning those into connections is still to be supplied.
+
+Not shown: an accessibility action, input or a long session on that route; anything sent through the tunnel opened with Apple's framework; which devices the three other network entries are; the Apple TV with its own pairing; how the route behaves while the phone locks again.
+
+### The tool's own tunnel, built in
+
+On the morning of 2026-11-19, the iPhone 13 mini (iOS 27.2.1) on its cable and unlocked, macOS 27.2.1, Xcode 27.2, with the tunnel as built into the tool: Apple's MobileDevice framework to open it, lwIP to carry it, a loopback relay, and the existing directory and accessibility code.
+
+**Before the cable was in**, `mise run test:device-tunnel` failed as it should: "The device is not connected by cable; a tunnel of the tool's own needs the cable. Nothing was contacted."
+
+**The opt-in check**, with the cable in:
+
+| Run | Result | `Device connection interrupted` in `remoted`'s log |
+| --- | --- | --- |
+| Open the tunnel, relay to the device's directory port, read the directory with `RSDDirectoryConnection` | Passed in 0.33 s: MTU 1280, the accessibility service found | 0 |
+| The same, then a second relay to the accessibility port and one tree of the app in front | Passed in 6.6 s: 244 nodes, 78,574 bytes | 0 |
+
+**The accessibility commands**, with `MANZANERO_OWN_TUNNEL=1` and the probe app in front, each its own CLI process:
+
+| Command | Result | Seconds |
+| --- | --- | --- |
+| `wait --until visible --id probe.text.field` | `condition-met`, `serviceDirectory: own-tunnel` | 2 |
+| `tree` | 13 nodes, `own-tunnel` | 4 |
+| `set-value --id probe.text.field tunel-propio` | `acknowledged`, `own-tunnel` | 4 |
+| `press --id probe.touch.reset` | `accepted`, `own-tunnel` | 4 |
+| `tree` | 16 nodes, `own-tunnel` | 4 |
+| `wait --until visible --id probe.touch.summary` | `condition-met`, `own-tunnel` | 4 |
+
+`remoted` logged no interruption during the seven commands, and every connection read `connected (connectable)` afterwards. A tree read through the tunnel and one read through the current route, one after the other, agreed: 16 nodes, the text field's value `tunel-propio`, and the probe's own record of it (`"text":"tunel-propio"`, `"edits":1`). A seventh command, a wait for the probe's value to equal the bare text, timed out on both counts correctly: that element's value is a JSON record, not the text.
+
+**The fallback.** Later the same morning the phone was off its cable again. With the opt-in still set, `wait`, two `scroll` commands, `detect-layout --id probe.text.field` (`detected`) and `handoff … --until visible` (`observed`) all ran, on the route over Apple's tunnel (`serviceDirectory: reused-saved-port`). Nothing in their results said why the tunnel had not been used, so a reason was added: a `tree` then answered `ownTunnelUnavailable: "The device is not connected by cable; a tunnel of the tool's own needs the cable. Nothing was contacted."` beside `serviceDirectory: reused-saved-port`. `doctor` listed the new `device-tunnel` entry with nothing missing.
+
+**With the cable back in**, the opt-in set and the probe app in front:
+
+| Command | Result |
+| --- | --- |
+| `wait --until visible --id probe.text.field` | `condition-met`, `serviceDirectory: own-tunnel` |
+| `scroll --id probe.touch.summary` | `nativeResult: false` (already in view), `postcondition-verified`, `own-tunnel` |
+| `tree` | `own-tunnel` |
+| `detect-layout --id probe.text.field`, twice | `detected` both times; its result does not carry `serviceDirectory`, so the route is known only from the code path it shares |
+| `handoff "…" 20 --until visible --id probe.touch.summary`, twice | `observed` both times; the same remark |
+| One `batch` of 30 accessibility steps (five rounds of `tree`, `set-value`, `wait`, `press`, `scroll`, `wait`), 89 seconds | `completedSteps: 30`, `failedStep: null`, `serviceDirectory: own-tunnel` in all thirty: one tunnel kept by the process for the whole batch |
+
+`remoted` logged no interruption during any of it, and no connection was stale afterwards. About three seconds a step is what the same commands take on the other route; the time is in the `devicectl` queries each command makes, not in the tunnel.
+
+Not shown: an MCP session; `detect-layout` and `handoff` reporting which route they used; a long run; a device that locks during a command; why a command takes about four seconds; another device.
+
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
 On the evening of 2026-11-18, on one Apple TV simulator at 1080p (tvOS 27.2), macOS 27.2.1, Xcode 27.2, with the build from `main` plus the changes named here. No device was used.

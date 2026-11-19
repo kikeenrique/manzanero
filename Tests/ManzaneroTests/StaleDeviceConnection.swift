@@ -110,6 +110,29 @@ struct StaleDeviceConnectionTests {
         #expect(AccessibilityServicePorts(file: file, now: { clock.date }).port(device: Self.udid, tunnelAddress: "fd00::2") == nil)
     }
 
+    @Test func theTunnelPoolOffersNothingUnlessAskedAndSaysWhyItCannotOpen() throws {
+        // Not asked for: no tunnel, and nothing is opened.
+        let off = DeviceTunnelPool(open: { _ in Issue.record("A tunnel was opened without being asked for"); throw CancellationError() },
+                                   enabled: { false })
+        #expect(off.acquire(Self.udid) == nil)
+        // Asked for and refused: the reason comes back, and the next command asks again.
+        let refusal = CommandFailure(.deviceNotReady, "The device is not connected by cable.", inputSent: .none)
+        let on = DeviceTunnelPool(open: { _ in throw refusal }, enabled: { true })
+        for _ in 0..<2 {
+            guard case .failure(let failure) = on.acquire(Self.udid) else {
+                Issue.record("Expected the refusal")
+                return
+            }
+            #expect(failure.code == .deviceNotReady && failure.description == refusal.description)
+        }
+        on.closeIfIdle()
+        // The reason reaches the command's result.
+        let annotated = try DirectPhysicalAccessibility.annotateNativeCleanup(Data("{}".utf8),
+            release: .init(confirmed: true, status: "acknowledged", diagnostic: nil), serviceDirectory: "opened", ownTunnelUnavailable: refusal.description)
+        let root = try #require(try JSONSerialization.jsonObject(with: annotated) as? [String: Any])
+        #expect(root["ownTunnelUnavailable"] as? String == refusal.description && root["serviceDirectory"] as? String == "opened")
+    }
+
     @Test func aQueryTimeoutIsNamedWhenTheStateIsListed() {
         let named = StaleDeviceConnection.annotate(Self.timeout, dump: { Self.dump("State: attached") })
         #expect(named.description.hasSuffix(StaleDeviceConnection.note) && named.code == .toolFailed && named.inputSent == .none)

@@ -32,7 +32,7 @@ Build products live under `.build/`; task caches and working files use `tmp/`, w
 
 ## Linked packages
 
-[Package.swift](../Package.swift) declares three direct packages; [Package.resolved](../Package.resolved) records the complete resolved graph.
+[Package.swift](../Package.swift) declares four direct packages; [Package.resolved](../Package.resolved) records the complete resolved graph.
 
 | Package | Pin | Purpose |
 | --- | --- | --- |
@@ -40,11 +40,19 @@ Build products live under `.build/`; task caches and working files use `tmp/`, w
 | [Swift MCP SDK](https://github.com/modelcontextprotocol/swift-sdk) | 0.12.1, `a0ae212ebf6eab5f754c3129608bc5557637e605` | Optional MCP mode in the standard executable |
 | [Swift Subprocess](https://github.com/swiftlang/swift-subprocess) | 1.0.2, `dbe21bd7dfd4ffef8c32588918542a8abfa1b54c` | Scoped asynchronous process output, cancellation and reaping |
 
+| [lwIP](https://github.com/kikeenrique/lwip), the human owner's fork, branch `swift-package-main` | `2.2.1-swiftpm-dev.1`, `728f189b05d02d3562a084baa96e2abacdd4404b` | TCP over IPv6 in user space, for [the tool's own tunnel](transport.md#a-tunnel-of-the-tools-own) to a device, whose packets the tool carries itself. Authorized by the human owner on 2026-11-19. BSD licence: [notice](../ThirdParty/lwip-LICENSE.txt) |
+
+lwIP is C, configured when it is compiled, and its own repository has no Swift package manifest, so this project depends on a fork that adds one. The fork is [lwIP's GitHub mirror](https://github.com/lwip-tcpip/lwip) plus one commit: a `Package.swift`, and under `swiftpm/` a configuration for one job (`port/lwipopts.h`: IPv6 and TCP only, no threads, the system allocator), a platform header for macOS, and a small C surface (`include/CLwIP.h`, prefix `ADL`). lwIP's own sources are unchanged there; none of them is in this repository.
+
+Two branches exist on the fork. `swift-package-main`, the one pinned here, sits on lwIP's main branch as of 2026-11-17, the development of 2.2.2, which carries TCP fixes made after the last release. `swift-package` (`2.2.1-swiftpm.1`) sits on the 2.2.1 release. To take a newer lwIP: merge or rebase the branch onto it in the fork, tag, and change the version here. To work on the port while building this tool against a local copy, `swift package edit lwip` and, when done, `swift package unedit lwip`.
+
+The product exposes none of lwIP's headers, only `CLwIP.h`. lwIP's structures change shape with its options, a client that included its headers would have to be compiled with the same ones, and a package's C settings are not passed on to the packages that depend on it. For the same reason the configuration is not offered as package traits ([SE-0450](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0450-swiftpm-package-traits.md)): a trait does switch a C define inside a dependency, which was tried here, but with only that surface exposed there is nothing for one to switch yet. lwIP keeps its state in globals, so a process has one stack and every call is made from one thread.
+
 The MCP SDK also resolves packages used by its other products; resolution alone does not prove every package is compiled into this executable. Swift Subprocess does not implement device protocols. Existing synchronous paths still use `ToolRunner`; streaming paths use `StreamingToolRunner`.
 
 Swift Argument Parser parses the CLI's arguments only; it runs no command itself, and the CLI keeps its own exit path, error format and signal handling.
 
-Preserve the [Argument Parser license](../ThirdParty/swift-argument-parser-LICENSE.txt), [MCP license/transition notice](../ThirdParty/swift-mcp-sdk-LICENSE.txt), [Subprocess license](../ThirdParty/swift-subprocess-LICENSE.txt) and applicable transitive notices when distributing binaries. Packaging gathers notices from the resolved source graph.
+Preserve the [Argument Parser license](../ThirdParty/swift-argument-parser-LICENSE.txt), [MCP license/transition notice](../ThirdParty/swift-mcp-sdk-LICENSE.txt), [Subprocess license](../ThirdParty/swift-subprocess-LICENSE.txt), [lwIP license](../ThirdParty/lwip-LICENSE.txt) and applicable transitive notices when distributing binaries. Packaging gathers notices from the resolved source graph.
 
 ## Apple interfaces
 
@@ -75,6 +83,7 @@ Shared groups:
 | `multi-contact-input` | `gesture`, `multi-tap`, three-to-five-path `multi-drag` (Universal HID) | Same as `physical-input` | — |
 | `tunnel-assertion` | Native AX, native recording and `frames` | Nothing dynamic: public XPC to the pairing daemon, which doctor does not contact | — |
 | `rsd-accessibility` | `tree`, `press`, `scroll`, `wait`, `set-value` | CoreDevice preparation, `xpc_remote_connection_create_with_nw_connection`, `_setup_nw_parameters`, `_get_failsafe_version_flags`, `_cancel`, `_set_event_handler`, `_activate`, `_send_message` | — |
+| `device-tunnel` | `tree`, `press`, `scroll`, `wait`, `set-value` on a device on its cable, with `MANZANERO_OWN_TUNNEL=1` ([the tool's own tunnel](transport.md#a-tunnel-of-the-tools-own)) | The MobileDevice framework (`/System/Library/PrivateFrameworks/MobileDevice.framework/MobileDevice`, `RTLD_NOW \| RTLD_GLOBAL`) and `AMDCreateDeviceList`, `AMDeviceCopyDeviceIdentifier`, `AMDeviceGetInterfaceType`, `AMDeviceConnect`, `AMDeviceValidatePairing`, `AMDeviceStartSession`, `AMDeviceStopSession`, `AMDeviceDisconnect`, `AMDeviceSecureStartService`, `AMDServiceConnectionSend`, `AMDServiceConnectionReceive`, `AMDServiceConnectionInvalidate`. lwIP is linked in, not resolved | — |
 | `media-inspection` | `media-status` | Media control | — |
 | `native-recording` | `record --backend coredevice` and `frames` (packet mode) | Media control, AVConference negotiation | `-[AVCMediaStreamNegotiator mediaNegotiator]`, `VCMediaNegotiatorBase` and `-negotiatedScreenSettings`, `VCMediaNegotiatorResultsVideo` and `-isRTCPFBEnabled` (RTCP feedback stays unknown without them) |
 | `simulator-input` | Simulator `tap`, `long-press`, `swipe`, `drag`, `pinch`, `multi-tap`, `multi-drag`, `gesture`, `button`, `remote`, `crown`, `key`, `type`, `detect-layout` (with `simulator-accessibility`) | CoreSimulator device lookup, `xpc_endpoint_create_mach_port_4sim`, `xpc_connection_create_from_endpoint`, `xpc_connection_enable_sim2host_4sim`, and the existence of CoreSimulator's `Platforms/iphoneos/Library/LaunchDaemons/com.apple.coredevice.dtuhidd.plist` | `-[SimDevice name]` |

@@ -186,7 +186,7 @@ One session has one outstanding semantic request. Carrier acknowledgements do no
 
 The AX session uses a 30-second overall read budget, four-second phases, 256 frames, 40 MiB callback bytes and at most eight queued results. A wait scales the overall budgets to its poll bound (see above). Cleanup has an independent three-second/32-frame allowance and attempts subscription disable even after ambiguous enable.
 
-Every physical result also carries `serviceDirectory`: `opened` when the command read the device's service directory, `reused-port` when it connected to the accessibility port an earlier command of the same process had read from it, `reused-saved-port` when an earlier process had saved it ([why it matters](transport.md#the-cost-of-this-route)).
+Every physical result also carries `serviceDirectory`: `opened` when the command read the device's service directory, `reused-port` when it connected to the accessibility port an earlier command of the same process had read from it, `reused-saved-port` when an earlier process had saved it, `own-tunnel` when the command ran on the tool's own tunnel to a device on its cable (opt-in with `MANZANERO_OWN_TUNNEL=1`; [why it matters](transport.md#the-cost-of-this-route)).
 
 Successful observations can retain uncertain subscription cleanup. Inspect `cleanup.subscriptionStop`, `confirmed` and diagnostics, plus separate `connectionCleanup.tunnelAssertionRelease`. An acknowledgement is not independent proof of device-side teardown.
 

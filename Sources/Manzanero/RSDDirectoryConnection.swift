@@ -10,19 +10,21 @@ final class RSDDirectoryConnection {
     private let tunnelAddress: String
     private var serviceOpened = false
 
-    init(tunnelAddress: String, port: UInt16, expectedUDID: String) throws {
+    /// `relayed`: the address is the loopback end of a relay of the tool's
+    /// own tunnel, not a device's tunnel address.
+    init(tunnelAddress: String, port: UInt16, expectedUDID: String, relayed: Bool = false) throws {
         try Task.checkCancellation()
         guard expectedUDID.range(of: "^(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}|[0-9A-Fa-f]{40})$", options: .regularExpression) != nil else {
             throw CommandFailure(.internal, "RSD directory requires an explicit hardware UDID; no connection started.", inputSent: .none)
         }
-        _ = try RSDPortDiscovery.socketAddress(tunnelAddress, port: port)
+        _ = try RSDPortDiscovery.socketAddress(tunnelAddress, port: port, relayed: relayed)
         let host = try Self.localPeerUUID(in: ToolRunner().run(["dumpstate"], executable: "/usr/libexec/remotectl", timeout: 5))
         var owner: UnsafeMutableRawPointer?
         var servicePort: UInt16 = 0
         var error = [CChar](repeating: 0, count: 1024)
         // Native bootstrap flags come from Apple's failsafe getter. These flags
         // are only the host's RSD capability advertisement.
-        var target = try RSDPortDiscovery.socketAddress(tunnelAddress, port: port)
+        var target = try RSDPortDiscovery.socketAddress(tunnelAddress, port: port, relayed: relayed)
         let status = withUnsafePointer(to: &target) {
             ADCOpenRSDDirectoryNetwork($0, MemoryLayout<sockaddr_in6>.size, expectedUDID, host, 0x0100000000000006,
                 { Task.isCancelled ? 1 : 0 }, &servicePort, &owner, &error, error.count)
@@ -81,8 +83,8 @@ final class RSDDirectoryConnection {
 
     /// Connects to the accessibility service on a port an earlier directory
     /// of the same tunnel gave, without opening a directory again.
-    static func openAccessibility(tunnelAddress: String, port: UInt16) throws -> AccessibilitySocketTransport {
-        try AccessibilitySocketTransport(taking: connect(address: tunnelAddress, port: port))
+    static func openAccessibility(tunnelAddress: String, port: UInt16, relayed: Bool = false) throws -> AccessibilitySocketTransport {
+        try AccessibilitySocketTransport(taking: connect(address: tunnelAddress, port: port, relayed: relayed))
     }
 
     /// Connects to one lockdown shim service the directory advertises (a
@@ -102,8 +104,8 @@ final class RSDDirectoryConnection {
         return try Self.connect(address: tunnelAddress, port: port)
     }
 
-    private static func connect(address: String, port: UInt16) throws -> Int32 {
-        var target = try RSDPortDiscovery.socketAddress(address, port: port)
+    private static func connect(address: String, port: UInt16, relayed: Bool = false) throws -> Int32 {
+        var target = try RSDPortDiscovery.socketAddress(address, port: port, relayed: relayed)
         let descriptor = socket(AF_INET6, SOCK_STREAM, 0)
         guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
         var transferred = false
