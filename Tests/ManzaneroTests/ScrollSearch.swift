@@ -119,6 +119,11 @@ struct ScrollSearchTests {
         #expect(try action(12, search: 30).search == 30)
         let plain = try DirectAccessibilityAction(CoreDeviceInput(device: "device", operation: "scroll-id", operands: ["row.1"]))
         #expect(plain.search == nil)
+        // A search gets a session allowance that grows with its steps; a
+        // plain scroll keeps the standard one.
+        #expect(plain.sessionLimits == .standard)
+        let long = try action(12, search: 60).sessionLimits
+        #expect(long.frames == 256 + 32 * 60 && long.lifetime == .seconds(210) && long.callbackBytes == (40 + 120) * 1024 * 1024)
         for operands in [["row.1", "--search", "0"], ["row.1", "--search", "201"], ["row.1", "--search", "many"]] {
             #expect(throws: CommandFailure.self) {
                 try DirectAccessibilityAction(CoreDeviceInput(device: "device", operation: "scroll-id", operands: operands))

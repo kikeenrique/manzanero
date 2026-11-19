@@ -13,6 +13,16 @@ struct DirectAccessibilityAction {
     /// `--search`, scroll only: how many steps to look forward for a target
     /// that is not in the tree yet (a list that loads its rows as it moves).
     let search: Int?
+    /// One session serves a whole search, and the standard allowance (256
+    /// frames, 30 seconds) ends a long one: on an Apple TV 4K a search of
+    /// 21 steps finished and one of about 39 stopped with "frame budget
+    /// exceeded". A step is a scroll request and the snapshots that follow
+    /// it until the tree settles, so each step adds to every limit.
+    var sessionLimits: AccessibilitySession.Limits {
+        guard let search else { return .standard }
+        return .init(lifetime: .seconds(30 + 3 * search), frames: 256 + 32 * search,
+                     callbackBytes: 40 * 1024 * 1024 + 2 * 1024 * 1024 * search)
+    }
     static let searchOption = "--search"
     static let searchRange = 1...200
     /// How many anchors a search tries at one position before it stops.

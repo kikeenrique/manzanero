@@ -158,7 +158,7 @@ enum DirectPhysicalAccessibility {
             }
             guard let (directory, transport) = connected else { throw CancellationError() }
             defer { directory?.close() }
-            let session = AccessibilitySession(transport: transport, limits: wait?.sessionLimits ?? .standard)
+            let session = AccessibilitySession(transport: transport, limits: wait?.sessionLimits ?? action?.sessionLimits ?? .standard)
             let display = {
                     try Task.checkCancellation()
                     return try AccessibilityDisplay(query(AccessibilityDisplay.plan(device: identity.uuid)))

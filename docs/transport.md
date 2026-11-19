@@ -82,7 +82,7 @@ A change of link ends the tunnel on the cable: the command in flight when the ca
 
 On the phone, three commands in flight at an unplugging answered that way and none of 93 failed.
 
-Still to do: one interruption of `remoted` at a change of link, recovered in two seconds, whose cause is not known; a tunnel kept by one process across a change of link (an MCP session ran on the cable, eleven results on the tunnel); `detect-layout` and `handoff` saying which route they used (a failed accessibility command does: its message carries `Route: serviceDirectory=…`); and a second device. An Apple TV has not run a command since the tunnel became the default; it should fall back with the reason in `ownTunnelUnavailable`.
+Still to do: one interruption of `remoted` at a change of link, recovered in two seconds, whose cause is not known; a tunnel kept by one process across a change of link (an MCP session ran on the cable, eleven results on the tunnel); and a second device. The Apple TV 4K ran commands with the tunnel as the default and fell back each time, with "Apple's MobileDevice framework does not list the device; nothing was contacted." in `ownTunnelUnavailable` ([record](verification.md#apple-tv-4k-with-the-tunnel-as-the-default-and-the-search-up)).
 
 Limits known already: a device `usbmuxd` does not list, such as the Apple TV here, is out of reach; a locked device refuses the service; no pairing is started, so a device the Mac does not already trust is out of reach; a process has one tunnel at a time, because lwIP keeps its state in globals; and the relay's listener is on the loopback address for up to ten seconds, where another local process could connect to it first.
 

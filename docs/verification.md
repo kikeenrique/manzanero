@@ -869,6 +869,26 @@ So a `tree` or a `wait` in flight when the cable is pulled now answers, over the
 
 Not shown: an MCP session over the network or across a change of link; what caused that interruption; an Apple TV, or any device `usbmuxd` does not list, since the default changed; an action, not a `wait`, in flight when the cable is pulled; a tunnel kept by one process (a `batch`, an MCP session) across a change of link; an MCP session; a phone that leaves the network during a command; whether the phone's "connect over the network" setting must be on for `usbmuxd` to list it; the cable pulled while a tunnel is open; another device. The Apple TV is still out of reach: `usbmuxd` does not list it.
 
+### Apple TV 4K with the tunnel as the default, and the search up
+
+On the evening of 2026-11-19, the Apple TV 4K (3rd generation, tvOS 27.2) over the network, macOS 27.2.1, Xcode 27.2, with the human owner's word. `remotectl dumpstate` was read before each run and never showed a stale connection.
+
+**The tunnel cannot reach it, and says so.** `tree` exited 0 with `ownTunnelUnavailable: "Apple's MobileDevice framework does not list the device; nothing was contacted."` and `serviceDirectory: opened`, then `reused-saved-port` in later commands and `reused-port` inside a `batch`: the route over Apple's tunnel, as before the default changed. That first `tree` cost one `Device connection interrupted` in `remoted`'s log, followed by "Handshake complete"; the later runs logged none.
+
+**Asleep at the start.** The first `tree` showed only `PineBoard` (29 nodes, no labels), `launch` of the tvOS probe answered success without bringing it in front, and `screenshot` failed with "Display reports zero-sized native size". One `remote home` woke it: a screenshot then showed the Home Screen with the focus on another app. No select was sent there; the probe was started with `launch`.
+
+**The search up.** In the probe, each run one `batch`:
+
+| Run | Result |
+| --- | --- |
+| `scroll --id probe.tv.row.30 --search 40`, then `--id probe.tv.row.1 --search 40 --toward up` | Both `postcondition-verified`, in 8 and 21 steps |
+| `--id probe.tv.row.40 --search 60`, then `--id probe.tv.row.1 --search 60 --toward up` | Down in 12 steps; up failed: "Accessibility session: frame budget exceeded. AX scroll-to-visible state=search-submitted, stage=search", `input-outcome-unknown` |
+| The same after the change below, twice in one batch | Down in 12 steps and up in 28, both times `postcondition-verified` |
+
+So the search up that failed on 2026-11-18 was a long search, not a search upward: one accessibility session serves the whole search, and the standard allowance of 256 frames ends it somewhere past twenty steps on this device. A search now gets an allowance that grows with its steps (`DirectAccessibilityAction.sessionLimits`: 32 frames, three seconds and 2 MB for each).
+
+Not shown: `remote --hold` on the device, which the tool still refuses there; the error for the stale state, as no connection went stale; recording and `frames`; a search to the right or left of more than twenty steps. The probe was left in front.
+
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
 On the evening of 2026-11-18, on one Apple TV simulator at 1080p (tvOS 27.2), macOS 27.2.1, Xcode 27.2, with the build from `main` plus the changes named here. No device was used.
