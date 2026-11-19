@@ -27,9 +27,9 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Apple TV remote**: `remote` | — | — | partly: all eight buttons and held keys work; held Home and swipes refused | works, with holds and swipes | — | — |
 | **Watch crown**: `crown` | — | — | — | — | works | — |
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
-| **Read the screen's elements**: `tree`, `wait` | works, portrait only | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
-| **Act on an element**: `press`, `scroll`, `set-value` | works, portrait only | works | works, see the routes below | works | works (`press`) | partly: `press` fails in a letterboxed app |
-| **Search a long list**: `scroll --search` | not run | not run | works up and down; sideways past twenty steps not run | works in four directions | not run | not run |
+| **Accessibility, read**: `tree`, `wait` | works, portrait only | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
+| **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait only | works | works, see the routes below | works | works (`press`) | partly: `press` fails in a letterboxed app |
+| **Accessibility, search a long list**: `scroll --search` | not run | not run | works up and down; sideways past twenty steps not run | works in four directions | not run | not run |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | not run | works, with `--display` |
 | **Video**: `record`, `frames` | works with `--backend coredevice`; the default backend fails on this phone | `record` works; `frames` is for devices | refused: the picture arrives blank; a fix is a pending task | `record` works | not run | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works (`apps`, `launch`; the rest not run) | works | not run | works |
