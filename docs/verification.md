@@ -906,6 +906,22 @@ So on a device the keys hold as on a simulator, and the button service does not 
 
 Not shown: what a held Play/Pause does inside an app; why the button service fails during a hold, and whether a shorter one, between 0.4 s and 1.5 s, would pass; whether a hold would pass on a connection kept open, as Device Hub keeps its own, and without the readiness request this tool sends first; Control Centre on a device.
 
+### Device Hub's screen view of the Apple TV
+
+Late on 2026-11-19 the human owner opened the Apple TV 4K's screen view in Apple's Device Hub (Xcode 27.2) for about twenty seconds while the Mac's log was captured for Device Hub, `CoreDeviceService` and `remoted`. This tool sent the device nothing. What the human owner saw in the view was not reported.
+
+| What Device Hub did, from the log | Compared with this tool |
+| --- | --- |
+| Asked for the media support information (`com.apple.coredevice.action.mediastreamgetsupportinfo`), several times; supported features "Primary video display mirrored output stream, System audio output stream, Display information" (140) | The same action and the same value |
+| Started an **audio** output stream first (`MediaStreamStartParameters … type: audio`), then the **video** one, both with one `avcMediaStreamOptionClientSessionID` and each with a `sessionEventChannel` | The video alone, with no event channel |
+| Video options `CoreDeviceVideoDisplayMode: "DisplayByID"`, `VideoStreamForDisplayID: 1`, transport TCP, access network LAN, the receiver on the Mac's end of Apple's tunnel | The same options |
+| Received with Apple's AVConference (`AVCVideoStream`, client name `CoreDeviceScreenSharing`): 3168 × 1792, 60 frames a second, receive codec type 102, pixel format `420v`, not protected (`vcMediaStreamIsVideoProtected = 0`), bit rate 333 kb/s to 6 Mb/s | The same size; packets taken from the socket and decoded in process |
+| Stream started 23:20:49 and stopped 23:21:08; status and stop through `MediaStreamStatus` and `MediaStreamStop` | The same actions |
+
+So the request is the same and the stream is not marked protected. The differences are the audio stream started beside the video, the event channel, and who decodes.
+
+Not shown: whether Device Hub's picture was right; whether starting the audio stream too gives this tool a picture; how much data Device Hub received.
+
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
 On the evening of 2026-11-18, on one Apple TV simulator at 1080p (tvOS 27.2), macOS 27.2.1, Xcode 27.2, with the build from `main` plus the changes named here. No device was used.
