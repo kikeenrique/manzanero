@@ -902,7 +902,9 @@ Later the same evening, the same device and versions, on the human owner's word;
 
 So on a device the keys hold as on a simulator, and the button service does not hold Home. The limit in the bridge was put back and `remote home --hold` is refused on a device with that reason. The held Play/Pause was sent outside the probe by mistake: the step before it had left the app, and the batch was written without allowing for that.
 
-Not shown: what a held Play/Pause does inside an app; why the button service fails during a hold, and whether a shorter one, between 0.4 s and 1.5 s, would pass; Control Centre on a device.
+**Apple's Device Hub, for comparison.** The human owner pressed Home in Device Hub (Xcode 27.2) on the same Apple TV while the Mac's log was captured for that process, once briefly and then nine more times, some of them held with the pointer. Control Centre did not open for the human owner either. Each press reads the same in the log: "Returning cached implementation (CoreDevice.IndigoHIDButton) for HID Button (com.apple.coredevice.feature.remote.hid.button)", then two messages of 224 bytes written to that one connection within a millisecond of each other, and nothing else. So Device Hub uses the same button service, on a connection it keeps open, and sends the press and the release together however long its button is held: it has no long press of Home on a device. The messages' content is not logged.
+
+Not shown: what a held Play/Pause does inside an app; why the button service fails during a hold, and whether a shorter one, between 0.4 s and 1.5 s, would pass; whether a hold would pass on a connection kept open, as Device Hub keeps its own, and without the readiness request this tool sends first; Control Centre on a device.
 
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
