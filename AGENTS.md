@@ -5,7 +5,7 @@ Prefix shell commands with `rtk`. Use `rtk proxy` when unfiltered output is need
 ## Project
 
 - Build `manzanero`, a Swift CLI for Apple-device inspection and control, with optional MCP support sharing the same operations.
-- Open-source third-party libraries such as `idevice` are permitted. Preserve licenses and attribution. Do not use proprietary device-control binaries as runtime dependencies.
+- Open-source third-party libraries are permitted. Preserve licenses and attribution. Do not use proprietary device-control binaries as runtime dependencies.
 - Keep platform-specific and private interfaces behind backend boundaries. Distinguish implemented features from verified device behavior.
 
 ## Commands
@@ -57,7 +57,7 @@ One SwiftPM package, three targets: the `Manzanero` executable, the Objective-C 
 - **Physical input receipts say whether the device was locked.** `CommandService.executePhysical` passes each receipt through `DeviceUIReadiness.annotateInput`, one lock-state query after the input (`passcodeRequired`, `lockNote`). Input is gated on the display being on, not on the lock. A physical screenshot's receipt says the same way whether the display was off (`annotateScreenshot`: `displayPower`, `displayNote`).
 - **Errors that are not `CommandFailure`** get a category from their type and domain in `CommandFailure.foreignCode`; add a domain there, not at call sites (`docs/errors.md#unclassified-sites`).
 - **The phone's log relay is reachable but no command uses it yet.** `RSDDirectoryConnection.openShimService` and the bridge's `ADCCopyRSDShimServicePort` open a lockdown shim service over the native tunnel, and `test:os-trace-relay` reads a bounded stream from `os_trace_relay`. Physical `logs` is a pending task that starts from them (`docs/roadmap.md#not-built`); a directory connection is only good for a few seconds, so open one per stream.
-- **The retired helper backends (AXe, the Rust idevice bridge, ipb helpers) are gone**, together with their CLI routes, sources, patches and build tasks; git history has them. Do not keep unreachable code as reference. `DeviceExecutablePolicy` still refuses those binaries.
+- **The retired helper backends are gone**, together with their CLI routes, sources, patches and build tasks; git history has them. Do not keep unreachable code as reference. `DeviceExecutablePolicy` still refuses those binaries.
 - Temporary process output is written under `./tmp` relative to the current working directory, including by tests.
 - **The probe app** (`Fixtures/ProbeApp/`, `docs/probe-app.md`) is the ground truth for touch delivery, log capture and text entry, and raises a real permission prompt on demand (`probe.permission.request`); `mise run probe-app:test` runs its tests on macOS, and `test:probe-touch` drives its measurement runner.
 
@@ -65,7 +65,7 @@ One SwiftPM package, three targets: the `Manzanero` executable, the Objective-C 
 
 ## Dependencies
 
-- Device operations must communicate with Apple frameworks/APIs from this project's code or use Apple-provided executables. Do not invoke non-Apple device-control executables, including AXe, idevice, or ipb helpers.
+- Device operations must communicate with Apple frameworks/APIs from this project's code or use Apple-provided executables. Do not invoke non-Apple device-control executables.
 - Use third-party device projects as implementation references. Prefer existing Apple frameworks and maintained general-purpose libraries over custom infrastructure where appropriate.
 - Ask the user before adding third-party dependencies that have not already been authorized. Preserve licenses and attribution.
 
@@ -89,6 +89,13 @@ One SwiftPM package, three targets: the `Manzanero` executable, the Objective-C 
 - Why: on 2026-11-16 parallel agent worktrees, a merge commit and a later history rewrite left the day's commits showing twice in the owner's git viewer, as if the work were at risk.
 
 ### Stuck Apple device services
+
+- First tell which state it is: `/usr/libexec/remotectl dumpstate` contacts no device, and a connection that has gone stale reads `State: attached` with `No connect() results`. That state is caused by this tool: each accessibility command (`tree`, `wait`, `press`, `scroll`, `set-value`) opens a second connection to the device's service directory, the device resets the one `remoted` holds, and now and then `remoted` never reconnects (`docs/other-families.md#a-physical-apple-tv`). Stop sending as soon as it shows: every command, a failed one too, takes a usage assertion that keeps the stale tunnel alive. On 2026-11-18 a run of retries after a wait that had already ended without clearing kept it stale for another half hour. Input (`remote`, `key`, `button`) still works meanwhile.
+- Do not look again for a way to the accessibility service through `remoted` or `CoreDeviceService`. `remoted` connects a client only if it holds the entitlement the device's directory names for the service, and for `…axAuditDaemon.remoteAXService` the device names `AppleInternal`; read from `remoted`'s code and from the directory on 2026-11-18 (`docs/transport.md#the-cost-of-this-route`). The tool's own directory connection is the only route, and the work left is to open it less often.
+- Read the current notes of the reference projects listed in `docs/dependencies.md` before a long investigation of a transport question. On 2026-11-18 one of them had already recorded, in one sentence, that `createservicesocket` is refused for the accessibility service, and it was rediscovered over an hour before anyone looked. `gh api repos/<owner>/<repo>/contents/<path> -H 'Accept: application/vnd.github.raw'` reads one file.
+- A device's service directory is read once per tunnel (`AccessibilityServicePorts`: memory within a process, `~/Library/Application Support/manzanero/service-ports.json` across processes) and an accessibility command refuses to start on a connection that is already stale (`StaleDeviceConnection.refuseIfStale`). Keep both when changing `DirectPhysicalAccessibility`: each directory connection makes the device reset the Mac's `remoted`. For a run of accessibility commands on a device, prefer one `batch` or one MCP session, or keep separate commands close together: the tunnel, and with it the saved port, is replaced some seconds after the last command.
+- When a private Apple daemon refuses something, read its log and then its code before trying variations: `log show` gave the sentence ("Client lacks privilege to interact with service"), `xcrun otool -tV` on the daemon gave the test behind it, and Hopper gave the library's side. Four rounds of guessed requests came before that and decided nothing.
+- Read what the docs already say before repeating an experiment: that same night an identity of the tool's own in the directory handshake was tried as a fix, when `docs/other-families.md` already recorded that it had not helped on the phone.
 
 - When every query to a connected device times out, read the logs before restarting `CoreDeviceService` or `remotepairingd`: a wide `log show` (or `log stream`) window for both and a `sample` of each process. `mise run diagnose:device-services` collects them. Write what they show into `docs/verification.md` before anything else, then ask before restarting them. On 2026-11-16 a restart fixed such a hang but nothing had been read, so the cause is unknown. On 2026-11-18 one device (an Apple TV) timed out alone after a run from Xcode ended, while the phone answered: the log showed `remotepairingd`'s `RSD Heartbeat … failed after 0ms` for that device every 30 seconds, and a restart of both services, with the owner's word, fixed it. Look for that line first. It happened three times that day; `remoted`'s own log (`log show --predicate 'process == "remoted"'`) shows "Device connection interrupted" with no "Handshake complete" after it (`docs/other-families.md#a-physical-apple-tv`).
 

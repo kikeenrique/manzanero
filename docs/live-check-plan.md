@@ -40,12 +40,11 @@ One Apple TV 4K has been driven; everything else in [other families](other-famil
 
 - Duo: `displays`, `screenshot` with and without `--display`, `record --display`. `fold`, `unfold` and `hinge` are simulator-only (a physical device's hinge is moved by hand); on hardware, check what the display information reports in each fold state.
 - Apple TV 4K, where trees with focus, focus waits, `press`, `set-value`, `type`, the touch refusal and every `remote` button have run ([guide](other-families.md#a-physical-apple-tv)). Tell the human owner before the first command: a sleeping Apple TV and its television can come on. Still to run there:
-  - What wakes it: with the device asleep (`button lock`, then `remote select` on Power Off) and the human owner watching the television, send `remote home` alone. `readiness` did not wake it. Do not run `tree` until the wake is seen: two of the three stale connections began as a `tree` started.
-  - The tvOS probe's current build, with the list, the twin buttons, the strip of columns and the Hold element (the device has the first version; it is installed from Xcode by the human owner), then `scroll`, `scroll --search` in each direction, `press` on a row at the bottom edge, `--index` and `batch` against it.
-  - Whether `set-value` leaves tvOS's keyboard in front, as it did on a simulator.
-  - `remote --hold` on `home`, and on `select` with the focus on the probe's Hold element; a hold is refused on a device until it has been tried once.
-  - The connection that goes stale: when it happens, read `remoted`'s log (`log show --predicate 'process == "remoted"'`) for "Device connection interrupted" with no "Handshake complete" after it, and note what command was starting.
-  - Why the video stream arrives blank (recording and `frames` are refused meanwhile).
+  - Before each accessibility command in a run, read `/usr/libexec/remotectl dumpstate`: `State: attached` for the device's connection means it has gone stale. Stop sending then, because every command keeps the stale tunnel alive; it clears when the tunnel is replaced, or with a restart of the two services on the human owner's word ([guide](other-families.md#a-physical-apple-tv)). One `remote home` wakes the device, and the television comes on with it.
+  - `remote --hold` on `home`, and on `select` with the focus on the probe's Hold element; a hold is refused on a device until it has been tried once. The probe's current build is on the device.
+  - `scroll --search … --toward up`, which reached row 1 and then failed its last check: read the failure text.
+  - The error a query gives in the stale state, which was built after the last stale period and has only run in unit tests.
+  - Why the video stream arrives blank (recording and `frames` are refused meanwhile). The opt-in media probe needs a variant that sends no tap.
   - Not the Apple TV HD paired with the same Mac: it runs tvOS 26.6, cannot take 27, and the human owner discarded it for this tool on 2026-11-18.
 - Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), `button side`, and `button action` on an Apple Watch Ultra.
 

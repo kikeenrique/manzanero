@@ -588,6 +588,123 @@ A held remote button, on the 1080p simulator: with the hold raised to 1.5 s in a
 
 Not shown: a scroll that moves a list on the physical device, which command wakes the device, whether the television also switches off with it, and the Mac's second Apple TV.
 
+### The Apple TV 4K: what wakes it, and why its connection goes stale
+
+On the night of 2026-11-18, the Apple TV 4K (3rd generation, tvOS 27.2) over the network, macOS 27.2.1, Xcode 27.2, the build from `main`. The human owner watched the television.
+
+**What wakes it.** At the start `readiness` answered `prerequisitesPresent` with `displayPower: external`, and `screenshot` failed with "Display reports zero-sized native size" (error 25005): asleep. One `remote home`, alone, at 22:03:22 was `dispatched`; screenshots at 22:03:26, :32, :39 and :45 all succeeded and showed the Home Screen. The human owner saw the television come on with the Apple TV. So a Home press wakes the device, and the television follows it; `readiness` and a failed `screenshot` before it did not.
+
+**The probe.** `xcodebuild build -scheme ProbeTV -destination 'generic/platform=tvOS'` signed with what was already on the Mac, with no `-allowProvisioningUpdates`; `install` and `launch` succeeded. `wait --until visible --id probe.tv.row.1` met its condition, and the tree held the probe's rows 1 to 13, columns 1 to 12 and the Hold element. `scroll --id probe.tv.row.13` answered `nativeResult: true`, `postcondition-verified`.
+
+**Then the connection went stale**, as it had three times earlier that day. The next command, `scroll --id probe.tv.row.35 --search 80`, and every command after it for six minutes failed at its first display query ("Command timeout of 10.0 seconds exceeded"); `readiness` said `connected`, `paired`, and "displaysUnavailable: the Apple query failed"; `devicectl list devices` said `connected`. Meanwhile the television showed the Snoopy screen saver, so the Apple TV itself was running normally.
+
+What the logs of `remoted`, `remotepairingd` and `CoreDeviceService` show for 22:06:30 to 22:09:00, read before anything was restarted:
+
+| Time | Line |
+| --- | --- |
+| 22:06:45.807 | `remoted`: `device_get_service` for a `manzanero` process |
+| 22:06:45.950 | `remoted`: `coredevice-1255> Device connection interrupted` |
+| 22:06:46.012 | `remoted`: `Handshake complete.` (62 ms later) |
+| 22:06:49.105 | `Device connection interrupted`, again just after a `manzanero` process asked for a service |
+| 22:06:50.220 | `Handshake complete.` (1.115 s later) |
+| 22:07:02.357 | `remotepairingd`: `tunnel-6: Canceling connection, errorMessage: 'No active usage assertions'`; a new tunnel and `coredevice-1256` follow at 22:07:05, `Handshake complete.` at 22:07:05.842 |
+| 22:07:06.833 | `remotepairingd`: `Fulfilling assertion … for process … ("manzanero")` (the plain `scroll`) |
+| 22:07:07.025 | `Device connection interrupted`, then `client connecting to remote remoted` |
+| 22:07:08.140 | `Handshake complete.` (1.115 s later) |
+| 22:07:11.809 | `Fulfilling assertion … ("manzanero")` (the `scroll --search`) |
+| 22:07:11.993 | `Device connection interrupted`, then `client connecting to remote remoted` |
+| after that | No `Handshake complete.` at all. `RSD Heartbeat … failed after 1ms` at 22:07:36, and after 0 ms every 30 s from then on. The tunnel's own counters kept rising (`tunnel-7 … packets in/out=1192/571`, then `1506/727`) |
+
+So each command of the tool that opens its own connection to the device's service directory (the accessibility route: `tree`, `wait`, `press`, `scroll`, `set-value`) is followed within 0.2 s by `remoted` losing its connection to the device. `remoted` reconnects at once; three times its handshake finished, once at the first try and twice 1.115 s later, which reads as one retry a second after a failed first try. The fourth time, with the tool's connection held open for a search, no handshake ever finished and `remoted` did not try again. The tunnel was alive throughout. Read together with the phone's log relay run, where the tool's directory connection "was no longer active 5 s after its handshake", the device appears to keep one service-directory peer per tunnel: the tool's connection displaces `remoted`'s, and `remoted`'s reconnect displaces the tool's. That the device allows only one peer is an inference from these timings, not something the device said.
+
+**It cleared by itself, with no restart.** The human owner said that Device Hub could still send keys to the Apple TV, that this was a fault of the tool and not of the services, and that nothing was to be restarted. In the stale state the tool's own `remote up`, `key down` and `button home` were each `dispatched` in 1 to 2 s: input does not use the service directory. The log then showed how the state ends: `Heartbeat failed: not connected` every 30 s until 22:16:06; at 22:16:28 `tunnel-7: Canceling connection, errorMessage: 'No active usage assertions'`, about two and a half minutes after the tool's last command; and at 22:19:03, on the next command, a new connection (`coredevice-1257`) with `Handshake complete.` and a heartbeat answered in 9 ms. From then `readiness`, `screenshot` (the probe on screen) and `apps` (35 applications) answered. So the stale connection lasts as long as its tunnel, the tunnel lasts while any process holds a usage assertion on it, and every failed retry of the tool takes one: retrying kept it stale, and leaving the device alone for a few minutes cleared it. Apple's `remotectl dumpstate` shows the state without touching the device: the stale connection reads `State: attached` with `No connect() results`, a healthy one `State: connected (connectable)`.
+
+**Closing the tool's directory connection early did not prevent it.** With the directory closed as soon as the accessibility socket was connected, at 22:21 to 22:22: `scroll --id probe.tv.row.13` verified; `scroll --id probe.tv.row.35 --search 80` verified after 8 steps, the first search on the device; `press --id probe.tv.row.35` was `accepted`; then the next command timed out as before. The log had the detail the first pass lacked: each time, `remoted` logs `Receive failed with error "Connection reset by peer"` and `Connection Disconnected (… error [54: Connection reset by peer])` on its two connections to the device's directory port, 0.18 to 0.28 s after `Fulfilling assertion … ("manzanero")`. The device resets `remoted`'s connections when the tool's handshake arrives. Three reconnects finished (0.07 s, 1.08 s and 1.23 s later); the one at 22:21:59.549 did not, and `Heartbeat failed: not connected` followed at 22:22:04.
+
+**A restart, and the rest of the runs.** This time the state did not clear: at 22:57, eighteen minutes after the last command, `remotectl dumpstate` still read `State: attached`. `remotepairingd` listed one standing assertion from `CoreDeviceService` on the tunnel; Device Hub and Xcode were open. At 23:05:23, on the human owner's word, `killall remotepairingd CoreDeviceService`; eight seconds later `readiness` answered and both connections read `connected (connectable)`.
+
+An identity of the tool's own in the directory handshake (a fresh UUID in place of the Mac's), together with the early close, was then tried for eleven accessibility commands: the log showed two resets per command instead of one, twenty `Device connection interrupted` in forty seconds, and five of the tool's commands failed with "Accessibility socket send: Broken pipe (32)". Both changes were reverted. `docs/other-families.md` already recorded that another identity had not helped on the phone.
+
+With the committed route again, checking `remotectl dumpstate` before each command:
+
+| Command | Result |
+| --- | --- |
+| `scroll --id probe.tv.row.35 --search 80` | `postcondition-verified`, 8 steps (and 0 steps when the row was already in the tree) |
+| `scroll --id probe.tv.col.28 --search 80 --toward right` | verified, 16 steps |
+| `scroll --id probe.tv.col.1 --search 80 --toward left` | verified, 18 steps |
+| `scroll --id probe.tv.row.30 --search 80` | verified, 8 steps |
+| `scroll --id probe.tv.row.1 --search 80 --toward up` | 23 steps, then `postcondition-failed`; the failure text was not captured |
+| `press --label Twin --index 2`, then `--index 1` | `accepted`; the probe read `select:twin-2`, then `select:twin-1` |
+| `press --id probe.tv.row.11`, the last row in the tree, at y 860 | `accepted`; `select:row-11` |
+| `batch` of `remote up`, `remote right`, `wait --until visible`, `press --id probe.tv.button.c` | `completed`, four steps; `select:c` |
+| `set-value --id probe.tv.text.field 'hola tv'` | `acknowledged`, 7 bytes read back; the screenshot showed tvOS's keyboard in front with "hola tv"; `remote menu` closed it |
+
+The connection went stale a third time during these, about 25 accessibility commands after the restart, and was healthy again within about a minute without anything being done.
+
+**Asking `remoted` instead.** `remotectl netcat <name> com.apple.accessibility.axAuditDaemon.remoteAXService`, with the tunnel up: `remoted` logged `device_get_service: Returning service "com.apple.accessibility.axAuditDaemon.remoteAXService"` and the tool printed "Unable to connect". The same lookup from a test process of this project, holding a tunnel assertion, through `remote_device_copy_device_with_name` and `remote_device_copy_service` of Apple's RemoteServiceDiscovery framework: the device was found, in state 2; the service came back nil; `remoted` logged `Client lacks privilege to find service with name com.apple.accessibility.axAuditDaemon.remoteAXService`. Neither attempt was followed by `Device connection interrupted`. The process `remoted` does hand that service to is `CoreDeviceService`, which asks for every service of the device. The scratch code for this was removed.
+
+Not shown: `remote --hold` on the device; recording and `frames` (the opt-in media probe sends a tap, which is refused on an Apple TV, so it did not run); the named error for the stale state against a live stale connection (unit-tested only); why the search up failed its last check.
+
+### Asking CoreDeviceService for the accessibility socket
+
+Late on 2026-11-18, the Apple TV 4K (tvOS 27.2), macOS 27.2.1, Xcode 27.2, with a scratch test (removed afterwards) that sends `com.apple.coredevice.action.createservicesocket` to `com.apple.CoreDevice.CoreDeviceService`, the request the input path already uses, with a chosen `featureIdentifier` and `serviceName`. The connection was healthy throughout and `remoted` logged no `Device connection interrupted` during any of it.
+
+The device's details list, among its capabilities, `com.apple.dt.servicesocket.create`, `com.apple.dt.serviceconnection.create`, `com.apple.coredevice.feature.servicexpcpeerconnection`, `com.apple.coredevice.feature.voiceover` and `com.apple.coredevice.feature.viewdevicescreen`.
+
+| `serviceName` | `featureIdentifier` | Answer |
+| --- | --- | --- |
+| `com.apple.accessibility.axAuditDaemon.remoteAXService` | none; `com.apple.dt.servicesocket.create`; `com.apple.dt.serviceconnection.create`; `com.apple.coredevice.feature.voiceover` | Each: CoreDevice error 4000, "A connection to this device could not be established", underlying POSIX 83 |
+| the same four, while the test held a tunnel assertion | | The same |
+| `com.apple.accessibility.axAuditDaemon.remoteserver.shim.remote` (`UsesRemoteXPC: false`) | none; `com.apple.dt.servicesocket.create` | 4000 / 83 |
+| `com.apple.os_trace_relay.shim.remote` | none | 4000 / 83 |
+| `com.apple.coredevice.hid.indigo` | none | A file descriptor, with five feature identifiers |
+| none | `com.apple.coredevice.feature.remote.hid.button` | A file descriptor |
+| `com.apple.coredevice.openstdiosocket` | none | A file descriptor |
+| `com.apple.coredevice.deviceinfo` | none | A file descriptor |
+
+For each refusal `CoreDeviceService` logged `[createservicesocket] remote_service_connect_socket failed for '<service>' (errno=83)`, one to two milliseconds after `Invoking action (type=CreateServiceSocketActionImplementation …)`, and `remoted` had answered `device_get_service: Returning service` for the name. In `remotectl dumpstate` the services that opened carry a `Features` property (empty for `openstdiosocket`) and the ones that did not carry only `UsesRemoteXPC`, `EncryptSocketData` and a version. Every descriptor was closed at once; nothing was sent on any of them.
+
+**Why, read from Apple's code and from the device.** `remote_service_connect_socket`, in the RemoteServiceDiscovery library (read in Hopper), sends `remoted` a connect request and returns error 83 for any reply whose `result` is not `OK`: the decision is `remoted`'s. For each refusal above `remoted` had logged `service_handler: Client lacks privilege to interact with service with name <service> (client="pid/…")`, the client being `CoreDeviceService`. The test behind that message, read in `/usr/libexec/remoted` (disassembled with `otool`), takes the entitlement name the service carries and allows the client when:
+
+- the name is `None-AppleInternal`; or
+- the name is `AppleInternal` and the Mac is an Apple-internal build (`os_variant_has_internal_content`); or
+- the client holds `com.apple.private.network.intcoproc.restricted`; or
+- the client holds the entitlement of that name.
+
+`com.apple.private.RemoteServiceDiscovery.device-admin`, which `CoreDeviceService` and `remotectl` hold, passes the other test, the one for finding a service, and is not part of this one: that is why both were given the service and then could not connect. The name comes from the device: `remoted` reads `EntitlementOverride` and `Entitlement` from each entry of the device's service directory. In the directory the Apple TV sent this project's own handshake:
+
+| Service | `Entitlement` |
+| --- | --- |
+| `com.apple.accessibility.axAuditDaemon.remoteAXService` | `AppleInternal` |
+| `com.apple.accessibility.axAuditDaemon.remoteserver.shim.remote` | `com.apple.mobile.lockdown.remote.trusted` |
+| `com.apple.os_trace_relay.shim.remote` | `com.apple.mobile.lockdown.remote.trusted` |
+| `com.apple.coredevice.hid.indigo` | `com.apple.private.CoreDevice.hid`, which `CoreDeviceService` is signed with |
+
+So on a customer Mac no process can reach `remoteAXService` through `remoted`, Apple's own included; the shims need an entitlement only Apple's lockdown clients hold. The device does not enforce any of it: it answers this project's direct connection to the same port. The scratch print that read the directory was removed.
+
+Not shown: any other action of `CoreDeviceService`; the same on the phone; how Apple's Accessibility Inspector reaches a device (the `remoteserver` shim is the likely way).
+
+### One directory connection per tunnel
+
+Just before midnight on 2026-11-18, the Apple TV 4K (tvOS 27.2), macOS 27.2.1, Xcode 27.2, with the tvOS probe in front and the build that remembers the accessibility port per tunnel.
+
+| Run | `serviceDirectory` in the step results | `Device connection interrupted` in `remoted`'s log for the run | Outcome |
+| --- | --- | --- | --- |
+| One `batch` of 8 accessibility steps (`wait`, `tree`, `press`, `wait --until value`, `scroll`, `press`, `tree`, `wait --until value`) | `opened` once, `reused-port` seven times | 1 | `completed`; the waits saw `select:b` and then `select:a` in the probe |
+| One `batch` of 30 accessibility steps (five rounds of `tree`, two presses each followed by a wait for the probe's value, and a `scroll`), 97 seconds | `opened` once, `reused-port` 29 times | 1 | `completedSteps: 30`, `failedStep: null` |
+
+`remotectl dumpstate` read `connected (connectable)` before and after both. Earlier the same night each accessibility command had been followed by one interruption, and the connection went stale about 25 commands after a restart.
+
+**Across processes.** Shortly after midnight, with the port also saved in `~/Library/Application Support/manzanero/service-ports.json` (86 bytes, mode 600), each command below its own CLI process:
+
+| Run | `serviceDirectory` | Interruptions | Outcome |
+| --- | --- | --- | --- |
+| Three `tree` commands two seconds apart | `opened`, then `reused-saved-port` twice | 1 | Each answered |
+| Ten commands with the Home Screen in front, begun ten seconds after the run above | `opened` for the first (the tunnel had been replaced, so the saved entry did not match), `reused-saved-port` for the rest | 1 | The waits timed out and the presses found no match, correctly: the probe was not in front |
+| Ten commands with the probe launched, begun on the same tunnel: `wait`, `press` on Button C, `wait --until value` for `select:c`, `scroll`, `press` on Button A, `tree`, a wait for `select:a`, `press --label Twin --index 2`, a wait for `select:twin-2`, `tree` | `reused-saved-port` for all ten | 0 | Every press `accepted`, the scroll verified, every wait met its value |
+
+Not shown: an MCP session, which shares the process in the same way; a reused port after its tunnel was replaced inside one process; an entry refused for its age; the refusal of a command on a connection that is already stale, which is unit-tested only.
+
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
 On the evening of 2026-11-18, on one Apple TV simulator at 1080p (tvOS 27.2), macOS 27.2.1, Xcode 27.2, with the build from `main` plus the changes named here. No device was used.

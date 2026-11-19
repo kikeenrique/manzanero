@@ -28,7 +28,8 @@ actor CommandService {
         return try ToolRunner().run(plan.arguments + ["--quiet"])
     }, uiReadinessQuery: @escaping @Sendable (DeviceCommand) throws -> Data = { plan in
         try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 15)
-    }, handoffWatchPause: Duration = .seconds(2)) {
+    }, handoffWatchPause: Duration = .seconds(2), connectionState: @escaping @Sendable () throws -> Data = StaleDeviceConnection.liveDump) {
+        self.connectionState = connectionState
         self.leases = leases
         self.simulator = simulator
         self.readinessQuery = readinessQuery
@@ -38,6 +39,12 @@ actor CommandService {
 
     /// The pause between two looks at the device while a handoff watches it.
     private let handoffWatchPause: Duration
+    /// remoted's state dump, read only after a query has timed out.
+    private let connectionState: @Sendable () throws -> Data
+
+    private nonisolated func staleConnection(_ failure: CommandFailure) -> CommandFailure {
+        StaleDeviceConnection.annotate(failure, dump: connectionState)
+    }
 
     private func readiness(_ device: String) throws -> DeviceReadiness {
         guard !device.isEmpty, !device.hasPrefix("-") else { throw CommandFailure.usage("Provide a valid device identifier.") }
@@ -69,10 +76,16 @@ actor CommandService {
                  handoffConfirmation: (@Sendable (HandoffCommand) async throws -> HandoffStatus)? = nil) async throws -> CommandOutput {
         do {
             return try await perform(request, dryRun: dryRun, allowInteractive: allowInteractive, handoffConfirmation: handoffConfirmation)
-        } catch let failure as CommandFailure where dryRun || request.isReadOnly {
-            // A dry run never contacts a device and an observation sends it
-            // nothing, whatever stage failed; the message is unchanged.
+        } catch let failure as CommandFailure where dryRun {
+            // A dry run never contacts a device, whatever stage failed; the
+            // message is unchanged.
             throw failure.noInputSent()
+        } catch let failure as CommandFailure {
+            // A query that timed out may mean the stale connection, which a
+            // retry prolongs; the failure then says so.
+            let named = staleConnection(failure)
+            // An observation sends the device nothing, whatever stage failed.
+            throw request.isReadOnly ? named.noInputSent() : named
         }
     }
 

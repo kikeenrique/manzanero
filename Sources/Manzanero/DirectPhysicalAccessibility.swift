@@ -14,6 +14,8 @@ enum DirectPhysicalAccessibility {
     static let connectionAttempts = 3
 
     static func executeNativeRSD(_ input: CoreDeviceInput, isolation: isolated (any Actor)? = #isolation,
+                                 ports: AccessibilityServicePorts = .shared,
+                                 staleCheck: (_ udid: String, _ operation: String) throws -> Void = { try StaleDeviceConnection.refuseIfStale(device: $0, operation: $1) },
                                  query: (DeviceCommand) throws -> Data) async throws -> Data {
         try Task.checkCancellation()
         let action: DirectAccessibilityAction?
@@ -41,8 +43,13 @@ enum DirectPhysicalAccessibility {
             throw CommandFailure(.deviceNotReady, "Native physical AX requires fresh hardware identity; no connection started.", inputSent: .none)
         }
         let address = try RSDPortDiscovery.tunnelAddress(details: details, expectedUDID: udid)
+        // A stale connection is refused here, before the usage assertion
+        // that would keep its tunnel alive.
+        try staleCheck(udid, input.operation)
         let assertion = try NativeTunnelAssertion(device: udid, details: details)
         defer { assertion.close() }
+        /// "reused-port" or "reused-saved-port" once a remembered port is in use.
+        var reused: String?
         // Classifies a failure of an action: before it nothing was sent, it
         // classifies its own failures, and after it the input has been sent.
         var actionStage = 0
@@ -51,7 +58,17 @@ enum DirectPhysicalAccessibility {
             // service occasionally fail on a healthy device ("Connection
             // invalid"). No accessibility request has been made at that point,
             // so the setup is repeated a bounded number of times.
-            var connected: (directory: RSDDirectoryConnection, transport: any AccessibilitySessionTransport)?
+            var connected: (directory: RSDDirectoryConnection?, transport: any AccessibilitySessionTransport)?
+            // The directory is read once per tunnel; later commands, in this
+            // process or another, connect straight to the port it gave,
+            // which spares the Mac's remoted the reset each directory
+            // connection causes.
+            if let known = ports.port(device: udid, tunnelAddress: address) {
+                if let transport = try? RSDDirectoryConnection.openAccessibility(tunnelAddress: address, port: known.port) {
+                    connected = (nil, transport)
+                    reused = known.source
+                } else { ports.forget(device: udid, tunnelAddress: address) }
+            }
             var attempt = 1
             while connected == nil {
                 do {
@@ -60,6 +77,7 @@ enum DirectPhysicalAccessibility {
                     let candidate = try RSDDirectoryConnection(tunnelAddress: address, port: port, expectedUDID: udid)
                     do { connected = (candidate, try candidate.openAccessibility()) }
                     catch { candidate.close(); throw error }
+                    ports.remember(candidate.accessibilityPort, device: udid, tunnelAddress: address)
                 } catch {
                     guard !(error is CancellationError), !Task.isCancelled, attempt < Self.connectionAttempts else { throw error }
                     attempt += 1
@@ -67,7 +85,7 @@ enum DirectPhysicalAccessibility {
                 }
             }
             guard let (directory, transport) = connected else { throw CancellationError() }
-            defer { directory.close() }
+            defer { directory?.close() }
             let session = AccessibilitySession(transport: transport, limits: wait?.sessionLimits ?? .standard)
             let display = {
                     try Task.checkCancellation()
@@ -89,14 +107,15 @@ enum DirectPhysicalAccessibility {
                                                display: display, clock: ContinuousClock())
             }
             else { bytes = try capture(device: input.device, resolved: identity.uuid, pid: pid, session: session, display: display) }
-            directory.close()
+            directory?.close()
             let release = assertion.close()
             if action != nil || setValue != nil, Task.isCancelled {
                 FileHandle.standardError.write(Data("Native AX action completed, but cancellation withheld its receipt. Inspect before retrying. No automatic replay.\n".utf8))
             }
             try Task.checkCancellation()
-            return try annotateNativeCleanup(bytes, release: release)
+            return try annotateNativeCleanup(bytes, release: release, serviceDirectory: reused ?? "opened")
         } catch {
+            if reused != nil, AccessibilityServicePorts.doubts(error) { ports.forget(device: udid, tunnelAddress: address) }
             let release = assertion.close()
             if Task.isCancelled || error is CancellationError {
                 if !release.confirmed { FileHandle.standardError.write(Data("\(release.diagnostic ?? "Native tunnel release unconfirmed")\n".utf8)) }
@@ -111,11 +130,15 @@ enum DirectPhysicalAccessibility {
         }
     }
 
-    static func annotateNativeCleanup(_ bytes: Data, release: NativeTunnelAssertion.Release) throws -> Data {
+    static func annotateNativeCleanup(_ bytes: Data, release: NativeTunnelAssertion.Release, serviceDirectory: String = "opened") throws -> Data {
         guard var root = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
             throw CommandFailure(.internal, "Invalid internal native AX result.", inputSent: .unknown)
         }
         root["transport"] = "apple-network-rsd"
+        // "opened": this command read the device's service directory;
+        // "reused-port": it connected to the port an earlier command of this
+        // process read; "reused-saved-port": to one another process saved.
+        root["serviceDirectory"] = serviceDirectory
         var cleanup: [String: Any] = ["tunnelAssertionRelease": release.status, "confirmed": release.confirmed]
         if let diagnostic = release.diagnostic { cleanup["diagnostic"] = diagnostic }
         root["connectionCleanup"] = cleanup

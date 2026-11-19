@@ -79,6 +79,12 @@ final class RSDDirectoryConnection {
         }
     }
 
+    /// Connects to the accessibility service on a port an earlier directory
+    /// of the same tunnel gave, without opening a directory again.
+    static func openAccessibility(tunnelAddress: String, port: UInt16) throws -> AccessibilitySocketTransport {
+        try AccessibilitySocketTransport(taking: connect(address: tunnelAddress, port: port))
+    }
+
     /// Connects to one lockdown shim service the directory advertises (a
     /// name ending in `.shim.remote`), such as the log relay. The caller owns
     /// the returned blocking stream descriptor and closes it before this

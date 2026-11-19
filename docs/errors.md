@@ -108,6 +108,12 @@ The set is deliberately small and closed; a new value would be a change to this 
 - **Read-only device queries** (identity details, displays, lock state) used by input commands run before any input, so their failures report `none`.
 - **Wrapping.** When a failure adds context to an inner failure (for example "Recording failed: …" or "Direct physical wait failed: …"), it keeps the inner category.
 
+## A query that times out on a stale connection
+
+When a failure carries `devicectl`'s "Command timeout of … seconds exceeded", the tool reads Apple's `remotectl dumpstate` once, which contacts no device. If it lists a CoreDevice connection as `State: attached`, the failure keeps its category and facts and its message gains a note: the connection has gone stale, do not retry, and how it clears ([why](other-families.md#a-physical-apple-tv)). That note says "a device connection", because a timeout may come from a command that never knew the hardware identifier. Unit-tested; not yet seen against a live stale connection.
+
+The accessibility commands (`tree`, `wait`, `press`, `scroll`, `set-value` on a physical device) look first: before they take a tunnel assertion they read the same dump, and if the connection of that device (matched by its `UniqueDeviceID`) is `attached`, they fail as `device-not-ready` with the same note, `inputSent: none`, having sent nothing. Their results carry `serviceDirectory`: `opened` when the command read the device's service directory, `reused-port` when it connected to the port an earlier command of the same process had read, `reused-saved-port` when the port came from the file an earlier process saved.
+
 ## Unclassified sites
 
 At the app-logs checkpoint, `Sources/Manzanero` constructed `CommandFailure` in 279 places (a helper such as `failure(_:)` counts once, however many guards call it; the 49 added with `logs`, `console` and `last-crash` were all classified), 273 of them classified, 11 by keeping a wrapped failure's category. Those totals were not recounted after later features. No site in `Sources/Manzanero` builds a failure with `CommandFailure(description:)` any more. The seven that did are classified as follows:
