@@ -317,17 +317,20 @@ typedef struct {
 /// static strings, is borrowed only for the duration of the call.
 void ADCCheckCapabilities(__attribute__((noescape)) void (^sink)(const ADCCapabilityCheck *capability));
 
-/// A tunnel of the tool's own to a device on a cable (AppleDeviceTunnel.m).
-/// Apple's private MobileDevice framework finds the device, uses the trust
-/// the Mac already has, and starts the device's tunnel service
-/// (com.apple.internal.devicecompute.CoreDeviceProxy); after its greeting the
-/// service exchanges raw IPv6 packets, which the caller carries. No pairing
-/// is started, and a locked device refuses the service.
+/// A tunnel of the tool's own to a device on its cable or on the network
+/// (AppleDeviceTunnel.m). Apple's private MobileDevice framework finds the
+/// device, uses the trust the Mac already has, and starts the device's
+/// tunnel service (com.apple.internal.devicecompute.CoreDeviceProxy); after
+/// its greeting the service exchanges raw IPv6 packets, which the caller
+/// carries. Both links go through Apple's usbmuxd, so the process makes no
+/// connection to the local network itself. No pairing is started, and a
+/// locked device refuses the service.
 typedef struct {
     uint8_t clientAddress[16];  // the Mac's end of the tunnel
     uint8_t serverAddress[16];  // the device's end
     uint16_t mtu;
     uint16_t serviceDirectoryPort;  // the device's RSD port on the tunnel
+    uint8_t overNetwork;  // 1 when the device was reached over the network, 0 on its cable
 } ADCDeviceTunnelInfo;
 /// Returns zero with an owner to close. Nothing but the service's greeting
 /// is exchanged. On failure the error says what refused it.

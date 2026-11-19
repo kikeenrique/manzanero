@@ -1,5 +1,6 @@
-// A tunnel of the tool's own to a device on a cable, opened with Apple's
-// private MobileDevice framework (docs/transport.md#a-tunnel-of-the-tools-own).
+// A tunnel of the tool's own to a device on its cable or on the network,
+// opened with Apple's private MobileDevice framework
+// (docs/transport.md#a-tunnel-of-the-tools-own).
 #import <Foundation/Foundation.h>
 #include <arpa/inet.h>
 #include <dlfcn.h>
@@ -16,6 +17,8 @@ typedef struct {
     CFArrayRef (*createList)(void);
     CFStringRef (*copyIdentifier)(void *);
     int (*interfaceType)(void *);
+    unsigned int (*connectionID)(void *);
+    CFTypeRef (*createFromProperties)(CFDictionaryRef);
     int (*connect)(void *);
     int (*validatePairing)(void *);
     int (*startSession)(void *);
@@ -39,6 +42,8 @@ static const ADCMobileDevice *ADCLoadMobileDevice(void) {
         functions.createList = dlsym(handle, "AMDCreateDeviceList");
         functions.copyIdentifier = dlsym(handle, "AMDeviceCopyDeviceIdentifier");
         functions.interfaceType = dlsym(handle, "AMDeviceGetInterfaceType");
+        functions.connectionID = dlsym(handle, "AMDeviceGetConnectionID");
+        functions.createFromProperties = dlsym(handle, "AMDeviceCreateFromProperties");
         functions.connect = dlsym(handle, "AMDeviceConnect");
         functions.validatePairing = dlsym(handle, "AMDeviceValidatePairing");
         functions.startSession = dlsym(handle, "AMDeviceStartSession");
@@ -48,7 +53,8 @@ static const ADCMobileDevice *ADCLoadMobileDevice(void) {
         functions.send = dlsym(handle, "AMDServiceConnectionSend");
         functions.receive = dlsym(handle, "AMDServiceConnectionReceive");
         functions.invalidate = dlsym(handle, "AMDServiceConnectionInvalidate");
-        available = functions.createList && functions.copyIdentifier && functions.interfaceType && functions.connect &&
+        available = functions.createList && functions.copyIdentifier && functions.interfaceType && functions.connectionID &&
+            functions.createFromProperties && functions.connect &&
             functions.validatePairing && functions.startSession && functions.stopSession && functions.disconnect &&
             functions.startService && functions.send && functions.receive && functions.invalidate;
     });
@@ -83,20 +89,35 @@ int ADCOpenDeviceTunnel(const char *udid, ADCDeviceTunnelInfo *info, void **owne
             return ADCTunnelFail(error, capacity, @"A device tunnel requires an explicit hardware UDID; nothing was contacted.");
         const ADCMobileDevice *mobile = ADCLoadMobileDevice();
         if (!mobile) return ADCTunnelFail(error, capacity, @"Apple's MobileDevice framework or one of its tunnel interfaces is unavailable; nothing was contacted.");
-        // Interface type 1 is the cable. The network entry of the same
-        // device refused the connection when it was tried.
+        // Interface type 1 is the cable and 2 the network; the cable is
+        // preferred when the device has both.
         NSArray *devices = CFBridgingRelease(mobile->createList());
-        id cabled = nil;
-        BOOL listed = NO;
+        id cabled = nil, networked = nil;
         for (id candidate in devices) {
             NSString *identifier = CFBridgingRelease(mobile->copyIdentifier((__bridge void *)candidate));
             if (![identifier isEqualToString:requested]) continue;
-            listed = YES;
-            if (mobile->interfaceType((__bridge void *)candidate) == 1) { cabled = candidate; break; }
+            int type = mobile->interfaceType((__bridge void *)candidate);
+            if (type == 1) { cabled = candidate; break; }
+            if (type == 2 && !networked) networked = candidate;
         }
-        if (!cabled) return ADCTunnelFail(error, capacity, listed
-            ? @"The device is not connected by cable; a tunnel of the tool's own needs the cable. Nothing was contacted."
-            : @"Apple's MobileDevice framework does not list the device; nothing was contacted.");
+        BOOL overNetwork = !cabled && networked;
+        if (overNetwork) {
+            // The framework connects to a network device directly, which
+            // macOS's Local Network privacy refuses to a process that has
+            // not been granted it (connect() fails with EHOSTUNREACH at
+            // once, 0xe8000065). It connects to a cabled device through
+            // usbmuxd, and usbmuxd relays to a network device as well: a
+            // second device object for the same usbmuxd entry, described as
+            // cabled, takes that path. The product and location it is given
+            // are placeholders the connection does not use.
+            unsigned int connection = mobile->connectionID((__bridge void *)networked);
+            NSDictionary *entry = @{@"DeviceID": @(connection), @"Properties": @{
+                @"DeviceID": @(connection), @"SerialNumber": requested, @"ConnectionType": @"USB",
+                @"ProductID": @0x12a8, @"LocationID": @0}};
+            cabled = CFBridgingRelease(mobile->createFromProperties((__bridge CFDictionaryRef)entry));
+            if (!cabled) return ADCTunnelFail(error, capacity, @"Apple's MobileDevice framework did not accept the device's network entry; nothing was contacted.");
+        }
+        if (!cabled) return ADCTunnelFail(error, capacity, @"Apple's MobileDevice framework does not list the device; nothing was contacted.");
         void *device = (__bridge void *)cabled;
         int status = mobile->connect(device);
         if (status) return ADCTunnelFail(error, capacity, [NSString stringWithFormat:@"The device refused the connection (0x%x); no tunnel was opened.", status]);
@@ -148,6 +169,7 @@ int ADCOpenDeviceTunnel(const char *udid, ADCDeviceTunnelInfo *info, void **owne
         }
         info->mtu = (uint16_t)mtu.integerValue;
         info->serviceDirectoryPort = (uint16_t)port.integerValue;
+        info->overNetwork = overNetwork ? 1 : 0;
         // The service connection lives on by itself; the session that
         // started it is given back at once, for Apple's own tools.
         mobile->stopSession(device);

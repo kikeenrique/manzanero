@@ -741,7 +741,7 @@ The phone was unlocked, showed no prompt, and `remoted` logged no interruption. 
 | Apple's framework: `AMDCreateDeviceList` gave the phone one entry, interface type 2; `AMDeviceConnect` | `0xe8000065` | 0 |
 | Apple's framework again, with the devices taken from `AMDeviceNotificationSubscribe` after three seconds of run loop (four attached, the phone among them, type 2) | `AMDeviceConnect`: `0xe8000065` again | 0 |
 
-So over the network the retired bridge reaches the phone and Apple's framework, as called here, does not: it lists the device and fails to connect. Why was not found; the error is the one the framework gives when its connection through `usbmuxd` fails, and the bridge's library connects to a network device by another path.
+So over the network the retired bridge reaches the phone and Apple's framework, as called here, does not: it lists the device and fails to connect. Why was found that afternoon: the framework connects to a network device directly, which macOS's Local Network privacy refuses, while the bridge's library went through `usbmuxd` ([record](#the-tools-own-tunnel-without-the-cable)).
 
 So over the cable Apple's framework finds the device, uses the Mac's existing trust and starts the tunnel service. What it does not do is carry the tunnel: after the greeting the service exchanges raw IPv6 packets, and turning those into connections is still to be supplied.
 
@@ -789,6 +789,68 @@ On the morning of 2026-11-19, the iPhone 13 mini (iOS 27.2.1) on its cable and u
 `remoted` logged no interruption during any of it, and no connection was stale afterwards. About three seconds a step is what the same commands take on the other route; the time is in the `devicectl` queries each command makes, not in the tunnel.
 
 Not shown: an MCP session; `detect-layout` and `handoff` reporting which route they used; a long run; a device that locks during a command; why a command takes about four seconds; another device.
+
+### The tool's own tunnel without the cable
+
+On the afternoon of 2026-11-19, the iPhone 13 mini (iOS 27.2.1) off its cable, on the same network, display on and no passcode required (`transportType: localNetwork` in `devicectl`), macOS 27.2.1, Xcode 27.2. Only trees and the service directory were read; no input was sent.
+
+**Why Apple's framework failed there.** A scratch program, since removed, asked `usbmuxd` and the framework about the phone's network entry:
+
+| Step | Result |
+| --- | --- |
+| `usbmuxd`'s own `Connect` to the entry's lockdown port (62078) | `Result 0`: `usbmuxd` relays to a network device |
+| `AMDeviceConnect` on the framework's entry (interface type 2) | `0xe8000065` within a hundredth of a second |
+| The process's log at that moment | `connect() failed: 65.` and "Could not connect to lockdown port (62078) … `kAMDMuxConnectError`" |
+| The kernel's log at that moment | `tcp drop outgoing … process: swift-frontend … reason: NECP`, then `UserEventAgent`: "Got local network blocked notification … bundle_id: (null)" and "LocalNetwork: did not find bundle ID" |
+
+So the framework connects to a network device directly, macOS's Local Network privacy drops that connection, and there is no application for a grant to be given to. In the framework's code (`otool`), `_connect_to_port` calls `USBMuxConnectByPort` for a device whose link was read as USB and `connect()` otherwise, and `AMDeviceCreateFromProperties` reads the link from the entry's `ConnectionType`.
+
+**Through `usbmuxd` instead.** A device object made with `AMDeviceCreateFromProperties` from the network entry's `DeviceID` and serial number, with `ConnectionType` given as `USB`, connected (`AMDeviceConnect` 0), validated the pairing, started a session and the tunnel service, and received the service's greeting with its `serverRSDPort`. No prompt appeared on the phone.
+
+**Built into the tool**, with `MANZANERO_OWN_TUNNEL=1`:
+
+| Run | Result | `Device connection interrupted` in `remoted`'s log |
+| --- | --- | --- |
+| `tree`, six separate processes | Each exited 0 with `serviceDirectory: own-tunnel` and `ownTunnelLink: network`; about 10 s each | 0 |
+| `mise run test:device-tunnel`: the directory, then one tree | Passed in 10.1 s | 0 |
+| One `batch` of ten `tree` steps, 86 s | Every step exit 0, `own-tunnel` and `network` in all ten: one tunnel for the whole batch | 0 |
+| `tree` without the opt-in, for comparison | 8.0 s | not counted |
+
+Opening the tunnel took about 1.4 s of each command (eight relayed connections through `usbmuxd` for the session and the service); the rest is the tree itself, which took as long on the other route with that screen in front.
+
+**The cable again, with the same build.** The human owner plugged the phone in (`transportType: wired`). `tree` and `mise run test:device-tunnel` (6.6 s) answered on the tunnel with `ownTunnelLink: cable`. Then, with the probe app launched and each command its own process: `wait --until visible --id probe.text.field` (`condition-met`), `set-value --id probe.text.field cable-otra-vez` (`acknowledged`), `press --id probe.touch.reset` (`accepted`), `scroll --id probe.touch.summary` (`postcondition-verified`), `detect-layout --id probe.text.field` (`detected`) and `tree`, every one that reports its route saying `own-tunnel` and `cable`. `remoted` logged no interruption.
+
+**Actions without the cable.** The human owner unplugged the phone again (`transportType: localNetwork`), the probe app still in front, each command its own process:
+
+| Command | Result |
+| --- | --- |
+| `wait --until visible --id probe.text.field`, the first command after the unplugging | Exit 1 after 0.88 s: "Accessibility socket closed or reached EOF. AX wait stage=start, polls=0". A failure carries no `serviceDirectory`, so which route it ran on is not known |
+| `set-value --id probe.text.field sin-cable` | `acknowledged`, `own-tunnel`, `network` |
+| `press --id probe.touch.reset` | `accepted`, `own-tunnel`, `network` |
+| `scroll --id probe.touch.summary` | `postcondition-verified`, `own-tunnel`, `network` |
+| `detect-layout --id probe.text.field` | `detected` |
+| `handoff "…" 20 --until visible --id probe.touch.summary` | `observed` |
+| `tree` | 9 labels, the field's value `sin-cable`, `own-tunnel`, `network` |
+| The same `wait`, twelve more times | `condition-met`, `network`, all twelve |
+
+`remoted` logged no interruption during the twenty commands. The one failure was not reproduced and its cause is not known; it was the first command after the link changed.
+
+**A failure now names its route**, since that one could not be placed: the message of a failed accessibility command carries `Route: serviceDirectory=…`, with `ownTunnelLink` on the tunnel and the reason when the tunnel was asked for and not used. With that build and the phone still off its cable, four rounds of `wait`, `set-value`, `press`, `scroll` and `tree`, twenty separate processes, all exited 0 with `own-tunnel` and `network`, the last tree showing the last value set; `remoted` logged no interruption. No command failed, so the new sentence was not seen on a live failure.
+
+**The default.** On the human owner's word the tunnel then became the default. With the phone still off its cable and no variable set, `tree` and `wait` answered `own-tunnel` and `network`; with `MANZANERO_OWN_TUNNEL=0`, `tree` answered `serviceDirectory: reused-saved-port` with no tunnel field.
+
+**Changes of link.** With the default build, `wait --until visible --id probe.text.field` ran in a loop, each its own process, one every three to six seconds, while the human owner pulled the cable and put it back four times:
+
+| Moment | Result |
+| --- | --- |
+| The cable plugged in, before the loop | The first four commands (`wait`, `tree`, `press`, `wait`) answered on the tunnel with `ownTunnelLink: cable` |
+| Each of the four unpluggings | Exactly one command failed, the one in flight: "Accessibility socket deadline exceeded" after 6 to 8.5 s, with "No input was sent" and the new sentence `Route: serviceDirectory=own-tunnel, ownTunnelLink=cable.` |
+| The command after each failure | `condition-met` on the tunnel with `ownTunnelLink: network` |
+| Each of the four pluggings | No failure; the next command, some seconds later, answered with `ownTunnelLink: cable` |
+
+So a tunnel on the cable ends when the cable is pulled, and the command that was using it fails once and is not retried; the next one opens a tunnel over the network. A tunnel over the network is not disturbed by the cable arriving. The failed `wait` of the earlier run fits this, as the command straight after an unplugging, though it failed sooner. `remoted` logged no interruption, only its own handshake with the phone at each plugging.
+
+Not shown: an Apple TV, or any device `usbmuxd` does not list, since the default changed; an action, not a `wait`, in flight when the cable is pulled; a tunnel kept by one process (a `batch`, an MCP session) across a change of link; an MCP session; a phone that leaves the network during a command; whether the phone's "connect over the network" setting must be on for `usbmuxd` to list it; the cable pulled while a tunnel is open; another device. The Apple TV is still out of reach: `usbmuxd` does not list it.
 
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 

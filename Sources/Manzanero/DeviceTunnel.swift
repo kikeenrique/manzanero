@@ -3,7 +3,7 @@ import CLwIP
 import Darwin
 import Foundation
 
-/// A tunnel of the tool's own to a device on a cable
+/// A tunnel of the tool's own to a device on its cable or on the network
 /// (docs/transport.md#a-tunnel-of-the-tools-own).
 ///
 /// Apple's MobileDevice framework opens the device's tunnel service with the
@@ -23,6 +23,8 @@ final class DeviceTunnel: @unchecked Sendable {
     struct Info: Equatable, Sendable {
         let mtu: Int
         let serviceDirectoryPort: UInt16
+        /// "cable" or "network": how the device was reached.
+        let link: String
     }
 
     let info: Info
@@ -33,9 +35,10 @@ final class DeviceTunnel: @unchecked Sendable {
     private var relays: [ObjectIdentifier: Relay] = [:]
     private var closed = false
 
-    /// The environment variable that turns the tunnel on for the
-    /// accessibility commands while it is being proven: `1` to use it.
-    static let optIn = "MANZANERO_OWN_TUNNEL"
+    /// The environment variable that turns the tunnel off for the
+    /// accessibility commands, which use it by default: `0` to leave them
+    /// on the route over Apple's tunnel.
+    static let optOut = "MANZANERO_OWN_TUNNEL"
 
     /// Whether packets still arrive: false once the reader has seen the
     /// tunnel end (the cable pulled, the service closed).
@@ -71,7 +74,7 @@ final class DeviceTunnel: @unchecked Sendable {
             throw CommandFailure(.deviceNotReady, String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self), inputSent: .none)
         }
         owner = handle
-        info = Info(mtu: Int(raw.mtu), serviceDirectoryPort: raw.serviceDirectoryPort)
+        info = Info(mtu: Int(raw.mtu), serviceDirectoryPort: raw.serviceDirectoryPort, link: raw.overNetwork == 1 ? "network" : "cable")
         serverAddress = withUnsafeBytes(of: raw.serverAddress) { Array($0) }
         let local = withUnsafeBytes(of: raw.clientAddress) { Array($0) }
         timer = DispatchSource.makeTimerSource(queue: stack)

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Manzanero
 
-/// Opt-in live check of the tool's own tunnel on a device connected by cable
+/// Opt-in live check of the tool's own tunnel on a device on its cable or on the network
 /// and unlocked: open the tunnel, relay to the device's service directory,
 /// and read the directory through the tool's existing directory code. Reads
 /// only; nothing is sent to an app. Enabled by MANZANERO_TUNNEL_DEVICE, the

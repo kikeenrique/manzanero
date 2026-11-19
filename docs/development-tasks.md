@@ -24,7 +24,7 @@ mise tasks validate
 | `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device. `test:mcp-live <UUID>` runs against a booted simulator |
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*` | Opt-in native transport/media diagnostics |
 | `test:os-trace-relay <UDID> <pid>` | Opt-in experiment: a bounded read of one process's log entries from a phone's `os_trace_relay`, then a reopen; read-only, result under `tmp/os-trace-relay/` ([research, Q6](app-logs-research.md#6-open-questions-and-settling-experiments)) |
-| `test:device-tunnel <UDID>` | Opt-in experiment: open the tool's own tunnel to a device on a cable, unlocked, and read its service directory through it; read-only ([state](transport.md#a-tunnel-of-the-tools-own)) |
+| `test:device-tunnel <UDID>` | Opt-in experiment: open the tool's own tunnel to an unlocked device, on its cable or on the network, and read its service directory through it; read-only ([state](transport.md#a-tunnel-of-the-tools-own)) |
 | `test:cli-interrupt`, `test:ocr` | CLI signal handling during a physical hold; Vision OCR on a local image (no device) |
 | `probe-app:test`, `probe-app:generate` | [Probe app](probe-app.md) core and measurement-runner tests on macOS; Tuist workspace generation under `tmp/probe-app/generated`, with both schemes: `ProbeApp` (iOS) and `ProbeTV` ([tvOS](probe-app.md#tvos-probe)) |
 | `test:probe-touch <UDID>` | Opt-in [touch measurement](probe-touch-runner.md) against the foreground probe app; `--dry-run` contacts no device |

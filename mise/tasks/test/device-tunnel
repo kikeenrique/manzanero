@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE extends = "swift"
-#MISE description = "Experiment: open the tool's own tunnel to a device on a cable and read its service directory through it; read-only"
-#USAGE arg "<device>" help="Explicit hardware UDID of a paired physical device, connected by cable and unlocked"
+#MISE description = "Experiment: open the tool's own tunnel to a device on its cable or on the network and read its service directory through it; read-only"
+#USAGE arg "<device>" help="Explicit hardware UDID of a paired physical device, on its cable or on the network, unlocked"
 
 set -e -o pipefail
 

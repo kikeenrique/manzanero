@@ -131,6 +131,17 @@ struct StaleDeviceConnectionTests {
             release: .init(confirmed: true, status: "acknowledged", diagnostic: nil), serviceDirectory: "opened", ownTunnelUnavailable: refusal.description)
         let root = try #require(try JSONSerialization.jsonObject(with: annotated) as? [String: Any])
         #expect(root["ownTunnelUnavailable"] as? String == refusal.description && root["serviceDirectory"] as? String == "opened")
+        #expect(root["ownTunnelLink"] == nil)
+        // On the tunnel, the result says how the device was reached.
+        let onTunnel = try DirectPhysicalAccessibility.annotateNativeCleanup(Data("{}".utf8),
+            release: .init(confirmed: true, status: "acknowledged", diagnostic: nil), serviceDirectory: "own-tunnel", ownTunnelLink: "network")
+        let tunnelRoot = try #require(try JSONSerialization.jsonObject(with: onTunnel) as? [String: Any])
+        #expect(tunnelRoot["ownTunnelLink"] as? String == "network" && tunnelRoot["ownTunnelUnavailable"] == nil)
+        // A failure has no result, so its message names the route.
+        #expect(DirectPhysicalAccessibility.routeNote(serviceDirectory: "own-tunnel", ownTunnelLink: "network", ownTunnelUnavailable: nil)
+            == "Route: serviceDirectory=own-tunnel, ownTunnelLink=network.")
+        #expect(DirectPhysicalAccessibility.routeNote(serviceDirectory: "reused-saved-port", ownTunnelLink: nil, ownTunnelUnavailable: "Locked.")
+            == "Route: serviceDirectory=reused-saved-port. The tool's own tunnel was asked for and not used: Locked.")
     }
 
     @Test func aQueryTimeoutIsNamedWhenTheStateIsListed() {

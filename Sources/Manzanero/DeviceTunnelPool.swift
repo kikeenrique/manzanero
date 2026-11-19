@@ -24,7 +24,7 @@ final class DeviceTunnelPool: @unchecked Sendable {
     private let now: @Sendable () -> Date
 
     init(open: @escaping @Sendable (String) throws -> DeviceTunnel = { try DeviceTunnel(device: $0) },
-         enabled: @escaping @Sendable () -> Bool = { ProcessInfo.processInfo.environment[DeviceTunnel.optIn] == "1" },
+         enabled: @escaping @Sendable () -> Bool = { ProcessInfo.processInfo.environment[DeviceTunnel.optOut] != "0" },
          now: @escaping @Sendable () -> Date = Date.init) {
         self.open = open
         self.enabled = enabled
@@ -32,7 +32,7 @@ final class DeviceTunnelPool: @unchecked Sendable {
     }
 
     /// The tunnel for the device, opened if need be. Nil when the tool's own
-    /// tunnel was not asked for; a failure says why it cannot be used, and
+    /// tunnel was switched off; a failure says why it cannot be used, and
     /// the caller keeps the route it had.
     func acquire(_ udid: String) -> Result<DeviceTunnel, CommandFailure>? {
         guard enabled() else { return nil }
