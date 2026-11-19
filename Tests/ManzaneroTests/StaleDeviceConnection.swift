@@ -143,6 +143,10 @@ struct StaleDeviceConnectionTests {
             retriedAfter: "Accessibility socket deadline exceeded.")
         let secondRoot = try #require(try JSONSerialization.jsonObject(with: second) as? [String: Any])
         #expect(secondRoot["retriedAfter"] as? String == "Accessibility socket deadline exceeded." && tunnelRoot["retriedAfter"] == nil)
+        // detect-layout and a watching handoff pass the route fields on.
+        let passedOn = try #require(DirectPhysicalAccessibility.route(of: second))
+        #expect(passedOn.keys.sorted() == ["ownTunnelLink", "retriedAfter", "serviceDirectory"])
+        #expect(DirectPhysicalAccessibility.route(of: Data(#"{"status":"condition-met"}"#.utf8)) == nil)
         // Only a command that sends no input, on the tool's own tunnel, with
         // a failure of the connection, is tried once more.
         let dropped = CommandFailure(.transportFailed, "Accessibility socket deadline exceeded.", inputSent: .none)

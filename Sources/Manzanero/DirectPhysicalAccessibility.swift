@@ -209,6 +209,16 @@ enum DirectPhysicalAccessibility {
         }
     }
 
+    /// The route fields of an accessibility result, for a command that is
+    /// built from several of them (`detect-layout`, a watching `handoff`) and
+    /// reports the last one's. Nil for a result without them, as a
+    /// simulator's.
+    static func route(of result: Data) -> [String: Any]? {
+        guard let root = try? JSONSerialization.jsonObject(with: result) as? [String: Any] else { return nil }
+        let fields = root.filter { ["serviceDirectory", "ownTunnelLink", "ownTunnelUnavailable", "retriedAfter"].contains($0.key) }
+        return fields.isEmpty ? nil : fields
+    }
+
     /// The route a failed command was on, in the words its result would
     /// have used: a failure has no result to carry `serviceDirectory`.
     static func routeNote(serviceDirectory: String, ownTunnelLink: String?, ownTunnelUnavailable: String?) -> String {

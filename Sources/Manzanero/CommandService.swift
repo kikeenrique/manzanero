@@ -498,8 +498,12 @@ actor CommandService {
             set: { try await self.detectionSet(command, $0) },
             keys: { try await self.detectionKeys($0, keyboard) },
             deviceSetting: setting)
+        detectionRoute = nil
         do {
-            return try json(await LayoutDetection.run(command, probe: probe, operations: operations))
+            var result = try await LayoutDetection.run(command, probe: probe, operations: operations)
+            // The route of the last accessibility request it made.
+            if let detectionRoute { result["route"] = detectionRoute }
+            return try json(result)
         } catch {
             // The probe is typed with real key events.
             DeviceQuarantine.note(error, device: leased, operation: "detect-layout", leases: leases)
@@ -509,14 +513,19 @@ actor CommandService {
 
     private func detectionRead(_ command: LayoutDetectionCommand) async throws -> String {
         let tree = try await execute(.input(command.target, "tree", command.pid.map { [String($0)] } ?? []))
+        if let route = DirectPhysicalAccessibility.route(of: tree.data) { detectionRoute = route }
         return try LayoutDetection.fieldValue(fromTree: tree.data, by: command.by, text: command.text, index: command.index)
     }
 
     private func detectionSet(_ command: LayoutDetectionCommand, _ value: String) async throws -> Bool {
         let receipt = try await execute(.input(command.target, command.setValueOperation, command.selectorOperands + [value] + command.indexOperands))
+        if let route = DirectPhysicalAccessibility.route(of: receipt.data) { detectionRoute = route }
         let fields = try JSONSerialization.jsonObject(with: receipt.data) as? [String: Any]
         return fields?["valueMatches"] as? Bool == true
     }
+
+    /// The route of the last accessibility request a layout detection made.
+    private var detectionRoute: [String: Any]?
 
     /// On this service's queue, as every blocking device call is.
     private func detectionKeys(_ schedule: LayoutDetection.KeySchedule, _ keyboard: LayoutDetection.Keyboard) throws {
@@ -671,7 +680,10 @@ actor CommandService {
                 let target = Target(platform: handoff.platform == "physical" ? .physical : .simulator, identifier: handoff.device)
                 let output = try await perform(.input(target, operation, operands), dryRun: false, allowInteractive: false, handoffConfirmation: nil)
                 let result = try JSONSerialization.jsonObject(with: output.data) as? [String: Any] ?? [:]
-                return (result["conditionMet"] as? Bool == true, result["observation"] as? [String: Any] ?? [:])
+                var observation = result["observation"] as? [String: Any] ?? [:]
+                // The route of this look, on a physical device.
+                if let route = DirectPhysicalAccessibility.route(of: output.data) { observation["route"] = route }
+                return (result["conditionMet"] as? Bool == true, observation)
             }
         } catch {
             if error is CancellationError || Task.isCancelled { throw CancellationError() }
