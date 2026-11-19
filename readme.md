@@ -60,6 +60,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 
 | Need | Command or guide |
 | --- | --- |
+| What works where, in one table | [Status at a glance](docs/status.md) |
 | Buttons, tap, swipe, drag, long press | [Physical input](docs/native-input.md) |
 | Pinch or coordinated contacts | [Multitouch](docs/multitouch.md), [timed sequences](docs/gesture-sequences.md) |
 | Text entry | [Typing in a named keyboard layout](docs/physical-typing.md) ([layout research](docs/keyboard-layouts.md), [finding the device's layout](docs/physical-typing.md#finding-the-layout-detect-layout)), [Unicode text by set-value](docs/simulator-input.md#unicode-text-set-value), [Unicode paste](docs/native-input.md#direct-unicode-paste) |

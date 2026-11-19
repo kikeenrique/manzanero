@@ -1,6 +1,6 @@
 # Feature status
 
-This page is the compact inventory of what is available now and how far each area has been checked. “Verified” always means a scoped live result on the recorded device and environment; it is not a general reliability guarantee. [Verification](verification.md) holds the evidence and the failures, the [roadmap](roadmap.md) orders the remaining work, and the [live check plan](live-check-plan.md) lists the hardware runs still owed.
+For one table of what works on which platform, read [status at a glance](status.md) first. This page is the compact inventory of what is available now and how far each area has been checked. “Verified” always means a scoped live result on the recorded device and environment; it is not a general reliability guarantee. [Verification](verification.md) holds the evidence and the failures, the [roadmap](roadmap.md) orders the remaining work, and the [live check plan](live-check-plan.md) lists the hardware runs still owed.
 
 Unless a row says otherwise, physical evidence comes from one iPhone 13 mini (iOS 27.2.1) and simulator evidence from iOS 27.2 runtime simulators.
 

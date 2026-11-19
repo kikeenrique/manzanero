@@ -62,7 +62,7 @@ One SwiftPM package, three targets: the `Manzanero` executable, the Objective-C 
 - Temporary process output is written under `./tmp` relative to the current working directory, including by tests.
 - **The probe app** (`Fixtures/ProbeApp/`, `docs/probe-app.md`) is the ground truth for touch delivery, log capture and text entry, and raises a real permission prompt on demand (`probe.permission.request`); `mise run probe-app:test` runs its tests on macOS, and `test:probe-touch` drives its measurement runner.
 
-`docs/verification.md` records what has actually been observed on a device; `docs/feature-status.md`, `docs/roadmap.md` (achieved and pending) and `docs/live-check-plan.md` (hardware runs still owed) summarise it and must agree with each other. Update them rather than implying coverage from a passing build.
+`docs/verification.md` records what has actually been observed on a device; `docs/feature-status.md`, `docs/roadmap.md` (achieved and pending) and `docs/live-check-plan.md` (hardware runs still owed) summarise it and must agree with each other. `docs/status.md` is the one-table summary of those for the human owner (commands by platform, the routes, what is open): keep it short and plain, and bring it up to date whenever a status in it changes. `docs/device-services.md` lists the services a device offers and which ones the tool uses. Update them rather than implying coverage from a passing build.
 
 ## Dependencies
 
