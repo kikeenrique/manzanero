@@ -44,6 +44,29 @@ enum StaleDeviceConnection {
         return false
     }
 
+    /// The identifier `remoted` gives the device's connected CoreDevice
+    /// connection (`UUID:` in `remotectl dumpstate`), for the hardware UDID.
+    /// It changes when the connection is replaced, so read it afresh.
+    static func remoteIdentifier(in dump: Data, device: String) -> String? {
+        guard dump.count <= 4 * 1024 * 1024, let text = String(data: dump, encoding: .utf8) else { return nil }
+        var inDevice = false, connected = false, identifier: String?
+        for line in text.split(whereSeparator: \.isNewline) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("Found ") {
+                inDevice = line.contains("(coredevice-device)")
+                connected = false
+                identifier = nil
+            } else if inDevice, trimmed.hasPrefix("State: ") {
+                connected = trimmed.hasPrefix("State: connected")
+            } else if inDevice, trimmed.hasPrefix("UUID: ") {
+                identifier = String(trimmed.dropFirst("UUID: ".count))
+            } else if inDevice, connected, trimmed == "UniqueDeviceID => \(device)", let identifier, UUID(uuidString: identifier) != nil {
+                return identifier
+            }
+        }
+        return nil
+    }
+
     /// Refuses an accessibility command when the device's connection is
     /// already stale, before it takes the usage assertion that would keep
     /// the stale tunnel alive. Nothing is sent to the device. An unreadable

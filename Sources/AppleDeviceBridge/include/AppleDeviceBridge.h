@@ -350,5 +350,13 @@ void ADCReleaseDeviceTunnel(void *owner);
 /// entry Apple's usbmuxd lists, with its UDID and 1 for the cable or 2 for
 /// the network. Asks the Mac's daemon only; no device is contacted. Returns
 /// zero, or one when the MobileDevice framework is unavailable.
+/// The device's accessibility daemon through the Mac's own remoted, by the
+/// shim Apple's MobileDevice framework is served (AppleAccessibilityShim.m).
+/// `remoteUUID` is the device's identifier in remoted, as `remotectl
+/// dumpstate` prints it. On success the caller owns `descriptor`, a stream
+/// on which the daemon speaks DTX, and releases `owner` after closing it.
+/// Experimental: no command uses it yet.
+int ADCOpenAccessibilityShim(const char *remoteUUID, int *descriptor, void **owner, char *error, size_t errorCapacity);
+void ADCReleaseAccessibilityShim(void *owner);
 int ADCListDeviceTunnelLinks(__attribute__((noescape)) void (^sink)(const char *udid, int link));
 #endif

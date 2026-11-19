@@ -208,3 +208,36 @@ struct StaleDeviceConnectionTests {
         #expect(none.summary.contains("  none"))
     }
 }
+
+@Suite struct RemoteIdentifierTests {
+    /// The identifier remoted gives a device's connected connection is read
+    /// from `remotectl dumpstate` by hardware UDID.
+    @Test func theConnectedConnectionOfADeviceIsFound() {
+        let dump = Data("""
+        Found coredevice-7 (coredevice-device)
+        \tState: attached
+        \tUUID: 11111111-2222-3333-4444-555555555555
+        \tProperties: {
+        \t\tUniqueDeviceID => 00008110-000A11112222801E
+        \t}
+        Found coredevice-9 (coredevice-device)
+        \tState: connected (connectable)
+        \tUUID: 492285B2-0000-4000-8000-7A96A691DD59
+        \tProperties: {
+        \t\tUniqueDeviceID => 00008110-000A11112222801E
+        \t}
+        Found ncm-1 (ncm-device)
+        \tState: connected (connectable)
+        \tUUID: 99999999-2222-3333-4444-555555555555
+        \tProperties: {
+        \t\tUniqueDeviceID => 00008110-000B11112222801E
+        \t}
+        """.utf8)
+        // The stale entry of the same device is passed over for the connected one.
+        #expect(StaleDeviceConnection.remoteIdentifier(in: dump, device: "00008110-000A11112222801E") == "492285B2-0000-4000-8000-7A96A691DD59")
+        // A device reached only by another kind of connection, or not at all, has none.
+        #expect(StaleDeviceConnection.remoteIdentifier(in: dump, device: "00008110-000B11112222801E") == nil)
+        #expect(StaleDeviceConnection.remoteIdentifier(in: dump, device: "00008110-000C11112222801E") == nil)
+        #expect(StaleDeviceConnection.remoteIdentifier(in: Data(), device: "00008110-000A11112222801E") == nil)
+    }
+}

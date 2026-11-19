@@ -936,6 +936,25 @@ So Apple's Inspector reaches the device's accessibility daemon through `remoted`
 
 Not shown: whether this process can get the same connection by calling the MobileDevice framework (`AMDeviceCreateWithRemoteDevice` and a service start are exported; nothing was tried); whether the service behind the shim speaks what this tool's accessibility code speaks (the log names `com.apple.accessibility.axAuditDaemon.protocolVersion` over DTX, which is the family this tool uses); what the Inspector showed.
 
+### The accessibility shim, opened by this tool
+
+In the first hour of 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. Read-only: no element was acted on.
+
+| Step | Result |
+| --- | --- |
+| `remote_device_copy_device_with_uuid` for the device's identifier in `remoted`, then `AMDeviceCreateWithRemoteDeviceWithError`, `AMDeviceConnect`, `AMDeviceStartSession` | All succeeded from this process |
+| `AMDeviceSecureStartService` for `com.apple.accessibility.axAuditDaemon.remoteserver` | Success and a service connection. `remoted` logged "Returning service `…remoteserver.shim.remote`" for this process's MobileDevice helper, with no "lacks privilege" |
+| The connection's first bytes | `79 5b 3d 1f`, a DTX header: the daemon speaks first, and its socket is a plain stream that the tool's accessibility transport takes as it is |
+| The tool's tree code on that stream | Stopped at once. The daemon calls `hostApiVersion` where the tool expected `hostAPIVersion` (now both are accepted), and refuses the tool's own requests: "Unable to invoke -[XADAuditServer deviceAPIVersion]" and the same for `clientNeedsAccessibility:` |
+| Read-only requests in that daemon's own words | `deviceApiVersion` answered 26; `deviceAccessibilitySettings` answered a dictionary; `deviceCapabilities` answered 43 request names |
+| `remoted`'s log over the six runs | No interruption, no reset, and no stale connection afterwards |
+
+So the route is open to this tool: no service directory connection of its own, no pairing of its own, and no reset of the Mac's connection. What answers on it is the audit server Apple's Accessibility Inspector talks to (`XADAuditServer`), not the service this tool's trees are read from, so nothing the tool has can be pointed at it unchanged. Its capabilities include `deviceRunningApplications`, `deviceFetchElementAtNormalizedDeviceCoordinate:`, `deviceFetchSpecialElement:`, `deviceElement:valueForAttribute:`, `deviceElement:valueForParameterizedAttribute:withObject:`, `deviceElement:performAction:withValue:`, `deviceElement:setValue:attribute:`, `deviceInspectorMoveWithOptions:` and `deviceCaptureScreenshot`: enough, by their names, to read elements and act on them, one request an element.
+
+Kept from the experiment: `ADCOpenAccessibilityShim` in the bridge, `AccessibilityShim`, `doctor`'s `accessibility-shim` entry, and two opt-in checks (`MANZANERO_SHIM_SELECTORS=<UDID>` or `MANZANERO_SHIM_DEVICE=<UDID>` with `swift test --filter AccessibilityShim`). No command uses them.
+
+Not shown: any element read through it; what an element looks like on the wire; how fast a tree built one request an element would be; an iPhone.
+
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
 On the evening of 2026-11-18, on one Apple TV simulator at 1080p (tvOS 27.2), macOS 27.2.1, Xcode 27.2, with the build from `main` plus the changes named here. No device was used.

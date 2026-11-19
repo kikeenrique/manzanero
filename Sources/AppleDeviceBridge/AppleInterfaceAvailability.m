@@ -172,6 +172,22 @@ static const ADCRequirementSpec ADCKeyedArchiveUID[] = {
     ADC_SYMBOL("_CFKeyedArchiverUIDGetValue"),
 };
 
+// ADCOpenAccessibilityShim (AppleAccessibilityShim.m).
+static const ADCRequirementSpec ADCAccessibilityShim[] = {
+    ADC_FRAMEWORK("/System/Library/PrivateFrameworks/RemoteServiceDiscovery.framework/RemoteServiceDiscovery", RTLD_NOW),
+    ADC_SYMBOL("remote_device_copy_device_with_uuid"),
+    ADC_FRAMEWORK("/System/Library/PrivateFrameworks/MobileDevice.framework/MobileDevice", RTLD_NOW | RTLD_GLOBAL),
+    ADC_SYMBOL("AMDeviceCreateWithRemoteDeviceWithError"),
+    ADC_SYMBOL("AMDeviceConnect"),
+    ADC_SYMBOL("AMDeviceStartSession"),
+    ADC_SYMBOL("AMDeviceStopSession"),
+    ADC_SYMBOL("AMDeviceDisconnect"),
+    ADC_SYMBOL("AMDeviceSecureStartService"),
+    ADC_SYMBOL("AMDServiceConnectionGetSocket"),
+    ADC_SYMBOL("AMDServiceConnectionGetSecureIOContext"),
+    ADC_SYMBOL("AMDServiceConnectionInvalidate"),
+};
+
 // ADCOpenDeviceTunnel (AppleDeviceTunnel.m).
 static const ADCRequirementSpec ADCDeviceTunnel[] = {
     ADC_FRAMEWORK("/System/Library/PrivateFrameworks/MobileDevice.framework/MobileDevice", RTLD_NOW | RTLD_GLOBAL),
@@ -202,6 +218,8 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCRSDAccessibility, ADC_COUNT(ADCRSDAccessibility) },
     { "device-tunnel", "The tool's own tunnel to a device on its cable or on the network for the physical accessibility commands, used by default (MANZANERO_OWN_TUNNEL=0 turns it off): Apple's MobileDevice framework opens the device's tunnel service and lwIP, linked in, carries it", 0, 1,
       ADCDeviceTunnel, ADC_COUNT(ADCDeviceTunnel) },
+    { "accessibility-shim", "Experimental, used by no command: the device's accessibility daemon through the Mac's own remoted, by the shim Apple's MobileDevice framework is served, as Accessibility Inspector reaches it", 0, 0,
+      ADCAccessibilityShim, ADC_COUNT(ADCAccessibilityShim) },
     { "media-inspection", "Read-only native media support and status through a CoreDevice RemoteXPC media socket", 0, 1,
       ADCMediaInspectionRequirements, ADC_COUNT(ADCMediaInspectionRequirements) },
     { "native-recording", "record --backend coredevice and frames: AVConference negotiation over the media socket, standard-RTP packets decoded in process", 26, 1,

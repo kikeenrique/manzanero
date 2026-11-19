@@ -199,7 +199,7 @@ final class AccessibilitySession {
                 let value = try KeyedArchiveInspector.decodeProtocol(frame.object)
                 try check(limit)
                 return value
-            default: throw invalid("remote DTX error reply")
+            default: throw invalid("remote DTX error reply to '\(selector)'")
             }
         }
     }
@@ -223,7 +223,10 @@ final class AccessibilitySession {
             throw invalid("invalid callback channel, conversation or selector")
         }
         switch selector {
-        case "hostAPIVersion":
+        // The daemon's service behind the shim (the older "remoteserver"
+        // name, which Apple's Accessibility Inspector uses) spells it
+        // hostApiVersion.
+        case "hostAPIVersion", "hostApiVersion":
             guard frame.expectsReply, frame.auxiliary.isEmpty else { throw invalid("invalid host version invocation") }
             let version = try NSKeyedArchiver.archivedData(withRootObject: NSNumber(value: 7), requiringSecureCoding: true)
             try transport.write(frame.reply(object: version), until: limit, cancelled: { !self.stopping && self.cancelled() })
@@ -246,7 +249,7 @@ final class AccessibilitySession {
                     }
                 }
             }
-        default: throw invalid("unsupported callback selector")
+        default: throw invalid("unsupported callback selector '\(selector.prefix(80))'")
         }
         try check(limit)
         return frame
