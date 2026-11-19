@@ -182,3 +182,29 @@ struct StaleDeviceConnectionTests {
         #expect(untouched.description == other.description)
     }
 }
+
+@Suite struct DeviceTunnelLinksTests {
+    /// `devices` says, for each physical device, whether a tunnel of the
+    /// tool's own can be opened to it, and names what usbmuxd lists.
+    @Test func theInventorySaysWhichDevicesTheOwnTunnelReaches() throws {
+        let inventory = Data(#"""
+        {"result":{"devices":[
+          {"deviceProperties":{"name":"Phone"},"hardwareProperties":{"reality":"physical","udid":"00008110-000A11112222801E"}},
+          {"deviceProperties":{"name":"TV"},"hardwareProperties":{"reality":"physical","udid":"00008110-000B11112222801E"}},
+          {"deviceProperties":{"name":"Sim"},"hardwareProperties":{"reality":"simulated","udid":"11111111-2222-3333-4444-555555555555"}}]}}
+        """#.utf8)
+        let links = ["00008110-000A11112222801E": "cable", "00008110-000C11112222801E": "network"]
+        let annotated = try DeviceTunnelLinks.annotate(inventory, links: links)
+        let root = try #require(try JSONSerialization.jsonObject(with: annotated.data) as? [String: Any])
+        let devices = try #require((root["result"] as? [String: Any])?["devices"] as? [[String: Any]])
+        #expect(devices.map { $0["ownTunnel"] as? String } == ["cable", "unavailable", nil])
+        let listed = try #require((root["ownTunnel"] as? [String: Any])?["devices"] as? [[String: Any]])
+        #expect(listed.count == 2 && listed.contains { $0["name"] as? String == "Phone" && $0["link"] as? String == "cable" })
+        #expect(listed.contains { $0["udid"] as? String == "00008110-000C11112222801E" && $0["name"] == nil })
+        #expect(annotated.summary.contains("  Phone: cable"))
+        #expect(annotated.summary.contains("  00008110-000C11112222801E (not in the list above): network"))
+        // With nothing listed, every physical device reads unavailable.
+        let none = try DeviceTunnelLinks.annotate(inventory, links: [:])
+        #expect(none.summary.contains("  none"))
+    }
+}

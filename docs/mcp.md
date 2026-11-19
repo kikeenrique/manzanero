@@ -29,7 +29,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 | Tools | Current purpose |
 | --- | --- |
-| `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks, the host requirement (Xcode 27 or later, macOS 26.6 or later) and host-only private-interface availability per capability ([doctor output](dependencies.md#reading-doctor-output)); apps and physical details/processes/media status. |
+| `list_devices`, `doctor`, `inspect_device` | Inventory/tool checks (each physical device in the inventory carries `ownTunnel`: whether [the tool's own tunnel](transport.md#a-tunnel-of-the-tools-own) reaches it now), the host requirement (Xcode 27 or later, macOS 26.6 or later) and host-only private-interface availability per capability ([doctor output](dependencies.md#reading-doctor-output)); apps and physical details/processes/media status. |
 | `device_readiness` | CoreDevice prerequisites plus separate display/passcode observations; see [readiness](readiness.md). |
 | `get_ui_tree` | Native AX hierarchy with optional PID, physical or [simulator](simulator-input.md). |
 | `get_screen`, `screenshot`, `ocr_image` | [PNG capture and analysis](screen-understanding.md), saved-image OCR. Auto mode prefers the tree on both platforms. Optional `display` chooses a simulator display ([iPhone Duo](other-families.md#displays-iphone-duo)). A physical `screenshot` result carries `displayPower` and, when the display is off, a `displayNote`: the image is then black. |

@@ -33,6 +33,9 @@ do {
     if result.data.isEmpty, result.exitCode != 0 { exit(result.exitCode) }
     FileHandle.standardOutput.write(result.data)
     if result.data.last != 10 { print() }
+    // Lines for a person, after the machine-readable output so that they
+    // are the last thing a terminal shows.
+    if let note = result.note { FileHandle.standardError.write(Data((note + "\n").utf8)) }
     exit(result.exitCode)
 } catch {
     FileHandle.standardError.write(errorFormat.render(error))

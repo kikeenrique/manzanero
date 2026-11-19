@@ -217,3 +217,17 @@ void ADCReleaseDeviceTunnel(void *owner) {
     ADCCloseDeviceTunnel(owner);
     CFBridgingRelease(owner);
 }
+
+int ADCListDeviceTunnelLinks(__attribute__((noescape)) void (^sink)(const char *udid, int link)) {
+    @autoreleasepool {
+        const ADCMobileDevice *mobile = ADCLoadMobileDevice();
+        if (!mobile || !sink) return 1;
+        NSArray *devices = CFBridgingRelease(mobile->createList());
+        for (id candidate in devices) {
+            NSString *identifier = CFBridgingRelease(mobile->copyIdentifier((__bridge void *)candidate));
+            int type = mobile->interfaceType((__bridge void *)candidate);
+            if (identifier.length && (type == 1 || type == 2)) sink(identifier.UTF8String, type);
+        }
+        return 0;
+    }
+}

@@ -346,4 +346,9 @@ long ADCDeviceTunnelReceive(void *owner, uint8_t *buffer, size_t capacity);
 /// stays valid until ADCReleaseDeviceTunnel.
 void ADCCloseDeviceTunnel(void *owner);
 void ADCReleaseDeviceTunnel(void *owner);
+/// The devices a tunnel of the tool's own could be opened to: one call per
+/// entry Apple's usbmuxd lists, with its UDID and 1 for the cable or 2 for
+/// the network. Asks the Mac's daemon only; no device is contacted. Returns
+/// zero, or one when the MobileDevice framework is unavailable.
+int ADCListDeviceTunnelLinks(__attribute__((noescape)) void (^sink)(const char *udid, int link));
 #endif

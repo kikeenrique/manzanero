@@ -3,6 +3,9 @@ import Foundation
 struct CommandOutput: Sendable {
     let data: Data
     var exitCode: Int32 = 0
+    /// Lines for a person, which the CLI prints on stderr after the output;
+    /// the same facts are in `data`.
+    var note: String?
 }
 
 /// CLI and MCP share validation, backend selection, and execution. Synchronous
@@ -28,8 +31,10 @@ actor CommandService {
         return try ToolRunner().run(plan.arguments + ["--quiet"])
     }, uiReadinessQuery: @escaping @Sendable (DeviceCommand) throws -> Data = { plan in
         try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 15)
-    }, handoffWatchPause: Duration = .seconds(2), connectionState: @escaping @Sendable () throws -> Data = StaleDeviceConnection.liveDump) {
+    }, handoffWatchPause: Duration = .seconds(2), connectionState: @escaping @Sendable () throws -> Data = StaleDeviceConnection.liveDump,
+       tunnelLinks: @escaping @Sendable () -> [String: String] = DeviceTunnelLinks.live) {
         self.connectionState = connectionState
+        self.tunnelLinks = tunnelLinks
         self.leases = leases
         self.simulator = simulator
         self.readinessQuery = readinessQuery
@@ -41,6 +46,8 @@ actor CommandService {
     private let handoffWatchPause: Duration
     /// remoted's state dump, read only after a query has timed out.
     private let connectionState: @Sendable () throws -> Data
+    /// The devices usbmuxd lists, for `devices`.
+    private let tunnelLinks: @Sendable () -> [String: String]
 
     private nonisolated func staleConnection(_ failure: CommandFailure) -> CommandFailure {
         StaleDeviceConnection.annotate(failure, dump: connectionState)
@@ -141,7 +148,10 @@ actor CommandService {
             let data = try runner.run(simulators ? ["simctl", "list", "devices", "available", "--json"]
                                                  : ["devicectl", "list", "devices", "--timeout", "15", "--json-output", "-"])
             _ = try JSONSerialization.jsonObject(with: data)
-            return CommandOutput(data: data)
+            guard !simulators else { return CommandOutput(data: data) }
+            // Which of them a tunnel of the tool's own can be opened to.
+            let annotated = try DeviceTunnelLinks.annotate(data, links: tunnelLinks())
+            return CommandOutput(data: annotated.data, note: annotated.summary.joined(separator: "\n"))
         case .doctor:
             guard !dryRun else { throw CommandFailure.usage(CLI.noPlanMessage) }
             return try Doctor.run { try runner.run($0) }
