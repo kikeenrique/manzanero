@@ -850,9 +850,20 @@ Opening the tunnel took about 1.4 s of each command (eight relayed connections t
 
 So a tunnel on the cable ends when the cable is pulled, and the command that was using it fails once and is not retried; the next one opens a tunnel over the network. A tunnel over the network is not disturbed by the cable arriving. The failed `wait` of the earlier run fits this, as the command straight after an unplugging, though it failed sooner. `remoted` logged no interruption, only its own handshake with the phone at each plugging.
 
-**One more attempt for `tree` and the waits.** Built after that run, on the human owner's word: such a command whose own tunnel ends under it runs once more on a new connection and reports the first failure in `retriedAfter`. It is unit-tested only. A loop of 60 rounds of `wait` and `tree` with that build ran entirely on the cable, 120 results of 120 on the tunnel with no failure and no interruption of `remoted`; the cable was not pulled during it, so no retry happened.
+**One more attempt for `tree` and the waits.** Built after that run, on the human owner's word: such a command whose own tunnel ends under it runs once more on a new connection and reports the first failure in `retriedAfter`. A first loop of 60 rounds of `wait` and `tree` with that build ran entirely on the cable, 120 results of 120 on the tunnel with no failure and no interruption of `remoted`; the cable was not pulled during it, so no retry happened.
 
-Not shown: that retry on a device; an Apple TV, or any device `usbmuxd` does not list, since the default changed; an action, not a `wait`, in flight when the cable is pulled; a tunnel kept by one process (a `batch`, an MCP session) across a change of link; an MCP session; a phone that leaves the network during a command; whether the phone's "connect over the network" setting must be on for `usbmuxd` to list it; the cable pulled while a tunnel is open; another device. The Apple TV is still out of reach: `usbmuxd` does not list it.
+A second loop, stopped after 93 commands, ran while the human owner pulled the cable and put it back several times:
+
+| What | Count |
+| --- | --- |
+| Commands that failed | 0 of 93 |
+| Results on the cable, and over the network | 84 and 9 |
+| Results with `retriedAfter` | 3: a `tree` at 17:10:21 and at 17:10:55, a `wait` at 17:11:22, each answering `ownTunnelLink: network` and quoting its first attempt, "Accessibility socket deadline exceeded … Route: serviceDirectory=own-tunnel, ownTunnelLink=cable" |
+| `Device connection interrupted` in `remoted`'s log | 1, at 17:11:51 on its `coredevice` connection, with "Handshake complete" two seconds later and nothing stale afterwards |
+
+So a `tree` or a `wait` in flight when the cable is pulled now answers, over the network, where it failed four times of four before. The one interruption came at a fourth change of link, during a `wait` that took thirteen seconds and answered on the cable without a retry; every command around it was on the tool's own tunnel, and the eight earlier changes of link of that afternoon logged none. Whether the change of link or the tool caused it is not known.
+
+Not shown: what caused that interruption; an Apple TV, or any device `usbmuxd` does not list, since the default changed; an action, not a `wait`, in flight when the cable is pulled; a tunnel kept by one process (a `batch`, an MCP session) across a change of link; an MCP session; a phone that leaves the network during a command; whether the phone's "connect over the network" setting must be on for `usbmuxd` to list it; the cable pulled while a tunnel is open; another device. The Apple TV is still out of reach: `usbmuxd` does not list it.
 
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
