@@ -908,7 +908,7 @@ Not shown: what a held Play/Pause does inside an app; why the button service fai
 
 ### Device Hub's screen view of the Apple TV
 
-Late on 2026-11-19 the human owner opened the Apple TV 4K's screen view in Apple's Device Hub (Xcode 27.2) for about twenty seconds while the Mac's log was captured for Device Hub, `CoreDeviceService` and `remoted`. This tool sent the device nothing. What the human owner saw in the view was not reported.
+Late on 2026-11-19 the human owner opened the Apple TV 4K's screen view in Apple's Device Hub (Xcode 27.2) for about twenty seconds while the Mac's log was captured for Device Hub, `CoreDeviceService` and `remoted`. This tool sent the device nothing. The human owner saw the correct picture, live.
 
 | What Device Hub did, from the log | Compared with this tool |
 | --- | --- |
@@ -920,7 +920,7 @@ Late on 2026-11-19 the human owner opened the Apple TV 4K's screen view in Apple
 
 So the request is the same and the stream is not marked protected. The differences are the audio stream started beside the video, the event channel, and who decodes.
 
-Not shown: whether Device Hub's picture was right; whether starting the audio stream too gives this tool a picture; how much data Device Hub received.
+Not shown: whether starting the audio stream too gives this tool a picture, which is now a task ([roadmap](roadmap.md)); how much data Device Hub received.
 
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 

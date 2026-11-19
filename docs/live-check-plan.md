@@ -45,7 +45,7 @@ One Apple TV 4K has been driven; everything else in [other families](other-famil
   - A held Play/Pause inside an app, and a held Home shorter than 1.5 s: held select, arrows and Menu ran on 2026-11-19, and a 1.5 s hold of Home failed on the device's button service, so it is refused ([record](verification.md#held-remote-buttons-on-the-apple-tv-4k)). The probe's current build is on the device.
   - `scroll --search` to the right or left of more than twenty steps: up and down ran that far on 2026-11-19, after a long search was found to run out of the session's frame allowance.
   - The error a query gives in the stale state, which was built after the last stale period and has only run in unit tests.
-  - Why the video stream arrives blank (recording and `frames` are refused meanwhile). The opt-in media probe needs a variant that sends no tap.
+  - Why the video stream arrives blank (recording and `frames` are refused meanwhile). The lead to try: an audio stream started beside the video, as Apple's Device Hub does ([record](verification.md#device-hubs-screen-view-of-the-apple-tv)). The opt-in media probe needs a variant that sends no tap.
   - Not the Apple TV HD paired with the same Mac: it runs tvOS 26.6, cannot take 27, and the human owner discarded it for this tool on 2026-11-18.
 - Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), `button side`, and `button action` on an Apple Watch Ultra.
 
