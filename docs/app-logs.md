@@ -4,7 +4,7 @@ An agent that sees a wrong screen needs to know why. Three commands read what th
 
 | Command | Simulator | Physical device |
 | --- | --- | --- |
-| `logs` | `simctl spawn <UUID> log stream\|show --style ndjson`. Verified on one simulator | Not implemented yet: refused as `unsupported-operation`. A pending task since 2026-11-18, after the phone's log relay was read in an experiment ([below](#not-implemented)) |
+| `logs` | `simctl spawn <UUID> log stream\|show --style ndjson`. Verified on one simulator | The device's log relay, a stream from now ([below](#physical-devices)). Built on 2026-11-20 and unit-tested; the command has not run on a device yet (the relay itself was read in an experiment on 2026-11-18) |
 | `console` | `simctl launch --stdout=<file> --stderr=<file>`. Verified on one simulator | `devicectl device process launch --console`. Checked on one iPhone 13 mini |
 | `last-crash` | Host `~/Library/Logs/DiagnosticReports`. Verified on one simulator | Existing `reports`/`report` route plus the same parser. Checked on one iPhone 13 mini |
 
@@ -13,7 +13,8 @@ An agent that sees a wrong screen needs to know why. Three commands read what th
 ```sh
 manzanero logs (--seconds N | --last N | --start <ISO-8601> [--end <ISO-8601>])
     (--bundle <id> | --pid N | --process <name>) [--subsystem S [--category C]]
-    [--level default|info|debug] [--max-entries N] [--max-bytes N] [--output <new.ndjson>] --simulator <UUID>
+    [--level default|info|debug] [--max-entries N] [--max-bytes N] [--output <new.ndjson>]
+    (--simulator <UUID> | --device <UDID>, with --seconds only)
 manzanero console <bundle-id> --seconds N [--max-bytes N] [--os-log] [--terminate]
     (--device <UDID> | --simulator <UUID>) [-- app-argsâ€¦]
 manzanero last-crash (--bundle <id> | --process <name>) [--since <ISO-8601>] [--download <existing-dir>]
@@ -22,7 +23,7 @@ manzanero last-crash (--bundle <id> | --process <name>) [--since <ISO-8601>] [--
 
 Options may come in any order; the target and every option go before `--`, after which everything is passed to the app. Every command has a `--dry-run` plan that prints the planned argv, the derived predicate and the bounds without querying anything. A simulator is addressed by its UUID only.
 
-MCP exposes them as `capture_logs` (simulator only, `readOnly`), `capture_console` (a mutation: it launches an app) and `latest_crash` (`readOnly`); see [MCP](mcp.md).
+MCP exposes them as `capture_logs` (`readOnly`; `platform` is `simulator` unless given as `physical`), `capture_console` (a mutation: it launches an app) and `latest_crash` (`readOnly`); see [MCP](mcp.md).
 
 ## `logs`
 
@@ -69,6 +70,16 @@ An entry that would cross the entry or byte limit is not kept, and the capture s
 
 **Debug entries are not persisted.** `log show` (`--last`, `--start`) returned info and above but no debug entries, even with `--level debug`. Capture debug output live with `--seconds`.
 
+### Physical devices
+
+On a device `logs` reads the device's log relay (`com.apple.os_trace_relay.shim.remote`, `OSTraceRelay` and `PhysicalLogCapture`), the route the experiment of 2026-11-18 proved ([record](verification.md#the-log-relay-on-the-phone)). Built on 2026-11-20; unit-tested against a fake relay on a socket pair, and not yet run on a device.
+
+- **Time.** `--seconds` only, a stream from now. `--last` and `--start` are usage errors: the device's stored log is not read.
+- **Target.** The relay streams one PID. `--pid` is used as given. `--bundle` is resolved, with `devicectl device info apps` and `processes`, to the one running process whose executable is directly inside the app's `.app` (an extension's is deeper and does not count); `--process` to the one running process with that executable name. Not installed, not running, or more than one match is `target-unresolved`, with nothing captured. A relaunch changes the PID and is **not followed**: the stream ends its coverage there.
+- **Levels and filters.** The device is asked for every level of that process, debug included, which `console --os-log` never shows. Level, subsystem and category are filtered on the Mac, and so is the PID again. `--level default` keeps default, error and fault; `info` adds info; `debug` adds debug. Entries have the simulator's fields (`timestamp` with microseconds, `level`, `pid`, `process`, `subsystem`, `category`, `sender`, `message`).
+- **Route.** The tool's own tunnel when it reaches the device (result `serviceDirectory: own-tunnel`, `ownTunnelLink`), which disturbs nothing; otherwise Apple's tunnel, with a tunnel assertion, port discovery and one directory connection, which makes the device reset the Mac's `remoted` once (`serviceDirectory: opened`, and why in `ownTunnelUnavailable`). A stale connection is refused before it starts.
+- **Bounds and ending.** `--max-entries` and `--max-bytes` as on a simulator; reading stops after 64 MiB received whatever is kept, and a record longer than 1 MiB is refused before it is read. `stopReason` is `duration`, `entryLimit`, `byteLimit` or `closed` (the device ended the stream), and the result also has `receivedRecords`, `filteredOut` and `parseFailures`. The stream is read on a thread of its own, so an MCP server answers other calls meanwhile; cancellation stops it within 100 ms and closes the socket.
+
 ## `console`
 
 `console <bundle-id> --seconds N` launches the app (relaunching it if it runs, so the streams attach to the new process) and returns the last `--max-bytes` (default 64 KiB, at most 1 MiB) of each stream as `stdoutTail` and `stderrTail`, with `stdoutBytes`, `stderrBytes`, `truncated` and `stopReason` (`exited`, `duration` or `byteLimit`, the last when the two streams pass 8 MiB together). Arguments after `--` go to the app verbatim.
@@ -97,7 +108,7 @@ Returns the newest crash report (bug type 309) for the app, or `{"found":false,â
 
 ## Signals and cleanup
 
-`logs` and `console` run under the CLI signal scope: SIGINT or SIGTERM cancels the capture, stops and reaps the child (`simctl spawn`, and through it the simulator's `log`; or devicectl), and exits 130 or 143 without a result. MCP cancellation does the same. A simulator console that is cancelled leaves the app running. On the simulator, no `simctl spawn` or in-simulator `log stream` process was left after a normal end, a limit, SIGINT or SIGTERM.
+`logs` and `console` run under the CLI signal scope: SIGINT or SIGTERM cancels the capture, stops and reaps the child (`simctl spawn`, and through it the simulator's `log`; or devicectl) or closes the device's log relay, and exits 130 or 143 without a result. MCP cancellation does the same. A simulator console that is cancelled leaves the app running. On the simulator, no `simctl spawn` or in-simulator `log stream` process was left after a normal end, a limit, SIGINT or SIGTERM.
 
 ## Privacy
 
@@ -108,7 +119,7 @@ Returns the newest crash report (bug type 309) for the app, or `{"found":false,â
 
 ## Not implemented
 
-- Physical `logs` (the native `os_trace_relay` route in the research, section P-B). On 2026-11-18 the opt-in task `mise run test:os-trace-relay <UDID> <pid>` read the probe app's log lines at every level, debug included, from the iPhone 13 mini through that relay ([record](verification.md#the-log-relay-on-the-phone)), and the owner made the command a pending task ([roadmap](roadmap.md#not-built)). Until it exists, `console --os-log` is the only route on a phone, and it stops at info.
+- On a physical device: following an app across a relaunch, a stream of every process (`Pid: -1`), the device's stored log (`CreateArchive`), and streams longer than 60 seconds.
 - Symbolication with a dSYM (`atos`).
 - Crash reports in `Retired/`, and hang or other non-crash report types.
 - Extensions: `--bundle` matching covers anything inside the `.app`, but no extension was tested.

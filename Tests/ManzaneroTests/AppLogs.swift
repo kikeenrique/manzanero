@@ -73,10 +73,11 @@ struct LogCaptureParsingTests {
         #expect { try logs(operands) } throws: { ($0 as? CommandFailure)?.code == .usage }
     }
 
-    @Test func physicalLogsAreUnsupportedAndSimulatorsNeedAUUID() throws {
-        #expect { try diagnostics(["logs", "--seconds", "5", "--pid", "1", "--device", "phone"]) } throws: {
-            ($0 as? CommandFailure)?.code == .unsupportedOperation && ($0 as? CommandFailure)?.inputSent == CommandFailure.InputSent.none
+    @Test func physicalLogsStreamAndSimulatorsNeedAUUID() throws {
+        guard case .logs(let capture) = try diagnostics(["logs", "--seconds", "5", "--pid", "1", "--device", "phone"]) else {
+            Issue.record("not logs"); return
         }
+        #expect(capture.physical && capture.source == "os-trace-relay" && capture.device == "phone")
         #expect { try diagnostics(["logs", "--seconds", "5", "--pid", "1", "--simulator", "booted"]) } throws: {
             ($0 as? CommandFailure)?.code == .usage
         }
@@ -670,9 +671,10 @@ struct AppDiagnosticsServiceTests {
         #expect(try CLI.invocation(logs + ["--dry-run"]).dryRun)
     }
 
-    @Test func physicalLogsFailAsUnsupportedWithNothingSent() async {
-        await #expect { _ = try await service().run(["logs", "--seconds", "5", "--pid", "1", "--device", "phone"]) } throws: {
-            ($0 as? CommandFailure)?.code == .unsupportedOperation && ($0 as? CommandFailure)?.inputSent == CommandFailure.InputSent.none
+    @Test func physicalLogsWithoutTheDevicesIdentityStopBeforeAnyConnection() async {
+        let service = CommandService(readinessQuery: { _ in Data() })
+        await #expect { _ = try await service.run(["logs", "--seconds", "5", "--pid", "1", "--device", "phone"]) } throws: {
+            ($0 as? CommandFailure)?.code == .deviceNotReady && ($0 as? CommandFailure)?.inputSent == CommandFailure.InputSent.none
         }
     }
 }

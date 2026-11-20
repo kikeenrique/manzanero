@@ -48,18 +48,24 @@ struct LogCapture: Sendable, Equatable {
     let maxEntries: Int
     let maxBytes: Int
     let output: String?
+    /// A physical device, read through its log relay (`PhysicalLogCapture`):
+    /// a stream from now only.
+    let physical: Bool
 
     init(device: String, mode: Mode, target: Target, subsystem: String? = nil, category: String? = nil, level: Level = .default,
-         maxEntries: Int = defaultMaxEntries, maxBytes: Int = defaultMaxBytes, output: String? = nil) {
+         maxEntries: Int = defaultMaxEntries, maxBytes: Int = defaultMaxBytes, output: String? = nil, physical: Bool = false) {
         self.device = device; self.mode = mode; self.target = target; self.subsystem = subsystem; self.category = category
-        self.level = level; self.maxEntries = maxEntries; self.maxBytes = maxBytes; self.output = output
+        self.level = level; self.maxEntries = maxEntries; self.maxBytes = maxBytes; self.output = output; self.physical = physical
     }
 
-    init(device: String, options: DiagnosticOptions) throws {
+    init(device: String, options: DiagnosticOptions, physical: Bool = false) throws {
         guard options.positional.isEmpty else { throw CommandFailure.usage("logs takes options only; see --help.") }
         let modes = ["--seconds", "--last", "--start"].filter { options.values[$0] != nil }
         guard modes.count == 1 else {
             throw CommandFailure.usage("logs needs exactly one of --seconds (stream from now), --last (seconds back) or --start [--end].")
+        }
+        if physical, modes != ["--seconds"] {
+            throw CommandFailure.usage("On a physical device logs streams from now only: use --seconds. A device's stored log is not read.")
         }
         let mode: Mode
         if let seconds = try options.integer("--seconds", in: Self.secondsRange) {
@@ -103,7 +109,7 @@ struct LogCapture: Sendable, Equatable {
         self.init(device: device, mode: mode, target: target, subsystem: subsystem, category: category, level: level,
                   maxEntries: try options.integer("--max-entries", in: 1...Self.maxEntriesCeiling) ?? Self.defaultMaxEntries,
                   maxBytes: try options.integer("--max-bytes", in: 1024...Self.maxBytesCeiling) ?? Self.defaultMaxBytes,
-                  output: output)
+                  output: output, physical: physical)
     }
 
     var isStream: Bool { if case .stream = mode { true } else { false } }
@@ -113,7 +119,7 @@ struct LogCapture: Sendable, Equatable {
         return Self.showDeadlineSeconds
     }
 
-    var source: String { isStream ? "simctl-log-stream" : "simctl-log-show" }
+    var source: String { physical ? "os-trace-relay" : isStream ? "simctl-log-stream" : "simctl-log-show" }
 
     /// The query that resolves `--bundle` to its installed `.app` (read-only).
     var appPathQuery: [String]? {
@@ -164,6 +170,7 @@ struct LogCapture: Sendable, Equatable {
     }
 
     func plan() -> [String: Any] {
+        if physical { return PhysicalLogCapture.plan(self) }
         var plan: [String: Any] = [
             "backend": "simctl", "operation": "logs", "platform": "simulator", "device": device, "readOnly": true,
             "executable": "/usr/bin/xcrun", "arguments": arguments(predicate: predicate(appPath: nil)),

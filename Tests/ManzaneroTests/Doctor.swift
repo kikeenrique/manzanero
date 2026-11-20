@@ -202,7 +202,7 @@ struct DoctorTests {
         let capabilities = PrivateInterfaces.check()
         let identifiers = capabilities.map(\.identifier)
         #expect(Set(identifiers).count == identifiers.count)
-        for expected in ["physical-input", "multi-contact-input", "tunnel-assertion", "rsd-accessibility", "device-tunnel",
+        for expected in ["physical-input", "multi-contact-input", "tunnel-assertion", "rsd-accessibility", "rsd-log-relay", "device-tunnel",
                          "media-inspection", "native-recording", "keyed-archive-uid", "simulator-input", "simulator-accessibility"] {
             #expect(capabilities.first { $0.identifier == expected }?.usedByCommands == true)
         }

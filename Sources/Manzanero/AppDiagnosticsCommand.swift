@@ -12,16 +12,14 @@ enum AppDiagnosticsCommand: Sendable, Equatable {
     /// Operations that only read; `console` launches an app.
     static let observations = ["logs", "last-crash"]
 
-    /// One of `operations` with its options checked. Physical logs are refused.
+    /// One of `operations` with its options checked.
     static func make(physical: Bool, device: String, operation: String, options: DiagnosticOptions) throws -> Self {
         guard !device.isEmpty, !device.hasPrefix("-") else {
             throw CommandFailure.usage("Device identifier must be nonempty and cannot begin with '-'.")
         }
         switch operation {
         case "logs":
-            if physical {
-                throw CommandFailure.unsupported("Physical logs are not implemented: Apple's tools cannot stream a device's unified log without root, and the native os_trace_relay route is not built. Use physical console (unverified) or last-crash; nothing was sent.")
-            }
+            if physical { return .logs(try LogCapture(device: device, options: options, physical: true)) }
             return .logs(try LogCapture(device: SimulatorDevice.requireUUID(device, operation: "logs"), options: options))
         case "console":
             return .console(try ConsoleCapture(physical: physical,
@@ -44,7 +42,7 @@ enum AppDiagnosticsCommand: Sendable, Equatable {
 
     var physical: Bool {
         switch self {
-        case .logs: false
+        case .logs(let value): value.physical
         case .console(let value): value.physical
         case .lastCrash(let value): value.physical
         }

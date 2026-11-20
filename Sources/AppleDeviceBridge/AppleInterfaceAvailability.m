@@ -229,6 +229,8 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       NULL, 0 },
     { "rsd-accessibility", "Native physical accessibility (tree, press/scroll/set-value by exact selector, waits) through a Network RemoteXPC RSD directory", 0, 1,
       ADCRSDAccessibility, ADC_COUNT(ADCRSDAccessibility) },
+    { "rsd-log-relay", "Physical logs: the device's log relay (os_trace_relay, a plain shim service) found in the same RemoteXPC RSD directory, on the tool's own tunnel or Apple's", 0, 1,
+      ADCRSDAccessibility, ADC_COUNT(ADCRSDAccessibility) },
     { "device-tunnel", "The tool's own tunnel to a device on its cable or on the network for the physical accessibility commands, used by default (MANZANERO_OWN_TUNNEL=0 turns it off): Apple's MobileDevice framework opens the device's tunnel service and lwIP, linked in, carries it", 0, 1,
       ADCDeviceTunnel, ADC_COUNT(ADCDeviceTunnel) },
     { "accessibility-shim", "press on a physical Apple TV by the Inspector's cursor, before the route over Apple's tunnel (MANZANERO_INSPECTOR_PRESS=0 turns it off): the device's accessibility daemon through the Mac's own remoted, by the shim Apple's MobileDevice framework is served, as Accessibility Inspector reaches it", 0, 1,

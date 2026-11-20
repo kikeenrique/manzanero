@@ -90,9 +90,14 @@ final class RSDDirectoryConnection {
     /// Connects to one lockdown shim service the directory advertises (a
     /// name ending in `.shim.remote`), such as the log relay. The caller owns
     /// the returned blocking stream descriptor and closes it before this
-    /// directory. Used only by the opt-in `test:os-trace-relay` probe so far;
-    /// no command reaches it.
+    /// directory. For a directory read over Apple's tunnel; on the tool's own
+    /// tunnel, relay `shimServicePort` instead.
     func openShimService(_ name: String) throws -> Int32 {
+        try Self.connect(address: tunnelAddress, port: shimServicePort(name))
+    }
+
+    /// The device port the directory advertises for one shim service.
+    func shimServicePort(_ name: String) throws -> UInt16 {
         guard let owner, ADCIsRSDDirectoryActive(owner) == 1 else {
             throw CommandFailure(.transportFailed, "RSD directory is closed or failed; no service connection started.", inputSent: .none)
         }
@@ -101,7 +106,13 @@ final class RSDDirectoryConnection {
         guard ADCCopyRSDShimServicePort(owner, name, &port, &error, error.count) == 0, port > 0 else {
             throw CommandFailure(.transportFailed, String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self), inputSent: .none)
         }
-        return try Self.connect(address: tunnelAddress, port: port)
+        return port
+    }
+
+    /// A blocking stream socket to a device port: on Apple's tunnel, or on
+    /// the loopback end of a relay of the tool's own (`relayed`).
+    static func connectStream(address: String, port: UInt16, relayed: Bool) throws -> Int32 {
+        try connect(address: address, port: port, relayed: relayed)
     }
 
     private static func connect(address: String, port: UInt16, relayed: Bool = false) throws -> Int32 {

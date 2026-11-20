@@ -35,7 +35,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | not run | works |
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
 | **Build and run**: `build-run` | works | works | works | not run | not run | not run |
-| **App output**: `console`, `last-crash`, `logs` | `console` and `last-crash` work; `logs` not built | works | `console` and `last-crash` work; `logs` not built | not run | not run | not run |
+| **App output**: `console`, `last-crash`, `logs` | `console` and `last-crash` work; `logs` not run (built 2026-11-20) | works | `console` and `last-crash` work; `logs` not run | not run | not run | not run |
 | **A person's step**: `handoff` | works | works | works | works | not run | not run |
 | **Several commands at once**: `batch` | works | works | works | works | not run | not run |
 | **From an AI agent**: `mcp` | works | works | works | works | not run | works |
@@ -61,7 +61,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 1. **Push** the local commits, some fifty: three days of work, none of it in a release.
 2. **A phone session for changes never run on a phone**: pressing a plain table row, a recording of a moving screen to see whether the phone needs the Apple TV's video fix too, and `open-url` against the probe.
 3. **The next beta**: the first release with the tool's own tunnel, the Apple TV, `pair`, sleep and wake, and sound.
-4. **`logs` for devices**: the way in is proven, the command is not built.
+4. **`logs` for devices**: built on 2026-11-20 on the device's log relay, unit-tested; its first run on the phone is owed.
 5. **Sound in a recording, the rest**: picture and sound in step, a long recording, and the Apple TV with something playing.
 6. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
 7. **Small checks on the iPhone**: an action in flight when the cable is pulled, and an agent session over the network.
@@ -79,3 +79,5 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 - **Apple TV, `press` without the side effect**: by Apple's Inspector cursor, with the focus left where it was.
 - **Plain table rows** can be pressed, found with a new list screen in the iOS probe on a new phone simulator.
 - **Two tests that failed under load** are fixed.
+- **`press` on an Apple TV** goes by the tool's own tunnel first, then the Inspector's cursor, then Apple's tunnel (built and unit-tested; not yet run there).
+- **`logs` on a device**: one app's entries at every level, debug included, from the device's log relay (built and unit-tested; not yet run on a device).

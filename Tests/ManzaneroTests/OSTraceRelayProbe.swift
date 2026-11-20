@@ -13,105 +13,12 @@ import Testing
 /// the check-in and the start request, then records behind a 0x02 byte and a
 /// 4-byte little-endian length.
 struct OSTraceRelayProbeTests {
-    static let service = "com.apple.os_trace_relay.shim.remote"
-    static let maximumPlistBytes = 1024 * 1024
-    static let maximumRecordBytes = 1024 * 1024
-    static let headerBytes = 129
-
-    struct Stream {
-        let descriptor: Int32
-        let deadline: ContinuousClock.Instant
-
-        func read(_ count: Int) throws -> Data {
-            var data = Data()
-            var buffer = [UInt8](repeating: 0, count: min(max(count, 1), 65536))
-            while data.count < count {
-                let left = deadline - ContinuousClock.now
-                guard left > .zero else { throw CommandFailure(.timeout, "Log relay read deadline passed.", inputSent: .none) }
-                var event = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
-                let milliseconds = Int32(min(100, max(1, left.components.seconds * 1000 + left.components.attoseconds / 1_000_000_000_000_000)))
-                let ready = poll(&event, 1, milliseconds)
-                if ready == 0 || (ready < 0 && errno == EINTR) { continue }
-                guard ready > 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
-                let got = Darwin.read(descriptor, &buffer, min(buffer.count, count - data.count))
-                if got < 0, errno == EINTR || errno == EAGAIN { continue }
-                guard got > 0 else { throw CommandFailure(.transportFailed, "Log relay closed the socket.", inputSent: .none) }
-                data.append(contentsOf: buffer[0..<got])
-            }
-            return data
-        }
-
-        func write(_ data: Data) throws {
-            var sent = 0
-            try data.withUnsafeBytes { bytes in
-                while sent < data.count {
-                    let wrote = Darwin.write(descriptor, bytes.baseAddress! + sent, data.count - sent)
-                    if wrote < 0, errno == EINTR { continue }
-                    guard wrote > 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
-                    sent += wrote
-                }
-            }
-        }
-
-        func send(_ plist: [String: Any], format: PropertyListSerialization.PropertyListFormat) throws {
-            let body = try PropertyListSerialization.data(fromPropertyList: plist, format: format, options: 0)
-            var length = UInt32(body.count).bigEndian
-            try write(Data(bytes: &length, count: 4) + body)
-        }
-
-        func plist() throws -> [String: Any] {
-            let length = try read(4).reduce(0) { $0 << 8 | Int($1) }
-            guard (1...OSTraceRelayProbeTests.maximumPlistBytes).contains(length) else {
-                throw CommandFailure(.transportFailed, "Log relay plist length \(length) is out of bounds.", inputSent: .none)
-            }
-            guard let value = try PropertyListSerialization.propertyList(from: read(length), format: nil) as? [String: Any] else {
-                throw CommandFailure(.transportFailed, "Log relay reply is not a dictionary.", inputSent: .none)
-            }
-            return value
-        }
-    }
-
-    struct Record {
-        let pid: UInt32
-        let level: UInt8
-        let seconds: UInt32
-        let process: String
-        let image: String
-        let message: String
-        let subsystem: String
-        let category: String
-    }
-
-    /// One record after its 0x02 byte and length. Offsets as in the reference.
-    static func parse(_ packet: Data) throws -> Record {
-        let bytes = [UInt8](packet)
-        func invalid(_ what: String) -> CommandFailure { CommandFailure(.transportFailed, "Log record: \(what).", inputSent: .none) }
-        guard bytes.count >= headerBytes else { throw invalid("shorter than the fixed header (\(bytes.count) bytes)") }
-        func u16(_ at: Int) -> Int { Int(bytes[at]) | Int(bytes[at + 1]) << 8 }
-        func u32(_ at: Int) -> UInt32 { (0..<4).reduce(0) { $0 | UInt32(bytes[at + $1]) << (8 * UInt32($1)) } }
-        // 9 padding, pid 4, 42 (procid, image UUID), seconds 4, 4 padding,
-        // microseconds 4, 1 padding, level 1, 38 (mach time, thread, sender
-        // UUID), image-name size 2, message size 2, 2, sender offset 4,
-        // subsystem size 4, category size 4, 4.
-        let pid = u32(9), seconds = u32(55), level = bytes[68]
-        let imageSize = u16(107), messageSize = u16(109)
-        let subsystemSize = Int(u32(117)), categorySize = Int(u32(121))
-        var offset = headerBytes
-        guard let end = bytes[offset...].firstIndex(of: 0) else { throw invalid("process path is not terminated") }
-        let process = String(decoding: bytes[offset..<end], as: UTF8.self)
-        offset = end + 1
-        func take(_ size: Int, _ what: String) throws -> String {
-            guard size >= 0, offset + size <= bytes.count else { throw invalid("\(what) runs past the record") }
-            defer { offset += size }
-            return String(decoding: bytes[offset..<(offset + max(size - 1, 0))], as: UTF8.self)
-        }
-        let image = try take(imageSize, "image name")
-        let message = try take(messageSize, "message")
-        let subsystem = subsystemSize > 0 && categorySize > 0 ? try take(subsystemSize, "subsystem") : ""
-        let category = subsystemSize > 0 && categorySize > 0 ? try take(categorySize, "category") : ""
-        return Record(pid: pid, level: level, seconds: seconds, process: process, image: image,
-                      message: message, subsystem: subsystem, category: category)
-    }
+    static let service = OSTraceRelay.service
+    static let maximumRecordBytes = OSTraceRelay.maximumRecordBytes
+    static let headerBytes = OSTraceRelay.headerBytes
+    typealias Stream = OSTraceRelay.Stream
+    typealias Record = OSTraceRelay.Record
+    static func parse(_ packet: Data) throws -> Record { try OSTraceRelay.parse(packet) }
 
     /// Check-in, start a stream for `pid`, read at most `limit` records
     /// within `seconds`, close. Returns what was seen.

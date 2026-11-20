@@ -630,6 +630,12 @@ actor CommandService {
         switch command {
         case .logs(let capture):
             if dryRun { return try json(capture.plan()) }
+            if capture.physical {
+                try preflight(capture.device, operation: "logs")
+                let readinessQuery = self.readinessQuery
+                return CommandOutput(data: try await PhysicalLogCapture.execute(capture,
+                    environment: PhysicalLogCapture.live(device: capture.device, details: { try readinessQuery(capture.device) })))
+            }
             let runner = self.runner
             return CommandOutput(data: try await UnifiedLogExecution.execute(capture, environment: simulator,
                 run: { try runner.run($0, timeout: 15) }))

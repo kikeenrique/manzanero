@@ -50,8 +50,7 @@ struct DeviceCommandsTests {
     }
 
     // The retired helper's `physical <UDID> logs <seconds> [pid]` form is not
-    // in the grammar (logs takes options only), and any other physical logs
-    // call stays unsupported: there is no native relay yet.
+    // in the grammar (logs takes options only).
     @Test(arguments: [["logs", "30"], ["logs", "1", "123"]])
     func physicalLogsOperandsAreUsageErrors(_ command: [String]) async throws {
         for dryRun in [false, true] {
@@ -60,10 +59,16 @@ struct DeviceCommandsTests {
         }
     }
 
-    @Test func physicalLogsRemainUnsupported() async throws {
-        for dryRun in [false, true] {
-            await #expect { _ = try await CommandService().run(["logs", "--seconds", "5", "--pid", "1", "--device", "fixture"], dryRun: dryRun) } throws: {
-                ($0 as? CommandFailure)?.code == .unsupportedOperation && ($0 as? CommandFailure)?.description.contains("os_trace_relay") == true
+    @Test func physicalLogsPlanTheRelayAndStreamOnly() async throws {
+        let output = try await CommandService(readinessQuery: { _ in Issue.record("Dry run queried a device"); return Data() })
+            .run(["logs", "--seconds", "5", "--bundle", "com.example.probe", "--level", "debug", "--device", "fixture"], dryRun: true)
+        let plan = try #require(JSONSerialization.jsonObject(with: output.data) as? [String: Any])
+        #expect(plan["backend"] as? String == "os-trace-relay" && plan["platform"] as? String == "physical")
+        #expect(plan["service"] as? String == OSTraceRelay.service && plan["readOnly"] as? Bool == true)
+        #expect((plan["targetResolution"] as? [String: Any])?["bundle"] as? String == "com.example.probe")
+        for stored in [["--last", "30"], ["--start", "2026-11-20T10:00:00Z"]] {
+            await #expect { _ = try await CommandService().run(["logs"] + stored + ["--pid", "1", "--device", "fixture"], dryRun: true) } throws: {
+                ($0 as? CommandFailure)?.code == .usage && ($0 as? CommandFailure)?.description.contains("--seconds") == true
             }
         }
     }

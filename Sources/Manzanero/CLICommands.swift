@@ -557,11 +557,14 @@ extension ManzaneroCLI {
     // MARK: Diagnostics
 
     struct Logs: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "logs", abstract: "Capture one app's unified-log entries (simulators).",
+        static let configuration = CommandConfiguration(commandName: "logs", abstract: "Capture one app's unified-log entries.",
             discussion: """
             Give one time selection (--seconds, --last, or --start with optional --end) and one target (--bundle, \
-            --pid or --process). Apple's log tool runs in the simulator with a predicate built from these fields; \
-            --last and --start read persisted entries, which exclude debug. Messages can contain private data.
+            --pid or --process). On a simulator Apple's log tool runs in it with a predicate built from these fields; \
+            --last and --start read persisted entries, which exclude debug. On a physical device the device's log \
+            relay streams one process's entries from now, debug included (--seconds only): --bundle and --process \
+            are resolved to the one running process first, a relaunch is not followed, and level, subsystem and \
+            category are filtered on the Mac. Messages can contain private data.
             """)
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
