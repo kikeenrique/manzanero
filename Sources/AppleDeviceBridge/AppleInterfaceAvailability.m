@@ -210,7 +210,7 @@ static const ADCRequirementSpec ADCDeviceTunnel[] = {
 static const ADCCapabilitySpec ADCCapabilities[] = {
     { "physical-input", "button, key, type, paste, tap, long-press, drag, swipe, pinch and two-contact multi-drag through CoreDevice Indigo HID", 0, 1,
       ADCPhysicalInput, ADC_COUNT(ADCPhysicalInput) },
-    { "multi-contact-input", "gesture, multi-tap and multi-contact multi-drag through CoreDevice Universal HID digitizer reports", 0, 1,
+    { "multi-contact-input", "gesture, multi-tap, multi-contact multi-drag and an Apple TV remote's swipes through CoreDevice Universal HID digitizer reports", 0, 1,
       ADCMultiContactInput, ADC_COUNT(ADCMultiContactInput) },
     { "tunnel-assertion", "Exact-UDID tunnel assertion through the public XPC pairing-daemon service; nothing is resolved dynamically", 0, 1,
       NULL, 0 },

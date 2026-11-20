@@ -124,10 +124,10 @@ extension ManzaneroCLI {
 
     struct Remote: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "remote", abstract: "Press one Siri Remote button (Apple TV).",
-            discussion: "The arrows move focus and select clicks the focused item (keyboard usages); menu goes back, home opens the Home Screen and play-pause toggles playback (consumer buttons). swipe-up, swipe-down, swipe-left and swipe-right draw one finger across the remote's touch surface, on simulators only: focus moves several items, where an arrow moves one. Apple TV has no touch screen, so touch commands are refused there. Any command to a sleeping Apple TV may switch it on, and its television with it. \(receiptCaveat)")
+            discussion: "The arrows move focus and select clicks the focused item (keyboard usages); menu goes back, home opens the Home Screen and play-pause toggles playback (consumer buttons). swipe-up, swipe-down, swipe-left and swipe-right draw one finger across the remote's touch surface: focus moves several items, where an arrow moves one. Apple TV has no touch screen, so touch commands are refused there. Any command to a sleeping Apple TV may switch it on, and its television with it. \(receiptCaveat)")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        @Argument(help: ArgumentHelp("select, menu, home, play-pause, up, down, left, right, or swipe-up, swipe-down, swipe-left, swipe-right (simulators).", valueName: "button"),
+        @Argument(help: ArgumentHelp("select, menu, home, play-pause, up, down, left, right, or swipe-up, swipe-down, swipe-left, swipe-right.", valueName: "button"),
                   completion: .list(AppleTVRemote.names)) var name: String
         @Option(help: ArgumentHelp("Hold the button this long, 0.08...3 seconds. On a simulator a 1.5 s hold on home opens Control Centre; on a device home cannot be held.", valueName: "seconds")) var hold: String?
         func request(_ target: Target) throws -> CommandRequest {

@@ -132,6 +132,11 @@ typedef void (^ADCDigitizerSink)(const uint8_t *report);
 /// Callbacks run synchronously on the calling thread and are never retained.
 int ADCRunDigitizerSchedule(const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
                             ADCInputShouldStop shouldStop, ADCDigitizerSink sendReport);
+/// The same schedule sent to a touch-pad service created for the call on a
+/// physical device's Universal HID service: the Apple TV remote's surface.
+int ADCPerformCancellableRemoteTouch(const char *uuid, const char *version,
+                              const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
+                              ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 /// Finite complete-state digitizer schedule; reports are count * 58 bytes.
 int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version,
                               const uint64_t *nanoseconds, const uint8_t *reports, size_t count,

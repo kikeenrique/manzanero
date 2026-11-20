@@ -1,3 +1,4 @@
+import AppleDeviceBridge
 import Foundation
 import Testing
 @testable import Manzanero
@@ -311,5 +312,39 @@ struct AccessibilityShimWalkProbeTests {
                 try ask("deviceElement:valueForAttribute:", [element, attribute], note: "\(identifier) \(name)")
             }
         }
+    }
+}
+
+/// Opt-in: one swipe on the Apple TV remote's touch surface, on a physical
+/// device. A touch-pad service is created on the device's Universal HID
+/// service for the call, as on a simulator, and the swipe's reports are sent
+/// to it. Sends input: have the tvOS probe in front. Enabled by
+/// MANZANERO_REMOTE_TOUCH_DEVICE, the hardware UDID, and
+/// MANZANERO_REMOTE_TOUCH_SWIPE (`swipe-up`, `swipe-down`, `swipe-left` or
+/// `swipe-right`).
+struct RemoteTouchProbeTests {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["MANZANERO_REMOTE_TOUCH_DEVICE"] != nil))
+    func aSwipeIsSentToATouchPadServiceCreatedOnTheDevice() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        let device = try #require(environment["MANZANERO_REMOTE_TOUCH_DEVICE"])
+        guard case .swipe(let dx, let dy)? = AppleTVRemote.routes[environment["MANZANERO_REMOTE_TOUCH_SWIPE"] ?? ""] else {
+            Issue.record("MANZANERO_REMOTE_TOUCH_SWIPE names no swipe")
+            return
+        }
+        let run: (DeviceCommand) throws -> Data = { try ToolRunner().run($0.arguments, executable: $0.executable, timeout: 20) }
+        let identity = try DirectPhysicalInput.identity(CoreDeviceInput(device: device, operation: "remote", operands: []), query: run)
+        let frames = AppleTVRemote.swipeFrames(dx: dx, dy: dy)
+        let bytes = frames.reports.flatMap { $0 }
+        var error = [CChar](repeating: 0, count: 1024)
+        let status = frames.times.withUnsafeBufferPointer { times in
+            bytes.withUnsafeBufferPointer { reports in
+                ADCPerformCancellableRemoteTouch(identity.uuid, identity.version, times.baseAddress, reports.baseAddress,
+                                                 times.count, { 0 }, &error, error.count)
+            }
+        }
+        let message = String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        try? FileManager.default.createDirectory(atPath: "tmp", withIntermediateDirectories: true)
+        try? Data("status \(status) \(message)\n".utf8).write(to: URL(fileURLWithPath: "tmp/remote-touch.txt"))
+        #expect(status == 0, "\(message)")
     }
 }

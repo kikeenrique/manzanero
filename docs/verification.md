@@ -992,6 +992,21 @@ No request in that form crashed the daemon: its last crash report stayed the one
 
 So attributes are readable through the shim, quickly, in a form that is now known and not guessed. Not shown here, and run later the same day ([record](#the-inspectors-cursor-the-whole-hierarchy-and-a-press-through-the-shim)): the names that answer a label, a value and the children on tvOS, a way from one element to the whole screen, and an action. Still not shown: why no element is found at a point.
 
+### The remote's swipes on the Apple TV 4K
+
+On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. The device had gone to sleep; one `remote home` woke it, and a screenshot taken at once was black, a second one some seconds later showed the probe. The focus was read from a screenshot before each run.
+
+The lead was the `universalhidservice` Apple's Device Hub used with this Apple TV. The device lists that service, the one multi-touch goes through on a phone, and it took the request a simulator's takes: `createService` with a touch-pad description (usage page 13, usage 5, service ID 0x700), then one finger's reports sent to that service.
+
+| Step | Result |
+| --- | --- |
+| The opt-in check: `createService`, then the reports of one swipe to the right | Created and sent at the first try. The probe showed "Last: right", its count went from 4 to 5, and the focus went from Button B to Row 33, in the list on the right: several items, as on a simulator |
+| `remote swipe-left`, `remote swipe-down`, `remote swipe-up`, one after another | `dispatched` each time. The probe's summary went to `up=1 down=1 left=1 right=2` and its count to 8; the focus ended on Button B |
+
+So the four swipes work on a physical Apple TV by the route built for simulators, and `remote` no longer refuses them there.
+
+Not shown: a swipe on the Home Screen or in another app; a swipe of another length or speed; a click of the surface; what happens to the created service when the connection closes (a second and a third swipe created it again without complaint); whether a sleeping Apple TV wakes on a swipe.
+
 ### The Apple TV's video stream, read packet by packet
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network, macOS 27.2.1, Xcode 27.2, on the human owner's word. The Apple TV had gone to its screen saver, a drawn scene that moves and zooms slowly; `frames` was let through its refusal by an experiment switch (`MANZANERO_TV_CAPTURE=1`), and each packet's header and first bytes were written out during the runs. This sends the device no input.
@@ -1025,7 +1040,7 @@ How Apple's client writes each request: `deviceInspectorMoveWithOptions:` takes 
 | `_AXHierarchyElementsAttribute` on the element under the cursor | The whole hierarchy in one answer, about 14 KB in a tenth of a second: 20 nodes (22 another time), each with its element, a description ("Button B Button"), a role and, for 11 of them, the identifier. It stops at the two lists: the table and the scroll view are leaves, and no row or column is in it. The tool's own `tree` reads 112 nodes on this screen |
 | The same four attributes on an element taken from that hierarchy, not under the cursor | Empty, all four: values are answered for the cursor's element only, as the reference project notes say |
 | `deviceFetchSpecialElement:` 0 and 1 | 0 an element with no identifier; 1 `probe.tv.col.12` each time, whatever had the focus |
-| The cursor moved until it met an element again, 83 moves | Once: every element, 82 of them, in 7.2 seconds, with all 40 rows and 30 columns of the two lists, and both lists were left scrolled to their ends. In every other run, nine of them, two straight after a fresh launch of the probe: 12 elements in about a second, the lists skipped. What made the one run enter the lists was looked for (the hierarchy request and the special elements were sent again before a walk) and not found |
+| The cursor moved until it met an element again, 83 moves | Once: every element, 82 of them, in 7.2 seconds, with all 40 rows and 30 columns of the two lists, and both lists were left scrolled to their ends. In every other run, nine of them, two after the probe was terminated and launched again (it came back with its lists still at their ends): 12 elements in about a second, the lists skipped. What made the one run enter the lists was looked for (the hierarchy request and the special elements were sent again before a walk) and not found |
 | The focus on screen, on screenshots before and after every run | Unmoved, on Button B. The cursor is not the focus: it also stayed where it was between one connection and the next |
 | The cursor moved to `probe.tv.button.a`, then `deviceElement:performAction:withValue:` with the Activate attribute as listed and a null | An acknowledgement. The probe showed "Last: select:a", its count went from 3 to 4, and the focus stayed on Button B |
 | What the probe's text field lists | The same attributes as a button, none of them settable |

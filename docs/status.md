@@ -24,7 +24,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Touch**: `tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts | works | refused: no touch screen | refused: no touch screen | works (`tap`; the rest not run) | works |
 | **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: buttons work, `key` refused | not run |
 | **Text**: `type`, `detect-layout`, `paste`, `set-value` | works | works; `paste` refused | works (`type`, `set-value`) | works | partly: `type` refused, `set-value` does not reach the app | not run |
-| **Apple TV remote**: `remote` | — | — | partly: all eight buttons and held keys work; held Home and swipes refused | works, with holds and swipes | — | — |
+| **Apple TV remote**: `remote` | — | — | works: all eight buttons, held keys and swipes; a held Home is refused | works, with holds and swipes | — | — |
 | **Watch crown**: `crown` | — | — | — | — | works | — |
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
 | **Accessibility, read**: `tree`, `wait` | works, portrait only | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
@@ -62,7 +62,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 2. **A test that failed once** (`aCancelledQueuedCallGivesUpItsPlace`) and could fail a CI run.
 3. **Apple TV, accessibility without the side effect**: route 3 was tried in full on 2026-11-20. It pressed a button with no side effect and without moving the focus. It cannot give a tree: no positions, no focus, lists skipped. To decide: build `press` on it and leave the rest on route 2, or leave it as an experiment.
 4. **Apple TV, video**: the picture is not blank, as was thought. Its first frames are right; then the Apple TV changes the picture's size inside the stream and the tool's decoder does not follow. An audio stream beside the video, as Apple's Device Hub has, was tried and is not the cause. Next: learn how Apple's own receiver follows that change.
-5. **Apple TV, the remote's swipes**: a lead to look at, the `universalhidservice` Apple's Device Hub uses with it.
+5. **Apple TV, the remote's swipes**: done on 2026-11-20. All four work on the device.
 6. **`logs` for devices**: the way in is proven, the command is not built.
 7. **Small checks on the iPhone**: an action in flight when the cable is pulled, an agent session over the network, and `build-run` since it learned other platforms.
 8. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.

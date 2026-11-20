@@ -19,6 +19,15 @@ int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t count, 
 // envelope, the report message and the 58-byte complete-state schedule check.
 xpc_object_t ADCUniversalRequest(const char *operation, xpc_object_t arguments);
 xpc_object_t ADCUniversalReport(const uint8_t *bytes, uint64_t surface);
+/// The service ID asked for the remote's touch pad. The daemon's own are
+/// 0x101 (touchscreen), 0x200 (keyboard), 0x300 (pointer), 0x402 (buttons)
+/// and 0x500 (vendor-defined); a simulator's accepted this one and answered
+/// it back.
+static const uint64_t ADCRemoteTouchServiceID = 0x700;
+/// The request that creates that touch-pad service for one call, and whether
+/// a reply says it was created.
+xpc_object_t ADCRemoteTouchCreateRequest(void);
+BOOL ADCRemoteTouchCreated(xpc_object_t reply);
 int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
                                  size_t count, char *error, size_t capacity);
 #endif

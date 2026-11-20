@@ -115,6 +115,25 @@ struct PhysicalAppleTVTests {
         #expect(buttons.count == 1 && buttons[0] == (0x40, 80_000))
     }
 
+    /// A swipe goes as one finger's reports for a touch-pad service, and
+    /// takes no hold.
+    @Test func aSwipeIsSentAsTouchPadReports() throws {
+        var swipes: [AppleTVRemote.Swipe] = [], presses = 0
+        let input = try CoreDeviceInput.validated(device: Self.uuid, operation: "remote", operands: ["swipe-left"])
+        let data = try AppleTVRemote.execute(input, query: Self.query, key: { _ in presses += 1 }, button: { _ in presses += 1 },
+                                             swipe: { swipes.append($0) })
+        let receipt = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(receipt["remote"] as? String == "swipe-left" && receipt["status"] as? String == "dispatched")
+        #expect(receipt["service"] as? String == "com.apple.coredevice.feature.remote.universalhidservice")
+        let expected = AppleTVRemote.swipeFrames(dx: -1, dy: 0)
+        #expect(presses == 0 && swipes.count == 1 && swipes[0].times == expected.times && swipes[0].reports == expected.reports.flatMap { $0 })
+        #expect((try AppleTVRemote.plan(input)["execution"] as? String)?.contains("touch-pad service") == true)
+        let held = #expect(throws: CommandFailure.self) {
+            try CoreDeviceInput.validated(device: Self.uuid, operation: "remote", operands: ["swipe-left", "--hold", "1"])
+        }
+        #expect(held?.code == .usage)
+    }
+
     /// A held button carries the hold on the button service; a held key is
     /// one key down and one key up the hold apart.
     @Test func aHeldRemoteButtonCarriesItsHold() throws {

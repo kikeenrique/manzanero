@@ -81,7 +81,7 @@ enum AppleTVRemote {
         return (name, route, UInt32((seconds * 1_000_000).rounded()))
     }
 
-    static let usage = "Remote buttons: select, menu, home, play-pause, up, down, left, right, and swipe-up, swipe-down, swipe-left, swipe-right on a simulator; no input sent."
+    static let usage = "Remote buttons: select, menu, home, play-pause, up, down, left, right, and swipe-up, swipe-down, swipe-left, swipe-right; no input sent."
 
     static func describe(_ route: Route) -> [String: Any] {
         switch route {
@@ -93,7 +93,31 @@ enum AppleTVRemote {
         }
     }
 
-    static let swipeRefusal = "remote swipes are built for Apple TV simulators only: a touch-pad service is created in the simulator's HID daemon, and no such route is known on a device. No device was contacted."
+    /// One swipe for a physical Apple TV: the reports and their times.
+    struct Swipe {
+        let uuid: String
+        let version: String
+        let times: [UInt64]
+        let reports: [UInt8]
+    }
+
+    /// Sends a swipe to a touch-pad service created for the call on the
+    /// device's Universal HID service, as on a simulator. On an Apple TV 4K
+    /// (tvOS 27.2) one swipe to the right moved the focus across the screen
+    /// and the tvOS probe recorded `right` (docs/other-families.md).
+    static func dispatchSwipe(_ swipe: Swipe) throws {
+        var error = [CChar](repeating: 0, count: 1024)
+        let status = swipe.times.withUnsafeBufferPointer { times in
+            swipe.reports.withUnsafeBufferPointer { reports in
+                ADCPerformCancellableRemoteTouch(swipe.uuid, swipe.version, times.baseAddress, reports.baseAddress,
+                                                 times.count, { Task.isCancelled ? 1 : 0 }, &error, error.count)
+            }
+        }
+        try Task.checkCancellation()
+        guard status == 0 else {
+            throw CommandFailure.inputDispatch(status: status, message: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+        }
+    }
 
     /// The device type in a physical device's `devicectl` details (`appleTV`).
     static func deviceType(_ details: Data) -> String? {
@@ -119,7 +143,6 @@ enum AppleTVRemote {
     /// Menu and Play/Pause, which are keys on a device) is one key down and
     /// one key up that far apart, as on a simulator.
     static func parsePhysical(_ operands: [String]) throws -> (name: String, route: Route, held: UInt32?) {
-        if let name = operands.first, case .swipe? = routes[name] { throw CommandFailure.unsupported(swipeRefusal) }
         let parsed = try parse(operands)
         guard let route = physicalRoutes[parsed.name] else { throw CommandFailure.usage(usage) }
         let held = operands.count == 3 ? parsed.holdMicroseconds : nil
@@ -140,7 +163,7 @@ enum AppleTVRemote {
         else if case .button = route { plan["holdMilliseconds"] = holdMicroseconds / 1000 }
         plan.merge(["backend": "coredevice-direct", "operation": "remote", "remote": input.operands[0],
             "identityArguments": try input.identityPlan().arguments,
-            "execution": "Read the device's details; only if they say it is an Apple TV, send one press in process over Apple CoreDevice/RemoteXPC. No helper executable, no retry."]) { $1 }
+            "execution": "Read the device's details; only if they say it is an Apple TV, send one press in process over Apple CoreDevice/RemoteXPC, or for a swipe create a touch-pad service on the device's Universal HID service and send it one finger's reports. No helper executable, no retry."]) { $1 }
         return plan
     }
 
@@ -150,7 +173,8 @@ enum AppleTVRemote {
     static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
                         key: (DirectPhysicalKeyboard.Key) throws -> Void = DirectPhysicalKeyboard.dispatch,
                         button: (DirectPhysicalInput.Button) throws -> Void = DirectPhysicalInput.dispatch,
-                        heldKey: (DirectPhysicalKeyboard.Sequence) throws -> Void = DirectPhysicalKeyboard.dispatchSequence) throws -> Data {
+                        heldKey: (DirectPhysicalKeyboard.Sequence) throws -> Void = DirectPhysicalKeyboard.dispatchSequence,
+                        swipe: (Swipe) throws -> Void = AppleTVRemote.dispatchSwipe) throws -> Data {
         let (name, route, held) = try parsePhysical(input.operands)
         guard input.operation == "remote" else { throw CommandFailure.usage(usage) }
         let details = try query(input.identityPlan())
@@ -166,7 +190,9 @@ enum AppleTVRemote {
             } else { try key(.init(uuid: identity.uuid, version: identity.version, name: name, usage: usage)) }
         case .button(let usage):
             try button(.init(uuid: identity.uuid, version: identity.version, usage: usage, holdMicroseconds: held ?? holdMicroseconds))
-        case .swipe: throw CommandFailure.unsupported(swipeRefusal)
+        case .swipe(let dx, let dy):
+            let frames = swipeFrames(dx: dx, dy: dy)
+            try swipe(.init(uuid: identity.uuid, version: identity.version, times: frames.times, reports: frames.reports.flatMap { $0 }))
         }
         var receipt = describe(route)
         if let held { receipt["holdMilliseconds"] = held / 1000 }

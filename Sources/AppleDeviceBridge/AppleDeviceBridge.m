@@ -658,6 +658,30 @@ xpc_object_t ADCUniversalReport(const uint8_t *bytes, uint64_t surface) {
     return ADCUniversalRequest("send", arguments);
 }
 
+xpc_object_t ADCRemoteTouchCreateRequest(void) {
+    // A HID service description, in the shape connectedServices lists
+    // them. The daemon refuses one without a primary usage.
+    xpc_object_t description = xpc_dictionary_create_empty(), pairs = xpc_array_create_empty(), pair = xpc_dictionary_create_empty();
+    xpc_dictionary_set_int64(pair, "DeviceUsagePage", 13);
+    xpc_dictionary_set_int64(pair, "DeviceUsage", 5);
+    xpc_array_append_value(pairs, pair);
+    xpc_dictionary_set_uint64(description, "_ServiceID", ADCRemoteTouchServiceID);
+    xpc_dictionary_set_uint64(description, "PrimaryUsagePage", 13);
+    xpc_dictionary_set_uint64(description, "PrimaryUsage", 5);
+    xpc_dictionary_set_string(description, "Product", "Manzanero remote touch surface");
+    xpc_dictionary_set_value(description, "DeviceUsagePairs", pairs);
+    xpc_object_t arguments = xpc_dictionary_create_empty();
+    xpc_dictionary_set_value(arguments, "_0", description);
+    return ADCUniversalRequest("createService", arguments);
+}
+
+BOOL ADCRemoteTouchCreated(xpc_object_t reply) {
+    return reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY &&
+        !xpc_dictionary_get_value(reply, "error") && !xpc_dictionary_get_value(reply, "errorContainer") &&
+        !xpc_dictionary_get_value(reply, "CoreDevice.error") &&
+        xpc_dictionary_get_uint64(reply, "serviceID") == ADCRemoteTouchServiceID;
+}
+
 static xpc_object_t ADCUniversalBarrier(void) {
     xpc_object_t barrier = xpc_dictionary_create_empty();
     xpc_dictionary_set_bool(barrier, "isBarrier", true);
@@ -908,7 +932,24 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         handler(remote, ^(xpc_object_t event) { if (xpc_get_type(event) == XPC_TYPE_ERROR) status.failed = YES; });
         activate(remote);
         uint64_t surface = 0;
-        if (reports) {
+        if (reports && usage == ADCRemoteTouchServiceID) {
+            // The remote's touch pad: no service of the device's own is
+            // one, so one is created for the call, as on a simulator.
+            ADCReplyState *creation = [ADCReplyState new];
+            request(remote, ADCRemoteTouchCreateRequest(), queue, ^(xpc_object_t response) {
+                creation.reply = response;
+                dispatch_semaphore_signal(creation.semaphore);
+            });
+            BOOL timeout = dispatch_semaphore_wait(creation.semaphore, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC)) != 0;
+            if (timeout || status.failed || !ADCRemoteTouchCreated(creation.reply)) {
+                char *text = creation.reply ? xpc_copy_description(creation.reply) : NULL;
+                NSString *detail = text ? [[NSString stringWithUTF8String:text] substringToIndex:MIN((size_t)500, strlen(text))] : @"no reply";
+                free(text);
+                cancel(remote); xpc_connection_cancel(connection);
+                return ADCFail(error, capacity, [@"Apple Universal HID did not create a touch-pad service for the remote; no report sent. " stringByAppendingString:detail]);
+            }
+            surface = ADCRemoteTouchServiceID;
+        } else if (reports) {
             ADCReplyState *discovery = [ADCReplyState new];
             request(remote, ADCUniversalRequest("connectedServices", xpc_dictionary_create_empty()), queue, ^(xpc_object_t response) {
                 discovery.reply = response;
@@ -1046,6 +1087,14 @@ int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version,
     if (surface) *surface = 0;
     if (ADCValidateDigitizerSchedule(times, reports, count, error, capacity)) return 1;
     return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, times, reports, surface, count, shouldCancel, error, capacity);
+}
+
+int ADCPerformCancellableRemoteTouch(const char *uuid, const char *version, const uint64_t *times,
+                                     const uint8_t *reports, size_t count, ADCInputShouldStop shouldCancel,
+                                     char *error, size_t capacity) {
+    if (ADCValidateDigitizerSchedule(times, reports, count, error, capacity)) return 1;
+    // The usage names the touch-pad service to create for the call.
+    return ADCPerformInput(uuid, version, ADCRemoteTouchServiceID, 0, NO, NULL, NULL, NULL, times, reports, NULL, count, shouldCancel, error, capacity);
 }
 
 int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,

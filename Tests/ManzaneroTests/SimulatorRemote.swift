@@ -149,11 +149,9 @@ struct SimulatorRemoteTests {
         #expect(point(10).active && point(10).y == 49151 && !point(11).active && point(11).y == 49151)
         let left = AppleTVRemote.swipeFrames(dx: -1, dy: 0)
         #expect(left.reports.first?[4...5] == [0xff, 0xbf] && left.reports.last?[4...5] == [0x00, 0x40])
-        // No hold, no touch-screen input, and no swipe on a device.
+        // No hold and no touch-screen input.
         let held = try #require(throws: CommandFailure.self) { try request(["remote", "swipe-up", "--hold", "1", "--simulator", Self.uuid]) }
         #expect(held.code == .usage && pressed.swipes.count == 1 && pressed.touches == 0 && pressed.keys.isEmpty)
-        let physical = try #require(throws: CommandFailure.self) { try request(["remote", "swipe-up", "--device", "tv"]) }
-        #expect(physical.code == .unsupportedOperation && physical.description == AppleTVRemote.swipeRefusal)
         let plan = try SimulatorInputTests.json(await service.run(["remote", "swipe-left", "--simulator", Self.uuid], dryRun: true))
         #expect((plan["execution"] as? String)?.contains("touch-pad service") == true && pressed.swipes.count == 1)
     }
