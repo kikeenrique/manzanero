@@ -1,11 +1,10 @@
-import CoreGraphics
 import Foundation
 import MCP
 import Testing
 @testable import Manzanero
 
 /// `remote sleep` and `remote wake` on a physical Apple TV: what is pressed,
-/// and what is not, for each thing the screenshots can say.
+/// and what is not, for each thing the device can answer.
 struct AppleTVPowerTests {
     private static let uuid = "6F1D2C3B-4A59-4E87-9C10-0A1B2C3D4E5F"
 
@@ -22,43 +21,21 @@ struct AppleTVPowerTests {
         var captures = 0
         init(awake: [Bool]) { self.awake = awake }
 
-        func environment(powerOff: CGRect? = AppleTVPowerTests.powerOff,
-                         tile: AppleTVPower.Tile = .init(background: 1, darkest: 0.1)) -> AppleTVPower.Environment {
+        /// `controlCentre`: whether the system UI's tree shows Power Off.
+        func environment(controlCentre: Bool = true) -> AppleTVPower.Environment {
             AppleTVPower.Environment(
                 capture: {
                     self.captures += 1
                     let awake = self.awake.count > 1 ? self.awake.removeFirst() : self.awake[0]
                     return awake ? URL(fileURLWithPath: "/nonexistent/power.png") : nil
                 },
-                powerOff: { powerOff },
-                tile: { _, _ in tile },
+                pressPowerOff: {
+                    if controlCentre { self.pressed.append("power-off") }
+                    return controlCentre
+                },
                 press: { self.pressed.append($0) },
                 settle: { _ in })
         }
-    }
-
-    /// Power Off's frame as an Apple TV 4K's system UI tree gave it.
-    private static let powerOff = CGRect(x: 1409, y: 131, width: 218, height: 218)
-
-    private static func tree(identifier: String, visible: Bool) throws -> Data {
-        try JSONSerialization.data(withJSONObject: ["nodes": [
-            ["identifier": "wifi", "visible": true, "frame": ["x": 1650.0, "y": 131.0, "width": 218.0, "height": 100.0]],
-            ["identifier": identifier, "label": "Apagar", "visible": visible,
-             "frame": ["x": 1409.0, "y": 131.0, "width": 218.0, "height": 218.0]]]])
-    }
-
-    /// Power Off is found by its identifier, whatever its label says, and
-    /// only while the tree says it is visible.
-    @Test func powerOffIsReadFromTheSystemUITreeByIdentifier() throws {
-        #expect(AppleTVPower.powerOffFrame(tree: try Self.tree(identifier: "sleep", visible: true)) == Self.powerOff)
-        #expect(AppleTVPower.powerOffFrame(tree: try Self.tree(identifier: "sleep", visible: false)) == nil)
-        #expect(AppleTVPower.powerOffFrame(tree: try Self.tree(identifier: "sleep-timer", visible: true)) == nil)
-        #expect(AppleTVPower.powerOffFrame(tree: Data("{}".utf8)) == nil)
-        let processes = try JSONSerialization.data(withJSONObject: ["result": ["runningProcesses": [
-            ["executable": "file:///Applications/PineBoard.app/PineBoard", "processIdentifier": 41],
-            ["executable": "file:///Applications/TVSystemUIService.app/TVSystemUIService", "processIdentifier": 10040]]]])
-        #expect(AppleTVPower.systemUIProcess(processes) == 10040)
-        #expect(AppleTVPower.systemUIProcess(Data("{}".utf8)) == nil)
     }
 
     private static func run(_ name: String, _ environment: AppleTVPower.Environment, type: String = "appleTV",
@@ -68,38 +45,35 @@ struct AppleTVPowerTests {
         return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    @Test func sleepGoesHomeOpensControlCentreAndSelectsPowerOff() async throws {
-        // Awake before, awake with Control Centre open, then asleep.
-        let device = Device(awake: [true, true, false])
+    @Test func sleepOpensControlCentreAndPressesPowerOffByAccessibility() async throws {
+        // Awake before, then asleep. No Home and no select.
+        let device = Device(awake: [true, false])
         let result = try await Self.run("sleep", device.environment())
-        #expect(device.pressed == ["home", "lock", "select"])
+        #expect(device.pressed == ["lock", "power-off"])
         #expect(result["status"] as? String == "asleep" && result["verified"] as? Bool == true && result["exitCode"] as? Int == 0)
-        #expect(result["pressed"] as? [String] == ["home", "lock", "select"])
+        #expect(result["pressed"] as? [String] == ["lock", "power-off"])
     }
 
-    @Test func sleepSendsNoSelectUnlessThePictureShowsPowerOffInFocus() async throws {
-        // Control Centre did not open: the system UI's tree has no Power Off.
+    @Test func sleepPressesNothingMoreWhenControlCentreDoesNotShowPowerOff() async throws {
         let unseen = Device(awake: [true])
-        let first = try await Self.run("sleep", unseen.environment(powerOff: nil))
-        #expect(unseen.pressed == ["home", "lock"] && first["status"] as? String == "control-centre-not-seen" && first["exitCode"] as? Int == 1)
-        // Power Off is there with the focus elsewhere: a grey tile, white text.
-        let unfocused = Device(awake: [true])
-        let second = try await Self.run("sleep", unfocused.environment(tile: .init(background: 0.6, darkest: 0.55)))
-        #expect(unfocused.pressed == ["home", "lock"] && second["status"] as? String == "power-off-not-in-focus" && second["exitCode"] as? Int == 1)
-        #expect((second["powerOffTile"] as? [String: Any])?["focused"] as? Bool == false)
+        let result = try await Self.run("sleep", unseen.environment(controlCentre: false))
+        #expect(unseen.pressed == ["lock"] && result["pressed"] as? [String] == ["lock"])
+        #expect(result["status"] as? String == "control-centre-not-seen" && result["exitCode"] as? Int == 1)
+        // No screenshot is taken to wait for a sleep that was not asked for.
+        #expect(unseen.captures == 1)
     }
 
     @Test func sleepPressesNothingOnASleepingDeviceAndSaysWhenItStaysAwake() async throws {
         let asleep = Device(awake: [false])
         let first = try await Self.run("sleep", asleep.environment())
         #expect(asleep.pressed.isEmpty && asleep.captures == 1 && first["status"] as? String == "already-asleep")
-        // The select went out and the device still gives screenshots: said,
-        // and nothing pressed again.
+        // Power Off was pressed and the device still gives screenshots:
+        // said, and nothing pressed again.
         let stubborn = Device(awake: [true])
         let second = try await Self.run("sleep", stubborn.environment())
-        #expect(stubborn.pressed == ["home", "lock", "select"] && second["status"] as? String == "not-asleep")
+        #expect(stubborn.pressed == ["lock", "power-off"] && second["status"] as? String == "not-asleep")
         #expect(second["verified"] as? Bool == false && second["exitCode"] as? Int == 1)
-        #expect(stubborn.captures == 2 + AppleTVPower.checks)
+        #expect(stubborn.captures == 1 + AppleTVPower.checks)
     }
 
     @Test func wakePressesHomeOnceOnlyOnASleepingDevice() async throws {
@@ -117,9 +91,9 @@ struct AppleTVPowerTests {
     @Test func aFailureAfterAPressSaysInputMayHaveGone() async throws {
         let device = Device(awake: [true])
         var environment = device.environment()
-        environment.powerOff = { throw CommandFailure(.transportFailed, "The tree failed.", inputSent: .none) }
+        environment.pressPowerOff = { throw CommandFailure(.transportFailed, "The session failed.", inputSent: .none) }
         let failure = await #expect(throws: CommandFailure.self) { _ = try await Self.run("sleep", environment) }
-        #expect(device.pressed == ["home", "lock"] && failure?.inputSent != CommandFailure.InputSent.none)
+        #expect(device.pressed == ["lock"] && failure?.inputSent != CommandFailure.InputSent.none)
     }
 
     @Test func anotherDeviceAndOptionsAreRefusedBeforeAnyPress() async throws {
@@ -137,25 +111,17 @@ struct AppleTVPowerTests {
         #expect(!AppleTVPower.isAsleep(CommandFailure(.timeout, "devicectl timed out.", inputSent: .none)))
     }
 
-    /// The tile in focus is white with dark text; another is grey with white text.
-    @Test func aTileInFocusIsWhiteWithDarkText() throws {
-        func image(background: CGFloat, text: CGFloat) throws -> CGImage {
-            let context = try #require(CGContext(data: nil, width: 60, height: 20, bitsPerComponent: 8, bytesPerRow: 60,
-                                                 space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue))
-            context.setFillColor(gray: background, alpha: 1)
-            context.fill(CGRect(x: 0, y: 0, width: 60, height: 20))
-            context.setFillColor(gray: text, alpha: 1)
-            context.fill(CGRect(x: 10, y: 8, width: 40, height: 3))
-            return try #require(context.makeImage())
-        }
-        #expect(try AppleTVPower.tile(image(background: 1, text: 0.1)).focused)
-        #expect(try !AppleTVPower.tile(image(background: 0.6, text: 1)).focused)
-        #expect(try !AppleTVPower.tile(image(background: 1, text: 1)).focused)
+    @Test func theSystemUIProcessIsFoundAmongTheDevicesProcesses() throws {
+        let processes = try JSONSerialization.data(withJSONObject: ["result": ["runningProcesses": [
+            ["executable": "file:///Applications/PineBoard.app/PineBoard", "processIdentifier": 41],
+            ["executable": "file:///Applications/TVSystemUIService.app/TVSystemUIService", "processIdentifier": 10040]]]])
+        #expect(AppleTVPower.systemUIProcess(processes) == 10040)
+        #expect(AppleTVPower.systemUIProcess(Data("{}".utf8)) == nil)
     }
 
     @Test func theDryRunPlanNamesThePressesAndTheMCPToolTakesTheNames() async throws {
         let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried the device"); return Data() })
-        for (name, presses) in [("sleep", ["home": 1, "lock": 1, "select": 1]), ("wake", ["home": 1])] {
+        for (name, presses) in [("sleep", ["lock": 1, "power-off": 1]), ("wake", ["home": 1])] {
             let output = try await service.run(["remote", name, "--device", Self.uuid], dryRun: true)
             let plan = try #require(JSONSerialization.jsonObject(with: output.data) as? [String: Any])
             #expect(plan["remote"] as? String == name && plan["maximumPresses"] as? [String: Int] == presses)

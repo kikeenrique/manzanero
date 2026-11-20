@@ -30,14 +30,16 @@ enum DirectPhysicalAccessibility {
                                  ports: AccessibilityServicePorts = .shared,
                                  staleCheck: (_ udid: String, _ operation: String) throws -> Void = { try StaleDeviceConnection.refuseIfStale(device: $0, operation: $1) },
                                  ownTunnel: OwnTunnelSource = .pooled,
+                                 overlayProcess: Int32? = nil,
                                  query: (DeviceCommand) throws -> Data) async throws -> Data {
         do {
             return try await attemptNativeRSD(input, isolation: isolation, ports: ports, staleCheck: staleCheck, ownTunnel: ownTunnel,
-                                              retriedAfter: nil, query: query)
+                                              overlayProcess: overlayProcess, retriedAfter: nil, query: query)
         } catch let ended as TunnelEnded {
             // The first attempt has released its tunnel as unhealthy, so
             // this one opens another, over whichever link the device has now.
             return try await attemptNativeRSD(input, isolation: isolation, ports: ports, staleCheck: staleCheck, ownTunnel: ownTunnel,
+                                              overlayProcess: overlayProcess,
                                               retriedAfter: String(ended.failure.description.prefix(300)), query: query)
         }
     }
@@ -48,6 +50,7 @@ enum DirectPhysicalAccessibility {
                                          ports: AccessibilityServicePorts,
                                          staleCheck: (_ udid: String, _ operation: String) throws -> Void,
                                          ownTunnel: OwnTunnelSource,
+                                         overlayProcess: Int32? = nil,
                                          retriedAfter: String?,
                                          query: (DeviceCommand) throws -> Data) async throws -> Data {
         try Task.checkCancellation()
@@ -65,7 +68,9 @@ enum DirectPhysicalAccessibility {
             action = nil; pid = nil
             wait = try AccessibilityWait(input)
         } else {
-            action = try DirectAccessibilityAction(input)
+            var built = try DirectAccessibilityAction(input)
+            built.overlayProcess = overlayProcess
+            action = built
             wait = nil; pid = nil
         }
         let details = try query(input.identityPlan())

@@ -70,7 +70,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 - **Apple TV, video**: `record` and `frames` work. The tool was offering the Apple TV a feature its decoder cannot follow; without it the picture is right.
 - **Apple TV, the remote's swipes**: all four work on the device, and a swipe's length and duration can be chosen there too.
-- **Apple TV, sleep and wake**: `remote sleep` and `remote wake`, each one command that looks before it presses; sleep finds Power Off by an accessibility identifier, in any language.
+- **Apple TV, sleep and wake**: `remote sleep` and `remote wake`, each one command that looks before it presses; sleep presses Power Off by accessibility, in any language and with any app in front.
 - **`open-url` on the Apple TV**, against a URL scheme both probes now have.
 - **A recording with music playing** on the Apple TV: the picture is right; there is no sound in it.
 - **Apple TV, a minute of a moving screen** recorded whole, and the movie no longer has black rows at the bottom.

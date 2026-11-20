@@ -66,6 +66,30 @@ struct HostedProcessActionTests {
         #expect(json["selection"] as? String == "explicit-pid-hosting-centre-hit-test")
     }
 
+    /// `remote sleep` names an Apple TV's system UI process, which draws
+    /// Control Centre over the frontmost application and hosts nothing. Only
+    /// the process set as the overlay passes; the same PID without it, and
+    /// another PID with it, are refused as before.
+    @Test func onlyTheOverlayProcessSetByTheCommandPassesTheGuard() throws {
+        let session = Session()
+        session.hosted = false
+        var overlay = action(pid: 77)
+        overlay.overlayProcess = 77
+        #expect(try overlay.actionProcess(selected: session.page, session: session) == 77)
+        #expect(session.applications.isEmpty)
+        let json = overlay.applicationJSON(77, centre: session.page, platform: .physical)
+        #expect(json["selection"] as? String == "overlay-process" && json["frontmostPid"] as? Int32 == session.page)
+        var another = action(pid: 78)
+        another.overlayProcess = 77
+        for refused in [action(pid: 77), another] {
+            let failure = try #require(throws: CommandFailure.self) { try refused.actionProcess(selected: session.page, session: session) }
+            #expect(failure.code == .targetUnresolved && failure.inputSent == .none)
+        }
+        // No operand sets it.
+        let parsed = try DirectAccessibilityAction(CoreDeviceInput.validated(device: "00008110-000A11112222801E", operation: "press-id", operands: ["77", "sleep"]))
+        #expect(parsed.overlayProcess == nil && parsed.pid == 77)
+    }
+
     /// Any other process is refused before the action: one that hosts
     /// nothing, and one that is not the host of the centre process.
     @Test func aPIDThatDoesNotHostTheCentreProcessIsRefused() throws {

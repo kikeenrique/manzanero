@@ -1193,6 +1193,21 @@ So the sleep command no longer reads words off a picture and no longer depends o
 
 Not shown: the URL probe on a phone; `remote sleep` on a device in another language; sound, which the tool does not record.
 
+### Sleep by an accessibility press of Power Off
+
+The same day and device, after the human owner said the command shall work. The guard that lets a selector action name only the frontmost process or its host was opened for one case: `remote sleep`, for the system UI process. `--pid` on the command line is as narrow as before.
+
+| Run | Result |
+| --- | --- |
+| `remote wake`, `launch` of the tvOS probe, then `remote sleep` | `asleep`, `pressed: lock, power-off`: the power button, then Power Off activated by accessibility in `TVSystemUIService`. No Home press and no select |
+| The same again, with the probe's counters read before (`Last: up`, `Count: 2`) | `asleep`, `pressed: lock, power-off` |
+| `remote wake` a few seconds after that sleep | `not-awake`: Home was pressed once and four screenshots over about twelve seconds were all refused. The next `remote sleep` said `already-asleep` |
+| `remote wake` about a minute later | `awake`, `pressed: home` |
+| `launch` of the probe and its counters read again | `Last: up`, `Count: 2`: the probe received nothing from either sleep |
+| A third `remote sleep` | `asleep`, `pressed: lock, power-off`; a screenshot then failed with the zero-sized display. The device was left asleep |
+
+Not shown: sleep with the Home Screen or a screen saver in front; a device in another language; why a Home press seconds after a sleep does not wake the device.
+
 ### The Inspector's cursor, the whole hierarchy and a press through the shim
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. It was asleep; one `remote home` woke it. Every request was first read from Apple's own client, the Inspector's device manager (`XDMDeviceTransportBased` in `AccessibilityAuditDeviceManager.framework`, read with `otool`), and the tvOS simulator runtime's copy of `axauditd` gave the attribute names. After each new request the device's crash reports were listed: none for `axauditd` in the whole session. Nothing made the Mac's connection go stale.

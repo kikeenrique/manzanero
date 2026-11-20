@@ -29,6 +29,13 @@ struct DirectAccessibilityAction {
     static let searchCandidates = 4
     /// `--toward`, with `--search`: the way the search moves; down unless given.
     let toward: SearchDirection
+    /// A process that draws over the application in front and may be acted
+    /// on although it is neither that application nor its host. No operand
+    /// sets it: only `remote sleep` does, for an Apple TV's system UI
+    /// process, whose Control Centre is on the screen while PineBoard is the
+    /// frontmost application (`AppleTVPower`). `--pid` stays as narrow as
+    /// `actionProcess` says.
+    var overlayProcess: Int32? = nil
     static let towardOption = "--toward"
 
     /// The edge of the tree a search step scrolls from.
@@ -408,6 +415,7 @@ struct DirectAccessibilityAction {
     /// answer the target itself, in that process.
     func actionProcess(selected: Int32, session: any AccessibilityExchange) throws -> Int32 {
         guard let pid, pid != selected else { return selected }
+        if pid == overlayProcess { return pid }
         let subject = session.platform.selectionSubject
         let page = try session.application(pid: selected)
         let nodes = try AccessibilitySnapshot.normalize(session.snapshot(page), root: page)
@@ -422,6 +430,7 @@ struct DirectAccessibilityAction {
         guard process != centre else {
             return ["pid": process, "selection": pid == nil ? platform.selection : "explicit-pid+\(platform.selection)"]
         }
+        if process == overlayProcess { return ["pid": process, "selection": "overlay-process", "frontmostPid": centre] }
         return ["pid": process, "selection": "explicit-pid-hosting-\(platform.selection)", "hostedPid": centre]
     }
 
