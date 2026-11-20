@@ -40,7 +40,12 @@ struct SimulatorRemoteTests {
     @Test func remoteButtonsMapToKeysAndConsumerButtons() async throws {
         let pressed = Pressed()
         let service = Self.service(family: "Apple TV", pressed)
-        for name in AppleTVRemote.names {
+        // Sleep and wake are a physical Apple TV's: refused here, unsent.
+        for name in AppleTVPower.names {
+            let failure = await #expect(throws: CommandFailure.self) { try await service.run(["remote", name, "--simulator", Self.uuid]) }
+            #expect(failure?.code == .unsupportedOperation && failure?.description == AppleTVPower.simulatorRefusal)
+        }
+        for name in AppleTVRemote.names where !AppleTVPower.names.contains(name) {
             let receipt = try SimulatorInputTests.json(await service.run(["remote", name, "--simulator", Self.uuid]))
             #expect(receipt["remote"] as? String == name && receipt["status"] as? String == "dispatched")
         }

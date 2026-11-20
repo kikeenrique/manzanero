@@ -379,6 +379,14 @@ actor CommandService {
             if native.operation == "key" {
                 return sent(try DirectPhysicalKeyboard.execute(native, query: query))
             }
+            if native.operation == "remote", AppleTVPower.handles(native.operands) {
+                let details = try query(native.identityPlan())
+                let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/power-\(UUID().uuidString)")
+                defer { try? FileManager.default.removeItem(at: directory) }
+                let data = try await AppleTVPower.execute(native, details: details,
+                    environment: AppleTVPower.live(native, details: details, directory: directory, query: query))
+                return try DirectPhysicalWake.output(data)
+            }
             if native.operation == "remote" {
                 return sent(try AppleTVRemote.execute(native, query: query))
             }

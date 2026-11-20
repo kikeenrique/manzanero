@@ -1117,6 +1117,52 @@ So recording and `frames` work on the Apple TV: its pictures were damaged becaus
 
 Not shown: a screen that moves (the earlier, damaged runs were of the screen saver; these were of a still screen); a longer recording; the same offer to an iPhone, whose recordings have not shown this damage; whether the device now holds one picture size or changes it with key frames, over more than six seconds.
 
+### The Apple TV's small ones: a moving recording, chosen swipes, sleep and wake
+
+Later on 2026-11-20, the Apple TV 4K (3rd generation, tvOS 27.2, in English) over the network, macOS 27.2.1, Xcode 27.2, on the human owner's word, with the tvOS probe in front except where said. The device was asleep (a screenshot failed with the zero-sized display); one `remote home` woke it. The Mac's connection read `connected` before and after every run of accessibility commands.
+
+| Run | Result |
+| --- | --- |
+| `record tv.mp4 5 --backend coredevice`, after `record` learned to drop the rows below the screen as `frames` does | `recorded`, 71 source frames; an H.264 movie of 3168 × 1782 and 72 frames, whose picture at 3 seconds is the probe's screen as a screenshot shows it, to the bottom edge |
+| One MCP session: `record_screen` for 60 seconds with `recording_backend: coredevice`, and 36 `press_remote` arrows about a second apart during it | `recorded`, 950 source frames, a movie of 60 seconds, 3168 × 1782 and 951 frames. A picture every five seconds shows the focus in a different place and the probe's count rising from 12 to 39, each picture whole. The arrows were answered while the recording ran |
+| `record_screen` for 3 seconds from Claude Code, after the human owner reconnected the server | `recorded`, 47 source frames, 3168 × 1782. Before the reconnection the host's server, an older build, still refused recording on an Apple TV |
+| Seven swipes of nine tenths of the surface in 2 seconds each, sent together through that older server | Dispatched in order; the probe's count rose by one |
+| Two `batch` runs of swipes down and up in the probe's list, a `tree` after each for the row in focus | See the table below. `serviceDirectory: reused-port` for every tree but the first (`reused-saved-port`), and `ownTunnelUnavailable` saying the framework does not list the device |
+
+Rows the focus moved, by the swipe's `--travel` and `--seconds`, one swipe each, in the order run:
+
+| Travel | Seconds | Rows moved |
+| --- | --- | --- |
+| 0.5 | 0.2 | 1, then 1 |
+| 0.9 | 0.1 | 0, then 0, then 2 |
+| 0.2 | 0.2 | 1 |
+| 0.9 | 1.0 | 4, then 4, then at least 2 (it left the list at its last row) |
+| 0.9 | 0.04 | 0 |
+| 0.9 | 2.0 | 3 |
+| 0.9 | 0.5 | 4 |
+| 0.9 | 0.2 | 5 (to the list's last row) |
+| 0.5 | 1.0 | 2 (to the list's last row) |
+| 0.5 | 0.5 | 2 |
+
+So on the device a longer swipe moves the focus further, as on a simulator, and a quick one does not: at a tenth of a second or less a swipe of nine tenths moved nothing twice in three, where a simulator moved furthest for the quickest. Before these, twelve single swipes read by OCR alone showed the probe counting one move for most swipes however far the focus went, so the count does not measure a swipe.
+
+**Sleep and wake.** `button lock` with the probe in front opened Control Centre with Power Off in focus, seen on a screenshot and read by OCR (`Power Off`, `Audio`, `Do Not Disturb`, `Sleep Timer`). Control Centre is in no tree, and `press --label "Power Off"` found it by neither route: the Inspector's cursor does not reach it.
+
+| Run | Result |
+| --- | --- |
+| `remote select`, sent by hand about a minute after the screenshot that showed Power Off in focus | The probe recorded `select:a`: the select pressed its Button A. The device stayed awake |
+| The first build of `remote sleep` with the probe in front: `button lock`, a screenshot, Power Off found by OCR on a white tile with dark text (`background` 1, `darkest` 0.11), then the select at once | `not-asleep`: the probe recorded a second `select:a`. With an app in front the select, a keyboard usage, goes to the app although Control Centre is on the screen |
+| The same build with the Home Screen in front and the focus moved to the Probe TV icon first, as the human owner chose | `asleep`, `pressed: lock, select`; a screenshot then failed with the zero-sized display |
+| `remote sleep` again, on the sleeping device | `already-asleep`, nothing pressed |
+| `remote wake` | `awake`, `pressed: home`; the Home Screen with the focus still on the Probe TV icon |
+| `remote wake` again | `already-awake`, nothing pressed |
+| `launch` of the probe, then `remote home` | The Home Screen with the focus on the Probe TV icon. Earlier the same press had left the focus on the first icon, which had last had it |
+| The final `remote sleep`, which presses Home first, with the probe in front | `asleep`, `pressed: home, lock, select`. The device was left asleep |
+
+The probe registers no URL scheme, so `open-url` did not run; the human owner chose to open nothing else.
+
+Not shown: `remote sleep` in another language (it looks for the words `Power Off` and stops before the select without them); a select that misses with the Home Screen in front, which would open the icon in focus; sleep from a screen saver; a `remote wake` of a device asleep for hours; a recording longer than a minute, or of video; why a quick swipe moves nothing on the device.
+
 ### The Inspector's cursor, the whole hierarchy and a press through the shim
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. It was asleep; one `remote home` woke it. Every request was first read from Apple's own client, the Inspector's device manager (`XDMDeviceTransportBased` in `AccessibilityAuditDeviceManager.framework`, read with `otool`), and the tvOS simulator runtime's copy of `axauditd` gave the attribute names. After each new request the device's crash reports were listed: none for `axauditd` in the whole session. Nothing made the Mac's connection go stale.

@@ -27,7 +27,7 @@ enum AppleTVRemote {
     }
 
     static let names = ["select", "menu", "home", "play-pause", "up", "down", "left", "right",
-                        "swipe-up", "swipe-down", "swipe-left", "swipe-right"]
+                        "swipe-up", "swipe-down", "swipe-left", "swipe-right"] + AppleTVPower.names
     static let routes: [String: Route] = [
         "select": .key(40), "up": .key(82), "down": .key(81), "left": .key(80), "right": .key(79),
         "menu": .button(0x46), "home": .button(0x40), "play-pause": .button(0xCD),
@@ -79,6 +79,9 @@ enum AppleTVRemote {
     /// `<button> [--hold <seconds>]`: the button's route and the hold in
     /// microseconds, checked before any contact.
     static func parse(_ operands: [String]) throws -> (name: String, route: Route, holdMicroseconds: UInt32) {
+        // Sleep and wake are a physical Apple TV's (`AppleTVPower`), which
+        // takes them before this is reached.
+        if AppleTVPower.handles(operands) { throw CommandFailure.unsupported(AppleTVPower.simulatorRefusal) }
         guard let name = operands.first, let route = routes[name], operands.count % 2 == 1, operands.count <= 5 else {
             throw CommandFailure.usage(usage)
         }
@@ -117,7 +120,7 @@ enum AppleTVRemote {
     static let secondsRange = 0.04...2.0
     static let shapeUsage = "remote \(travelOption) takes a share of the touch surface in 0.05...0.9 and \(secondsOption) seconds in 0.04...2, for a swipe only; no input sent."
 
-    static let usage = "Remote buttons: select, menu, home, play-pause, up, down, left, right, and swipe-up, swipe-down, swipe-left, swipe-right; no input sent."
+    static let usage = "Remote buttons: select, menu, home, play-pause, up, down, left, right, and swipe-up, swipe-down, swipe-left, swipe-right; sleep and wake on a physical Apple TV; no input sent."
 
     static func describe(_ route: Route) -> [String: Any] {
         switch route {
@@ -171,7 +174,10 @@ enum AppleTVRemote {
     static let physicalRoutes: [String: Route] = routes.merging(["menu": .key(41), "play-pause": .key(44)]) { $1 }
 
     /// Operands for a physical device, checked before any contact.
-    static func validatePhysical(_ operands: [String]) throws { _ = try parsePhysical(operands) }
+    static func validatePhysical(_ operands: [String]) throws {
+        if AppleTVPower.handles(operands) { return try AppleTVPower.validate(operands) }
+        _ = try parsePhysical(operands)
+    }
 
     /// `<button> [--hold <seconds>]` for a physical Apple TV: its route
     /// there, and the hold when one was asked for. A held button goes on the
@@ -194,6 +200,7 @@ enum AppleTVRemote {
     static let physicalHomeHoldRefusal = "remote home \(holdOption) works on Apple TV simulators only: a device's button service failed during the hold and nothing opened. select, the arrows, menu and play-pause can be held on a device. No device was contacted."
 
     static func plan(_ input: CoreDeviceInput) throws -> [String: Any] {
+        if AppleTVPower.handles(input.operands) { return try AppleTVPower.plan(input) }
         let (_, route, held) = try parsePhysical(input.operands)
         var plan = describe(route)
         if let held { plan["holdMilliseconds"] = held / 1000 }
