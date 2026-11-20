@@ -265,7 +265,7 @@ struct UnifiedLogExecutionTests {
         let result = try await run(try logs(["--seconds", "60", "--pid", "42", "--max-entries", "3"]),
                                    script: "while :; do printf '%s\\n' '\(line)'; done")
         #expect(result["stopReason"] as? String == "entryLimit" && result["truncated"] as? Bool == true && result["entryCount"] as? Int == 3)
-        #expect(ContinuousClock.now - start < .seconds(10))
+        #expect(ContinuousClock.now - start < .seconds(30))
     }
 
     @Test func outputFileGetsEveryEntryAndInlineKeepsTheNewest() async throws {

@@ -141,7 +141,9 @@ struct MCPCallOrderingTests {
         try await client.response(1)
         try await client.response(3)
         #expect(!devices.hasStarted("tap 0.2 0.2 A"))
-        #expect(client.arrival == [0, 1, 3])
+        // Which of the two answers comes first is not ordered: the third
+        // call is admitted when the first one ends, before its answer is sent.
+        #expect(client.arrival.sorted() == [0, 1, 3])
         await session.stop()
     }
 

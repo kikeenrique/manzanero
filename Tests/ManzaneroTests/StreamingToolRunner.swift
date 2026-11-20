@@ -48,17 +48,18 @@ struct StreamingToolRunnerTests {
     // The deadline expires only once the child is running (it has written its
     // first output), so the test always exercises stopping a live child. The
     // elapsed bound stays on the wall clock because it is the subject: the
-    // owned child must be stopped and reaped, not left to finish its 10 s.
+    // owned child must be stopped and reaped, not left to finish its 120 s.
+    // The bound is wide on purpose: 3 s failed once under load on 2026-11-20.
     @Test func timeoutStopsAndReapsOwnedChild() async throws {
         let clock = ManualTestClock(), start = ContinuousClock.now
         do {
-            try await StreamingToolRunner().run(executable: "/bin/sh", arguments: ["-c", "echo running; exec /bin/sleep 10"],
+            try await StreamingToolRunner().run(executable: "/bin/sh", arguments: ["-c", "echo running; exec /bin/sleep 120"],
                                                 timeout: 0.05, clock: clock) { _ in
                 clock.advance(by: .seconds(1))
             }
             Issue.record("Expected process deadline")
         } catch { #expect(String(describing: error).contains("timed out")) }
-        #expect(ContinuousClock.now - start < .seconds(3))
+        #expect(ContinuousClock.now - start < .seconds(30))
     }
 
     // With the deadline clock stopped, the only ways out of `yes` are the
@@ -74,7 +75,7 @@ struct StreamingToolRunnerTests {
         } catch {
             #expect(String(describing: error).contains(consumerFailure ? "fixture consumer stopped" : "output byte limit"))
         }
-        #expect(ContinuousClock.now - start < .seconds(3))
+        #expect(ContinuousClock.now - start < .seconds(30))
     }
 }
 
@@ -112,7 +113,7 @@ struct StreamingCaptureTests {
         let end = try await StreamingToolRunner().capture(executable: "/usr/bin/yes", arguments: [],
                                                           hardDeadline: 5, clock: ManualTestClock()) { _, _ in false }
         #expect(end == .consumerStopped)
-        #expect(ContinuousClock.now - start < .seconds(3))
+        #expect(ContinuousClock.now - start < .seconds(30))
     }
 
     // The soft deadline fires once the child is running (its first output
@@ -133,7 +134,7 @@ struct StreamingCaptureTests {
     @Test func hardDeadlineStopsAndReapsTheChild() async throws {
         let clock = ManualTestClock(), start = ContinuousClock.now
         do {
-            _ = try await StreamingToolRunner().capture(executable: "/bin/sh", arguments: ["-c", "echo running; exec /bin/sleep 10"],
+            _ = try await StreamingToolRunner().capture(executable: "/bin/sh", arguments: ["-c", "echo running; exec /bin/sleep 120"],
                                                         hardDeadline: 0.05, clock: clock) { _, _ in
                 clock.advance(by: .seconds(1)); return true
             }
@@ -141,7 +142,7 @@ struct StreamingCaptureTests {
         } catch let failure as CommandFailure {
             #expect(failure.code == .timeout)
         }
-        #expect(ContinuousClock.now - start < .seconds(3))
+        #expect(ContinuousClock.now - start < .seconds(30))
     }
 
     @Test func refusesNonAppleExecutables() async {

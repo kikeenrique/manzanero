@@ -149,7 +149,7 @@ Two days on the fault that made the Apple TV's connection go stale, and on that 
 In the order suggested. The Apple TV's own list is item 16 below.
 
 - **Push.** The work of these two days is local. The fork of lwIP is pushed and its pin resolves.
-- **A test that failed once.** `aCancelledQueuedCallGivesUpItsPlace` failed in one full run after a cold build and passed in every run since. It tests the order of MCP calls. Find why before it fails a CI run.
+- **A test that failed once: found and fixed on 2026-11-20.** `aCancelledQueuedCallGivesUpItsPlace` expected the answers to its first and third calls in that order, but the third call is admitted when the first one ends, before the first one's answer is sent, so the two answers can cross. With the first answer delayed on purpose the test failed at that very line; it did not fail in 40 runs alone or in 20 runs of the whole suite. The server promises the order in which a device's mutations run, not the order of their answers, so the test now checks which calls were answered. The 20 runs caught a second one: `consumerAndByteLimitFailuresStopStreaming` failed once on a 3-second wall-clock bound; those bounds are now 30 seconds, with children that outlive the suite's time limit if they are not stopped.
 - **The tunnel on the iPhone, small checks.** An action in flight when the cable is pulled, which should fail once and not repeat; an MCP session or a `batch` over the network, or across a change of link; one interruption of `remoted` seen at a change of link, recovered in two seconds, cause unknown; a second device.
 - **`build-run` on the iPhone again**, since its destination changed.
 

@@ -59,7 +59,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 ## What is open, in order
 
 1. **Push** the local commits.
-2. **A test that failed once** (`aCancelledQueuedCallGivesUpItsPlace`) and could fail a CI run.
+2. **A test that failed once**: found and fixed on 2026-11-20, with a second flaky test that the repeated runs caught.
 3. **Apple TV, accessibility without the side effect**: route 3 was tried in full on 2026-11-20. It pressed a button with no side effect and without moving the focus. It cannot give a tree: no positions, no focus, lists skipped. To decide: build `press` on it and leave the rest on route 2, or leave it as an experiment.
 4. **Apple TV, video**: the picture is not blank, as was thought. Its first frames are right; then the Apple TV changes the picture's size inside the stream and the tool's decoder does not follow. An audio stream beside the video, as Apple's Device Hub has, was tried and is not the cause. Next: learn how Apple's own receiver follows that change.
 5. **Apple TV, the remote's swipes**: done on 2026-11-20. All four work on the device.
