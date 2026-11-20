@@ -1097,7 +1097,26 @@ On the evening of 2026-11-18, on one Apple TV simulator at 1080p (tvOS 27.2), ma
 
 Built as `remote swipe-up`, `swipe-down`, `swipe-left`, `swipe-right` and run from the CLI after a restart of the simulator, the focus read from the tree after each of eleven swipes, starting on Button A: down to the text field; up to Button B; down to the text field; up to Button B; right to row 3; down to row 7; down to row 11; up to row 7; left to the first Twin button; right to row 7; left to the first Twin button. The probe's summary afterwards: `up=3 down=4 left=2 right=2`. On the sleeping simulator a swipe and a button event on usage page 1, usage 0x83 changed nothing.
 
-Not shown: any of this on a physical Apple TV, a search on an iPhone or iPad, a list whose rows do not share an edge, a held arrow's repeat rate, a swipe of another length or speed, and a click of the touch surface.
+Not shown: any of this on a physical Apple TV, a search on an iPhone or iPad, a list whose rows do not share an edge, a held arrow's repeat rate, and a click of the touch surface.
+
+#### A swipe of a chosen length and duration
+
+On 2026-11-20, `manzanero-research-tv` (Apple TV 4K (4th generation) at 1080p, tvOS 27.2), the tvOS probe in front, macOS 27.2.1, Xcode 27.2. `remote` gained `--travel` (the swipe's length as a share of the touch surface, 0.05 to 0.9, default 0.5) and `--seconds` (its duration, 0.04 to 2, default 0.2). With the focus in the probe's forty-row list, one `remote swipe-down` after another, the focus read from a tree after each:
+
+| Travel | Seconds | Rows the focus moved |
+| --- | --- | --- |
+| 0.1 | 0.2 | 1 |
+| 0.3 | 0.2 | 2 |
+| 0.5 (the default) | 0.2 (the default) | 4 |
+| 0.9 | 0.2 | 9 |
+| 0.5 | 0.05 | 10 |
+| 0.5 | 0.6 | 3 |
+| 0.5 | 1.5 | 2 |
+| 0.05 | 0.04 | 0, six rows from the list's end |
+
+So both count: a longer swipe goes further, and the same length goes further fast than slow. From Button B, outside a list, travel 0.1 and 0.3 each moved one item down, 0.5 three, and 0.9 went to the strip at the bottom.
+
+Not shown: the same on a physical Apple TV, which is not to be sent anything for now; other directions; a second run of each, so the numbers are one sample; the shortest swipe away from a list's end.
 
 ## Direct physical input
 

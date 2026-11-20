@@ -14,7 +14,16 @@ enum AppleTVRemote {
         /// One finger drawn across the remote's touch surface, on a touch-pad
         /// service the simulator's universalhidservice creates for the call.
         /// The direction as a unit step: y grows downward.
-        case swipe(dx: Double, dy: Double)
+        case swipe(dx: Double, dy: Double, shape: SwipeShape = .standard)
+    }
+
+    /// How far a swipe goes, as a share of the surface, and how long it
+    /// takes. The finger starts half the travel before the centre and ends
+    /// half the travel past it.
+    struct SwipeShape: Equatable {
+        var travel: Double
+        var milliseconds: UInt64
+        static let standard = SwipeShape(travel: swipeTravel, milliseconds: swipeMilliseconds)
     }
 
     static let names = ["select", "menu", "home", "play-pause", "up", "down", "left", "right",
@@ -34,10 +43,10 @@ enum AppleTVRemote {
 
     /// The reports of one swipe: a contact that goes down, moves in a
     /// straight line through the centre, and lifts where it stopped.
-    static func swipeFrames(dx: Double, dy: Double) -> (times: [UInt64], reports: [[UInt8]]) {
-        let moves = Int(swipeMilliseconds / swipeFrameMilliseconds)
+    static func swipeFrames(dx: Double, dy: Double, shape: SwipeShape = .standard) -> (times: [UInt64], reports: [[UInt8]]) {
+        let moves = max(1, Int(shape.milliseconds / swipeFrameMilliseconds))
         func position(_ progress: Double) -> [Int] {
-            [dx, dy].map { Int(((0.5 + $0 * swipeTravel * (progress - 0.5)) * 65535).rounded()) }
+            [dx, dy].map { Int(((0.5 + $0 * shape.travel * (progress - 0.5)) * 65535).rounded()) }
         }
         var times: [UInt64] = [], reports: [[UInt8]] = []
         for step in 0...moves {
@@ -70,16 +79,43 @@ enum AppleTVRemote {
     /// `<button> [--hold <seconds>]`: the button's route and the hold in
     /// microseconds, checked before any contact.
     static func parse(_ operands: [String]) throws -> (name: String, route: Route, holdMicroseconds: UInt32) {
-        guard let name = operands.first, let route = routes[name], operands.count == 1 || operands.count == 3 else {
+        guard let name = operands.first, let route = routes[name], operands.count % 2 == 1, operands.count <= 5 else {
             throw CommandFailure.usage(usage)
         }
-        guard operands.count == 3 else { return (name, route, holdMicroseconds) }
-        guard operands[1] == holdOption, let seconds = Double(operands[2]), holdRange.contains(seconds) else {
-            throw CommandFailure.usage(holdUsage)
+        var hold: UInt32?, shape = SwipeShape.standard, seen = Set<String>()
+        for index in stride(from: 1, to: operands.count, by: 2) {
+            // Each option once, each with a number.
+            guard seen.insert(operands[index]).inserted else { throw CommandFailure.usage(usage) }
+            let value = Double(operands[index + 1])
+            switch operands[index] {
+            case holdOption:
+                guard let value, holdRange.contains(value) else { throw CommandFailure.usage(holdUsage) }
+                hold = UInt32((value * 1_000_000).rounded())
+            case travelOption:
+                guard let value, travelRange.contains(value) else { throw CommandFailure.usage(shapeUsage) }
+                shape.travel = value
+            case secondsOption:
+                guard let value, secondsRange.contains(value) else { throw CommandFailure.usage(shapeUsage) }
+                shape.milliseconds = UInt64((value * 1000).rounded())
+            default: throw CommandFailure.usage(usage)
+            }
         }
-        if case .swipe = route { throw CommandFailure.usage(holdUsage) }
-        return (name, route, UInt32((seconds * 1_000_000).rounded()))
+        guard case .swipe(let dx, let dy, _) = route else {
+            if seen.contains(travelOption) || seen.contains(secondsOption) { throw CommandFailure.usage(shapeUsage) }
+            return (name, route, hold ?? holdMicroseconds)
+        }
+        if hold != nil { throw CommandFailure.usage(holdUsage) }
+        return (name, .swipe(dx: dx, dy: dy, shape: shape), holdMicroseconds)
     }
+
+    /// `--travel <share>` and `--seconds <seconds>`: a swipe's length, as a
+    /// share of the remote's touch surface, and its duration. The defaults
+    /// are half the surface in 0.2 s.
+    static let travelOption = "--travel"
+    static let secondsOption = "--seconds"
+    static let travelRange = 0.05...0.9
+    static let secondsRange = 0.04...2.0
+    static let shapeUsage = "remote \(travelOption) takes a share of the touch surface in 0.05...0.9 and \(secondsOption) seconds in 0.04...2, for a swipe only; no input sent."
 
     static let usage = "Remote buttons: select, menu, home, play-pause, up, down, left, right, and swipe-up, swipe-down, swipe-left, swipe-right; no input sent."
 
@@ -87,9 +123,9 @@ enum AppleTVRemote {
         switch route {
         case .key(let usage): ["service": "com.apple.coredevice.feature.remote.hid.keyboard", "usagePage": 7, "usage": usage]
         case .button(let usage): ["service": "com.apple.coredevice.feature.remote.hid.button", "usagePage": 12, "usage": usage]
-        case .swipe(let dx, let dy):
+        case .swipe(let dx, let dy, let shape):
             ["service": "com.apple.coredevice.feature.remote.universalhidservice", "usagePage": 13, "usage": 5,
-             "swipe": ["dx": dx, "dy": dy, "travel": swipeTravel, "durationMilliseconds": swipeMilliseconds]]
+             "swipe": ["dx": dx, "dy": dy, "travel": shape.travel, "durationMilliseconds": shape.milliseconds]]
         }
     }
 
@@ -144,8 +180,9 @@ enum AppleTVRemote {
     /// one key up that far apart, as on a simulator.
     static func parsePhysical(_ operands: [String]) throws -> (name: String, route: Route, held: UInt32?) {
         let parsed = try parse(operands)
-        guard let route = physicalRoutes[parsed.name] else { throw CommandFailure.usage(usage) }
-        let held = operands.count == 3 ? parsed.holdMicroseconds : nil
+        guard var route = physicalRoutes[parsed.name] else { throw CommandFailure.usage(usage) }
+        if case .swipe = parsed.route { route = parsed.route }
+        let held = operands.contains(holdOption) ? parsed.holdMicroseconds : nil
         if held != nil, case .button = route { throw CommandFailure.unsupported(physicalHomeHoldRefusal) }
         return (parsed.name, route, held)
     }
@@ -190,8 +227,8 @@ enum AppleTVRemote {
             } else { try key(.init(uuid: identity.uuid, version: identity.version, name: name, usage: usage)) }
         case .button(let usage):
             try button(.init(uuid: identity.uuid, version: identity.version, usage: usage, holdMicroseconds: held ?? holdMicroseconds))
-        case .swipe(let dx, let dy):
-            let frames = swipeFrames(dx: dx, dy: dy)
+        case .swipe(let dx, let dy, let shape):
+            let frames = swipeFrames(dx: dx, dy: dy, shape: shape)
             try swipe(.init(uuid: identity.uuid, version: identity.version, times: frames.times, reports: frames.reports.flatMap { $0 }))
         }
         var receipt = describe(route)

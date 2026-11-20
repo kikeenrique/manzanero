@@ -59,7 +59,7 @@ These need no hardware and no owner decision; they were left out of the simulato
 - `fold` on the Duo straight after boot: with one other simulator running (not one of this project's), the first fold after boot was not observed within its 10 s bound and the next four were, as were five unfolds ([record](verification.md#the-duos-inner-display)). Earlier, one of five was missed with three others running and none with two. So the miss may belong to a simulator that has just booted, not to load; fold once more after a pause to tell. It has still not run with nothing else booted.
 - `scroll --search` on an iPhone or iPad simulator, in each direction, and on a list whose rows do not share an edge. On an Apple TV simulator it ran in four directions with two lists on screen ([record](verification.md#apple-tv-simulator-power-off-held-keys-searches-in-four-directions-and-swipes)).
 - On an Apple TV simulator, whether anything other than a restart wakes it after Power Off: every button and key the tool sends, a swipe and a System Wake Up usage were tried, and none did.
-- On an Apple TV simulator, a swipe of another length or speed and a click of the remote's touch surface; the four fixed swipes ran.
+- On an Apple TV simulator, a click of the remote's touch surface; the four swipes ran, and so did swipes of chosen lengths and durations ([record](verification.md#a-swipe-of-a-chosen-length-and-duration)), once each and downward only.
 
 ## Questions still open
 

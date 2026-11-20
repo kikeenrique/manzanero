@@ -164,3 +164,33 @@ struct SimulatorRemoteTests {
         #expect(throws: MCPError.self) { try tool.command(["device": .string(Self.uuid), "button": "siri"]) }
     }
 }
+
+/// A swipe of a chosen length and duration.
+struct RemoteSwipeShapeTests {
+    @Test func travelAndSecondsShapeASwipe() throws {
+        let parsed = try AppleTVRemote.parse(["swipe-right", "--travel", "0.8", "--seconds", "0.4"])
+        guard case .swipe(let dx, let dy, let shape) = parsed.route else { Issue.record("not a swipe"); return }
+        #expect(dx == 1 && dy == 0 && shape == .init(travel: 0.8, milliseconds: 400))
+        let frames = AppleTVRemote.swipeFrames(dx: dx, dy: dy, shape: shape)
+        func x(_ index: Int) -> Int { Int(frames.reports[index][4]) | Int(frames.reports[index][5]) << 8 }
+        // Twenty moves 20 ms apart, from 0.1 to 0.9 of the width, then the lift.
+        #expect(frames.times.count == 22 && frames.times.last == 420_000_000)
+        #expect(abs(x(0) - 6554) <= 1 && abs(x(20) - 58982) <= 1 && x(21) == x(20))
+        // The defaults are unchanged, and either option may come alone.
+        #expect(AppleTVRemote.swipeFrames(dx: 1, dy: 0).times.count == 12)
+        guard case .swipe(_, _, let short) = try AppleTVRemote.parse(["swipe-up", "--travel", "0.1"]).route else { Issue.record("not a swipe"); return }
+        #expect(short == .init(travel: 0.1, milliseconds: AppleTVRemote.swipeMilliseconds))
+        // The plan and the physical route carry the shape too.
+        let swipe = AppleTVRemote.describe(parsed.route)["swipe"] as? [String: Any]
+        #expect(swipe?["travel"] as? Double == 0.8 && swipe?["durationMilliseconds"] as? UInt64 == 400)
+        #expect(try AppleTVRemote.parsePhysical(["swipe-right", "--travel", "0.8", "--seconds", "0.4"]).route == parsed.route)
+    }
+
+    @Test(arguments: [["swipe-up", "--travel", "0.95"], ["swipe-up", "--travel", "0"], ["swipe-up", "--seconds", "3"], ["swipe-up", "--seconds", "x"],
+                      ["select", "--travel", "0.5"], ["home", "--seconds", "0.2"], ["swipe-up", "--travel", "0.5", "--travel", "0.6"],
+                      ["swipe-up", "--hold", "1", "--travel", "0.5"], ["swipe-up", "--travel"], ["swipe-up", "--speed", "2"]])
+    func aSwipeShapeOutOfRangeOrOnAButtonIsRefused(_ operands: [String]) {
+        let failure = #expect(throws: CommandFailure.self) { try AppleTVRemote.parse(operands) }
+        #expect(failure?.code == .usage)
+    }
+}

@@ -327,7 +327,7 @@ struct RemoteTouchProbeTests {
     func aSwipeIsSentToATouchPadServiceCreatedOnTheDevice() async throws {
         let environment = ProcessInfo.processInfo.environment
         let device = try #require(environment["MANZANERO_REMOTE_TOUCH_DEVICE"])
-        guard case .swipe(let dx, let dy)? = AppleTVRemote.routes[environment["MANZANERO_REMOTE_TOUCH_SWIPE"] ?? ""] else {
+        guard case .swipe(let dx, let dy, _)? = AppleTVRemote.routes[environment["MANZANERO_REMOTE_TOUCH_SWIPE"] ?? ""] else {
             Issue.record("MANZANERO_REMOTE_TOUCH_SWIPE names no swipe")
             return
         }

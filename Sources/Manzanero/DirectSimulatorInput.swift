@@ -118,8 +118,8 @@ enum DirectSimulatorInput {
                 try environment.keyboard(input.device, AppleTVRemote.heldKey(usage, holdMicroseconds: hold))
             case .key(let usage): try environment.key(input.device, usage)
             case .button(let usage): try environment.remoteButton(input.device, 12, usage, hold)
-            case .swipe(let dx, let dy):
-                let frames = AppleTVRemote.swipeFrames(dx: dx, dy: dy)
+            case .swipe(let dx, let dy, let shape):
+                let frames = AppleTVRemote.swipeFrames(dx: dx, dy: dy, shape: shape)
                 try environment.remoteTouch(input.device, frames.times, frames.reports.flatMap { $0 })
                 result["frameCount"] = frames.times.count
             }

@@ -151,7 +151,9 @@ How it is sent. The simulator's `com.apple.coredevice.feature.remote.universalhi
 
 What it does, on a tvOS 27.2 simulator at 1080p against the [tvOS probe](probe-app.md#tvos-probe) on 2026-11-18, the focus read from the tree after each: a swipe moves focus several items, where an arrow moves one. In the probe's list, `swipe-down` took the focus from row 3 to row 7 and from row 7 to row 11, and `swipe-up` back from row 11 to row 7. From Button A, `swipe-down` reached the text field, three elements below; `swipe-up` from there reached Button B. `swipe-right` from the controls entered the list, and `swipe-left` returned to the controls; each of the two was repeated with the same result.
 
-Limits: the travel and the speed are fixed, so how far the focus goes is the app's doing; `--hold` is refused with a swipe; nothing is known about a click of the surface or its clickpad ring; a sleeping simulator ignores swipes as it ignores buttons. On a physical Apple TV the same request goes to the device's own Universal HID service (`ADCPerformCancellableRemoteTouch`), which created the touch-pad service at the first try.
+`--travel <share>` and `--seconds <seconds>` (MCP `travel` and `swipe_seconds`) set a swipe's length, as a share of the surface from 0.05 to 0.9, and its duration, from 0.04 to 2 seconds; the defaults are half the surface in 0.2 s. On a simulator a swipe down in a list moved the focus 1 row at a tenth of the surface and 9 at nine tenths, and half the surface moved it 10 rows in 0.05 s and 2 in 1.5 s ([record](verification.md#a-swipe-of-a-chosen-length-and-duration)).
+
+Limits: how far the focus goes for a given swipe is the app's doing; `--hold` is refused with a swipe; nothing is known about a click of the surface or its clickpad ring; a sleeping simulator ignores swipes as it ignores buttons. On a physical Apple TV the same request goes to the device's own Universal HID service (`ADCPerformCancellableRemoteTouch`), which created the touch-pad service at the first try.
 
 How it was found. What was tried first on the tvOS 27.2 simulator, with a scratch probe sending raw XPC to the simulator's `dtuhidd`:
 

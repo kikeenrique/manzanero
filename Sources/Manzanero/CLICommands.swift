@@ -124,14 +124,17 @@ extension ManzaneroCLI {
 
     struct Remote: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "remote", abstract: "Press one Siri Remote button (Apple TV).",
-            discussion: "The arrows move focus and select clicks the focused item (keyboard usages); menu goes back, home opens the Home Screen and play-pause toggles playback (consumer buttons). swipe-up, swipe-down, swipe-left and swipe-right draw one finger across the remote's touch surface: focus moves several items, where an arrow moves one. Apple TV has no touch screen, so touch commands are refused there. Any command to a sleeping Apple TV may switch it on, and its television with it. \(receiptCaveat)")
+            discussion: "The arrows move focus and select clicks the focused item (keyboard usages); menu goes back, home opens the Home Screen and play-pause toggles playback (consumer buttons). swipe-up, swipe-down, swipe-left and swipe-right draw one finger across the remote's touch surface: focus moves several items, where an arrow moves one; --travel and --seconds set a swipe's length and duration, and how far the focus then goes is the app's doing. Apple TV has no touch screen, so touch commands are refused there. Any command to a sleeping Apple TV may switch it on, and its television with it. \(receiptCaveat)")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: ArgumentHelp("select, menu, home, play-pause, up, down, left, right, or swipe-up, swipe-down, swipe-left, swipe-right.", valueName: "button"),
                   completion: .list(AppleTVRemote.names)) var name: String
         @Option(help: ArgumentHelp("Hold the button this long, 0.08...3 seconds. On a simulator a 1.5 s hold on home opens Control Centre; on a device home cannot be held.", valueName: "seconds")) var hold: String?
+        @Option(help: ArgumentHelp("A swipe's length as a share of the touch surface, 0.05...0.9 (default 0.5).", valueName: "share")) var travel: String?
+        @Option(help: ArgumentHelp("A swipe's duration, 0.04...2 seconds (default 0.2).", valueName: "seconds")) var seconds: String?
         func request(_ target: Target) throws -> CommandRequest {
-            try .input(target, "remote", [name] + (hold.map { [AppleTVRemote.holdOption, $0] } ?? []))
+            try .input(target, "remote", [name] + (hold.map { [AppleTVRemote.holdOption, $0] } ?? [])
+                + (travel.map { [AppleTVRemote.travelOption, $0] } ?? []) + (seconds.map { [AppleTVRemote.secondsOption, $0] } ?? []))
         }
     }
 
