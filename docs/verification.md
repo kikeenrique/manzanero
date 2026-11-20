@@ -1024,9 +1024,26 @@ On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network, macOS 27.2.1, Xcode
 | Each packet's RTP header extension | Four bytes: the number of packets of its picture, and a picture counter. Its profile word is `9011` on the key frame and again on one later picture, the first large one, and `9001` on the rest |
 | The same with the device's system audio stream started first, in the same client session, as Apple's Device Hub does | The audio stream started, both stopped and were confirmed stopped, and the picture was damaged in the same way |
 
-So the earlier reading was wrong: the picture does not leave the Apple TV blank. The "black rectangle on grey" of 2026-11-18 was a dark screen in the top-left of the frame, and its few packets were a picture that did not move. The device starts by sending the screen at 2400 × 1350 inside the larger frame and, some pictures later, sends it larger without a new key frame; this tool's decoder (VideoToolbox, fed the stream as it comes) predicts the larger pictures from the smaller ones and shows damage. Apple's Device Hub, which receives the same stream through AVConference, shows it right, so AVConference knows of the change; the picture marked `9011` in the header extension is the likely signal. The audio stream is not the cause, and its code was taken out again.
+So the earlier reading was wrong: the picture does not leave the Apple TV blank. The "black rectangle on grey" of 2026-11-18 was a dark screen in the top-left of the frame, and its few packets were a picture that did not move. The device starts by sending the screen at 2400 × 1350 inside the larger frame and, some pictures later, sends it larger without a new key frame; this tool's decoder (VideoToolbox, fed the stream as it comes) predicts the larger pictures from the smaller ones and shows damage. Apple's Device Hub, which receives the same stream through AVConference, shows it right, so AVConference knows of the change. The picture marked `9011` in the header extension was taken for the signal; a longer capture showed that mark recurring on a period ([below](#the-same-stream-from-a-still-screen-kept-and-read-again)). The audio stream is not the cause, and its code was taken out again.
 
 Not shown: what AVConference does at that picture (a new decoder, a rescaled reference, a request for a key frame); whether the device can be kept at the first scale; a still screen for more than the 2026-11-18 run; `record`; whether an iPhone's stream ever changes scale the same way.
+
+#### The same stream from a still screen, kept and read again
+
+Later on 2026-11-20, once the human owner allowed the device again, with the room to stay quiet: no audio stream, no volume key. The Apple TV had been asleep for some hours. The first `remote home` was refused before any input ("Apple HID service did not become ready; no input sent."), a screenshot timed out after 60 seconds, and `launch` answered; the Mac's log showed the sleeping device answering `remotepairingd`'s heartbeats after 1.4 to 34 seconds. A second `remote home` four minutes later was dispatched and a screenshot showed the tvOS probe, now in the light appearance. So a sleeping Apple TV can be slow enough to fail the 3-second readiness wait, and the press is then not sent.
+
+One `frames` capture of the probe's still screen with `MANZANERO_TV_CAPTURE=1`: 6 seconds, 1318 packets, 302 pictures, cleanup confirmed, and the stream kept as it arrived (1.4 MB).
+
+| Read from the kept stream | Result |
+| --- | --- |
+| The NAL unit types | 20 once (the key frame), 1 for every other picture, and the three parameter sets once. No second key frame, no new parameter set, no SEI |
+| Picture sizes | The key frame 41 kB; pictures 1 to 7 from 0.4 to 1.5 kB; **picture 8, 32.6 kB, and picture 10, 30.5 kB**; then 1 to 2 kB each, with one of 12 kB and one of 16 kB, on a screen where nothing moves |
+| The mark in the RTP header extension (`9011`) | On the key frame and then on one picture in about 25 (pictures 23, 48, 74, 99, …), each about 4.2 kB. It recurs on a period, so it is not the signal of the change of scale, as was guessed in the first run |
+| The last saved frame | The probe's screen three times over, at three sizes: sharp at the smallest, in the top-left 2400 × 1350, and as outlines at a middle size and at the full frame's size, where "Row 30" to "Row 40" and "Col 21" to "Col 30" stand at the places they have on a screenshot |
+
+So the device steps the picture's size up twice, at pictures 8 and 10, about a third of a second in, each time as an ordinary predicted picture as large as a key frame. A decoder that predicts them from the smaller picture it holds adds the larger picture's edges on top of it, which is what this tool's frames show. The sender must be predicting from its own picture scaled up, and nothing in the stream says so: the receiver that shows it right, Apple's AVConference, has to know by another way.
+
+Not shown: that way. The leads are AVConference's receiver on the Mac, and the session event channel Apple's Device Hub gives each stream and this tool does not ([record](#device-hubs-screen-view-of-the-apple-tv)).
 
 ### The Inspector's cursor, the whole hierarchy and a press through the shim
 
