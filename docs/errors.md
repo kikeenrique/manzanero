@@ -81,7 +81,7 @@ A read-only command (`tree`, `wait`, `screen`, `screenshot`, `details`, `apps`, 
 | `code` | Meaning | Typical cause | What a caller should do | Input may have been sent? |
 | --- | --- | --- | --- | --- |
 | `usage` | The arguments are wrong (exit 64) | Bad coordinates, missing operand, unknown option or command, no or two targets, recording destination exists | Fix the call (`retry: no`) | No |
-| `unsupported-operation` | The operation does not exist here | Simulator paste or wake, unknown device operation, retired backend or helper executable; on an Apple TV, touch, recording, `frames` and `remote --hold` on a device | Use another operation (`retry: no`) | No |
+| `unsupported-operation` | The operation does not exist here | Simulator paste or wake, unknown device operation, retired backend or helper executable; on an Apple TV, touch and `remote home --hold` on a device | Use another operation (`retry: no`) | No |
 | `device-not-ready` | Device prerequisites block the operation | Developer Mode disabled, device not connected or paired, no tunnel; a simulator that is not booted (the message names the `boot` command, which a caller may run itself) | Stop and ask a person (`action: human`) | No |
 | `display-off` | The primary display is off or its state is unknown | Screen locked and dark before touch, capture or AX centre selection | Run `wake`, then retry (`action: wake`) | No |
 | `device-busy` | Another owner controls the device | Another manzanero process holds the device lease; a native recording is already running in this process | Wait, then retry (`action: wait`) | No |

@@ -29,10 +29,11 @@ The device does not check who connects; `remoted` on the Mac does. That is why a
 | Service | Used for | How it is reached |
 | --- | --- | --- |
 | `com.apple.accessibility.axAuditDaemon.remoteAXService` | `tree`, `wait`, `press`, `scroll`, `set-value` on a device | The directory, read by the tool on its own tunnel or on Apple's |
-| `com.apple.accessibility.axAuditDaemon.remoteserver.shim.remote` | An experiment only: the same daemon as Apple's Accessibility Inspector reaches it | `remoted`, through the MobileDevice framework |
+| `com.apple.accessibility.axAuditDaemon.remoteserver.shim.remote` | `press` on a physical Apple TV, tried first: the same daemon as Apple's Accessibility Inspector reaches it, by its cursor | `remoted`, through the MobileDevice framework |
 | `com.apple.internal.devicecompute.CoreDeviceProxy` | The tool's own tunnel | `usbmuxd`, through the MobileDevice framework |
 | `com.apple.os_trace_relay.shim.remote` | An opt-in check of the phone's log relay; no command yet | The directory, on Apple's tunnel |
 | `com.apple.coredevice.hid.indigo` | Touch, buttons, keys and the remote | CoreDevice, asked by the capability names `com.apple.coredevice.feature.remote.hid.*`. The tool names the capability, and CoreDevice chooses the service; this is the one the tool's code names |
+| `com.apple.coredevice.hid.universalhidservice` | Three to five contacts on a phone, and the Apple TV remote's swipes, for which a touch-pad service is created for the call | CoreDevice, asked by the capability name `com.apple.coredevice.feature.remote.universalhidservice` |
 | The screen capture and display services (`com.apple.coredevice.screencaptureservice` was seen fetched for Apple's Device Hub) | `screenshot`, `record`, `frames` | CoreDevice, asked by its media and display capabilities. Which directory entry carries each is CoreDevice's business and was not traced |
 | The app, file, diagnostics and device information services | Apps, files, reports, details, `console` | Apple's `devicectl`, which the tool runs. Not traced to entries either |
 

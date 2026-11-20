@@ -74,7 +74,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Input sent to a locked phone | [Lock state in receipts](docs/native-input.md#receipts-and-partial-effects) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
 | Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown | [Other families](docs/other-families.md) |
-| A physical Apple TV: trees with focus, the Siri Remote, sleep | [A physical Apple TV](docs/other-families.md#a-physical-apple-tv) |
+| A physical Apple TV: trees with focus, the Siri Remote and its swipes, recording, sleep | [A physical Apple TV](docs/other-families.md#a-physical-apple-tv) |
 | How a command reaches a device, and the tool's own tunnel | [Transport](docs/transport.md), [the services a device offers](docs/device-services.md) |
 | A row further down a long list | [`scroll --search`](docs/direct-accessibility.md#searching-a-list-that-loads-its-rows---search) |
 | Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical `logs` is not implemented yet: the phone's log relay was read in an experiment and the command is a pending task) |

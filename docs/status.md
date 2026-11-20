@@ -1,6 +1,6 @@
 # Status at a glance
 
-One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-20.
+One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date at the end of 2026-11-20.
 
 ## How to read it
 
@@ -29,7 +29,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
 | **Accessibility, read**: `tree`, `wait` | works, portrait only | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
 | **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait only | works | works, see the routes below | works | works (`press`) | partly: `press` fails in a letterboxed app |
-| **Accessibility, search a long list**: `scroll --search` | not run | not run | works in four directions | works in four directions | not run | not run |
+| **Accessibility, search a long list**: `scroll --search` | not run | works in four directions (iPhone) | works in four directions | works in four directions | not run | not run |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | not run | works, with `--display` |
 | **Video**: `record`, `frames` | works with `--backend coredevice`; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, on a still screen | `record` works | not run | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works; `open-url` not run | works | not run | works |
@@ -54,15 +54,22 @@ A route is the way a command reaches the device. Most commands have one. Accessi
 | Accessibility, route 3: **the Inspector's way** | Through the Mac's `remoted`, as Apple's Accessibility Inspector does | `press` on the Apple TV, tried first | Works with no side effect and without moving the focus. Rows inside lists, a full tree, `scroll` and `set-value` have no way there and use route 2 |
 | Accessibility on a simulator | Apple's simulator framework | Every simulator | Settled |
 
-A result says which accessibility route a command took: `serviceDirectory: own-tunnel` is route 1, and `opened`, `reused-port` or `reused-saved-port` are route 2.
+A result says which accessibility route a command took: `serviceDirectory: own-tunnel` is route 1, `opened`, `reused-port` or `reused-saved-port` are route 2, and `route: inspector` is route 3. A press that tried route 3 and went by route 2 says why in `inspectorUnavailable`.
 
 ## What is open, in order
 
-1. **Push** the local commits.
-2. **A test that failed once**: found and fixed on 2026-11-20, with a second flaky test that the repeated runs caught.
-3. **Apple TV, accessibility without the side effect**: `press` now goes by route 3 when it can (built on 2026-11-20). `tree`, `wait`, `scroll`, `set-value` and a press of a row inside a list still use route 2 and its side effect.
-4. **Apple TV, video**: fixed on 2026-11-20. The tool was offering the Apple TV a feature its decoder cannot follow; without it `record` and `frames` give the right picture. Run on a still screen only so far.
-5. **Apple TV, the remote's swipes**: done on 2026-11-20. All four work on the device.
-6. **`logs` for devices**: the way in is proven, the command is not built.
-7. **Small checks on the iPhone**: an action in flight when the cable is pulled, an agent session over the network, and `build-run` since it learned other platforms.
-8. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
+1. **Push** the local commits: three days of work, none of it in a release.
+2. **Two phone runs for changes made on simulators**: pressing a plain table row, and a recording of a moving screen to see whether the phone needs the Apple TV's video fix too.
+3. **Apple TV, the rest of accessibility without the side effect**: `press` goes by route 3. `tree`, `wait`, `scroll`, `set-value` and a press inside a list still use route 2; route 3 cannot carry them, and the other way, a pairing of the tool's own, is not built.
+4. **Apple TV, small ones**: a recording of a moving screen and a long one, `open-url`, a swipe of a chosen length, and a `remote power` command.
+5. **`logs` for devices**: the way in is proven, the command is not built.
+6. **Small checks on the iPhone**: an action in flight when the cable is pulled, an agent session over the network, and `build-run` since it learned other platforms.
+7. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
+
+## Done on 2026-11-20
+
+- **Apple TV, video**: `record` and `frames` work. The tool was offering the Apple TV a feature its decoder cannot follow; without it the picture is right.
+- **Apple TV, the remote's swipes**: all four work on the device, and a swipe's length and duration can be chosen.
+- **Apple TV, `press` without the side effect**: by Apple's Inspector cursor, with the focus left where it was.
+- **Plain table rows** can be pressed, found with a new list screen in the iOS probe on a new phone simulator.
+- **Two tests that failed under load** are fixed.
