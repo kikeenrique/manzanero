@@ -236,7 +236,7 @@ So the relay works over Apple's native tunnel on this phone, a PID filter holds 
 
 ### Phone session of 2026-11-20: a table row, a moving stream, open-url and logs
 
-**2026-11-20, from about 22:05 local time, at `662ed96`** (the `logs` changes below on top of it), on the human owner's word for the iPhone 13 mini: iOS 27.2.1, unlocked, no passcode asked, portrait, on its cable. macOS 27.2.1, Xcode 27.2 (27B52). The probe app was built and installed again with `build-run` before the session. Every accessibility command ran on the tool's own tunnel (`serviceDirectory: own-tunnel`, `ownTunnelLink: cable`) unless said otherwise. Only the probe app was used.
+**2026-11-20, from about 22:05 local time, at `9e72d73`** (the `logs` changes below on top of it), on the human owner's word for the iPhone 13 mini: iOS 27.2.1, unlocked, no passcode asked, portrait, on its cable. macOS 27.2.1, Xcode 27.2 (27B52). The probe app was built and installed again with `build-run` before the session. Every accessibility command ran on the tool's own tunnel (`serviceDirectory: own-tunnel`, `ownTunnelLink: cable`) unless said otherwise. Only the probe app was used.
 
 | Check | Observed |
 | --- | --- |
