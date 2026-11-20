@@ -67,14 +67,14 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Screen, hierarchy, OCR | [Screen inspection](docs/screen-understanding.md), [accessibility](docs/direct-accessibility.md) |
 | Exact accessibility press or scroll by identifier, label or current value (`--with-value`), and choosing among elements that share one (`--index`) | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
 | Reading and pressing a web page | [Web content](docs/direct-accessibility.md#web-content) |
-| Video, or many screenshots in a row | [Recording](docs/recording.md), [frames](docs/recording.md#frames-repeated-screenshots-from-one-stream) |
+| Video, with the device's sound if asked (`--audio`), or many screenshots in a row | [Recording](docs/recording.md), [sound](docs/recording.md#sound), [frames](docs/recording.md#frames-repeated-screenshots-from-one-stream) |
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
 | A step that needs a person (unlock, pairing, a permission prompt) | [Human handoff](docs/handoff.md): `handoff --until` watches the device and ends by itself |
 | Several commands in one call | [`batch`](docs/mcp.md#several-steps-in-one-call-run_batch): up to 30 steps in order, stopped at the first failure |
 | Input sent to a locked phone | [Lock state in receipts](docs/native-input.md#receipts-and-partial-effects) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
 | Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown | [Other families](docs/other-families.md) |
-| A physical Apple TV: trees with focus, the Siri Remote and its swipes, recording, sleep | [A physical Apple TV](docs/other-families.md#a-physical-apple-tv) |
+| A physical Apple TV: trees with focus, the Siri Remote and its swipes, recording, `remote sleep` and `remote wake` | [A physical Apple TV](docs/other-families.md#a-physical-apple-tv), [sleep and wake](docs/other-families.md#sleep-and-wake) |
 | How a command reaches a device, and the tool's own tunnel | [Transport](docs/transport.md), [the services a device offers](docs/device-services.md) |
 | A row further down a long list | [`scroll --search`](docs/direct-accessibility.md#searching-a-list-that-loads-its-rows---search) |
 | Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical `logs` is not implemented yet: the phone's log relay was read in an experiment and the command is a pending task) |
@@ -126,6 +126,8 @@ Host configuration formats vary. Set a suitable working directory: relative file
 - Native input and AX actions are experimental. Successful transport acknowledgements are not UI assertions.
 - Native video has scoped CLI/MCP verification, including one five-minute capture and one recording with AX inspection and Home control. With the macOS firewall on, the executable needs an allow rule or recordings get no video; `doctor` reports it ([recording](docs/recording.md#the-macos-firewall-can-drop-the-video)). Recovery from loss, a crash or a disconnect is not built; it is to be a restart of the stream, because the test phone declines the RTCP feedback that keyframe requests would need.
 - SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Forced exits and failed transports do not have a release guarantee: after one during an input, further input to that device is refused until you have looked at it and run `clear-quarantine` ([quarantine](docs/native-input.md#quarantine-after-an-uncertain-release)). A second `manzanero` process is refused input to a device another one is controlling.
+- A recording carries the device's sound only with `--audio`, and an app may mute its own player while the screen is captured ([sound](docs/recording.md#sound)).
+- `manzanero pair` leaves a pairing identity for the device under `~/Library/Application Support/manzanero/pairings/`. It is a private key: whoever can read it can open a tunnel to that device.
 - A web page is read and pressed as a tree of its own, apart from the browser around it, and has been checked in Chrome only ([web content](docs/direct-accessibility.md#web-content)).
 - Live screen mirroring, stable reusable element handles, broad Apple-family coverage and several simulator/diagnostic paths remain incomplete.
 - Screenshots, app lists, logs, clipboard data and artifacts under `tmp/` can contain private information. Do not commit or share them without review.

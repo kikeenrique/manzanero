@@ -58,13 +58,14 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 ## What is open, in order
 
-1. **Push** the local commits: three days of work, none of it in a release.
-2. **Two phone runs for changes made on simulators**: pressing a plain table row, and a recording of a moving screen to see whether the phone needs the Apple TV's video fix too.
-3. **Sound in a recording, the rest**: picture and sound in step, a long recording, and the Apple TV with something playing.
-4. **Apple TV, small ones**: a recording of several minutes, and `remote sleep` from a screen saver.
-5. **`logs` for devices**: the way in is proven, the command is not built.
-6. **Small checks on the iPhone**: an action in flight when the cable is pulled, an agent session over the network, and `build-run` since it learned other platforms.
-7. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
+1. **Push** the fifty local commits: three days of work, none of it in a release.
+2. **A phone session for changes never run on a phone**: pressing a plain table row, a recording of a moving screen to see whether the phone needs the Apple TV's video fix too, and `open-url` against the probe.
+3. **The next beta**: the first release with the tool's own tunnel, the Apple TV, `pair`, sleep and wake, and sound.
+4. **`logs` for devices**: the way in is proven, the command is not built.
+5. **Sound in a recording, the rest**: picture and sound in step, a long recording, and the Apple TV with something playing.
+6. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
+7. **Small checks on the iPhone**: an action in flight when the cable is pulled, and an agent session over the network.
+8. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
 
 ## Done on 2026-11-20
 
