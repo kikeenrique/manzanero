@@ -1060,7 +1060,9 @@ On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network, macOS 27.2.1, Xcode
 
 Later the same night, one `batch` in the probe: `scroll --id probe.tv.col.30 --search 80 --toward right` (`postcondition-verified` in 18 steps), `scroll --id probe.tv.col.1 --search 80 --toward left` (19 steps), and `remote play-pause --hold 1`, which the probe recorded as one `play-pause` and which did not leave the app. Those two searches cross the probe's whole strip of thirty columns, so a sideways search of more than twenty steps cannot be made with this probe.
 
-Not run: `open-url`, which needs an address the human owner chooses; `reports get`; `build-run` on the iPhone since its destination changed.
+Not run: `open-url`, which needs an address the human owner chooses; `build-run` on the iPhone since its destination changed. `reports get` ran later the same day: `reports get ota_patch.txt <file>` downloaded the 29,606-byte file, and `reports list Retired` listed 199 reports.
+
+A caveat found with it: the device moves crash reports from the top directory into `Retired` within the hour, and `last-crash --process axauditd` reads the top directory only, so it answers `found: false` once they have moved. During the shim runs of that day it was asked after every new request and answered `found: false` each time; `reports list Retired` afterwards showed no `axauditd` report later than the two of 00:02 and 00:03 UTC, so the answer was true, but `last-crash` alone does not prove it an hour later.
 
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
