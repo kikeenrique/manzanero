@@ -48,6 +48,7 @@ struct BatchCommand: Sendable, Equatable {
                 throw CommandFailure(failure.code, "batch step \(number) (\(step[0])): \(failure.description) Nothing was run.", inputSent: .none)
             }
             if case .batch = request { throw CommandFailure.usage("batch step \(number): a batch cannot hold another batch. Nothing was run.") }
+            if case .pair = request { throw CommandFailure.usage("batch step \(number): pair waits for a PIN and runs on its own, not inside a batch. Nothing was run.") }
             if case .handoff = request { throw CommandFailure.usage("batch step \(number): handoff waits for a person and runs on its own, not inside a batch. Nothing was run.") }
             guard let addressed = request.addressed, addressed.device == target.identifier, addressed.platform == target.platform.rawValue else {
                 throw CommandFailure.usage("batch step \(number) (\(step[0])) does not act on the batch's device. Nothing was run.")

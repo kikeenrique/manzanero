@@ -344,6 +344,14 @@ typedef struct {
 /// Returns zero with an owner to close. Nothing but the service's greeting
 /// is exchanged. On failure the error says what refused it.
 int ADCOpenDeviceTunnel(const char *udid, ADCDeviceTunnelInfo *info, void **owner, char *error, size_t errorCapacity);
+/// The same tunnel for a device paired with the tool's own identity: a TLS
+/// connection with a pre-shared key to the listener the device's pairing
+/// service gave (`RemotePairingClient.createListener`), then the same
+/// greeting. `key` is the pairing session's key. Uses public Network and
+/// Security interfaces only. `info->overNetwork` is 2. The owner is used and
+/// released like `ADCOpenDeviceTunnel`'s.
+int ADCOpenPairedDeviceTunnel(const char *host, uint16_t port, const uint8_t *key, size_t keyLength,
+                              ADCDeviceTunnelInfo *info, void **owner, char *error, size_t errorCapacity);
 /// Sends one IPv6 packet. Returns zero. May be called while another thread
 /// is blocked in ADCDeviceTunnelReceive, and from one thread at a time.
 int ADCDeviceTunnelSend(void *owner, const uint8_t *packet, size_t length);

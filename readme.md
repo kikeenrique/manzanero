@@ -79,6 +79,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | A row further down a long list | [`scroll --search`](docs/direct-accessibility.md#searching-a-list-that-loads-its-rows---search) |
 | Why the app misbehaved: its unified log (simulator), stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs`, `console`, `last-crash`; physical `logs` is not implemented yet: the phone's log relay was read in an experiment and the command is a pending task) |
 | What a failure means and whether to retry | [Errors and exit codes](docs/errors.md) |
+| An Apple TV: pair the tool with it once (`manzanero pair`) | [A pairing of the tool's own](docs/transport.md#a-pairing-of-the-tools-own) |
 | Input refused as `device-quarantined` | [Quarantine and `clear-quarantine`](docs/native-input.md#quarantine-after-an-uncertain-release) |
 
 Physical input, accessibility and native video need no separate device helper. The CLI has no routes to AXe, idevice or ipb executables, and the process runners refuse them at runtime. Simulator app/lifecycle/capture commands use `simctl`; simulator trees, element actions, waits, touch with one to five contacts, gesture sequences, buttons, keys, typing and `set-value` run in process on a booted simulator ([simulator input](docs/simulator-input.md)). Simulator `wake` and `paste` are refused.

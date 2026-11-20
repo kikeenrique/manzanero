@@ -112,12 +112,12 @@ struct StaleDeviceConnectionTests {
 
     @Test func theTunnelPoolOffersNothingUnlessAskedAndSaysWhyItCannotOpen() throws {
         // Not asked for: no tunnel, and nothing is opened.
-        let off = DeviceTunnelPool(open: { _ in Issue.record("A tunnel was opened without being asked for"); throw CancellationError() },
+        let off = DeviceTunnelPool(open: { _, _ in Issue.record("A tunnel was opened without being asked for"); throw CancellationError() },
                                    enabled: { false })
         #expect(off.acquire(Self.udid) == nil)
         // Asked for and refused: the reason comes back, and the next command asks again.
         let refusal = CommandFailure(.deviceNotReady, "The device is not connected by cable.", inputSent: .none)
-        let on = DeviceTunnelPool(open: { _ in throw refusal }, enabled: { true })
+        let on = DeviceTunnelPool(open: { _, _ in throw refusal }, enabled: { true })
         for _ in 0..<2 {
             guard case .failure(let failure) = on.acquire(Self.udid) else {
                 Issue.record("Expected the refusal")

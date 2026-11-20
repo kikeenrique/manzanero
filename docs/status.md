@@ -49,8 +49,8 @@ A route is the way a command reaches the device. Most commands have one. Accessi
 | Apps, files, reports, details, screenshots | Apple's own tools, `devicectl` for devices and `simctl` for simulators | Every platform | Settled |
 | Touch, buttons, keys, the remote | Apple's input services, called in process | Devices and simulators | Settled |
 | Video | Apple's media stream, decoded in process | Devices | Works on the phone and, since 2026-11-20, on the Apple TV |
-| Accessibility, route 1: **the tool's own tunnel** | A tunnel the tool opens itself, through the Mac's `usbmuxd` | A device `manzanero devices` shows as `ownTunnel: cable` or `network`: the iPhone and iPads, never an Apple TV | The default since 2026-11-19. Works on the iPhone, with no side effect on the Mac |
-| Accessibility, route 2: **Apple's tunnel** | The tunnel macOS keeps, plus a second connection of the tool's own to the device's list of services | The fallback, and the only one in use for the Apple TV | Works. Side effect: the device resets the Mac's own connection to it, and now and then that connection does not come back until it is replaced |
+| Accessibility, route 1: **the tool's own tunnel** | A tunnel the tool opens itself, through the Mac's `usbmuxd` | A device `manzanero devices` shows as `ownTunnel: cable` or `network`, the iPhone and iPads; and an Apple TV after `manzanero pair`, which pairs the tool itself with it (PIN on the television) | The default since 2026-11-19. Works on the iPhone and, since 2026-11-20, on the Apple TV, with no side effect on the Mac |
+| Accessibility, route 2: **Apple's tunnel** | The tunnel macOS keeps, plus a second connection of the tool's own to the device's list of services | The fallback, and the one an Apple TV uses until the tool is paired with it | Works. Side effect: the device resets the Mac's own connection to it, and now and then that connection does not come back until it is replaced |
 | Accessibility, route 3: **the Inspector's way** | Through the Mac's `remoted`, as Apple's Accessibility Inspector does | `press` on the Apple TV, tried first | Works with no side effect and without moving the focus. Rows inside lists, a full tree, `scroll` and `set-value` have no way there and use route 2 |
 | Accessibility on a simulator | Apple's simulator framework | Every simulator | Settled |
 
@@ -60,7 +60,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 1. **Push** the local commits: three days of work, none of it in a release.
 2. **Two phone runs for changes made on simulators**: pressing a plain table row, and a recording of a moving screen to see whether the phone needs the Apple TV's video fix too.
-3. **Apple TV, the rest of accessibility without the side effect**: `press` goes by route 3. `tree`, `wait`, `scroll`, `set-value` and a press inside a list still use route 2; route 3 cannot carry them, and the other way, a pairing of the tool's own, is not built.
+3. **Sound in a recording**, for the iPhone and the Apple TV: researched on the Mac, not built.
 4. **Apple TV, small ones**: a recording of several minutes, and sound in a recording, which the tool does not capture.
 5. **`logs` for devices**: the way in is proven, the command is not built.
 6. **Small checks on the iPhone**: an action in flight when the cable is pulled, an agent session over the network, and `build-run` since it learned other platforms.
@@ -71,6 +71,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 - **Apple TV, video**: `record` and `frames` work. The tool was offering the Apple TV a feature its decoder cannot follow; without it the picture is right.
 - **Apple TV, the remote's swipes**: all four work on the device, and a swipe's length and duration can be chosen there too.
 - **Apple TV, sleep and wake**: `remote sleep` and `remote wake`, each one command that looks before it presses; sleep presses Power Off by accessibility, in any language and with any app in front.
+- **Apple TV, accessibility with no side effect**: `manzanero pair` pairs the tool itself with the Apple TV, and `tree`, `wait`, `scroll`, `set-value` and every press then go over a tunnel of the tool's own.
 - **`open-url` on the Apple TV**, against a URL scheme both probes now have.
 - **A recording with music playing** on the Apple TV: the picture is right; there is no sound in it.
 - **Apple TV, a minute of a moving screen** recorded whole, and the movie no longer has black rows at the bottom.

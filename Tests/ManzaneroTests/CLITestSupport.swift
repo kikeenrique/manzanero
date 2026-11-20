@@ -59,6 +59,8 @@ func summary(_ request: CommandRequest) -> [String] {
             + option("--pid", detection.pid.map { String($0) })
     case .clearQuarantine(let target):
         return [target.platform.rawValue, target.identifier, DeviceQuarantine.operation]
+    case .pair(let pair):
+        return ["physical", pair.device, PairCommand.operation] + option("--pin-file", pair.pinFile) + flag("--forget", pair.forget)
     case .batch(let batch):
         return [batch.target.platform.rawValue, batch.target.identifier, "batch"] + batch.steps.map { $0.joined(separator: " ") }
     case .buildRun(let build):

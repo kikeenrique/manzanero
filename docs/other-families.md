@@ -94,6 +94,8 @@ MCP: `press_remote` (`platform`: `simulator`, the default, or `physical`). On a 
 
 Run on one Apple TV 4K (3rd generation, tvOS 27.2) between 2026-11-18 and 2026-11-20 ([first record](verification.md#first-look-at-a-physical-apple-tv)). Nothing here is known for another model or tvOS version. Almost every command works there now; [status at a glance](status.md) has the table and [the roadmap](roadmap.md#other-families) what is left.
 
+**Pair the tool with it once.** `manzanero pair --device <UDID>`, with Settings › Remotes and Devices › Remote App and Devices open on the television, which then shows a PIN ([how it works](transport.md#a-pairing-of-the-tools-own)). After that `tree`, `wait`, `press`, `scroll` and `set-value` run on a tunnel of the tool's own (`serviceDirectory: own-tunnel`, `ownTunnelLink: paired`) and the stale connection described below does not come up. Without the pairing they run over Apple's tunnel, as everything below was first measured.
+
 **Any command may switch it on.** A first pass of commands that only observe (`readiness`, `apps`, `media-status`, `screenshot`) switched a sleeping Apple TV on, and the television connected to it. Which command did it is not known. Tell whoever is in the room first.
 
 ```sh

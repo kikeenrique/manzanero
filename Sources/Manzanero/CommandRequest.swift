@@ -20,6 +20,8 @@ enum CommandRequest: Sendable, Equatable {
     /// `clear-quarantine`: remove this Mac's mark that an earlier input may
     /// have left something held on the device. Sends the device nothing.
     case clearQuarantine(Target)
+    /// `pair`: a pairing of the tool's own with a physical device.
+    case pair(PairCommand)
     case buildRun(BuildRunCommand)
     case diagnostics(AppDiagnosticsCommand)
     /// A `devicectl` or `simctl` wrapper.
@@ -82,6 +84,7 @@ extension CommandRequest {
         case .frames(let frames): ("physical", frames.device, "frames")
         case .detectLayout(let detection): (detection.platform.rawValue, detection.device, "detect-layout")
         case .clearQuarantine(let target): (target.platform.rawValue, target.identifier, DeviceQuarantine.operation)
+        case .pair(let pair): ("physical", pair.device, PairCommand.operation)
         case .buildRun(let build): (build.physical ? "physical" : "simulator", build.device, "build-run")
         case .diagnostics(let diagnostics): (diagnostics.physical ? "physical" : "simulator", diagnostics.device, diagnostics.operation)
         case .tool(let tool): (tool.platform.rawValue, tool.device, tool.operation)

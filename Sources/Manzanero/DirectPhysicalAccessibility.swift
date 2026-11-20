@@ -112,7 +112,7 @@ enum DirectPhysicalAccessibility {
             // on which reading the directory disturbs nobody. Any failure to
             // set it up (a locked device, one usbmuxd does not list, another tunnel open in
             // this process) leaves the route over Apple's tunnel below.
-            switch ownTunnel.acquire(udid) {
+            switch ownTunnel.acquire(udid, address) {
             case .success(let tunnel):
                 openedTunnel = tunnel
                 do {

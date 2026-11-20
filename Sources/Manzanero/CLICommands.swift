@@ -649,6 +649,30 @@ extension ManzaneroCLI {
         func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "processes")) }
     }
 
+    struct Pair: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: PairCommand.operation,
+            abstract: "Pair the tool itself with a device, for a tunnel of its own.",
+            discussion: """
+            For a device the Mac reaches only over the network, an Apple TV: with a pairing of its own the tool \
+            opens its own tunnel to it, and tree, wait, press, scroll and set-value no longer disturb the Mac's \
+            connection to the device. \(PairCommand.screenHint) The device then shows a PIN, typed at the terminal \
+            or, with --pin-file, written to that file by whoever reads the screen. The device lists the host as \
+            \(RemotePairingClient.hostName); this Mac keeps the identity in a file only its owner can read, under \
+            Application Support. A device already paired is left as it is. --forget deletes this Mac's identity \
+            and sends the device nothing. An iPhone or iPad on its cable or trusted over one needs no pairing.
+            """)
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Option(name: .customLong("pin-file"), help: "Read the PIN from this file once it is written there, instead of asking at the terminal.") var pinFile: String?
+        @Flag(help: "Delete this Mac's pairing identity for the device.") var forget = false
+        func request(_ target: Target) throws -> CommandRequest {
+            guard target.platform == .physical, !target.identifier.isEmpty, !target.identifier.hasPrefix("-") else {
+                throw CommandFailure.usage("pair takes a physical device (--device <UDID>).")
+            }
+            return .pair(PairCommand(device: target.identifier, pinFile: pinFile, forget: forget))
+        }
+    }
+
     struct ClearQuarantine: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: DeviceQuarantine.operation,
             abstract: "Allow input again after an input whose release is unknown.",

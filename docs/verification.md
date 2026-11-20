@@ -1208,6 +1208,34 @@ The same day and device, after the human owner said the command shall work. The 
 
 Not shown: sleep with the Home Screen or a screen saver in front; a device in another language; why a Home press seconds after a sleep does not wake the device.
 
+### A pairing of the tool's own, and the Apple TV on the tool's tunnel
+
+Still 2026-11-20, the Apple TV 4K (tvOS 27.2) on the network, macOS 27.2.1, Xcode 27.2, on the human owner's word to try the pairing. Nothing but the pairing conversation and accessibility commands was sent.
+
+| Run | Result |
+| --- | --- |
+| `dns-sd -B _remotepairing._tcp` | Six devices, each resolving to its host name on port 49152, the Apple TV 4K among them. `_remotepairing-manual-pairing._tcp` advertised by nobody |
+| A plain TCP connection to the Apple TV's port 49152, at its network name and at its address in Apple's tunnel | Both connect |
+| The handshake and a pair-verify with a new identity, to port 49152 over Apple's tunnel address | The handshake is answered; pair-verify is refused, as it should be for an unknown host |
+| Pair-setup's first message on that same connection, twice, the second time with Settings › Remotes and Devices › Remote App and Devices open on the television | The device ends the connection both times; nothing appears on the television |
+| `dns-sd` again with that screen open | `_remotepairing-manual-pairing._tcp`, one instance named as the device is, on another port, with the device's name and model in its TXT record. That port also answers on the address in Apple's tunnel |
+| Pair-setup to that port | The television shows "Authenticate. Your authentication code is:" and six digits. With the code, the device's SRP proof matched, it took the host's record and returned its own identifier and a 32-byte key |
+| Pair-verify with that identity on a new connection to the same port, then the request for a listener | Verify accepted, the device's signature valid against the key it gave; the listener refused: "Unsupported operation: Tunnel listener creator not set" |
+| The same on port 49152 | Verify accepted, signature valid, a listener port given |
+| `tree`, with the pairing stored | `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`, 114 nodes: TLS with the pre-shared key through the Network framework, the greeting, the tool's network stack and the service directory read on the tool's own tunnel |
+| In `batch`es on that tunnel: `tree`, `scroll --search 30` to row 20, `wait --until value`, `set-value`, `press --id probe.tv.row.20 --index 1` | All `own-tunnel` and `paired`; the probe showed `Text: paired` and `Last: select:row-20`. A press of a row inside a list no longer needs Apple's tunnel |
+| The Mac's `remoted` log over those eight minutes, and `remotectl dumpstate` | No "Device connection interrupted", no new handshake; `connected` |
+| `pair`, then `pair --forget`, then `pair --pin-file` with the pairing screen closed, then `tree` | `already-paired`; `forgotten`; refused with the hint to open the pairing screen, nothing changed; the tree back on Apple's tunnel (`reused-saved-port`), saying the framework does not list the device |
+| `pair --pin-file` with the pairing screen open, the code read from a screenshot and written to the file | `paired`; the next `tree` `own-tunnel` and `paired` |
+| Two swipes on the Home Screen, `--travel 0.9 --seconds 0.5`, up then right | The name under the icon in focus changed each time: a swipe works outside the probe |
+| `remote sleep` with the Home Screen in front | `asleep`, `pressed: lock, power-off` |
+
+Three runs failed for reasons of their own, and say nothing against the route: a `scroll` to a row the list had not loaded (it needs `--search`), a batch run while the Apple TV showed its screen saver, and a `wait` written with a wrong option.
+
+The device now lists the host `manzanero` twice, once for each pairing made; the first one's identity was deleted from the Mac by `--forget`.
+
+Not shown: a phone paired this way; the tunnel after the Apple TV restarts or after days; two processes pairing at once; a long session on the paired tunnel; the device unpaired from its own settings while the Mac keeps the identity (pair-verify should then be refused and the command fall back to Apple's tunnel).
+
 ### The Inspector's cursor, the whole hierarchy and a press through the shim
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. It was asleep; one `remote home` woke it. Every request was first read from Apple's own client, the Inspector's device manager (`XDMDeviceTransportBased` in `AccessibilityAuditDeviceManager.framework`, read with `otool`), and the tvOS simulator runtime's copy of `axauditd` gave the attribute names. After each new request the device's crash reports were listed: none for `axauditd` in the whole session. Nothing made the Mac's connection go stale.

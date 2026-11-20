@@ -2,6 +2,7 @@
 // opened with Apple's private MobileDevice framework
 // (docs/transport.md#a-tunnel-of-the-tools-own).
 #import <Foundation/Foundation.h>
+#import <Network/Network.h>
 #include <arpa/inet.h>
 #include <dlfcn.h>
 #include <string.h>
@@ -64,10 +65,144 @@ static const ADCMobileDevice *ADCLoadMobileDevice(void) {
 @interface ADCDeviceTunnelOwner : NSObject
 @property(nonatomic, strong) id device;
 @property(nonatomic) void *service;
+/// Set instead of `service` for a tunnel opened with a pairing of the
+/// tool's own: the TLS connection to the device's listener.
+@property(nonatomic, strong) nw_connection_t connection;
 @property(atomic) BOOL closed;
 @end
 @implementation ADCDeviceTunnelOwner
 @end
+
+/// Sends on a paired tunnel's connection and waits for the stack to take it.
+static BOOL ADCPairedSend(nw_connection_t connection, const void *bytes, size_t length) {
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    __block BOOL sent = NO;
+    dispatch_data_t content = dispatch_data_create(bytes, length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+    nw_connection_send(connection, content, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t failure) {
+        sent = failure == nil;
+        dispatch_semaphore_signal(done);
+    });
+    dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+    return sent;
+}
+
+/// Receives exactly `length` bytes from a paired tunnel's connection.
+/// Returns NO when the connection ended first.
+static BOOL ADCPairedReceiveAll(nw_connection_t connection, uint8_t *buffer, size_t length) {
+    size_t done = 0;
+    while (done < length) {
+        dispatch_semaphore_t arrived = dispatch_semaphore_create(0);
+        __block size_t got = 0;
+        uint8_t *target = buffer + done;
+        size_t wanted = length - done;
+        nw_connection_receive(connection, 1, (uint32_t)MIN(wanted, UINT32_MAX), ^(dispatch_data_t content, nw_content_context_t context, bool complete, nw_error_t failure) {
+            if (content) {
+                dispatch_data_apply(content, ^bool(dispatch_data_t region, size_t offset, const void *bytes, size_t size) {
+                    if (offset + size <= wanted) { memcpy(target + offset, bytes, size); got = offset + size; }
+                    return true;
+                });
+            }
+            dispatch_semaphore_signal(arrived);
+        });
+        dispatch_semaphore_wait(arrived, DISPATCH_TIME_FOREVER);
+        if (got == 0) return NO;
+        done += got;
+    }
+    return YES;
+}
+
+/// Reads the service's answer to the greeting into `info`.
+static BOOL ADCReadTunnelGreeting(NSDictionary *reply, ADCDeviceTunnelInfo *info) {
+    NSDictionary *client = [reply[@"clientParameters"] isKindOfClass:NSDictionary.class] ? reply[@"clientParameters"] : nil;
+    NSString *clientAddress = [client[@"address"] isKindOfClass:NSString.class] ? client[@"address"] : nil;
+    NSString *serverAddress = [reply[@"serverAddress"] isKindOfClass:NSString.class] ? reply[@"serverAddress"] : nil;
+    NSNumber *mtu = [client[@"mtu"] isKindOfClass:NSNumber.class] ? client[@"mtu"] : nil;
+    NSNumber *port = [reply[@"serverRSDPort"] isKindOfClass:NSNumber.class] ? reply[@"serverRSDPort"] : nil;
+    memset(info, 0, sizeof(*info));
+    BOOL valid = [reply[@"type"] isEqual:@"serverHandshakeResponse"] && clientAddress && serverAddress &&
+        inet_pton(AF_INET6, clientAddress.UTF8String, info->clientAddress) == 1 &&
+        inet_pton(AF_INET6, serverAddress.UTF8String, info->serverAddress) == 1 &&
+        mtu.integerValue >= 1280 && mtu.integerValue <= 16000 && port.integerValue > 0 && port.integerValue <= 65535;
+    if (!valid) return NO;
+    info->mtu = (uint16_t)mtu.integerValue;
+    info->serviceDirectoryPort = (uint16_t)port.integerValue;
+    return YES;
+}
+
+static NSData *ADCTunnelGreeting(void) {
+    // The service's greeting: "CDTunnel", a big-endian length, JSON.
+    NSData *json = [NSJSONSerialization dataWithJSONObject:@{@"type": @"clientHandshakeRequest", @"mtu": @1280} options:0 error:NULL];
+    NSMutableData *request = [NSMutableData dataWithBytes:"CDTunnel" length:8];
+    uint16_t length = htons((uint16_t)json.length);
+    [request appendBytes:&length length:2];
+    [request appendData:json];
+    return request;
+}
+
+int ADCOpenPairedDeviceTunnel(const char *host, uint16_t port, const uint8_t *key, size_t keyLength,
+                              ADCDeviceTunnelInfo *info, void **owner, char *error, size_t capacity) {
+    @autoreleasepool {
+        if (owner) *owner = NULL;
+        if (!host || !port || !key || keyLength < 16 || keyLength > 64 || !info || !owner)
+            return ADCTunnelFail(error, capacity, @"A paired tunnel requires an address, a port and the pairing session's key; nothing was contacted.");
+        // TLS 1.2 with the pairing session's key as the pre-shared key and
+        // an empty identity, which is what the device's listener expects.
+        NSData *secret = [NSData dataWithBytes:key length:keyLength];
+        nw_parameters_t parameters = nw_parameters_create_secure_tcp(^(nw_protocol_options_t tls) {
+            sec_protocol_options_t options = nw_tls_copy_sec_protocol_options(tls);
+            dispatch_data_t shared = dispatch_data_create(secret.bytes, secret.length, NULL, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+            sec_protocol_options_add_pre_shared_key(options, shared, dispatch_data_empty);
+            sec_protocol_options_set_min_tls_protocol_version(options, tls_protocol_version_TLSv12);
+            sec_protocol_options_set_max_tls_protocol_version(options, tls_protocol_version_TLSv12);
+            // TLS_PSK_WITH_AES_256_CBC_SHA384, _128_CBC_SHA256, _256_CBC_SHA,
+            // _128_CBC_SHA, _256_GCM_SHA384, _128_GCM_SHA256.
+            const uint16_t suites[] = {0x00AF, 0x00AE, 0x008D, 0x008C, 0x00A9, 0x00A8};
+            for (size_t index = 0; index < sizeof(suites) / sizeof(suites[0]); index++)
+                sec_protocol_options_append_tls_ciphersuite(options, (tls_ciphersuite_t)suites[index]);
+        }, NW_PARAMETERS_DEFAULT_CONFIGURATION);
+        char service[8];
+        snprintf(service, sizeof(service), "%u", port);
+        nw_connection_t connection = nw_connection_create(nw_endpoint_create_host(host, service), parameters);
+        dispatch_semaphore_t settled = dispatch_semaphore_create(0);
+        __block BOOL ready = NO;
+        __block NSString *reason = @"no answer in ten seconds";
+        nw_connection_set_queue(connection, dispatch_queue_create("manzanero.paired-tunnel", DISPATCH_QUEUE_SERIAL));
+        nw_connection_set_state_changed_handler(connection, ^(nw_connection_state_t state, nw_error_t failure) {
+            if (state == nw_connection_state_ready) { ready = YES; dispatch_semaphore_signal(settled); }
+            else if (state == nw_connection_state_failed || state == nw_connection_state_waiting) {
+                if (failure) reason = CFBridgingRelease(CFErrorCopyDescription(nw_error_copy_cf_error(failure))) ?: reason;
+                dispatch_semaphore_signal(settled);
+            }
+        });
+        nw_connection_start(connection);
+        dispatch_semaphore_wait(settled, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC));
+        if (!ready) {
+            nw_connection_cancel(connection);
+            return ADCTunnelFail(error, capacity, [NSString stringWithFormat:@"The device's tunnel listener did not accept the connection (%@); no tunnel was opened.", reason]);
+        }
+        NSData *request = ADCTunnelGreeting();
+        uint8_t header[10] = {0};
+        NSDictionary *reply = nil;
+        if (ADCPairedSend(connection, request.bytes, request.length) &&
+            ADCPairedReceiveAll(connection, header, sizeof(header)) && memcmp(header, "CDTunnel", 8) == 0) {
+            size_t size = ((size_t)header[8] << 8) | header[9];
+            NSMutableData *body = [NSMutableData dataWithLength:size];
+            if (size > 0 && size <= 4096 && ADCPairedReceiveAll(connection, body.mutableBytes, size)) {
+                id parsed = [NSJSONSerialization JSONObjectWithData:body options:0 error:NULL];
+                if ([parsed isKindOfClass:NSDictionary.class]) reply = parsed;
+            }
+        }
+        if (!reply || !ADCReadTunnelGreeting(reply, info)) {
+            nw_connection_cancel(connection);
+            return ADCTunnelFail(error, capacity, @"The device's tunnel listener did not answer its greeting with usable parameters; no tunnel was opened.");
+        }
+        info->overNetwork = 2;
+        ADCDeviceTunnelOwner *lifetime = [ADCDeviceTunnelOwner new];
+        lifetime.connection = connection;
+        *owner = (void *)CFBridgingRetain(lifetime);
+        return 0;
+    }
+}
 
 /// Receives exactly `length` bytes. Returns NO on close or error.
 static BOOL ADCTunnelReceiveAll(const ADCMobileDevice *mobile, void *service, uint8_t *buffer, size_t length) {
@@ -184,6 +319,7 @@ int ADCOpenDeviceTunnel(const char *udid, ADCDeviceTunnelInfo *info, void **owne
 
 int ADCDeviceTunnelSend(void *owner, const uint8_t *packet, size_t length) {
     ADCDeviceTunnelOwner *lifetime = (__bridge ADCDeviceTunnelOwner *)owner;
+    if (lifetime.connection) return !lifetime.closed && packet && length >= 40 && ADCPairedSend(lifetime.connection, packet, length) ? 0 : 1;
     const ADCMobileDevice *mobile = ADCLoadMobileDevice();
     if (!lifetime || !mobile || lifetime.closed || !packet || length < 40) return 1;
     return mobile->send(lifetime.service, packet, length) == (long)length ? 0 : 1;
@@ -192,20 +328,30 @@ int ADCDeviceTunnelSend(void *owner, const uint8_t *packet, size_t length) {
 long ADCDeviceTunnelReceive(void *owner, uint8_t *buffer, size_t capacity) {
     ADCDeviceTunnelOwner *lifetime = (__bridge ADCDeviceTunnelOwner *)owner;
     const ADCMobileDevice *mobile = ADCLoadMobileDevice();
-    if (!lifetime || !mobile || !buffer || capacity < 40) return -1;
+    nw_connection_t connection = lifetime.connection;
+    if (!lifetime || (!mobile && !connection) || !buffer || capacity < 40) return -1;
     if (lifetime.closed) return 0;
+    BOOL (^receive)(uint8_t *, size_t) = ^BOOL(uint8_t *target, size_t length) {
+        return connection ? ADCPairedReceiveAll(connection, target, length) : ADCTunnelReceiveAll(mobile, lifetime.service, target, length);
+    };
     // An IPv6 packet: a fixed header of 40 bytes whose bytes 4 and 5 give
     // the length of what follows.
-    if (!ADCTunnelReceiveAll(mobile, lifetime.service, buffer, 40)) return lifetime.closed ? 0 : -1;
+    if (!receive(buffer, 40)) return lifetime.closed ? 0 : -1;
     if (buffer[0] >> 4 != 6) return -1;
     size_t payload = ((size_t)buffer[4] << 8) | buffer[5];
     if (40 + payload > capacity) return -1;
-    if (payload && !ADCTunnelReceiveAll(mobile, lifetime.service, buffer + 40, payload)) return lifetime.closed ? 0 : -1;
+    if (payload && !receive(buffer + 40, payload)) return lifetime.closed ? 0 : -1;
     return (long)(40 + payload);
 }
 
 void ADCCloseDeviceTunnel(void *owner) {
     ADCDeviceTunnelOwner *lifetime = (__bridge ADCDeviceTunnelOwner *)owner;
+    if (lifetime.connection) {
+        if (lifetime.closed) return;
+        lifetime.closed = YES;
+        nw_connection_cancel(lifetime.connection);
+        return;
+    }
     const ADCMobileDevice *mobile = ADCLoadMobileDevice();
     if (!lifetime || !mobile || lifetime.closed) return;
     lifetime.closed = YES;

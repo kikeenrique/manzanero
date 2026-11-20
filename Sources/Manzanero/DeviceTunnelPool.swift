@@ -19,11 +19,22 @@ final class DeviceTunnelPool: @unchecked Sendable {
     private var tunnel: DeviceTunnel?
     private var users = 0
     private var lastUse = Date.distantPast
-    private let open: @Sendable (String) throws -> DeviceTunnel
+    private let open: @Sendable (String, String?) throws -> DeviceTunnel
+
+    /// With the Mac's trust when usbmuxd lists the device; otherwise, for a
+    /// device the tool has a pairing of its own with, by that pairing, at
+    /// the address the caller reaches the device on. The first refusal is
+    /// the one reported when there is no pairing to fall to.
+    static let openByTrustOrPairing: @Sendable (String, String?) throws -> DeviceTunnel = { udid, address in
+        do { return try DeviceTunnel(device: udid) } catch let refusal as CommandFailure {
+            guard let address, PairingIdentity.load(udid: udid) != nil else { throw refusal }
+            return try DeviceTunnel(pairedDevice: udid, address: address)
+        }
+    }
     private let enabled: @Sendable () -> Bool
     private let now: @Sendable () -> Date
 
-    init(open: @escaping @Sendable (String) throws -> DeviceTunnel = { try DeviceTunnel(device: $0) },
+    init(open: @escaping @Sendable (String, String?) throws -> DeviceTunnel = DeviceTunnelPool.openByTrustOrPairing,
          enabled: @escaping @Sendable () -> Bool = { ProcessInfo.processInfo.environment[DeviceTunnel.optOut] != "0" },
          now: @escaping @Sendable () -> Date = Date.init) {
         self.open = open
@@ -34,7 +45,7 @@ final class DeviceTunnelPool: @unchecked Sendable {
     /// The tunnel for the device, opened if need be. Nil when the tool's own
     /// tunnel was switched off; a failure says why it cannot be used, and
     /// the caller keeps the route it had.
-    func acquire(_ udid: String) -> Result<DeviceTunnel, CommandFailure>? {
+    func acquire(_ udid: String, address: String? = nil) -> Result<DeviceTunnel, CommandFailure>? {
         guard enabled() else { return nil }
         return lock.withLock {
             if let tunnel, device == udid, tunnel.isAlive {
@@ -50,7 +61,7 @@ final class DeviceTunnelPool: @unchecked Sendable {
                 device = nil
             }
             do {
-                let opened = try open(udid)
+                let opened = try open(udid, address)
                 tunnel = opened
                 device = udid
                 users = 1
@@ -99,11 +110,13 @@ final class DeviceTunnelPool: @unchecked Sendable {
 
 /// Where an accessibility command gets the tool's own tunnel and gives it back.
 struct OwnTunnelSource: Sendable {
-    var acquire: @Sendable (_ udid: String) -> Result<DeviceTunnel, CommandFailure>?
+    /// `address`: where the caller reaches the device, for a tunnel opened
+    /// by a pairing of the tool's own.
+    var acquire: @Sendable (_ udid: String, _ address: String) -> Result<DeviceTunnel, CommandFailure>?
     var release: @Sendable (_ tunnel: DeviceTunnel, _ healthy: Bool) -> Void
 
-    static let pooled = OwnTunnelSource(acquire: { DeviceTunnelPool.shared.acquire($0) },
+    static let pooled = OwnTunnelSource(acquire: { DeviceTunnelPool.shared.acquire($0, address: $1) },
                                         release: { DeviceTunnelPool.shared.release($0, healthy: $1) })
     /// Never offers a tunnel.
-    static let none = OwnTunnelSource(acquire: { _ in nil }, release: { _, _ in })
+    static let none = OwnTunnelSource(acquire: { _, _ in nil }, release: { _, _ in })
 }

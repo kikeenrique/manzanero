@@ -23,7 +23,8 @@ final class DeviceTunnel: @unchecked Sendable {
     struct Info: Equatable, Sendable {
         let mtu: Int
         let serviceDirectoryPort: UInt16
-        /// "cable" or "network": how the device was reached.
+        /// "cable" or "network": how the device was reached with the Mac's
+        /// trust; "paired" for a pairing of the tool's own.
         let link: String
     }
 
@@ -57,8 +58,50 @@ final class DeviceTunnel: @unchecked Sendable {
     private static let single = NSLock()
     nonisolated(unsafe) private static var open = false
 
-    /// Opens the tunnel. Nothing is sent on it until a relay is used.
-    init(device udid: String) throws {
+    /// Opens the tunnel with the Mac's existing trust, to a device Apple's
+    /// usbmuxd lists. Nothing is sent on it until a relay is used.
+    convenience init(device udid: String) throws {
+        try self.init(keeping: nil) { raw, handle, error in ADCOpenDeviceTunnel(udid, &raw, &handle, &error, error.count) }
+    }
+
+    /// The port every device's pairing service was found on (`dns-sd`
+    /// resolves `_remotepairing._tcp` to it for each device on the network).
+    static let pairingPort: UInt16 = 49152
+
+    /// Opens the tunnel with a pairing of the tool's own, for a device
+    /// usbmuxd does not list, an Apple TV: pair-verify with the stored
+    /// identity at the device's pairing service, a listener asked of it, and
+    /// TLS to that listener keyed by the session
+    /// (docs/transport.md#a-pairing-of-the-tools-own). `address` is where
+    /// the device answers: its address on Apple's tunnel is one. No pairing
+    /// is started here: without a stored identity, or with one the device
+    /// no longer knows, it fails and says so.
+    convenience init(pairedDevice udid: String, address: String) throws {
+        guard let identity = PairingIdentity.load(udid: udid) else {
+            throw CommandFailure(.deviceNotReady, "The tool has no pairing of its own with this device (manzanero pair makes one); nothing was contacted.", inputSent: .none)
+        }
+        let socket = try PairingSocket(host: address, port: Self.pairingPort, seconds: 10)
+        let client = RemotePairingClient(stream: socket)
+        try client.handshake()
+        guard try client.verify(identity) else {
+            throw CommandFailure(.deviceNotReady, "The device no longer knows the tool's pairing; pair again with manzanero pair. No tunnel was opened.", inputSent: .none)
+        }
+        guard client.peerSignatureValid != false else {
+            throw CommandFailure(.transportFailed, "The device that answered did not sign as the one the tool was paired with; no tunnel was opened.", inputSent: .none)
+        }
+        let port = try client.createListener()
+        let key = client.sessionKey
+        // The pairing connection is kept for as long as the tunnel: the
+        // listener was asked for on it.
+        try self.init(keeping: socket) { raw, handle, error in
+            ADCOpenPairedDeviceTunnel(address, port, key, key.count, &raw, &handle, &error, error.count)
+        }
+    }
+
+    private let kept: AnyObject?
+
+    private init(keeping: AnyObject?, open: (inout ADCDeviceTunnelInfo, inout UnsafeMutableRawPointer?, inout [CChar]) -> Int32) throws {
+        kept = keeping
         guard Self.single.withLock({ () -> Bool in
             if Self.open { return false }
             Self.open = true
@@ -69,12 +112,12 @@ final class DeviceTunnel: @unchecked Sendable {
         var raw = ADCDeviceTunnelInfo()
         var handle: UnsafeMutableRawPointer?
         var error = [CChar](repeating: 0, count: 1024)
-        guard ADCOpenDeviceTunnel(udid, &raw, &handle, &error, error.count) == 0, let handle else {
+        guard open(&raw, &handle, &error) == 0, let handle else {
             Self.single.withLock { Self.open = false }
             throw CommandFailure(.deviceNotReady, String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self), inputSent: .none)
         }
         owner = handle
-        info = Info(mtu: Int(raw.mtu), serviceDirectoryPort: raw.serviceDirectoryPort, link: raw.overNetwork == 1 ? "network" : "cable")
+        info = Info(mtu: Int(raw.mtu), serviceDirectoryPort: raw.serviceDirectoryPort, link: ["cable", "network", "paired"][Int(min(raw.overNetwork, 2))])
         serverAddress = withUnsafeBytes(of: raw.serverAddress) { Array($0) }
         let local = withUnsafeBytes(of: raw.clientAddress) { Array($0) }
         timer = DispatchSource.makeTimerSource(queue: stack)

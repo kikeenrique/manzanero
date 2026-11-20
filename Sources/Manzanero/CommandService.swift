@@ -207,6 +207,10 @@ actor CommandService {
             return try await executeFrames(frames)
         case .detectLayout(let detection):
             return try await executeLayoutDetection(detection, dryRun: dryRun)
+        case .pair(let pair):
+            if dryRun { return try json(pair.plan()) }
+            try checkHandoffPause(request)
+            return CommandOutput(data: try pair.execute(details: readinessQuery(pair.device)))
         case .clearQuarantine(let target):
             if dryRun { return try json(DeviceQuarantine.plan(target)) }
             // The mark is keyed like the lease: by the resolved CoreDevice
