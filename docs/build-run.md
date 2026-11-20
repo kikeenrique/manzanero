@@ -39,9 +39,9 @@ The options apply only to the build, not to the build-settings query, and change
 
 1. For a physical CoreDevice UUID, resolve the hardware UDID for xcodebuild's destination.
 2. Query JSON build settings for the requested project, scheme, configuration and destination.
-3. Resolve exactly one application target, its product path (`TARGET_BUILD_DIR`, which is `…/Build/Products/<configuration>-iphoneos` for a device) and bundle identifier.
+3. Resolve exactly one application target, its product path (`TARGET_BUILD_DIR`, which is `…/Build/Products/<configuration>-iphoneos` for an iPhone or `-appletvos` for an Apple TV) and bundle identifier. The destination is given to xcodebuild by its identifier alone, so the platform is the device's: an iPhone, an Apple TV, a watch, or a simulator of one. A device build is still refused for a simulator and a simulator build for a device.
 4. Build into a new `tmp/build-run-<UUID>/` directory, adding the provisioning flags when requested.
-5. Validate the app's Info.plist against its expected bundle ID, application package type and destination platform (`iPhoneOS` for a device).
+5. Validate the app's Info.plist against its expected bundle ID, application package type and destination platform (`iPhoneOS` or `AppleTVOS` for a device, and so on for the other families).
 6. Install it (`devicectl device install app` or `simctl install`), then launch with `--terminate-existing` (`--terminate-running-process` on a simulator), so a copy that is already running is stopped and the new build runs.
 
 Build directories retain derived data, source-package state and raw `build.log`. Project scripts may write elsewhere according to their own configuration.

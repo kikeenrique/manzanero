@@ -955,6 +955,27 @@ Kept from the experiment: `ADCOpenAccessibilityShim` in the bridge, `Accessibili
 
 Not shown: any element read through it; what an element looks like on the wire; how fast a tree built one request an element would be; an iPhone.
 
+### The commands that had not run on the Apple TV
+
+On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network, macOS 27.2.1, Xcode 27.2, on the human owner's word. It was asleep; one `remote home` woke it. The connection never went stale.
+
+| Command | Result |
+| --- | --- |
+| `details` | Exit 0, tvOS 27.2 |
+| `processes` | Exit 0, 356 processes |
+| `files list <probe> .` | `Documents`, `Library`, `SystemData`, `tmp`. A path of `/` is refused as a usage error, as on a phone |
+| `files push`, then `files pull` | A small text file pushed to `Documents` and pulled back byte-identical |
+| `reports list` | 7 entries |
+| `console <probe> --seconds 4 --terminate` | Exit 0, 151 bytes of standard output |
+| `last-crash --bundle <probe>` | Exit 0, `found: false` |
+| `terminate <pid>` | Success, with the probe's PID from `processes` |
+| `build-run … ProbeTV` | Refused at first: the command gave xcodebuild `platform=iOS`. With the destination given by identifier alone and the platform checks widened to the device families, it built, installed and launched the tvOS probe |
+| `uninstall <probe>`, then `install <built app>` and `launch` | Each succeeded; `apps` did not list the probe in between |
+| `handoff "…" 20 --until visible --id probe.tv.last` | `observed`, `verified: true` |
+| A session through MCP: `wait_for_element` (focused, on Button A), `press_remote right`, a wait for the focus on Button B, `press_remote select`, a wait for the probe's last command to read `select:b` | Every step as asked. The focus was read before the select |
+
+Not run: `open-url`, which needs an address the human owner chooses; `reports get`; `build-run` on the iPhone since its destination changed.
+
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
 
 On the evening of 2026-11-18, on one Apple TV simulator at 1080p (tvOS 27.2), macOS 27.2.1, Xcode 27.2, with the build from `main` plus the changes named here. No device was used.

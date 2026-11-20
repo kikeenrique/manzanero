@@ -81,10 +81,19 @@ struct BuildRunCommand: Sendable, Equatable {
         return resolved
     }
 
+    /// The platforms a build may be for, as build settings name them
+    /// (`PLATFORM_NAME`) and as a built app's Info.plist does
+    /// (`CFBundleSupportedPlatforms`): a device's or a simulator's, of any
+    /// family. xcodebuild finds the family from the destination's identifier.
+    static let devicePlatforms = ["iphoneos": "iPhoneOS", "appletvos": "AppleTVOS", "watchos": "WatchOS", "xros": "XROS"]
+    static let simulatorPlatforms = ["iphonesimulator": "iPhoneSimulator", "appletvsimulator": "AppleTVSimulator",
+                                     "watchsimulator": "WatchSimulator", "xrsimulator": "XRSimulator"]
+    var platforms: [String: String] { physical ? Self.devicePlatforms : Self.simulatorPlatforms }
+
     func xcodeArguments(directory: URL) -> [String] {
         ["xcodebuild", project.hasSuffix(".xcworkspace") ? "-workspace" : "-project", project,
          "-scheme", scheme, "-configuration", configuration,
-         "-destination", "platform=\(physical ? "iOS" : "iOS Simulator"),id=\(destinationID)",
+         "-destination", "id=\(destinationID)",
          "-derivedDataPath", directory.appendingPathComponent("DerivedData").path,
          "-clonedSourcePackagesDirPath", directory.appendingPathComponent("SourcePackages").path,
          "-packageCachePath", directory.appendingPathComponent("PackageCache").path]
@@ -114,8 +123,8 @@ struct BuildRunCommand: Sendable, Equatable {
               let directory = settings["TARGET_BUILD_DIR"], directory.hasPrefix("/"),
               let name = settings["FULL_PRODUCT_NAME"], name.hasSuffix(".app"), !name.contains("/"),
               let bundleID = settings["PRODUCT_BUNDLE_IDENTIFIER"], !bundleID.isEmpty, !bundleID.hasPrefix("-"),
-              settings["PLATFORM_NAME"] == (physical ? "iphoneos" : "iphonesimulator") else {
-            throw CommandFailure.usage("Build settings must identify exactly one iOS application for this destination. Use --app-target for multi-app schemes.")
+              let platform = settings["PLATFORM_NAME"], platforms[platform] != nil else {
+            throw CommandFailure.usage("Build settings must identify exactly one application for this destination (a device build for a device, a simulator build for a simulator). Use --app-target for multi-app schemes.")
         }
         return Product(app: URL(fileURLWithPath: directory).appendingPathComponent(name), bundleID: bundleID)
     }
@@ -221,8 +230,8 @@ struct BuildRunCommand: Sendable, Equatable {
         let info = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
         guard info?["CFBundleIdentifier"] as? String == product.bundleID,
               info?["CFBundlePackageType"] as? String == "APPL",
-              let platforms = info?["CFBundleSupportedPlatforms"] as? [String],
-              platforms.contains(physical ? "iPhoneOS" : "iPhoneSimulator") else {
+              let supported = info?["CFBundleSupportedPlatforms"] as? [String],
+              supported.contains(where: platforms.values.contains) else {
             throw CommandFailure(.toolFailed, "Built application metadata does not match the selected target/platform.", inputSent: .none)
         }
         let deployment = try deploymentPlan(app: product.app.path, bundleID: product.bundleID)

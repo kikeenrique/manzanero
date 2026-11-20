@@ -528,7 +528,7 @@ extension ManzaneroCLI {
     }
 
     struct BuildRun: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "build-run", abstract: "Build an iOS project or workspace, then install and launch its app.",
+        static let configuration = CommandConfiguration(commandName: "build-run", abstract: "Build an Xcode project or workspace, then install and launch its app.",
             discussion: """
             Runs the project's build scripts and requires xcsift on PATH. Physical builds use the signing assets \
             already on the Mac. --allow-provisioning-updates lets Xcode use the account in its settings to create \

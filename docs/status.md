@@ -20,7 +20,7 @@ One table of what works where, for a reader who wants the answer before the deta
 
 | Commands | iPhone, device | iPhone and iPad, simulator | Apple TV, device | Apple TV, simulator | Apple Watch, simulator | iPhone Duo, simulator |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown` | works | works | works (`readiness`, `devices`; the rest not run) | works | works | works |
+| **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown` | works | works | works | works | works | works |
 | **Touch**: `tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts | works | refused: no touch screen | refused: no touch screen | works (`tap`; the rest not run) | works |
 | **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: buttons work, `key` refused | not run |
 | **Text**: `type`, `detect-layout`, `paste`, `set-value` | works | works; `paste` refused | works (`type`, `set-value`) | works | partly: `type` refused, `set-value` does not reach the app | not run |
@@ -32,13 +32,13 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Accessibility, search a long list**: `scroll --search` | not run | not run | works up and down; sideways past twenty steps not run | works in four directions | not run | not run |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | not run | works, with `--display` |
 | **Video**: `record`, `frames` | works with `--backend coredevice`; the default backend fails on this phone | `record` works; `frames` is for devices | refused: the picture arrives blank; a fix is a pending task | `record` works | not run | works, with `--display` |
-| **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works (`apps`, `launch`; the rest not run) | works | not run | works |
-| **Files and reports**: `files`, `reports` | works | — | not run | — | — | — |
-| **Build and run**: `build-run` | works | works | not run | not run | not run | not run |
-| **App output**: `console`, `last-crash`, `logs` | `console` and `last-crash` work; `logs` not built | works | not run | not run | not run | not run |
-| **A person's step**: `handoff` | works | works | not run | works | not run | not run |
+| **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works; `open-url` not run | works | not run | works |
+| **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
+| **Build and run**: `build-run` | works | works | works | not run | not run | not run |
+| **App output**: `console`, `last-crash`, `logs` | `console` and `last-crash` work; `logs` not built | works | `console` and `last-crash` work; `logs` not built | not run | not run | not run |
+| **A person's step**: `handoff` | works | works | works | works | not run | not run |
 | **Several commands at once**: `batch` | works | works | works | works | not run | not run |
-| **From an AI agent**: `mcp` | works | works | not run | works | not run | works |
+| **From an AI agent**: `mcp` | works | works | works | works | not run | works |
 
 ## The routes
 

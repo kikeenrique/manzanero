@@ -45,7 +45,10 @@ struct BuildRunCommandTests {
                                           configuration: "Custom Debug", appTarget: nil)
         let args = command.xcodeArguments(directory: URL(fileURLWithPath: "/project/tmp/build"))
         #expect(args.prefix(7) == ["xcodebuild", "-workspace", "tmp/$(touch sentinel).xcworkspace", "-scheme", "My App; echo x", "-configuration", "Custom Debug"])
-        #expect(args.contains("platform=iOS Simulator,id=\(device)"))
+        #expect(args.contains("id=\(device)"))
+        // A device build is refused for a simulator, whatever the family, and
+        // an Apple TV's build is taken for an Apple TV simulator.
+        #expect(command.platforms["appletvsimulator"] == "AppleTVSimulator" && command.platforms["iphoneos"] == nil)
         #expect(args.contains("-allowProvisioningUpdates") == false)
     }
 
@@ -111,7 +114,7 @@ struct BuildRunCommandTests {
         for legacy in [false, true] {
             let resolved = try command.resolvingDestination(details: details(identifier: coreDevice.lowercased(), udid: udid, legacy: legacy))
             #expect(!resolved.requiresDestinationResolution)
-            #expect(resolved.xcodeArguments(directory: URL(fileURLWithPath: "/b")).contains("platform=iOS,id=\(udid)"))
+            #expect(resolved.xcodeArguments(directory: URL(fileURLWithPath: "/b")).contains("id=\(udid)"))
             let deployment = try resolved.deploymentPlan(app: "/b/A.app", bundleID: "org.example.a")
             #expect(deployment.install.arguments.contains(coreDevice))
             #expect(deployment.launch.arguments.contains(coreDevice))
@@ -304,7 +307,7 @@ struct BuildRunCommandTests {
             var operations: [[String]] = []
             _ = try command.execute(directory: directory, run: { plan in
                 if plan.arguments.contains("-showBuildSettings") {
-                    #expect(plan.arguments.contains("platform=iOS,id=00000000-0000000000000000"))
+                    #expect(plan.arguments.contains("id=00000000-0000000000000000"))
                     return try settings(directory: directory, platform: "iphoneos")
                 }
                 operations.append(plan.arguments)
