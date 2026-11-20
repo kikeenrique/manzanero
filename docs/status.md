@@ -29,7 +29,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
 | **Accessibility, read**: `tree`, `wait` | works, portrait only | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
 | **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait only | works | works, see the routes below | works | works (`press`) | partly: `press` fails in a letterboxed app |
-| **Accessibility, search a long list**: `scroll --search` | not run | not run | works up and down; sideways past twenty steps not run | works in four directions | not run | not run |
+| **Accessibility, search a long list**: `scroll --search` | not run | not run | works in four directions | works in four directions | not run | not run |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | not run | works, with `--display` |
 | **Video**: `record`, `frames` | works with `--backend coredevice`; the default backend fails on this phone | `record` works; `frames` is for devices | refused: the picture arrives blank; a fix is a pending task | `record` works | not run | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works; `open-url` not run | works | not run | works |
@@ -60,8 +60,9 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 1. **Push** the local commits.
 2. **A test that failed once** (`aCancelledQueuedCallGivesUpItsPlace`) and could fail a CI run.
-3. **Apple TV, accessibility without the side effect**: read one element through route 3 and decide whether to build trees and actions on it.
-4. **Apple TV, video**: start an audio stream beside the video, as Apple's Device Hub does.
-5. **`logs` for devices**: the way in is proven, the command is not built.
-6. **Small checks on the iPhone**: an action in flight when the cable is pulled, and an agent session over the network.
-7. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
+3. **Apple TV, accessibility without the side effect**: an element was fetched through route 3. Before the next request, read from Apple's framework how an attribute is asked for: a guessed form made the device's accessibility daemon crash and restart.
+4. **Apple TV, video**: start an audio stream beside the video, as Apple's Device Hub does. Not started; it changes the code that owns a stream and its cleanup.
+5. **Apple TV, the remote's swipes**: a lead to look at, the `universalhidservice` Apple's Device Hub uses with it.
+6. **`logs` for devices**: the way in is proven, the command is not built.
+7. **Small checks on the iPhone**: an action in flight when the cable is pulled, an agent session over the network, and `build-run` since it learned other platforms.
+8. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.

@@ -994,6 +994,8 @@ On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network, macOS 27.2.1, Xcode
 | `handoff "…" 20 --until visible --id probe.tv.last` | `observed`, `verified: true` |
 | A session through MCP: `wait_for_element` (focused, on Button A), `press_remote right`, a wait for the focus on Button B, `press_remote select`, a wait for the probe's last command to read `select:b` | Every step as asked. The focus was read before the select |
 
+Later the same night, one `batch` in the probe: `scroll --id probe.tv.col.30 --search 80 --toward right` (`postcondition-verified` in 18 steps), `scroll --id probe.tv.col.1 --search 80 --toward left` (19 steps), and `remote play-pause --hold 1`, which the probe recorded as one `play-pause` and which did not leave the app. Those two searches cross the probe's whole strip of thirty columns, so a sideways search of more than twenty steps cannot be made with this probe.
+
 Not run: `open-url`, which needs an address the human owner chooses; `reports get`; `build-run` on the iPhone since its destination changed.
 
 ### Apple TV simulator: Power Off, held keys, searches in four directions and swipes
