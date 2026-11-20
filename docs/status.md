@@ -31,7 +31,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait only | works | works, see the routes below | works | works (`press`) | partly: `press` fails in a letterboxed app |
 | **Accessibility, search a long list**: `scroll --search` | not run | not run | works in four directions | works in four directions | not run | not run |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | not run | works, with `--display` |
-| **Video**: `record`, `frames` | works with `--backend coredevice`; the default backend fails on this phone | `record` works; `frames` is for devices | refused: the picture arrives blank; a fix is a pending task | `record` works | not run | works, with `--display` |
+| **Video**: `record`, `frames` | works with `--backend coredevice`; the default backend fails on this phone | `record` works; `frames` is for devices | refused: only the first frames come out right; a fix is a pending task | `record` works | not run | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works; `open-url` not run | works | not run | works |
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
 | **Build and run**: `build-run` | works | works | works | not run | not run | not run |
@@ -48,7 +48,7 @@ A route is the way a command reaches the device. Most commands have one. Accessi
 | --- | --- | --- | --- |
 | Apps, files, reports, details, screenshots | Apple's own tools, `devicectl` for devices and `simctl` for simulators | Every platform | Settled |
 | Touch, buttons, keys, the remote | Apple's input services, called in process | Devices and simulators | Settled |
-| Video | Apple's media stream, decoded in process | Devices | Works on the phone, blank on the Apple TV |
+| Video | Apple's media stream, decoded in process | Devices | Works on the phone. On the Apple TV the first frames are right and the rest damaged |
 | Accessibility, route 1: **the tool's own tunnel** | A tunnel the tool opens itself, through the Mac's `usbmuxd` | A device `manzanero devices` shows as `ownTunnel: cable` or `network`: the iPhone and iPads, never an Apple TV | The default since 2026-11-19. Works on the iPhone, with no side effect on the Mac |
 | Accessibility, route 2: **Apple's tunnel** | The tunnel macOS keeps, plus a second connection of the tool's own to the device's list of services | The fallback, and the only one in use for the Apple TV | Works. Side effect: the device resets the Mac's own connection to it, and now and then that connection does not come back until it is replaced |
 | Accessibility, route 3: **the Inspector's way** | Through the Mac's `remoted`, as Apple's Accessibility Inspector does | Nothing yet: an experiment | Opens on the Apple TV with no side effect. A press worked on it; a full tree, `scroll` and `set-value` have no way there |
@@ -61,7 +61,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 1. **Push** the local commits.
 2. **A test that failed once** (`aCancelledQueuedCallGivesUpItsPlace`) and could fail a CI run.
 3. **Apple TV, accessibility without the side effect**: route 3 was tried in full on 2026-11-20. It pressed a button with no side effect and without moving the focus. It cannot give a tree: no positions, no focus, lists skipped. To decide: build `press` on it and leave the rest on route 2, or leave it as an experiment.
-4. **Apple TV, video**: start an audio stream beside the video, as Apple's Device Hub does. Not started; it changes the code that owns a stream and its cleanup.
+4. **Apple TV, video**: the picture is not blank, as was thought. Its first frames are right; then the Apple TV changes the picture's size inside the stream and the tool's decoder does not follow. An audio stream beside the video, as Apple's Device Hub has, was tried and is not the cause. Next: learn how Apple's own receiver follows that change.
 5. **Apple TV, the remote's swipes**: a lead to look at, the `universalhidservice` Apple's Device Hub uses with it.
 6. **`logs` for devices**: the way in is proven, the command is not built.
 7. **Small checks on the iPhone**: an action in flight when the cable is pulled, an agent session over the network, and `build-run` since it learned other platforms.

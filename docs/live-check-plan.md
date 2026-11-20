@@ -46,7 +46,7 @@ One Apple TV 4K has been driven; everything else in [other families](other-famil
   - `open-url`, with an address the human owner chooses, and `reports get`. The other commands ran on 2026-11-20 ([record](verification.md#the-commands-that-had-not-run-on-the-apple-tv)).
   - Through the accessibility shim ([record](verification.md#the-inspectors-cursor-the-whole-hierarchy-and-a-press-through-the-shim)): the cursor put on an element with `deviceInspectorFocusOnElement:`, a press of a row inside a list, a screen other than the probe's, and why one walk of ten entered the lists. Attributes, the hierarchy, the walk and one press ran.
   - The error a query gives in the stale state, which was built after the last stale period and has only run in unit tests.
-  - Why the video stream arrives blank (recording and `frames` are refused meanwhile). The lead to try: an audio stream started beside the video, as Apple's Device Hub does ([record](verification.md#device-hubs-screen-view-of-the-apple-tv)). The opt-in media probe needs a variant that sends no tap.
+  - The video stream after its first pictures (recording and `frames` are refused meanwhile): the device changes the picture's scale without a key frame and the decoder shows damage ([record](verification.md#the-apple-tvs-video-stream-read-packet-by-packet)). To run: a still screen for several seconds, `record`, and whatever is built to follow the change. The audio stream beside the video was tried and changes nothing.
   - Not the Apple TV HD paired with the same Mac: it runs tvOS 26.6, cannot take 27, and the human owner discarded it for this tool on 2026-11-18.
 - Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), `button side`, and `button action` on an Apple Watch Ultra.
 
@@ -74,7 +74,7 @@ These need no hardware and no owner decision; they were left out of the simulato
 - Does setting or removing a passcode always drop the pairing?
 - What makes the Mac's connection to the Apple TV go stale, three times on 2026-11-18, and why does `remoted` not reconnect?
 - What wakes a sleeping Apple TV, and why did observation alone switch it on the first time?
-- Why does the Apple TV's video stream arrive blank for this tool and not for Apple's Device Hub?
+- How does Apple's AVConference follow the Apple TV's change of scale inside its video stream, which this tool's decoder does not?
 - Does a host remove a form that the server withdraws? If it does, a watching handoff could keep a form up as its "I will not do it" button.
 
 ## Stop conditions

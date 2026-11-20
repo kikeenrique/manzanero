@@ -551,7 +551,7 @@ Then the cause was read and changed: the Apple TV's one display is `type: extern
 
 One of these was the operator's mistake, not the tool's: `remote select` was sent without a fresh read of the focus, which was on Sing and not on Settings as assumed, so an app the owner had not named was opened. It was left with `remote home`.
 
-Later, with the external display let through for capture once: `frames --count 3` saved three images (first frame after 6.4 s) and `record --backend coredevice` a 5-second H.264 movie, each 3168 × 1792 and each a black rectangle on grey, while `screen ocr` read the Home Screen. Both commands refuse an Apple TV since. The [tvOS probe](probe-app.md#tvos-probe) was written and run on a simulator the same day; it is not on the device.
+Later, with the external display let through for capture once: `frames --count 3` saved three images (first frame after 6.4 s) and `record --backend coredevice` a 5-second H.264 movie, each 3168 × 1792 and each a black rectangle on grey, while `screen ocr` read the Home Screen. Both commands refuse an Apple TV since. That rectangle was the screen, dark, in the top-left of a larger frame ([record of 2026-11-20](#the-apple-tvs-video-stream-read-packet-by-packet)). The [tvOS probe](probe-app.md#tvos-probe) was written and run on a simulator the same day; it is not on the device.
 
 In the afternoon the owner ran the tvOS probe onto the device from Xcode. Six seconds after that run's connection was released (14:05:25), `remotepairingd`'s heartbeat to the Apple TV began to fail at once (`failed after 0ms`) and every query timed out, for twenty minutes, while the network tunnel still carried packets and the Mac listed the device as connected. With the owner's word both services were restarted and the first query answered. Then, against the probe:
 
@@ -920,7 +920,7 @@ Late on 2026-11-19 the human owner opened the Apple TV 4K's screen view in Apple
 
 So the request is the same and the stream is not marked protected. The differences are the audio stream started beside the video, the event channel, and who decodes.
 
-Not shown: whether starting the audio stream too gives this tool a picture, which is now a task ([roadmap](roadmap.md)); how much data Device Hub received.
+Not shown: how much data Device Hub received. Starting the audio stream too was tried on 2026-11-20 and changed nothing ([record](#the-apple-tvs-video-stream-read-packet-by-packet)).
 
 ### Accessibility Inspector on the Apple TV
 
@@ -991,6 +991,25 @@ With the attribute in that form, on the same Apple TV, each new request run once
 No request in that form crashed the daemon: its last crash report stayed the one of 00:03:05 UTC. `deviceFetchSpecialElement:` with 1 answered the probe's element while the probe was in front and nothing while the Apple TV slept, where every attribute came back empty too; a sleeping device explains one run of empty answers.
 
 So attributes are readable through the shim, quickly, in a form that is now known and not guessed. Not shown here, and run later the same day ([record](#the-inspectors-cursor-the-whole-hierarchy-and-a-press-through-the-shim)): the names that answer a label, a value and the children on tvOS, a way from one element to the whole screen, and an action. Still not shown: why no element is found at a point.
+
+### The Apple TV's video stream, read packet by packet
+
+On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network, macOS 27.2.1, Xcode 27.2, on the human owner's word. The Apple TV had gone to its screen saver, a drawn scene that moves and zooms slowly; `frames` was let through its refusal by an experiment switch (`MANZANERO_TV_CAPTURE=1`), and each packet's header and first bytes were written out during the runs. This sends the device no input.
+
+| Step | Result |
+| --- | --- |
+| `frames`, the video stream alone, seven runs of up to 8 seconds | The stream is not blank: 707 packets in the first second and a half of one run, 1462 packets and 251 pictures in 8 seconds of another, 0.4 to 0.9 MB for each saved image |
+| The first saved frame of each run | A clean, whole picture of the screen, as a screenshot showed it, in the top-left 2400 × 1350 of the 3168 × 1792 frame, with a black line under it and grey to the right and below |
+| A frame 0.27 s after the first | Clean too, and the scene had moved: the pictures that follow the key frame decode |
+| Frames from about 0.4 s on, to 8 s | Damaged wherever the picture moves, and never repaired. Outlines of the scene appear in the grey area, at a larger scale than the first frame: the house and the pumpkins drawn about a third bigger, reaching the frame's edges |
+| The packets | No gap in the sequence numbers in any run. One key frame (30 to 53 packets), then one slice for each picture, numbered 1, 2, 3 and so on without a jump. Pictures 1 to 7 are small (0.3 to 2.4 kB); from the eighth they are 7 to 29 kB, and their slice headers change from a reference set named in the stream's parameters to one written in the slice |
+| The stream's parameters | 3168 × 1792 coded, 8 bits, no tiles, wavefront rows, one layer, no extension in the picture parameters or the slice headers. Nothing there announces a change |
+| Each packet's RTP header extension | Four bytes: the number of packets of its picture, and a picture counter. Its profile word is `9011` on the key frame and again on one later picture, the first large one, and `9001` on the rest |
+| The same with the device's system audio stream started first, in the same client session, as Apple's Device Hub does | The audio stream started, both stopped and were confirmed stopped, and the picture was damaged in the same way |
+
+So the earlier reading was wrong: the picture does not leave the Apple TV blank. The "black rectangle on grey" of 2026-11-18 was a dark screen in the top-left of the frame, and its few packets were a picture that did not move. The device starts by sending the screen at 2400 × 1350 inside the larger frame and, some pictures later, sends it larger without a new key frame; this tool's decoder (VideoToolbox, fed the stream as it comes) predicts the larger pictures from the smaller ones and shows damage. Apple's Device Hub, which receives the same stream through AVConference, shows it right, so AVConference knows of the change; the picture marked `9011` in the header extension is the likely signal. The audio stream is not the cause, and its code was taken out again.
+
+Not shown: what AVConference does at that picture (a new decoder, a rescaled reference, a request for a key frame); whether the device can be kept at the first scale; a still screen for more than the 2026-11-18 run; `record`; whether an iPhone's stream ever changes scale the same way.
 
 ### The Inspector's cursor, the whole hierarchy and a press through the shim
 
