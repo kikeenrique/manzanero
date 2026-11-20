@@ -45,6 +45,12 @@ final class SimulatorAXFixture: @unchecked Sendable {
     }
     /// The element the application's focused-element attribute (19) names; nil answers none.
     var focusedElement: Int?
+    /// A hit on an element answers this other object for it, as UIKit does
+    /// for a plain table row; its identifier and label are the element's
+    /// unless these say otherwise.
+    var hitHandle: Int?
+    var hitHandleIdentifier: String?
+    var hitHandleLabel: String?
     /// Attribute lists of live-attribute requests (type 5), in order.
     private(set) var attributeQueries: [[UInt64]] = []
 
@@ -143,6 +149,10 @@ final class SimulatorAXFixture: @unchecked Sendable {
             if let enabled = element.enabled { live[27] = NSNumber(value: enabled) }
             if let visible = element.visible { live[32] = NSNumber(value: visible) }
             if let identifier = element.identifier { live[25] = identifier }
+            if queried == [3, 21, 25] {
+                live[25] = hitHandleIdentifier ?? element.identifier
+                live[3] = hitHandleLabel ?? element.label
+            }
             if let currentValue { live[53] = currentValue }
             response = Response(kind: 5, result: live as NSDictionary)
         case 3:
@@ -165,7 +175,7 @@ final class SimulatorAXFixture: @unchecked Sendable {
             let hit = elements.first { element in
                 NSPointInRect(NSPointFromString(text), nativeFrame(element.frame))
             }
-            response = Response(kind: 6, result: Token(hit?.id ?? 1, pid: pid, application: hit == nil))
+            response = Response(kind: 6, result: Token(hit.map { hitHandle ?? $0.id } ?? 1, pid: pid, application: hit == nil))
         case 7:
             onAction?()
             guard let actionResult else { throw CommandFailure(.transportFailed, "Simulator accessibility request failed: no reply", inputSent: .unknown) }
@@ -545,6 +555,28 @@ struct SimulatorAccessibilityTests {
         let framed = Self.pressable()
         _ = try await Self.service(framed, leases: Self.usableLeases()).run(["press", "--id", "probe.touch.reset", "--simulator", Self.uuid])
         #expect(framed.hitClientTypes == [0])
+    }
+
+    /// A plain table row answers a hit by another object than the one the
+    /// tree holds. It is accepted when it has the row's frame and its
+    /// identifier, or its label for a row with no identifier, and refused
+    /// when it has another's.
+    @Test func aHitThatAnswersTheSameElementByAnotherObjectIsAccepted() async throws {
+        func press(_ selector: [String], identifier: String? = "probe.list.row.31", handleIdentifier: String? = nil,
+                   handleLabel: String? = nil) async throws -> [String: Any] {
+            let fixture = SimulatorAXFixture()
+            fixture.elements = [.init(identifier: identifier, label: "Row 31")]
+            fixture.hitHandle = 77
+            fixture.hitHandleIdentifier = handleIdentifier
+            fixture.hitHandleLabel = handleLabel
+            return try Self.json(await Self.service(fixture, leases: Self.usableLeases()).run(["press"] + selector + ["--simulator", Self.uuid]))
+        }
+        #expect(try await press(["--id", "probe.list.row.31"])["status"] as? String == "accepted")
+        #expect(try await press(["--label", "Row 31"], identifier: nil)["status"] as? String == "accepted")
+        await #expect { _ = try await press(["--id", "probe.list.row.31"], handleIdentifier: "probe.list.row.32") }
+            throws: { "\($0)".contains("another native element") }
+        await #expect { _ = try await press(["--label", "Row 31"], identifier: nil, handleLabel: "Cover") }
+            throws: { "\($0)".contains("another native element") }
     }
 
     /// An element may reach past an edge of the display (a field on a zoomed

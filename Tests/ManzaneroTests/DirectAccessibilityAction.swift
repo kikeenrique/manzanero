@@ -54,6 +54,14 @@ struct DirectAccessibilityActionTests {
                 if failure == "inconsistent" { children.append(record(target, shifted: true)) }
                 response = Response(kind: kind, translation: Token(1), result: record(1, children: children))
             case 5:
+                // The guard's question about a hit that answered another
+                // object: this one is another element, with the same frame.
+                if case .dictionary(let parameters) = fields["parameters"], case .array(let list) = parameters["attributes"] ?? .null,
+                   list.compactMap(\.unsignedInteger) == [3, 21, 25] {
+                    response = Response(kind: kind, result: [3: "Another", 25: "another.control",
+                        21: NSValue(rect: NSRect(x: 10, y: targetY, width: 30, height: 40))] as NSDictionary)
+                    break
+                }
                 response = Response(kind: kind, result: [
                     21: NSValue(rect: NSRect(x: failure == "frame" || (submitted && failure == "post-frame") ? 11 : failure == "offscreen" ? 1000 : 10, y: targetY, width: 30, height: 40)),
                     25: failure == "identifier" ? "other" : "fixture.control",

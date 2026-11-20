@@ -31,10 +31,12 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene, let model else { return }
         let window = UIWindow(windowScene: windowScene)
-        window.rootViewController = ProbeViewController(model: model)
+        // `-ProbeList YES` shows the list probe in place of the touch surface.
+        let lists = ProbeListViewController.isRequested
+        window.rootViewController = lists ? ProbeListViewController() : ProbeViewController(model: model)
         window.makeKeyAndVisible()
         self.window = window
-        if let surface = window.rootViewController?.view {
+        if !lists, let surface = window.rootViewController?.view {
             (UIApplication.shared.delegate as? AppDelegate)?.logProbe.attach(to: surface)
             (UIApplication.shared.delegate as? AppDelegate)?.permissionProbe.attach(to: surface)
         }

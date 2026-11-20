@@ -992,6 +992,28 @@ No request in that form crashed the daemon: its last crash report stayed the one
 
 So attributes are readable through the shim, quickly, in a form that is now known and not guessed. Not shown here, and run later the same day ([record](#the-inspectors-cursor-the-whole-hierarchy-and-a-press-through-the-shim)): the names that answer a label, a value and the children on tvOS, a way from one element to the whole screen, and an action. Still not shown: why no element is found at a point.
 
+### A search on an iPhone simulator, and a table row's two objects
+
+On 2026-11-20, a new simulator of this project's own, `manzanero-research-phone` (iPhone 17, iOS 27.2), macOS 27.2.1, Xcode 27.2, with the iOS probe built by `build-run` and launched with `-ProbeList YES` ([list probe](probe-app.md#list-probe)). The tree held 18 of the lists' 100 elements at launch: rows 1 to 13 and the first columns.
+
+| Command | Result |
+| --- | --- |
+| `scroll --id probe.list.col.35 --search 80 --toward right`, then `--id probe.list.col.3 --toward left` | `postcondition-verified` in 16 and 15 steps |
+| `scroll --id probe.list.row.55 --search 80`, then `--id probe.list.row.2 --toward up` | The rows were found and brought on screen in 4 and 16 steps, and the check afterwards failed: "target centre hit is another native element" |
+| `press --id probe.list.row.31` and `press --label "Row 32"`, rows on screen | Refused before any input with the same sentence |
+| What the hit test at a row's centre answered | An element with the row's identifier, label and frame, visible, and another object than the tree's: the tree holds the `UITableViewCell`, and UIKit answers a hit with its own element for that row |
+
+The guard compared objects only. It now also accepts a hit in the same process that has the target's frame and its identifier, or its label when the target has no identifier (`DirectAccessibilityAction.sameElement`; the live label is attribute 3). A view that merely covers the target has neither, and a row with another identifier or label is still refused. After the change, on the same simulator:
+
+| Command | Result |
+| --- | --- |
+| `press --id probe.list.row.31`, `press --label "Row 32"` | `accepted`, and `wait --id probe.list.last --until value` met `row-31` and `row-32` |
+| `scroll --search 80` to row 58 down, row 2 up, column 38 right, column 2 left | `postcondition-verified` each: 2, 16, 16 and 17 steps |
+
+So `scroll --search` works in four directions on an iPhone simulator, and plain table rows can be pressed there. The collection view's cells answered a hit with the tree's own object and needed no change.
+
+Not shown: a plain table row on a physical iPhone, where the same guard runs and nothing was tried; an iPad; a list whose rows do not share an edge; a table row hidden under another view with the same frame and no identifier or label, which the rule refuses by construction and no app showed.
+
 ### Press by the Inspector's cursor on the Apple TV 4K
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, after the human owner chose to have `press` built on this route. The focus was on Button B throughout, on a screenshot before and after.

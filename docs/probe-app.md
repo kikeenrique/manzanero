@@ -323,6 +323,26 @@ Activating it (`manzanero press --id probe.permission.request (--device <UDID> |
 
 On the iPhone 13 mini on 2026-11-17 the press raised "Probe quiere enviarte notificaciones", which the tree read with both buttons, and after the owner's choice the value read `denied` ([verification](verification.md#handoff-with-an-app-permission-prompt)). On an iPhone 17e simulator the same press raised "“Probe” Would Like to Send You Notifications" a few seconds later, and `press --label Allow` from a second process answered it while a handoff watched ([verification](verification.md#handoff-watch-a-timeout-on-the-phone-and-runs-on-a-simulator)).
 
+## List probe
+
+Launched with `-ProbeList YES`, the iOS probe shows two lists in place of the touch surface (`App/ProbeListViewController.swift`): a table of sixty rows and, above it, a strip of forty columns that moves sideways. Both keep only the cells near the screen, so a row further on has no accessibility element until its list has moved, which is what [`scroll --search`](direct-accessibility.md#searching-a-list-that-loads-its-rows---search) is for.
+
+| Identifier | Element | Notes |
+| --- | --- | --- |
+| `probe.list.row.1` … `probe.list.row.60` | The table's rows, labelled "Row 1" … "Row 60" | Plain `UITableView` cells. Selecting one records `row-<n>` |
+| `probe.list.col.1` … `probe.list.col.40` | The strip's columns, labelled "Col 1" … "Col 40" | Collection view cells with the button trait. Selecting one records `col-<n>` |
+| `probe.list.last` | A label, "Last: none" at launch | Its value is the last row or column selected |
+
+```sh
+xcrun simctl launch <simulator-UUID> com.lemambo.manzanero.probeapp -ProbeList YES
+manzanero scroll --id probe.list.row.55 --search 80 --simulator <simulator-UUID>
+manzanero scroll --id probe.list.col.3 --search 80 --toward left --simulator <simulator-UUID>
+manzanero press --id probe.list.row.55 --simulator <simulator-UUID>
+manzanero wait --id probe.list.last --until value --value row-55 --simulator <simulator-UUID>
+```
+
+The touch, log and permission probes are not on this screen. Run on one iPhone simulator ([record](verification.md#a-search-on-an-iphone-simulator-and-a-table-rows-two-objects)); not on a phone, where the app would have to be launched with the argument by other means than `manzanero launch`.
+
 ## tvOS probe
 
 A second, separate app in the same Tuist project: target and scheme `ProbeTV`, sources in `Fixtures/ProbeApp/TV/`, bundle identifier `com.lemambo.manzanero.probetv` (`Config/ProbeTV.xcconfig`; `PROBE_TV_BUNDLE_ID` in the untracked signing file replaces it), tvOS 18.0 or later. It shares nothing with the iOS probe and does not use ProbeCore. It answers one question: which Siri Remote command did the app receive?

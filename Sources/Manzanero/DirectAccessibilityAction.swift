@@ -393,7 +393,9 @@ struct DirectAccessibilityAction {
         // a point, and the hit test there can answer the system process.
         if geometry.focusDriven { return }
         let hit = try session.hit(x: x, y: y)
-        guard sameIdentity(hit, target.token) else { throw failure("target centre hit is another native element", .targetUnresolved) }
+        guard try sameIdentity(hit, target.token) || sameElement(hit, as: target, frame: frame, session: session) else {
+            throw failure("target centre hit is another native element", .targetUnresolved)
+        }
     }
 
     /// The process the action runs in. Without `--pid`, or with the PID of
@@ -432,6 +434,22 @@ struct DirectAccessibilityAction {
         let displayed = try session.foregroundProcess(geometry)
         guard displayed.pid == centre ?? root.pid else { throw failure("\(session.platform.selectionSubject) process changed", .preconditionChanged) }
         guard try display() == geometry else { throw failure("display geometry changed", .preconditionChanged) }
+    }
+
+    /// Whether a hit answered the target by another object. A plain table
+    /// row has two: the cell, which a snapshot holds, and UIKit's element
+    /// for it, which a hit test answers (an iOS 27.2 simulator, 2026-11-20:
+    /// same identifier, label and frame, another object). It is the same
+    /// element only if it is in the same process, has the target's frame,
+    /// and has the target's identifier, or its label when it has no
+    /// identifier; a view that merely covers the target has neither.
+    func sameElement(_ hit: AccessibilityRequest.Token, as target: AccessibilitySnapshot.Node,
+                     frame: AccessibilitySnapshot.Frame, session: any AccessibilityExchange) throws -> Bool {
+        guard hit.pid == target.token.pid, case .dictionary(let fields) = try session.attributes([3, 21, 25], of: hit),
+              let liveFrame = fields["21"], try AccessibilitySnapshot.rectangle(liveFrame) == frame else { return false }
+        if case .string(let identifier)? = target.identifier, !identifier.isEmpty { return fields["25"] == .string(identifier) }
+        if case .string(let label)? = target.label, !label.isEmpty { return fields["3"] == .string(label) }
+        return false
     }
 
     func sameIdentity(_ a: AccessibilityRequest.Token, _ b: AccessibilityRequest.Token) -> Bool {
