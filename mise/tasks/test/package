@@ -13,6 +13,12 @@ codesign --verify --strict "$payload/manzanero"
 test "$(xcrun lipo -archs "$payload/manzanero")" = "arm64"
 # The executable refuses to load on anything older than the Xcode 27 host floor.
 otool -l "$payload/manzanero" | grep -A4 LC_BUILD_VERSION | grep -q 'minos 26.6'
+# No absolute path of the checkout, which names the builder's home directory.
+if strings -a "$payload/manzanero" | grep -qF "$PWD/"; then
+    echo "The executable carries the checkout's absolute path:" >&2
+    strings -a "$payload/manzanero" | grep -F "$PWD/" | head -5 >&2
+    exit 1
+fi
 test -f "$payload/ThirdParty/Package.resolved"
 test -f "$payload/ThirdParty/packages/swift-nio/CNIOLLHTTP/LICENSE"
 test -f "$payload/ThirdParty/packages/swift-argument-parser/LICENSE.txt"

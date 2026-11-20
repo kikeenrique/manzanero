@@ -13,8 +13,11 @@ mkdir -p "$destination" "$work/payload/ThirdParty/packages"
 # Apple silicon only: every device operation needs Xcode 27 or later, which
 # has no Intel build (and needs macOS 26.6 or later), so an x86_64 slice could
 # never do anything.
-swift build -c release --arch arm64 --product manzanero --force-resolved-versions --cache-path tmp/swift-cache --scratch-path tmp/release-build 2>&1 | xcsift -f toon --warnings
-products=$(swift build -c release --arch arm64 --show-bin-path --scratch-path tmp/release-build)
+# The prefix maps keep the checkout's absolute path out of the binary: lwIP's
+# assertions embed __FILE__, which carried the builder's home directory.
+prefix_maps=(-Xcc "-fmacro-prefix-map=$PWD=." -Xswiftc -file-prefix-map -Xswiftc "$PWD=.")
+swift build -c release --arch arm64 --product manzanero --force-resolved-versions --cache-path tmp/swift-cache --scratch-path tmp/release-build "${prefix_maps[@]}" 2>&1 | xcsift -f toon --warnings
+products=$(swift build -c release --arch arm64 --show-bin-path --scratch-path tmp/release-build "${prefix_maps[@]}")
 cp "$products/manzanero" "$work/payload/manzanero"
 test "$(xcrun lipo -archs "$work/payload/manzanero")" = "arm64"
 mkdir -p "$work/payload/lib"
