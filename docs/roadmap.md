@@ -199,8 +199,6 @@ The order below is a suggested order, not one the owner set. It follows the stan
 
 What was decided is in the [decision tables](#owner-decisions-2026-11-17) below. Open at the end of 2026-11-20:
 
-- **The pairing code follows a reference project's.** `pair` and the paired tunnel are written in Swift from the protocol as [idevice](https://github.com/jkcoxson/idevice) implements it, with its notice shipped ([dependencies](dependencies.md)). The human owner asked whether it replicates that code and was told how; whether to keep the reimplementation or depend on the library was left unanswered.
-- **Which comes first for a press on a paired Apple TV**: the Inspector's cursor, as now, or the tool's tunnel, which no longer has a side effect.
 - **Folders under `tmp/` that this work did not create** (a history-rewrite backup, a copy of the lwIP fork, the tap, older research) were kept when `tmp/` was cleaned; deleting them is the human owner's call.
 
 ### Dependable physical testing
@@ -349,6 +347,8 @@ The first beta is out: v0.1.0-beta.1, published on 2026-11-18 and installable wi
 | The device for the first sound runs | The iPhone 13 mini | Used, with the human owner at the phone for the Device Hub comparison |
 | The device's audio stream and the quiet room | Allowed for implementation and whenever the command asks for it | `AGENTS.md` changed: the stream is allowed; playing audio in the Apple TV's room and volume keys still need a word each time |
 | Unmuting after a recording starts | Asked whether the tool can | No: the mute seen was the TV app's own player reacting to the capture, which other apps do not do; recorded as a limit |
+| The pairing code, which follows idevice's | Keep the Swift reimplementation, with idevice's notice shipped; no dependency on the library | Unchanged ([dependencies](dependencies.md)) |
+| The order of a press on an Apple TV | The tool's own tunnel first, then the Inspector's cursor, then Apple's tunnel | Built (`InspectorRoute.pressInOrder`), unit-tested; not yet run on the Apple TV 4K ([guide](other-families.md#press-by-the-inspectors-cursor)) |
 | `tmp/` and build files | Clean what is not needed | Done for this work's own files, 2.0 GB to about 425 MB; build caches and folders of earlier work kept |
 
 ## Architecture constraints

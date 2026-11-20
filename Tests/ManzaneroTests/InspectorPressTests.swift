@@ -168,8 +168,53 @@ struct InspectorRouteTests {
         let outcome = try Self.press("press-label", ["Button A"]) { _ in throw CommandFailure(.deviceNotReady, "no connection", inputSent: .none) }
         guard case .unavailable(let reason) = outcome else { Issue.record("not unavailable"); return }
         #expect(reason.contains("no connection"))
-        let annotated = InspectorRoute.annotate(Data(#"{"status":"accepted"}"#.utf8), unavailable: reason)
+        let annotated = InspectorRoute.annotate(Data(#"{"status":"accepted"}"#.utf8), ["inspectorUnavailable": reason])
         let root = try #require(JSONSerialization.jsonObject(with: annotated) as? [String: Any])
         #expect(root["inspectorUnavailable"] as? String == reason && root["status"] as? String == "accepted")
+    }
+
+    private static func json(_ data: Data) throws -> [String: Any] {
+        try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    @Test func thePairedTunnelPressesFirstAndTheOthersAreNotTried() async throws {
+        let data = try await InspectorRoute.pressInOrder(
+            ownTunnel: { Data(#"{"serviceDirectory":"own-tunnel"}"#.utf8) },
+            inspector: { Issue.record("cursor tried"); return .notApplicable },
+            appleTunnel: { Issue.record("Apple's tunnel tried"); return Data() })
+        let root = try Self.json(data)
+        #expect(root["serviceDirectory"] as? String == "own-tunnel" && root["ownTunnelUnavailable"] == nil)
+    }
+
+    @Test func withoutTheTunnelTheCursorPressesAndSaysWhy() async throws {
+        let data = try await InspectorRoute.pressInOrder(
+            ownTunnel: { throw DirectPhysicalAccessibility.OwnTunnelRefused(reason: "not paired") },
+            inspector: { .pressed(Data(#"{"route":"inspector"}"#.utf8)) },
+            appleTunnel: { Issue.record("Apple's tunnel tried"); return Data() })
+        let root = try Self.json(data)
+        #expect(root["route"] as? String == "inspector" && root["ownTunnelUnavailable"] as? String == "not paired")
+    }
+
+    @Test func appleTunnelIsLastAndCarriesBothReasons() async throws {
+        let data = try await InspectorRoute.pressInOrder(
+            ownTunnel: { throw DirectPhysicalAccessibility.OwnTunnelRefused(reason: "not paired") },
+            inspector: { .unavailable("by value") },
+            appleTunnel: { Data(#"{"serviceDirectory":"opened"}"#.utf8) })
+        let root = try Self.json(data)
+        #expect(root["ownTunnelUnavailable"] as? String == "not paired" && root["inspectorUnavailable"] as? String == "by value")
+        // The cursor switched off goes straight from one tunnel to the other.
+        let off = try await InspectorRoute.pressInOrder(
+            ownTunnel: { throw DirectPhysicalAccessibility.OwnTunnelRefused(reason: "off") }, inspector: nil,
+            appleTunnel: { Data(#"{"serviceDirectory":"opened"}"#.utf8) })
+        #expect(try Self.json(off)["inspectorUnavailable"] == nil)
+    }
+
+    @Test func aFailedPressOnTheTunnelIsNeverPressedAgain() async throws {
+        await #expect(throws: CommandFailure.self) {
+            _ = try await InspectorRoute.pressInOrder(
+                ownTunnel: { throw CommandFailure(.inputOutcomeUnknown, "lost mid-press", inputSent: .possible) },
+                inspector: { Issue.record("cursor tried"); return .notApplicable },
+                appleTunnel: { Issue.record("Apple's tunnel tried"); return Data() })
+        }
     }
 }

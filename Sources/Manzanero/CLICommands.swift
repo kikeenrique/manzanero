@@ -245,7 +245,7 @@ extension ManzaneroCLI {
 
     struct Press: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "press", abstract: "Press one element by exact identifier, label or value.",
-            discussion: "Two fresh unique snapshots and live state, frame and hit checks precede one accessibility press. On a physical Apple TV a press by --id or --label first goes by Apple's Accessibility Inspector cursor (result route: inspector), which does not disturb the Mac's connection to the device and makes none of those checks; an element the cursor does not reach, --index and --with-value use the usual route, and the result says why in inspectorUnavailable. \(receiptCaveat)")
+            discussion: "Two fresh unique snapshots and live state, frame and hit checks precede one accessibility press. On a physical Apple TV a press goes first by the tool's own tunnel (once `manzanero pair` has paired the tool with it), then, for --id or --label, by Apple's Accessibility Inspector cursor (result route: inspector), which makes none of those checks, and last over Apple's tunnel; neither of the first two disturbs the Mac's connection to the device, and the result says why a route was passed over in ownTunnelUnavailable and inspectorUnavailable. \(receiptCaveat)")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions

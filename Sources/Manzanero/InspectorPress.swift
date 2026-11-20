@@ -219,9 +219,42 @@ struct InspectorPress {
     }
 }
 
-/// Where `press` on a physical Apple TV tries the Inspector's cursor before
-/// the route over Apple's tunnel. `MANZANERO_INSPECTOR_PRESS=0` turns it off.
+/// Where `press` on a physical Apple TV tries the Inspector's cursor: after
+/// the tool's own tunnel, which disturbs nothing either and takes every
+/// selector, and before the route over Apple's tunnel, which makes the
+/// device reset the Mac's connection. `MANZANERO_INSPECTOR_PRESS=0` turns
+/// the cursor off.
 enum InspectorRoute {
+    /// The three routes of a press on a physical Apple TV, in order. Each of
+    /// the first two either presses or says, before anything is sent, why it
+    /// cannot; a failure of a press itself ends the command, because its
+    /// outcome is unknown and another route would press a second time.
+    static func pressInOrder(isolation: isolated (any Actor)? = #isolation,
+                             ownTunnel: () async throws -> Data,
+                             inspector: (() throws -> Outcome)?,
+                             appleTunnel: () async throws -> Data) async throws -> Data {
+        var notes: [String: String] = [:]
+        do { return try await ownTunnel() } catch let refused as DirectPhysicalAccessibility.OwnTunnelRefused {
+            notes["ownTunnelUnavailable"] = refused.reason
+        }
+        if let inspector {
+            switch try inspector() {
+            case .pressed(let data): return annotate(data, notes)
+            case .unavailable(let reason): notes["inspectorUnavailable"] = reason
+            case .notApplicable: break
+            }
+        }
+        return annotate(try await appleTunnel(), notes)
+    }
+
+    /// The device's details when the command is a press on a physical Apple
+    /// TV, the one case the order above is for; nil otherwise.
+    static func appleTVPress(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data) throws -> Data? {
+        guard AccessibilitySelector.operations("press").contains(input.operation) else { return nil }
+        let details = try query(input.identityPlan())
+        return AppleTVRemote.deviceType(details) == "appleTV" ? details : nil
+    }
+
     enum Outcome {
         case pressed(Data)
         /// Nothing was pressed; the reason goes into the other route's
@@ -242,10 +275,13 @@ enum InspectorRoute {
     }
 
     static func press(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data, open: Open = live) throws -> Outcome {
-        guard AccessibilitySelector.operations("press").contains(input.operation) else { return .notApplicable }
+        guard let details = try appleTVPress(input, query: query) else { return .notApplicable }
+        return try press(input, details: details, open: open)
+    }
+
+    /// A press on the Apple TV whose details are given.
+    static func press(_ input: CoreDeviceInput, details: Data, open: Open = live) throws -> Outcome {
         let action = try DirectAccessibilityAction(input)
-        let details = try query(input.identityPlan())
-        guard AppleTVRemote.deviceType(details) == "appleTV" else { return .notApplicable }
         let press = InspectorPress(selector: action.selector)
         do {
             if action.pid != nil { throw InspectorPress.Unavailable(description: "the Inspector's cursor takes no process") }
@@ -267,10 +303,10 @@ enum InspectorRoute {
         }
     }
 
-    /// Says in the other route's result why the Inspector's was not used.
-    static func annotate(_ data: Data, unavailable reason: String) -> Data {
-        guard var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return data }
-        root["inspectorUnavailable"] = reason
+    /// Says in the result of the route used why the earlier ones were not.
+    static func annotate(_ data: Data, _ notes: [String: String]) -> Data {
+        guard !notes.isEmpty, var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return data }
+        root.merge(notes) { $1 }
         return (try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])) ?? data
     }
 }

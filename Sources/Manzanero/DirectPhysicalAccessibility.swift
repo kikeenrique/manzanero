@@ -26,20 +26,31 @@ enum DirectPhysicalAccessibility {
         !sendsInput && serviceDirectory == "own-tunnel" && !(error is CancellationError) && AccessibilityServicePorts.doubts(error)
     }
 
+    /// Thrown by a command run with `ownTunnelOnly` when the tool's own
+    /// tunnel could not carry it; nothing was sent to the device.
+    struct OwnTunnelRefused: Error, CustomStringConvertible {
+        var reason: String
+        var description: String { reason }
+    }
+
+    /// `ownTunnelOnly`: run on the tool's own tunnel or not at all, throwing
+    /// `OwnTunnelRefused` before any request when that tunnel cannot be had,
+    /// so the caller can choose the next route itself.
     static func executeNativeRSD(_ input: CoreDeviceInput, isolation: isolated (any Actor)? = #isolation,
                                  ports: AccessibilityServicePorts = .shared,
                                  staleCheck: (_ udid: String, _ operation: String) throws -> Void = { try StaleDeviceConnection.refuseIfStale(device: $0, operation: $1) },
                                  ownTunnel: OwnTunnelSource = .pooled,
+                                 ownTunnelOnly: Bool = false,
                                  overlayProcess: Int32? = nil,
                                  query: (DeviceCommand) throws -> Data) async throws -> Data {
         do {
             return try await attemptNativeRSD(input, isolation: isolation, ports: ports, staleCheck: staleCheck, ownTunnel: ownTunnel,
-                                              overlayProcess: overlayProcess, retriedAfter: nil, query: query)
+                                              ownTunnelOnly: ownTunnelOnly, overlayProcess: overlayProcess, retriedAfter: nil, query: query)
         } catch let ended as TunnelEnded {
             // The first attempt has released its tunnel as unhealthy, so
             // this one opens another, over whichever link the device has now.
             return try await attemptNativeRSD(input, isolation: isolation, ports: ports, staleCheck: staleCheck, ownTunnel: ownTunnel,
-                                              overlayProcess: overlayProcess,
+                                              ownTunnelOnly: ownTunnelOnly, overlayProcess: overlayProcess,
                                               retriedAfter: String(ended.failure.description.prefix(300)), query: query)
         }
     }
@@ -50,6 +61,7 @@ enum DirectPhysicalAccessibility {
                                          ports: AccessibilityServicePorts,
                                          staleCheck: (_ udid: String, _ operation: String) throws -> Void,
                                          ownTunnel: OwnTunnelSource,
+                                         ownTunnelOnly: Bool,
                                          overlayProcess: Int32? = nil,
                                          retriedAfter: String?,
                                          query: (DeviceCommand) throws -> Data) async throws -> Data {
@@ -83,7 +95,10 @@ enum DirectPhysicalAccessibility {
         let address = try RSDPortDiscovery.tunnelAddress(details: details, expectedUDID: udid)
         // A stale connection is refused here, before the usage assertion
         // that would keep its tunnel alive.
-        try staleCheck(udid, input.operation)
+        do { try staleCheck(udid, input.operation) } catch {
+            if ownTunnelOnly { throw OwnTunnelRefused(reason: String("\(error)".prefix(500))) }
+            throw error
+        }
         let assertion = try NativeTunnelAssertion(device: udid, details: details)
         defer { assertion.close() }
         /// "reused-port" or "reused-saved-port" once a remembered port is in
@@ -140,6 +155,9 @@ enum DirectPhysicalAccessibility {
             case nil:
                 break
             }
+            if ownTunnelOnly, connected == nil {
+                throw OwnTunnelRefused(reason: tunnelNote ?? "the tool's own tunnel is switched off (\(DeviceTunnel.optOut)=0)")
+            }
             if connected == nil, let known = ports.port(device: udid, tunnelAddress: address) {
                 if let transport = try? RSDDirectoryConnection.openAccessibility(tunnelAddress: address, port: known.port) {
                     connected = (nil, transport)
@@ -192,6 +210,9 @@ enum DirectPhysicalAccessibility {
             try Task.checkCancellation()
             return try annotateNativeCleanup(bytes, release: release, serviceDirectory: reused ?? "opened", ownTunnelUnavailable: tunnelNote,
                                              ownTunnelLink: tunnelLink, retriedAfter: retriedAfter)
+        } catch let refused as OwnTunnelRefused {
+            _ = assertion.close()
+            throw refused
         } catch {
             if reused == "own-tunnel", AccessibilityServicePorts.doubts(error) { tunnelHealthy = false }
             if reused != nil, reused != "own-tunnel", AccessibilityServicePorts.doubts(error) { ports.forget(device: udid, tunnelAddress: address) }
