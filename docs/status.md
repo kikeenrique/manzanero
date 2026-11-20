@@ -32,7 +32,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Accessibility, search a long list**: `scroll --search` | not run | works in four directions (iPhone) | works in four directions | works in four directions | not run | not run |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | not run | works, with `--display` |
 | **Video**: `record`, `frames` | works with `--backend coredevice`; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute | `record` works | not run | works, with `--display` |
-| **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works; `open-url` not run | works | not run | works |
+| **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | not run | works |
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
 | **Build and run**: `build-run` | works | works | works | not run | not run | not run |
 | **App output**: `console`, `last-crash`, `logs` | `console` and `last-crash` work; `logs` not built | works | `console` and `last-crash` work; `logs` not built | not run | not run | not run |
@@ -61,7 +61,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 1. **Push** the local commits: three days of work, none of it in a release.
 2. **Two phone runs for changes made on simulators**: pressing a plain table row, and a recording of a moving screen to see whether the phone needs the Apple TV's video fix too.
 3. **Apple TV, the rest of accessibility without the side effect**: `press` goes by route 3. `tree`, `wait`, `scroll`, `set-value` and a press inside a list still use route 2; route 3 cannot carry them, and the other way, a pairing of the tool's own, is not built.
-4. **Apple TV, small ones**: `open-url`, a recording of several minutes, and `remote sleep` on a device that is not in English.
+4. **Apple TV, small ones**: a recording of several minutes, and sound in a recording, which the tool does not capture.
 5. **`logs` for devices**: the way in is proven, the command is not built.
 6. **Small checks on the iPhone**: an action in flight when the cable is pulled, an agent session over the network, and `build-run` since it learned other platforms.
 7. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
@@ -70,7 +70,9 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 - **Apple TV, video**: `record` and `frames` work. The tool was offering the Apple TV a feature its decoder cannot follow; without it the picture is right.
 - **Apple TV, the remote's swipes**: all four work on the device, and a swipe's length and duration can be chosen there too.
-- **Apple TV, sleep and wake**: `remote sleep` and `remote wake`, each one command that looks at the screen before it presses.
+- **Apple TV, sleep and wake**: `remote sleep` and `remote wake`, each one command that looks before it presses; sleep finds Power Off by an accessibility identifier, in any language.
+- **`open-url` on the Apple TV**, against a URL scheme both probes now have.
+- **A recording with music playing** on the Apple TV: the picture is right; there is no sound in it.
 - **Apple TV, a minute of a moving screen** recorded whole, and the movie no longer has black rows at the bottom.
 - **Apple TV, `press` without the side effect**: by Apple's Inspector cursor, with the focus left where it was.
 - **Plain table rows** can be pressed, found with a new list screen in the iOS probe on a new phone simulator.

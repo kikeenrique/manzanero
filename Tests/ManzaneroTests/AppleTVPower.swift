@@ -22,7 +22,7 @@ struct AppleTVPowerTests {
         var captures = 0
         init(awake: [Bool]) { self.awake = awake }
 
-        func environment(regions: [ScreenText.Region] = [AppleTVPowerTests.powerOff],
+        func environment(powerOff: CGRect? = AppleTVPowerTests.powerOff,
                          tile: AppleTVPower.Tile = .init(background: 1, darkest: 0.1)) -> AppleTVPower.Environment {
             AppleTVPower.Environment(
                 capture: {
@@ -30,14 +30,36 @@ struct AppleTVPowerTests {
                     let awake = self.awake.count > 1 ? self.awake.removeFirst() : self.awake[0]
                     return awake ? URL(fileURLWithPath: "/nonexistent/power.png") : nil
                 },
-                recognize: { _ in regions },
+                powerOff: { powerOff },
                 tile: { _, _ in tile },
                 press: { self.pressed.append($0) },
                 settle: { _ in })
         }
     }
 
-    private static let powerOff = ScreenText.Region(text: "Power Off", confidence: 1, x: 0.76, y: 0.28, width: 0.06, height: 0.02)
+    /// Power Off's frame as an Apple TV 4K's system UI tree gave it.
+    private static let powerOff = CGRect(x: 1409, y: 131, width: 218, height: 218)
+
+    private static func tree(identifier: String, visible: Bool) throws -> Data {
+        try JSONSerialization.data(withJSONObject: ["nodes": [
+            ["identifier": "wifi", "visible": true, "frame": ["x": 1650.0, "y": 131.0, "width": 218.0, "height": 100.0]],
+            ["identifier": identifier, "label": "Apagar", "visible": visible,
+             "frame": ["x": 1409.0, "y": 131.0, "width": 218.0, "height": 218.0]]]])
+    }
+
+    /// Power Off is found by its identifier, whatever its label says, and
+    /// only while the tree says it is visible.
+    @Test func powerOffIsReadFromTheSystemUITreeByIdentifier() throws {
+        #expect(AppleTVPower.powerOffFrame(tree: try Self.tree(identifier: "sleep", visible: true)) == Self.powerOff)
+        #expect(AppleTVPower.powerOffFrame(tree: try Self.tree(identifier: "sleep", visible: false)) == nil)
+        #expect(AppleTVPower.powerOffFrame(tree: try Self.tree(identifier: "sleep-timer", visible: true)) == nil)
+        #expect(AppleTVPower.powerOffFrame(tree: Data("{}".utf8)) == nil)
+        let processes = try JSONSerialization.data(withJSONObject: ["result": ["runningProcesses": [
+            ["executable": "file:///Applications/PineBoard.app/PineBoard", "processIdentifier": 41],
+            ["executable": "file:///Applications/TVSystemUIService.app/TVSystemUIService", "processIdentifier": 10040]]]])
+        #expect(AppleTVPower.systemUIProcess(processes) == 10040)
+        #expect(AppleTVPower.systemUIProcess(Data("{}".utf8)) == nil)
+    }
 
     private static func run(_ name: String, _ environment: AppleTVPower.Environment, type: String = "appleTV",
                             isolation: isolated (any Actor)? = #isolation) async throws -> [String: Any] {
@@ -56,10 +78,9 @@ struct AppleTVPowerTests {
     }
 
     @Test func sleepSendsNoSelectUnlessThePictureShowsPowerOffInFocus() async throws {
-        // Control Centre did not open, or the language is another.
-        let other = ScreenText.Region(text: "Apagar", confidence: 1, x: 0.76, y: 0.28, width: 0.06, height: 0.02)
+        // Control Centre did not open: the system UI's tree has no Power Off.
         let unseen = Device(awake: [true])
-        let first = try await Self.run("sleep", unseen.environment(regions: [other]))
+        let first = try await Self.run("sleep", unseen.environment(powerOff: nil))
         #expect(unseen.pressed == ["home", "lock"] && first["status"] as? String == "control-centre-not-seen" && first["exitCode"] as? Int == 1)
         // Power Off is there with the focus elsewhere: a grey tile, white text.
         let unfocused = Device(awake: [true])
@@ -96,7 +117,7 @@ struct AppleTVPowerTests {
     @Test func aFailureAfterAPressSaysInputMayHaveGone() async throws {
         let device = Device(awake: [true])
         var environment = device.environment()
-        environment.recognize = { _ in throw CommandFailure(.toolFailed, "OCR failed.", inputSent: .none) }
+        environment.powerOff = { throw CommandFailure(.transportFailed, "The tree failed.", inputSent: .none) }
         let failure = await #expect(throws: CommandFailure.self) { _ = try await Self.run("sleep", environment) }
         #expect(device.pressed == ["home", "lock"] && failure?.inputSent != CommandFailure.InputSent.none)
     }

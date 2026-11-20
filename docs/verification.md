@@ -1163,6 +1163,36 @@ The probe registers no URL scheme, so `open-url` did not run; the human owner ch
 
 Not shown: `remote sleep` in another language (it looks for the words `Power Off` and stops before the select without them); a select that misses with the Home Screen in front, which would open the icon in focus; sleep from a screen saver; a `remote wake` of a device asleep for hours; a recording longer than a minute, or of video; why a quick swipe moves nothing on the device.
 
+### An accessibility tag for Power Off, a URL for the probes and a recording with music
+
+The same day and setup, on three questions from the human owner, who asked for the Music app and its sound for the last one. The Apple TV 4K was asleep; `remote wake` woke it.
+
+**Where Control Centre is in accessibility.** With Control Centre open over the tvOS probe:
+
+| Run | Result |
+| --- | --- |
+| `tree` | The frontmost application is PineBoard, 24 nodes. One has the identifier `PBControlCenterWindow`, marked not visible; nothing names Power Off |
+| `tree --pid` with the PID of `TVSystemUIService`, from `processes` | 44 nodes: the status items, and Control Centre's tiles by identifier: `sleep` (label `Power Off`, a 218-point square, visible), `wifi`, `dnd`, `airplay`, `sleep-timer`, `game-controllers`, `ax`, `restrictions`, `search`. No node is marked as focused |
+| The same tree with Control Centre closed | 9 nodes, no `sleep` |
+| `press --id sleep --pid` with that PID | Refused before any input: "requested PID differs from display-centre process and does not host it" |
+| `remote sleep`, changed to read that tree for `sleep` and the screenshot at the element's frame for the focus, with the Music app in front | `asleep`, `pressed: home, lock, select`, `powerOffTile` background 1.0 and darkest 0.11 |
+
+So the sleep command no longer reads words off a picture and no longer depends on the device's language; the picture is kept for the one thing the tree does not say, which tile has the focus.
+
+**A URL for the probes.** Both probes got a URL scheme and an element that shows the URL they were opened with.
+
+| Run | Result |
+| --- | --- |
+| `build-run` of the iOS probe on the project's iPhone simulator (iOS 27.2), then `open-url manzanero-probe://hello?n=1` | The system asked "Open in “Probe”?"; the tree read the prompt and `press --label Open` answered it |
+| A second `open-url manzanero-probe://again` there | No prompt; `probe.url` read `2 manzanero-probe://again` |
+| `build-run` of the tvOS probe on the Apple TV 4K, signed with what the Mac had, then `open-url manzanero-probe-tv://hello?n=1` | `outcome: success`, no prompt; the screen read `URL: 1 manzanero-probe-tv://hello?n=1` |
+
+`open-url` is Apple's own `devicectl device process openURL` (and `simctl openurl` on a simulator); the tool adds the dry-run plan, the MCP tool, the handoff pause and the error categories around it, nothing to the opening itself.
+
+**A recording with music playing.** `launch com.apple.TVMusic`, then one `remote play-pause`, started a song with its lyrics on the screen. `record music.mp4 20 --backend coredevice`: `recorded`, 302 source frames, an H.264 movie of 20 seconds, 3168 × 1782 and 303 frames. A picture every 2.5 seconds shows the lyrics advancing over a moving background, each picture whole. The movie has one stream, the video: `audio: false`, and no sound. A second `play-pause` paused the song, confirmed by the elapsed time standing still in two readings.
+
+Not shown: the URL probe on a phone; `remote sleep` on a device in another language; sound, which the tool does not record.
+
 ### The Inspector's cursor, the whole hierarchy and a press through the shim
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. It was asleep; one `remote home` woke it. Every request was first read from Apple's own client, the Inspector's device manager (`XDMDeviceTransportBased` in `AccessibilityAuditDeviceManager.framework`, read with `otool`), and the tvOS simulator runtime's copy of `axauditd` gave the attribute names. After each new request the device's crash reports were listed: none for `axauditd` in the whole session. Nothing made the Mac's connection go stale.

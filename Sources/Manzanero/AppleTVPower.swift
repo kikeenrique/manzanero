@@ -10,11 +10,15 @@ import ImageIO
 /// only with the Home Screen in front. With an app in front the select, a
 /// keyboard usage, goes to the app: on 2026-11-20 it pressed a button of the
 /// tvOS probe twice while a picture a second old showed Power Off in focus.
-/// So the command presses Home first. Control Centre is in no accessibility
-/// tree and Apple's Inspector cursor does not reach it, so the focus is read
-/// from a screenshot, and the select is sent only when that picture shows
-/// Power Off with the focus on it. If the select misses all the same, it
-/// opens the Home Screen icon in focus.
+/// So the command presses Home first. Control Centre is not in the tree of
+/// the application in front; it is in the system UI process's, where Power
+/// Off has the identifier `sleep` in any language. That tree marks no focus,
+/// so the focus is read from a screenshot at the element's frame, and the
+/// select is sent only when the tree shows Power Off and the picture shows
+/// its tile in focus. If the select misses all the same, it opens the Home
+/// Screen icon in focus. An accessibility press of the element itself would
+/// need no select, and the tool's guard on which process may be acted on
+/// refuses it.
 ///
 /// A sleeping Apple TV is told from an awake one by its screenshot, which
 /// fails with a zero-sized display; one Home press wakes it.
@@ -22,9 +26,14 @@ enum AppleTVPower {
     static let names = ["sleep", "wake"]
     static let usage = "remote sleep and remote wake take no option; no input sent."
     static let simulatorRefusal = "remote sleep and remote wake work on a physical Apple TV only: Power Off puts an Apple TV simulator to sleep and nothing sent to it wakes it (shutdown and boot do). No input sent."
-    /// The words tvOS shows under Power Off, as read from the screen. Only
-    /// English has been seen; another language stops before the select.
-    static let powerOffLabels = ["power off"]
+    /// Control Centre belongs to this process, not to the application in
+    /// front, and its tree is there only while Control Centre is open: 44
+    /// nodes then and 9 without it, on an Apple TV 4K with tvOS 27.2.
+    static let systemUIExecutable = "/TVSystemUIService.app/TVSystemUIService"
+    /// Power Off's accessibility identifier there, whatever the language.
+    static let powerOffIdentifier = "sleep"
+    /// The width in points of the display a tvOS tree's frames are in.
+    static let treeWidth = 1920.0
     /// The tile in focus is white with dark text; the others are grey with
     /// white text.
     static let focusedBackground = 0.85
@@ -42,9 +51,9 @@ enum AppleTVPower {
         return ["backend": "coredevice-direct", "operation": "remote", "remote": input.operands[0],
             "identityArguments": try input.identityPlan().arguments,
             "maximumPresses": sleep ? ["home": 1, "lock": 1, "select": 1] : ["home": 1],
-            "liveVerification": "one Apple TV 4K (3rd generation), tvOS 27.2, in English",
+            "liveVerification": "one Apple TV 4K (3rd generation), tvOS 27.2",
             "execution": sleep
-                ? "Read the device's details; only if they say it is an Apple TV, take a screenshot. If it fails with a zero-sized display the device is asleep already and nothing is sent. Otherwise press Home once, which leaves the app in front for the Home Screen, then the power button once (button lock), which opens Control Centre; take a screenshot and read it: only if it shows Power Off with the focus on it, send one select at once, then take screenshots until one fails. No press is repeated. If the select misses Control Centre it opens the Home Screen icon in focus."
+                ? "Read the device's details; only if they say it is an Apple TV, take a screenshot. If it fails with a zero-sized display the device is asleep already and nothing is sent. Otherwise press Home once, which leaves the app in front for the Home Screen, then the power button once (button lock), which opens Control Centre; read the accessibility tree of the system UI process (a connection to the device's service directory, as every tree on an Apple TV) and take a screenshot: only if the tree shows Power Off (identifier sleep) and the picture shows its tile in focus, send one select at once, then take screenshots until one fails. No press is repeated. If the select misses Control Centre it opens the Home Screen icon in focus."
                 : "Read the device's details; only if they say it is an Apple TV, take a screenshot. If it succeeds the device is awake already and nothing is sent. Otherwise press Home once, then take screenshots until one succeeds. The television connected to the device may come on. No press is repeated."]
     }
 
@@ -56,21 +65,40 @@ enum AppleTVPower {
         var focused: Bool { background >= AppleTVPower.focusedBackground && darkest <= AppleTVPower.darkText }
     }
 
-    /// What surrounds a recognised text in the picture: the text's box, a
-    /// third of its height wider on each side.
-    static func tile(image url: URL, around region: ScreenText.Region) throws -> Tile {
+    /// The tile in the picture: the element's frame, given in the tree's
+    /// points, without the outer sixth on each side, where its corners round.
+    static func tile(image url: URL, frame: CGRect) throws -> Tile {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             throw CommandFailure(.toolFailed, "The screenshot could not be read: \(url.path)", inputSent: .none)
         }
-        let margin = region.height / 3
-        let box = CGRect(x: (region.x - margin) * Double(image.width), y: (region.y - margin) * Double(image.height),
-                         width: (region.width + 2 * margin) * Double(image.width), height: (region.height + 2 * margin) * Double(image.height))
+        let scale = Double(image.width) / treeWidth
+        let box = frame.insetBy(dx: frame.width / 6, dy: frame.height / 6)
+            .applying(CGAffineTransform(scaleX: scale, y: scale))
             .integral.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
         guard box.width >= 1, box.height >= 1, let cropped = image.cropping(to: box) else {
-            throw CommandFailure(.toolFailed, "The text's place is outside the screenshot.", inputSent: .none)
+            throw CommandFailure(.toolFailed, "The element's place is outside the screenshot.", inputSent: .none)
         }
         return try tile(cropped)
+    }
+
+    /// Power Off's frame in a tree of the system UI process, when the tree
+    /// has it and says it is visible.
+    static func powerOffFrame(tree: Data) -> CGRect? {
+        guard let root = (try? JSONSerialization.jsonObject(with: tree)) as? [String: Any],
+              let nodes = root["nodes"] as? [[String: Any]],
+              let node = nodes.first(where: { $0["identifier"] as? String == powerOffIdentifier && $0["visible"] as? Bool == true }),
+              let frame = node["frame"] as? [String: Any],
+              let x = frame["x"] as? Double, let y = frame["y"] as? Double,
+              let width = frame["width"] as? Double, let height = frame["height"] as? Double, width > 0, height > 0 else { return nil }
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    /// The system UI process among a device's running processes.
+    static func systemUIProcess(_ processes: Data) -> Int? {
+        guard let root = (try? JSONSerialization.jsonObject(with: processes)) as? [String: Any],
+              let running = (root["result"] as? [String: Any])?["runningProcesses"] as? [[String: Any]] else { return nil }
+        return running.first { ($0["executable"] as? String)?.hasSuffix(systemUIExecutable) == true }?["processIdentifier"] as? Int
     }
 
     static func tile(_ image: CGImage) throws -> Tile {
@@ -94,8 +122,10 @@ enum AppleTVPower {
         /// A screenshot's file, or nil when the device refuses one with a
         /// zero-sized display: asleep.
         var capture: () throws -> URL?
-        var recognize: (URL) async throws -> [ScreenText.Region]
-        var tile: (URL, ScreenText.Region) throws -> Tile = AppleTVPower.tile(image:around:)
+        /// Power Off's frame in Control Centre, in the tree's points, or
+        /// nil when the system UI's tree does not show it.
+        var powerOff: () async throws -> CGRect?
+        var tile: (URL, CGRect) throws -> Tile = AppleTVPower.tile(image:frame:)
         /// One press: `lock`, `select` or `home`.
         var press: (String) throws -> Void
         var settle: (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
@@ -115,7 +145,15 @@ enum AppleTVPower {
                 } catch where isAsleep(error) { return nil }
                 return image
             },
-            recognize: { try await ScreenText.recognize(path: $0.path).regions },
+            powerOff: {
+                var plan = try DeviceCommand.plan(physical: true, device: input.device, operation: "processes", operands: [])
+                plan.arguments.append("--quiet")
+                let processes = try query(plan)
+                guard let pid = systemUIProcess(processes) else { return nil }
+                let tree = try await DirectPhysicalAccessibility.executeNativeRSD(
+                    CoreDeviceInput.validated(device: input.device, operation: "tree", operands: [String(pid)]), query: query)
+                return powerOffFrame(tree: tree)
+            },
             press: { name in
                 if name == "lock" {
                     _ = try DirectPhysicalInput.execute(CoreDeviceInput(device: input.device, operation: "button", operands: [name]), query: { _ in details })
@@ -197,12 +235,12 @@ enum AppleTVPower {
         try await guarded { try await environment.settle(controlCentreSettle) }
         try await press("lock")
         try await guarded { try await environment.settle(controlCentreSettle) }
+        guard let powerOff = try await guarded({ try await environment.powerOff() }) else {
+            return try finish("control-centre-not-seen", action: "Home and the power button were pressed once each and the system UI's accessibility tree does not show Power Off, so no select was sent. Control Centre may not have opened (from a screen saver a press only wakes the device). Look at the screen; if Control Centre is open it closes by itself.", exitCode: 1)
+        }
+        // The tree marks no focus there, so the picture says it, taken last.
         guard let picture = try await guarded({ try environment.capture() }) else {
             return try finish("asleep", action: "The device gave no screenshot after the power button alone; no select was sent.")
-        }
-        let regions = try await guarded { try await environment.recognize(picture) }
-        guard let powerOff = regions.first(where: { powerOffLabels.contains($0.text.trimmingCharacters(in: .whitespaces).lowercased()) }) else {
-            return try finish("control-centre-not-seen", action: "Home and the power button were pressed once each and the screenshot after them does not show Power Off, so no select was sent. Control Centre may not have opened (from a screen saver a press only wakes the device), or the device's language is not English. Look at the screen; if Control Centre is open it closes by itself.", exitCode: 1)
         }
         let tile = try await guarded { try environment.tile(picture, powerOff) }
         result["powerOffTile"] = ["background": tile.background, "darkest": tile.darkest, "focused": tile.focused]
