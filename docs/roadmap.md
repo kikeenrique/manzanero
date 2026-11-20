@@ -347,7 +347,7 @@ The first beta is out: v0.1.0-beta.1, published on 2026-11-18 and installable wi
 | The device for the first sound runs | The iPhone 13 mini | Used, with the human owner at the phone for the Device Hub comparison |
 | The device's audio stream and the quiet room | Allowed for implementation and whenever the command asks for it | `AGENTS.md` changed: the stream is allowed; playing audio in the Apple TV's room and volume keys still need a word each time |
 | Unmuting after a recording starts | Asked whether the tool can | No: the mute seen was the TV app's own player reacting to the capture, which other apps do not do; recorded as a limit |
-| The phone session and `logs` | "Go ahead with 2 and 3", then "go ahead with iphone 13m" | Done the same evening ([record](verification.md#phone-session-of-2026-11-20-a-table-row-a-moving-stream-open-url-and-logs)); the iPhone's video offer is left unchanged, since its stream was whole |
+| The phone session and `logs` | "Go ahead with 2 and 3", then "go ahead with" the iPhone 13 mini | Done the same evening ([record](verification.md#phone-session-of-2026-11-20-a-table-row-a-moving-stream-open-url-and-logs)); the iPhone's video offer is left unchanged, since its stream was whole |
 | A relaunch during `logs` (E) | "When the app finishes the log too": a one-process capture ends with its process; no reopening | Built: `stopReason: processEnded` |
 | Which processes `logs` takes (L) | One, a group or all, with filters, as other log tools do; up to 600 seconds on a device | Built and run on the phone and a simulator |
 | The pairing code, which follows idevice's | Keep the Swift reimplementation, with idevice's notice shipped; no dependency on the library | Unchanged ([dependencies](dependencies.md)) |
