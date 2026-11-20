@@ -27,6 +27,10 @@ import Foundation
         var decoder: NativeHEVCDecoder?
         var run = FrameRun(command: command, started: DispatchTime.now().uptimeNanoseconds)
         var packets = 0, units = 0
+        // The stream as it arrived, kept beside the frames only for the
+        // experiment on an external display.
+        var dump: NativeStreamDump? = DirectTouchDisplay.externalCaptureExperiment ? NativeStreamDump() : nil
+        defer { try? dump?.write(to: command.directory) }
         func closeMedia() -> NativeMediaFrames.Cleanup? {
             decoder?.close()
             return capture?.close()
@@ -61,12 +65,14 @@ import Foundation
                     continue
                 }
                 packets += 1
+                dump?.packet(packet)
                 received += packet.count
                 guard received <= 1024 * 1024 * 1024 else {
                     throw CommandFailure(.transportFailed, "Frame capture exceeded its one-GiB transport budget.", inputSent: .none)
                 }
                 guard let rtp = MediaRTPPacket(packet, payloadType: payloadType), let unit = try assembler.accept(rtp) else { continue }
                 units += 1
+                dump?.unit(unit)
                 // Every unit is decoded to keep reference pictures; only a frame
                 // that will be saved is encoded as JPEG.
                 let wanted = run.wants(at: DispatchTime.now().uptimeNanoseconds)
