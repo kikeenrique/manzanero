@@ -107,6 +107,8 @@ The table has no row for the lockdown shim route (`ADCCopyRSDShimServicePort`, `
 
 The exit code is 1 only when an entry has status `unavailable`, which the tool entries and the `Requirements` entry use: without the three Apple tools, or with an Xcode older than 27, nothing works. Private-interface gaps keep exit code 0 (and MCP `isError: false`): each one disables a subset of commands, the rest of the product still works, and a host that uses only `devicectl`/`simctl` wrappers needs none of them. A non-zero exit for an optional capability would make doctor useless as a gate. Scripts that need a capability should test its entry's `status`. All results describe this host only; an `available` capability is not proof that the device accepts the operation.
 
+ffmpeg is not a dependency and no command runs it. On 2026-11-20 its `ffprobe` and software decoder were used once, by hand, to read a kept video file on the Mac as a second opinion on this tool's decoding ([record](verification.md#a-second-decoder-and-videotoolboxs-resolution-adaptation)).
+
 ## Implementation references and attribution
 
 Third-party device projects inform protocol understanding; their executables are not runtime dependencies.

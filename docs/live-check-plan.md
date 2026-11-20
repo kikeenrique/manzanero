@@ -74,7 +74,7 @@ These need no hardware and no owner decision; they were left out of the simulato
 - Does setting or removing a passcode always drop the pairing?
 - What makes the Mac's connection to the Apple TV go stale, three times on 2026-11-18, and why does `remoted` not reconnect?
 - What wakes a sleeping Apple TV, and why did observation alone switch it on the first time?
-- How does Apple's AVConference follow the Apple TV's change of scale inside its video stream, which this tool's decoder does not?
+- Which values does Apple's AVConference give VideoToolbox's resolution adaptation for the Apple TV's stream, and where does it learn each frame's size?
 - Does a host remove a form that the server withdraws? If it does, a watching handoff could keep a form up as its "I will not do it" button.
 
 ## Stop conditions

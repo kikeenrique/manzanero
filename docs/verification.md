@@ -1082,6 +1082,24 @@ So the device steps the picture's size up twice, at pictures 8 and 10, about a t
 
 Not shown: that way. The leads are AVConference's receiver on the Mac, and the session event channel Apple's Device Hub gives each stream and this tool does not ([record](#device-hubs-screen-view-of-the-apple-tv)).
 
+#### A second decoder, and VideoToolbox's resolution adaptation
+
+On 2026-11-20, on the Mac only, from the stream kept in the capture above; nothing was sent to the device. The human owner asked whether the stream has an identifiable format.
+
+| Step | Result |
+| --- | --- |
+| The stream identified by `ffprobe` (ffmpeg 's own software decoder, used here to read a file and for nothing else) | HEVC, Main profile, level 5.1, 3168 × 1792, 4:2:0, 8 bits; 301 pictures |
+| The same stream decoded by ffmpeg, pictures 5, 12 and 200 | No warning or error, and picture 200 is the picture this tool saved: the probe's screen at three sizes on top of each other |
+| VideoToolbox's exported names, read from the SDK | A resolution adaptation of its own: `kVTCompressionPropertyKey_VideoResolutionAdaptation` on the encoder, and on the decoder `kVTDecompressionPropertyKey_VideoResolutionAdaptationType`, `kVTDecompressionPropertyKey_ActiveVideoResolution` and `kVTDecodeFrameOptionKey_ActiveVideoResolution`, with the keys `kVTDecompressionResolutionKey_Width` and `…_Height` |
+| What a decoder session for this stream says it supports | `ActiveVideoResolution`, a width and a height, readable and writable and allowed among a frame's own options; `VideoResolutionAdaptationType`, with no description of its values |
+| The stream decoded with `VideoResolutionAdaptationType` set to 1 or 2 and `ActiveVideoResolution` set on the session before pictures 0, 8 and 10 | Accepted each time, and the picture is unchanged |
+| The same with the active resolution among each frame's options (`VTDecompressionSessionDecodeFrameWithOptionsAndOutputHandler`), as 2400 × 1350, 2880 × 1620 and 3168 × 1782 | Every picture refused, error -12911 |
+| The same as 2400 × 1344, 2880 × 1632 and 3168 × 1792 | Every picture decoded, and the picture is unchanged |
+
+So the format is identified and standard, and a standard decoder gives the damaged picture: this tool's decoding is not at fault, and the stream is not complete by itself. The missing part has a name: the sender uses VideoToolbox's resolution adaptation, in which the encoder changes the picture's size between key frames and the decoder is told the active size of each frame. The decoder on this Mac takes that option for each frame and checks its sizes, since some are refused, but the three sizes tried, which were measured from the saved frame, did not change what it decodes.
+
+Not shown: the values Apple's receiver passes (the sizes, the adaptation type, and whether something else has to be set when the session is made), which are in AVConference's code; and how the receiver learns each frame's size, which is not in the packets' header extension and not in the stream.
+
 ### The Inspector's cursor, the whole hierarchy and a press through the shim
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. It was asleep; one `remote home` woke it. Every request was first read from Apple's own client, the Inspector's device manager (`XDMDeviceTransportBased` in `AccessibilityAuditDeviceManager.framework`, read with `otool`), and the tvOS simulator runtime's copy of `axauditd` gave the attribute names. After each new request the device's crash reports were listed: none for `axauditd` in the whole session. Nothing made the Mac's connection go stale.
