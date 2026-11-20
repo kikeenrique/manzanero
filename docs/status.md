@@ -58,7 +58,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 ## What is open, in order
 
-1. **Push** the fifty local commits: three days of work, none of it in a release.
+1. **Push** the local commits, some fifty: three days of work, none of it in a release.
 2. **A phone session for changes never run on a phone**: pressing a plain table row, a recording of a moving screen to see whether the phone needs the Apple TV's video fix too, and `open-url` against the probe.
 3. **The next beta**: the first release with the tool's own tunnel, the Apple TV, `pair`, sleep and wake, and sound.
 4. **`logs` for devices**: the way in is proven, the command is not built.

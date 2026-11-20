@@ -185,7 +185,7 @@ The afternoon and evening of the same day, on the human owner's word to finish w
 
 In the order suggested. The Apple TV's own list is item 16 below.
 
-- **Push.** Fifty commits are local, the work of 2026-11-18 to 2026-11-20. The fork of lwIP is pushed and its pin resolves.
+- **Push.** Some fifty commits are local, the work of 2026-11-18 to 2026-11-20. The fork of lwIP is pushed and its pin resolves.
 - **One phone session for changes never run on a phone.** The press guard now accepts a table row's second object: press a plain table row there. An iPhone's video offer still carries the resolution adaptation that damaged the Apple TV's pictures; whether its offer should leave the feature out too needs a recording of a moving screen kept with `MANZANERO_KEEP_STREAM=1`. `open-url` against the probe's own scheme, where iOS asks first.
 - **The tunnel on the iPhone, small checks.** An action in flight when the cable is pulled, which should fail once and not repeat; an MCP session or a `batch` over the network, or across a change of link; one interruption of `remoted` seen at a change of link, recovered in two seconds, cause unknown; a second device.
 - **Sound: what is left.** Picture and sound in step (the probe could flash with a beep); a recording of minutes and its drift; an iPad.
@@ -266,7 +266,7 @@ Listed on 2026-11-18. Two were built the same day (24 and 25); the others are no
 
 The first beta is out: v0.1.0-beta.1, published on 2026-11-18 and installable with `brew install kikeenrique/tap/manzanero` ([record](verification.md#first-beta-published)). The tap's formula is Apple silicon only since the same day, with Xcode 27.0 and macOS Tahoe as requirements, and it passed `brew style`, `brew audit` and a reinstall ([record](verification.md#the-taps-formula-apple-silicon-only)). What is left:
 
-34. **The next beta.** Everything since 2026-11-18 is in no release: the Apple silicon, macOS 26.6 and Xcode 27 changes, the tool's own tunnel and lwIP, the Apple TV, `batch`, `pair`, sleep and wake, and sound in a recording. The hosted release workflow has not run with any of it, and the fifty local commits are not pushed. v0.1.0-beta.1's archive still holds an x86_64 slice and its own `doctor` has no requirement check; only its formula was corrected.
+34. **The next beta.** Everything since 2026-11-18 is in no release: the Apple silicon, macOS 26.6 and Xcode 27 changes, the tool's own tunnel and lwIP, the Apple TV, `batch`, `pair`, sleep and wake, and sound in a recording. The hosted release workflow has not run with any of it, and the local commits are not pushed. v0.1.0-beta.1's archive still holds an x86_64 slice and its own `doctor` has no requirement check; only its formula was corrected.
 35. **An install on a tester's Mac.** Only the development Mac has installed it, and that Mac has Xcode and every tool already.
 36. **Signing.** The archives are ad hoc signed and not notarized. Through Homebrew that runs at once; an archive downloaded by hand would be quarantined and Gatekeeper is expected to refuse it, which nobody has tried. Developer ID signing and notarization are not planned and would be the owner's decision ([releasing](releasing.md)).
 37. **Before each release:** repeat the identifier check and the secrets scan of the [public-readiness audit](public-readiness.md#audit-before-the-first-release-2026-11-18), and run the publishing commands from the owner's own terminal, because an agent session's shell has no access to the SSH key.
