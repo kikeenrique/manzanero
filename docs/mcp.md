@@ -38,7 +38,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `set_element_value` | [Unicode entry by AX set-value](simulator-input.md#unicode-text-set-value): replaces one settable element's whole value, with the press guards, on a physical device (the default) or a simulator |
 | `wait_for_element` | [Read-only bounded wait](direct-accessibility.md#bounded-wait-for-a-selector-condition) until an exact selector is visible, gone, enabled, disabled, has an exact value or ([Apple TV](other-families.md#focus-in-the-tree-and-in-waits)) has focus, within one AX session. A timeout over MCP was checked on the iPhone 13 mini and the met case on simulators; the CLI wait is verified on that phone. |
 | `decode_accessibility_archive` | Offline data-only archive inspection |
-| `record_screen` | [Finite MP4 recording](recording.md) to a new host path; optional `display` on a simulator |
+| `record_screen` | [Finite MP4 recording](recording.md) to a new host path; optional `display` on a simulator; `audio: true` with `recording_backend: coredevice` for the device's [sound](recording.md#sound) |
 | `capture_frames` | [Live screen frames as JPEG files](recording.md#frames-repeated-screenshots-from-one-stream) from one native stream on a physical device: `count`, `seconds`, `interval_ms`, `overwrite`; returns the index and the last frame inline (the `image_*` options apply). Cancellation keeps the frames written so far |
 | `tap`, `drag`, `long_press` | Direct single-contact input, physical or simulator |
 | `multi_tap`, `multi_drag`, `pinch`, `perform_gesture` | [Coordinated contacts](multitouch.md) and [timed sequences](gesture-sequences.md); optional `platform` (default physical); a booted simulator receives all of them |

@@ -12,6 +12,20 @@ struct RecordingCommand: Sendable, Equatable {
     var display: String? = nil
     /// The simulator display chosen at run time; nil keeps the plain recordVideo.
     var selection: SimulatorDisplaySelection? = nil
+    /// `--audio`: the device's sound in the movie, with the in-process
+    /// backend only (docs/recording.md#sound).
+    private(set) var audio = false
+
+    /// `--audio` is the in-process physical backend's.
+    func withAudio(_ requested: Bool) throws -> RecordingCommand {
+        guard requested else { return self }
+        guard physical, native else {
+            throw CommandFailure.usage("--audio records a physical device's sound and needs --backend coredevice.")
+        }
+        var copy = self
+        copy.audio = true
+        return copy
+    }
 
     /// `backend` is devicectl (the default) or coredevice, physical only.
     init(physical: Bool, device: String, output: String, seconds: String, codec: String?, backend: String?) throws {
@@ -85,7 +99,12 @@ struct RecordingCommand: Sendable, Equatable {
             if let nativeReceipt {
                 result["sourceFrames"] = nativeReceipt.frames
                 result["timeline"] = "host-pixel-delivery"
-                result["audio"] = false
+                result["audio"] = nativeReceipt.audio != nil
+                if let sound = nativeReceipt.audio {
+                    result["audioTrack"] = ["received": "AAC-ELD", "written": "AAC", "sampleRate": Int(NativeAudioDecoder.sampleRate),
+                        "channels": NativeAudioDecoder.channels, "packets": sound.packets, "packetsLost": sound.lost,
+                        "packetsRefused": sound.refused, "secondsWritten": sound.seconds] as [String: Any]
+                }
                 result["rtcp"] = ["receiverReportsSent": nativeReceipt.receiverReportsSent,
                     "senderReportsObserved": nativeReceipt.senderReportsObserved,
                     "negotiatedFeedback": nativeReceipt.negotiatedFeedback] as [String: Any]

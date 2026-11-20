@@ -173,11 +173,22 @@ int ADCValidateVideoEndpoints(const void *reply, const char *hostAddress, const 
 @property(nonatomic) ADCVideoPacketProfile packetProfile;
 @property(nonatomic) ADCVideoRTCPProfile rtcpProfile;
 @property(nonatomic) BOOL closing;
+// The device's system audio beside the video, in the same client session:
+// a second negotiator, socket and owned stream (ADCStartAudioSession).
+@property(nonatomic, strong) AVCMediaStreamNegotiator *audioNegotiator;
+@property(nonatomic) int audioSocket;
+@property(nonatomic) uint16_t audioReceiverPort;
+@property(nonatomic) uint32_t audioIdentifier;
+@property(nonatomic) BOOL hasAudioIdentifier;
+@property(nonatomic) BOOL audioStartAttempted;
+@property(nonatomic) BOOL audioConfigured;
+@property(nonatomic) ADCAudioPacketProfile audioProfile;
 @end
 @implementation ADCVideoOwner
 - (instancetype)init {
     if ((self = [super init])) {
         _socket = -1;
+        _audioSocket = -1;
         _clientID = NSUUID.UUID;
     }
     return self;
@@ -186,6 +197,7 @@ int ADCValidateVideoEndpoints(const void *reply, const char *hostAddress, const 
     // The Swift owner must explicitly close. This only releases local resources;
     // deinit is not presented as acknowledged remote cleanup.
     if (_socket >= 0) close(_socket);
+    if (_audioSocket >= 0) close(_audioSocket);
     [_control close];
 }
 @end
@@ -346,7 +358,9 @@ int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void),
     xpc_object_t status = [state.control requestAction:"com.apple.coredevice.action.mediastreamstatus" input:xpc_dictionary_create_empty() deadline:deadline cancelled:cancelled error:error capacity:capacity];
     ADCMediaInspection baseline;
     if (!status || ADCValidateMediaInspection((__bridge const void *)support, (__bridge const void *)status, &baseline, error, capacity)) return 1;
-    if (baseline.running || baseline.sessionCount) return VideoFail(error, capacity, @"Another media session is active; no recording started or existing stream stopped.");
+    // The only session there may be is this owner's audio stream, started first.
+    if (baseline.sessionCount != (state.hasAudioIdentifier ? 1 : 0) || (baseline.running && !state.hasAudioIdentifier))
+        return VideoFail(error, capacity, @"Another media session is active; no recording started or existing stream stopped.");
     xpc_object_t input = xpc_dictionary_create_empty();
     xpc_dictionary_set_string(input, "receiverIP", state.hostAddress.UTF8String); xpc_dictionary_set_uint64(input, "receiverPort", state.receiverPort);
     xpc_dictionary_set_string(input, "senderIP", state.deviceAddress.UTF8String); xpc_dictionary_set_uint64(input, "senderPort", 51000);
@@ -415,6 +429,138 @@ int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void),
     if (cancelled && cancelled()) return VideoFail(error, capacity, @"Native video cancelled before the media socket was connected.");
     if (connect(state.socket, (struct sockaddr *)&peer, sizeof(peer))) return VideoFail(error, capacity, @"Cannot connect the owned video media socket.");
     state.configured = YES;
+    return 0;
+}
+
+// The device's system audio as a second stream of the same client session,
+// started before the video as Apple's Device Hub starts it
+// (docs/recording.md#sound). Its negotiator is the one AVConference keeps for
+// a CoreDevice's system audio; the socket is a second one, because the video
+// socket is connected to the video's sender. Nothing is played or muted on
+// the device by it.
+int ADCStartAudioSession(void *owner, int (^cancelled)(void), char *error, size_t capacity) {
+    ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
+    if (!state || state.closing || state.startAttempted || state.audioStartAttempted || ![NSThread isMainThread] || (cancelled && cancelled()))
+        return VideoFail(error, capacity, @"Native audio start refused before mutation.");
+    Class settingsClass = NSClassFromString(@"AVCMediaStreamNegotiatorSettingsCoreDeviceSystemAudio");
+    Class factory = NSClassFromString(@"AVCMediaStreamNegotiatorSettings");
+    if (!settingsClass) return VideoFail(error, capacity, @"Installed Apple system-audio negotiation settings are unavailable; no stream started.");
+    NSDictionary *negotiation = @{@"AVCMediaStreamNegotiatorTransportProtocolType": @2, @"AVCMediaStreamNegotiatorAccessNetworkType": @1};
+    long mode = 0;
+    for (long candidate = 1; candidate <= 16; candidate++) {
+        NSString *reason = nil;
+        id settings = [factory negotiatorSettingsForMode:candidate deviceRole:1 options:negotiation errorString:&reason];
+        if ([settings isKindOfClass:settingsClass]) { mode = candidate; break; }
+    }
+    if (!mode) return VideoFail(error, capacity, @"Installed Apple settings factory did not resolve system audio; no stream started.");
+    NSError *failure = nil;
+    state.audioNegotiator = [[NSClassFromString(@"AVCMediaStreamNegotiator") alloc] initWithMode:mode options:negotiation error:&failure];
+    if (!state.audioNegotiator || ![state.audioNegotiator.negotiatorSettings isKindOfClass:settingsClass] || ![state.audioNegotiator createOffer] ||
+        ![state.audioNegotiator.offer isKindOfClass:NSData.class] || !state.audioNegotiator.offer.length || state.audioNegotiator.offer.length > 1048576)
+        return VideoFail(error, capacity, @"Apple media negotiator did not create a bounded audio offer; no stream started.");
+    // A second socket on the same tunnel address and interface as the video's.
+    struct sockaddr_in6 address = {0}; socklen_t length = sizeof(address);
+    if (getsockname(state.socket, (struct sockaddr *)&address, &length)) return VideoFail(error, capacity, @"Cannot inspect the owned video socket; no audio stream started.");
+    address.sin6_port = 0;
+    state.audioSocket = socket(AF_INET6, SOCK_DGRAM, 0);
+    int flags = state.audioSocket >= 0 ? fcntl(state.audioSocket, F_GETFL) : -1;
+    int receiveBuffer = 256 * 1024;
+    if (flags < 0 || fcntl(state.audioSocket, F_SETFL, flags | O_NONBLOCK) || fcntl(state.audioSocket, F_SETFD, FD_CLOEXEC) ||
+        setsockopt(state.audioSocket, SOL_SOCKET, SO_RCVBUF, &receiveBuffer, sizeof(receiveBuffer)) ||
+        bind(state.audioSocket, (struct sockaddr *)&address, sizeof(address)) || getsockname(state.audioSocket, (struct sockaddr *)&address, &length))
+        return VideoFail(error, capacity, @"Cannot create and bind the owned audio socket; no stream started.");
+    state.audioReceiverPort = ntohs(address.sin6_port);
+    uint64_t deadline = VideoNow() + 20ULL * NSEC_PER_SEC;
+    xpc_object_t support = [state.control requestAction:"com.apple.coredevice.action.mediastreamgetsupportinfo" input:xpc_dictionary_create_empty() deadline:deadline cancelled:cancelled error:error capacity:capacity];
+    if (!support) return 1;
+    xpc_object_t status = [state.control requestAction:"com.apple.coredevice.action.mediastreamstatus" input:xpc_dictionary_create_empty() deadline:deadline cancelled:cancelled error:error capacity:capacity];
+    ADCMediaInspection baseline;
+    if (!status || ADCValidateMediaInspection((__bridge const void *)support, (__bridge const void *)status, &baseline, error, capacity)) return 1;
+    if (baseline.running || baseline.sessionCount) return VideoFail(error, capacity, @"Another media session is active; no recording started or existing stream stopped.");
+    xpc_object_t input = xpc_dictionary_create_empty();
+    xpc_dictionary_set_string(input, "receiverIP", state.hostAddress.UTF8String); xpc_dictionary_set_uint64(input, "receiverPort", state.audioReceiverPort);
+    // No sender port is named: Apple's Device Hub names none for either stream.
+    xpc_dictionary_set_string(input, "senderIP", state.deviceAddress.UTF8String);
+    xpc_dictionary_set_uint64(input, "timeout", 30); xpc_dictionary_set_string(input, "type", "audio"); xpc_dictionary_set_string(input, "direction", "output");
+    NSData *offer = state.audioNegotiator.offer;
+    xpc_dictionary_set_data(input, "negotiatorOffer", offer.bytes, offer.length);
+    xpc_dictionary_set_uint64(input, "clientSupportedFeatures", 140);
+    xpc_object_t options = xpc_dictionary_create_empty(), client = xpc_dictionary_create_empty();
+    uuid_t bytes; [state.clientID getUUIDBytes:bytes]; xpc_dictionary_set_uuid(client, "uuid", bytes);
+    xpc_object_t transport = xpc_dictionary_create_empty(), network = xpc_dictionary_create_empty();
+    xpc_dictionary_set_int64(transport, "int", 2); xpc_dictionary_set_int64(network, "int", 1);
+    xpc_dictionary_set_value(options, "AVCMediaStreamNegotiatorTransportProtocolType", transport);
+    xpc_dictionary_set_value(options, "AVCMediaStreamNegotiatorAccessNetworkType", network);
+    xpc_dictionary_set_value(options, "avcMediaStreamOptionClientSessionID", client); xpc_dictionary_set_value(input, "options", options);
+    if (cancelled && cancelled()) return VideoFail(error, capacity, @"Native audio cancelled before start submission.");
+    state.audioStartAttempted = YES;
+    xpc_object_t reply = [state.control requestAction:"com.apple.coredevice.action.mediastreamstart" input:input deadline:VideoNow() + 8ULL * NSEC_PER_SEC cancelled:cancelled error:error capacity:capacity];
+    if (!reply) return 1;
+    xpc_object_t output = xpc_dictionary_get_dictionary(reply, "CoreDevice.output");
+    xpc_object_t connection = output ? xpc_dictionary_get_dictionary(output, "connection") : nil;
+    xpc_object_t config = connection ? xpc_dictionary_get_dictionary(connection, "streamConfig") : nil;
+    uint64_t identifier = 0, payload = 0;
+    if (!config || !VideoUInt(xpc_dictionary_get_value(config, "RemoteSSRC"), &identifier) || identifier > UINT32_MAX)
+        return VideoFail(error, capacity, @"Audio start reply has no owned stream identifier; start outcome/cleanup may be unknown.");
+    state.audioIdentifier = (uint32_t)identifier; state.hasAudioIdentifier = YES;
+    uint16_t senderPort = 0;
+    if (ADCValidateVideoEndpoints((__bridge const void *)reply, state.hostAddress.UTF8String,
+        state.deviceAddress.UTF8String, state.audioReceiverPort, &senderPort, error, capacity)) return 1;
+    if (!VideoUInt(xpc_dictionary_get_value(config, "TxPayloadType"), &payload) || payload > 127)
+        return VideoFail(error, capacity, @"Audio start reply names no RTP payload type.");
+    size_t answerLength = 0;
+    const void *answer = xpc_dictionary_get_data(output, "negotiatorAnswer", &answerLength);
+    if (!answer || !answerLength || answerLength > 1048576) return VideoFail(error, capacity, @"Audio start reply has no bounded negotiator answer.");
+    if (![state.audioNegotiator setAnswer:[NSData dataWithBytes:answer length:answerLength] withError:&failure])
+        return VideoFail(error, capacity, @"Apple media negotiator refused the audio answer.");
+    // What was agreed is in the negotiator, not in the reply: the codec by
+    // AVConference's own number, the channels and the packet's duration.
+    ADCAudioPacketProfile profile = {0};
+    profile.payloadType = payload; profile.streamIdentifier = identifier;
+    @try {
+        NSDictionary *initial = [state.audioNegotiator generateMediaStreamInitOptionsWithError:&failure];
+        id configuration = [state.audioNegotiator generateMediaStreamConfigurationWithError:&failure];
+        NSNumber *(^number)(NSString *) = ^NSNumber *(NSString *key) {
+            id value = [initial isKindOfClass:NSDictionary.class] ? initial[key] : nil;
+            if (![value isKindOfClass:NSNumber.class] && [configuration isKindOfClass:NSDictionary.class]) value = ((NSDictionary *)configuration)[key];
+            return [value isKindOfClass:NSNumber.class] ? value : nil;
+        };
+        profile.codecType = number(@"vcMediaStreamCodecType").unsignedLongLongValue;
+        profile.channels = number(@"vcMediaStreamChannelCount").unsignedLongLongValue;
+        profile.packetMilliseconds = number(@"vcMediaStreamPtime").unsignedLongLongValue;
+        Class utilities = NSClassFromString(@"VCPayloadUtils");
+        SEL rate = NSSelectorFromString(@"sampleRateForPayload:");
+        if ([utilities respondsToSelector:rate]) profile.sampleRate = (uint64_t)((unsigned int (*)(id, SEL, int))objc_msgSend)(utilities, rate, (int)payload);
+    } @catch (__unused NSException *exception) {
+        // The stream is started; a profile left at zero says the values are unknown.
+    }
+    state.audioProfile = profile;
+    struct sockaddr_in6 peer = {0}; peer.sin6_len = sizeof(peer); peer.sin6_family = AF_INET6;
+    inet_pton(AF_INET6, state.deviceAddress.UTF8String, &peer.sin6_addr);
+    peer.sin6_port = htons(senderPort); peer.sin6_scope_id = address.sin6_scope_id;
+    if (connect(state.audioSocket, (struct sockaddr *)&peer, sizeof(peer))) return VideoFail(error, capacity, @"Cannot connect the owned audio media socket.");
+    state.audioConfigured = YES;
+    return 0;
+}
+
+int ADCCopyNextAudioPacket(void *owner, void (^sink)(const uint8_t *, size_t), char *error, size_t capacity) {
+    ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
+    if (!state || !state.audioConfigured || state.closing || !sink || ![NSThread isMainThread]) {
+        VideoFail(error, capacity, @"Native audio packet read is unavailable."); return -1;
+    }
+    uint8_t packet[65535];
+    ssize_t count = recv(state.audioSocket, packet, sizeof(packet), MSG_DONTWAIT);
+    if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) return 0;
+    if (count <= 0) { VideoFail(error, capacity, @"Native audio datagram receive failed."); return -1; }
+    sink(packet, (size_t)count);
+    return 1;
+}
+
+int ADCReadAudioPacketProfile(void *owner, ADCAudioPacketProfile *profile) {
+    if (profile) memset(profile, 0, sizeof(*profile));
+    ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
+    if (!state || !profile || !state.audioConfigured || state.closing || ![NSThread isMainThread]) return 1;
+    *profile = state.audioProfile;
     return 0;
 }
 
@@ -526,12 +672,17 @@ int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size
     if (!owner) return 0;
     ADCVideoOwner *state = CFBridgingRelease(owner);
     state.closing = YES;
-    if (result) result->startAttempted = state.startAttempted;
+    if (result) result->startAttempted = state.startAttempted || state.audioStartAttempted;
     BOOL confirmed = !state.startAttempted;
+    // The audio stream beside the video is stopped by its own identifier,
+    // in the same request, and has to be acknowledged too.
+    BOOL audioConfirmed = !state.audioStartAttempted;
     @try {
-        if (state.hasIdentifier) {
+        if (state.hasIdentifier || state.hasAudioIdentifier) {
             xpc_object_t input = xpc_dictionary_create_empty(), identifiers = xpc_array_create_empty();
-            xpc_dictionary_set_bool(input, "stopAll", false); xpc_array_append_value(identifiers, xpc_uint64_create(state.ownedIdentifier));
+            xpc_dictionary_set_bool(input, "stopAll", false);
+            if (state.hasIdentifier) xpc_array_append_value(identifiers, xpc_uint64_create(state.ownedIdentifier));
+            if (state.hasAudioIdentifier) xpc_array_append_value(identifiers, xpc_uint64_create(state.audioIdentifier));
             xpc_dictionary_set_value(input, "identifiers", identifiers);
             xpc_object_t reply = [state.control requestAction:"com.apple.coredevice.action.mediastreamstop" input:input deadline:VideoNow() + 4ULL * NSEC_PER_SEC cancelled:nil error:error capacity:capacity];
             xpc_object_t output = reply ? xpc_dictionary_get_dictionary(reply, "CoreDevice.output") : nil;
@@ -539,11 +690,12 @@ int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size
             if (stopped && xpc_array_get_count(stopped) <= 128) {
                 for (size_t i = 0; i < xpc_array_get_count(stopped); i++) {
                     uint64_t identifier;
-                    if (VideoUInt(xpc_array_get_value(stopped, i), &identifier) && identifier == state.ownedIdentifier) {
-                        confirmed = YES; if (result) result->stopAcknowledged = 1;
-                    }
+                    if (!VideoUInt(xpc_array_get_value(stopped, i), &identifier)) continue;
+                    if (state.hasIdentifier && identifier == state.ownedIdentifier) confirmed = YES;
+                    if (state.hasAudioIdentifier && identifier == state.audioIdentifier) audioConfirmed = YES;
                 }
             }
+            if (result && confirmed && audioConfirmed) result->stopAcknowledged = 1;
             // A fresh server-status read is stronger than the stop carrier ack.
             xpc_object_t status = [state.control requestAction:"com.apple.coredevice.action.mediastreamstatus" input:xpc_dictionary_create_empty() deadline:VideoNow() + 4ULL * NSEC_PER_SEC cancelled:nil error:error capacity:capacity];
             xpc_object_t info = status ? xpc_dictionary_get_dictionary(status, "CoreDevice.output") : nil;
@@ -552,8 +704,9 @@ int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size
         }
     } @finally {
         if (state.socket >= 0) { close(state.socket); state.socket = -1; }
+        if (state.audioSocket >= 0) { close(state.audioSocket); state.audioSocket = -1; }
         [state.control close];
     }
-    if (!confirmed) return VideoFail(error, capacity, @"Owned video stop is unconfirmed; no stop-all fallback was sent.");
+    if (!confirmed || !audioConfirmed) return VideoFail(error, capacity, @"Owned media stop is unconfirmed; no stop-all fallback was sent.");
     return 0;
 }

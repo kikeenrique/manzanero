@@ -40,6 +40,47 @@ final class NativeMediaFrames {
 
     isolated deinit { _ = close() }
 
+    /// What was agreed for the audio stream, once `startAudio` has returned.
+    struct AudioProfile: Equatable, Sendable {
+        let payloadType: UInt8
+        let streamIdentifier: UInt32
+        /// AVConference's own number for the codec.
+        let codecType: UInt64
+        let sampleRate: Int
+        let channels: Int
+        let packetMilliseconds: Int
+    }
+    private(set) var audioProfile: AudioProfile?
+
+    /// Starts the device's system audio as a second stream beside the video
+    /// (docs/recording.md#sound). Before `start(displayID:)`. Nothing is
+    /// played or muted on the device by it.
+    func startAudio() throws {
+        try Task.checkCancellation()
+        var error = [CChar](repeating: 0, count: 1024)
+        let result = ADCStartAudioSession(owner, { Task.isCancelled ? 1 : 0 }, &error, error.count)
+        try Task.checkCancellation()
+        guard result == 0 else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
+        var raw = ADCAudioPacketProfile()
+        guard ADCReadAudioPacketProfile(owner, &raw) == 0, let payload = UInt8(exactly: raw.payloadType),
+              let identifier = UInt32(exactly: raw.streamIdentifier) else {
+            throw CommandFailure(.transportFailed, "Native media has no audio profile.", inputSent: .none)
+        }
+        audioProfile = AudioProfile(payloadType: payload, streamIdentifier: identifier, codecType: raw.codecType,
+                                    sampleRate: Int(raw.sampleRate), channels: Int(raw.channels), packetMilliseconds: Int(raw.packetMilliseconds))
+    }
+
+    /// One datagram of the audio stream, or nil when none is pending.
+    func nextAudioPacket() throws -> Data? {
+        guard audioProfile != nil else { return nil }
+        var error = [CChar](repeating: 0, count: 1024), packet: Data?
+        let result = ADCCopyNextAudioPacket(owner, { bytes, count in
+            if let bytes { packet = Data(bytes: bytes, count: count) }
+        }, &error, error.count)
+        guard result >= 0 else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
+        return packet
+    }
+
     func start(displayID: Int64) throws {
         try Task.checkCancellation()
         var error = [CChar](repeating: 0, count: 1024)

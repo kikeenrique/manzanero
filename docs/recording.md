@@ -75,6 +75,23 @@ The media owner sends bounded compound Receiver Reports plus a random per-sessio
 
 Keyframe requests over negotiated feedback are therefore not planned: that phone declines them. Recovery from loss, a crash or a disconnect is to be a restart of the stream, and is not built. Startup failures with zero packets on the test Mac were traced to the firewall (above); whether every earlier startup failure had that cause was not checked.
 
+## Sound
+
+`record <output.mp4> <seconds> --backend coredevice --audio` (MCP `record_screen` with `audio: true`) records the device's sound into the movie, for an iPhone or iPad and for an Apple TV. Without `--audio` a movie has no sound track, as before. `frames` has none.
+
+How it works: the device's system audio is a second stream of the same session, started before the video as Apple's Device Hub starts it, on a socket of its own (`ADCStartAudioSession`, with the negotiator AVConference keeps for a CoreDevice's system audio). An iPhone 13 mini and an Apple TV 4K send AAC-ELD at 48 kHz in stereo, one packet of 480 samples every 10 ms, RTP payload type 101, each payload one access unit with nothing around it. `NativeAudioDecoder` decodes it with AudioToolbox, `NativeAudioTrack` puts the first packet where it arrived on the movie's timeline and from there follows the packets' own timestamps, and the movie gets an AAC track at 48 kHz stereo. A lost packet becomes silence of its length. The result says `audio: true` and, in `audioTrack`, the packets taken, lost and refused and the seconds written.
+
+What to know before using it:
+
+- **It captures and plays nothing.** The device's own speaker goes on playing; nothing is muted or started by the stream.
+- **Some apps mute themselves while the screen is captured.** Apple's TV app on the phone muted its player the moment the capture started, with Apple's Device Hub as with this tool, and the human owner unmuted it by hand; the sound track then holds 80 ms of sound and silence after. The tool does not unmute an app.
+- **A silent device still sends packets**, each the same four bytes, and the track is then silence.
+- **Sound starts with the first picture**; what arrived before it is dropped, so the track is a fraction of a second shorter than the movie.
+- **No fallback.** If the audio stream cannot start, or the device agrees on another rate than 48 kHz, the recording fails; it is not made without sound.
+- **Another capture in progress refuses it**, as it refuses any recording: with Device Hub's screen view of the device open, the recording fails with "Another media session is active".
+
+Run on 2026-11-20 ([record](verification.md#sound-in-a-recording)): on the iPhone 13 mini with the probe's [tone](probe-app.md#tone-probe) playing, and on the Apple TV 4K with nothing playing. Not shown: picture and sound in step, a recording of minutes, another iPhone or an iPad.
+
 ## Frames: repeated screenshots from one stream
 
 `frames` opens the same owned native stream as `record --backend coredevice` and saves frames as JPEG files instead of a movie. The stream is negotiated once, so after the first frame each further one costs tens of milliseconds rather than a `devicectl` run. Physical devices only; on a simulator it is refused as `unsupported-operation`, and `screenshot` is the tool there.

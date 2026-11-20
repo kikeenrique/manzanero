@@ -339,6 +339,17 @@ manzanero open-url 'manzanero-probe-tv://hello?n=1' --device <UDID>
 
 Each URL is also logged at info level with the category `url`. A URL that launches the app is counted like one that reaches it running. On iOS the system asks "Open in “Probe”?" the first time, before the app sees anything: the tree reads that prompt and `press --label Open` answers it, and the next URL arrived without a prompt. tvOS asks nothing. Run on one iPhone simulator and on the Apple TV 4K on 2026-11-20 ([record](verification.md#an-accessibility-tag-for-power-off-a-url-for-the-probes-and-a-recording-with-music)); not on a phone.
 
+## Tone probe
+
+Launched with `-ProbeTone YES`, the iOS probe plays four rising beeps (A, C sharp, E and the A above, a fifth of a second each) over and over while it is in front, so that a recording with sound has something known in it. It plays through the silent switch, at half level, and only with that argument; without it the probe makes no sound. It prints `probe.tone playing` with the device's output volume, which `console` shows:
+
+```sh
+manzanero console <bundle-id> --seconds 20 --device <UDID> -- -ProbeTone YES
+manzanero record tmp/sound.mp4 8 --backend coredevice --audio --device <UDID>
+```
+
+A first version generated a sine wave with `AVAudioEngine`: it started without an error and nobody heard it. This one builds a WAV in memory and plays it with `AVAudioPlayer`. The tvOS probe has no tone: the room it is in stays quiet.
+
 ## List probe
 
 Launched with `-ProbeList YES`, the iOS probe shows two lists in place of the touch surface (`App/ProbeListViewController.swift`): a table of sixty rows and, above it, a strip of forty columns that moves sideways. Both keep only the cells near the screen, so a row further on has no accessibility element until its list has moved, which is what [`scroll --search`](direct-accessibility.md#searching-a-list-that-loads-its-rows---search) is for.

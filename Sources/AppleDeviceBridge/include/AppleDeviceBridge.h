@@ -121,6 +121,24 @@ int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void),
 /// that the device sends a stream a standard decoder shows right. Call
 /// before the start.
 int ADCOfferVideoWithoutResolutionAdaptation(void *owner, char *error, size_t errorCapacity);
+/// What was agreed for the device's system audio stream. A zero is a value
+/// the installed negotiator did not give.
+typedef struct {
+    uint64_t payloadType;         // RTP payload type of the stream
+    uint64_t streamIdentifier;    // the stream's SSRC, as the start reply names it
+    uint64_t codecType;           // AVConference's own number for the codec
+    uint64_t sampleRate;
+    uint64_t channels;
+    uint64_t packetMilliseconds;
+} ADCAudioPacketProfile;
+/// Starts the device's system audio output as a second stream of the same
+/// client session, on a socket of its own. Call it before
+/// ADCStartVideoSession, or alone. ADCCloseVideoSession stops it with the
+/// video and confirms both.
+int ADCStartAudioSession(void *owner, int (^cancelled)(void), char *error, size_t errorCapacity);
+/// One datagram of the audio stream: 1 delivered, 0 pending, -1 failure.
+int ADCCopyNextAudioPacket(void *owner, void (^sink)(const uint8_t *, size_t), char *error, size_t errorCapacity);
+int ADCReadAudioPacketProfile(void *owner, ADCAudioPacketProfile *profile);
 /// Consumes owner, closes its socket and requests a stop of only its
 /// reply-derived RemoteSSRC with stopAll=false. No stop-all fallback.
 int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size_t errorCapacity);

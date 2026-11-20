@@ -378,9 +378,10 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("Physical recording backend: devicectl (default) or coredevice.", valueName: "backend"),
                 completion: .list(["devicectl", "coredevice"])) var backend: String?
         @Option(help: ArgumentHelp("Simulator display: name, device name or screen ID (see displays).", valueName: "display")) var display: String?
+        @Flag(help: "Physical, with --backend coredevice: record the device's sound too. It captures what the device plays and plays nothing; some apps mute their player while the screen is captured.") var audio = false
         func request(_ target: Target) throws -> CommandRequest {
             var recording = try RecordingCommand(physical: target.platform == .physical, device: target.identifier, output: output,
-                                                 seconds: seconds, codec: codec, backend: backend)
+                                                 seconds: seconds, codec: codec, backend: backend).withAudio(audio)
             recording.display = try SimulatorDisplays.validated(display, physical: target.platform == .physical, operation: "record")
             return .record(recording)
         }

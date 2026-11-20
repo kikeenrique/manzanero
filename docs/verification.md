@@ -1236,6 +1236,27 @@ The device now lists the host `manzanero` twice, once for each pairing made; the
 
 Not shown: the comparison that would prove the gain on the same day, a directory read on Apple's tunnel with its interruption in the log beside one on the tool's tunnel without (the day's commands on Apple's tunnel all reused a saved port and read no directory); a phone paired this way; the tunnel after the Apple TV restarts or after days; two processes pairing at once; a long session on the paired tunnel; the device unpaired from its own settings while the Mac keeps the identity (pair-verify should then be refused and the command fall back to Apple's tunnel).
 
+### Sound in a recording
+
+On 2026-11-20, the iPhone 13 mini (iOS 27.2.1) on its cable and the Apple TV 4K (tvOS 27.2), macOS 27.2.1, Xcode 27.2, the human owner at the phone for part of it.
+
+| Run | Result |
+| --- | --- |
+| The audio stream started beside the video on the phone, nothing playing | Both streams start, both stop and are confirmed gone. RTP payload type 101, 48 kHz; a packet every 10 ms, each with the same four-byte payload (`00 68 34 00`); a sender report about every second |
+| The same with the iOS probe's first tone (a sine wave from `AVAudioEngine`) | The same silent packets. The human owner heard no tone: the player was broken |
+| The human owner opened Device Hub's screen view of the phone and played a film in Apple's TV app | Sound came from the phone and from the Mac. The player had started muted. Device Hub's two start requests, read from the Mac's log: audio first, then video, one client session, no sender port named, an event channel with each |
+| The tool's recording while the TV app played, twice | The first 8 packets carry sound (about 380 bytes each), every later one is the silent four bytes. The human owner saw the player mute itself when the recording started |
+| The sender port left out of the tool's audio request, as Device Hub leaves it out | No difference |
+| The probe's second tone (four beeps from `AVAudioPlayer`), which the human owner heard | 394 of 656 packets carry sound, from the first to the last; the others fall in the gaps between beeps |
+| Those packets decoded on the Mac with AudioToolbox, as AAC-ELD at 48 kHz, stereo, 480 samples a packet, each payload taken whole | All 656 decoded, none refused; the peak is half of full scale, the level the probe plays at. The human owner was sent the sound |
+| `record sound.mp4 8 --backend coredevice --audio` on the phone with the beeps | `recorded`, `audio: true`, 811 packets, none lost or refused; a movie with an H.264 picture of 8 seconds and an AAC track of 7.79 seconds at 48 kHz stereo, peak −4.5 dB |
+| The same for 5 seconds on the Apple TV 4K, the silent tvOS probe in front | `recorded`, `audio: true`, 512 packets, none lost; an AAC track of 4.82 seconds beside the 3168 × 1782 picture. The device was woken for it and put back to sleep |
+| A recording attempted while Device Hub's screen view of the phone was open | Refused: "Another media session is active"; the phone's status showed two sessions that were not the tool's |
+
+So the stream works as Apple's own client uses it; the event channel is not needed for sound; and an app can mute its own player when the screen is captured, which no request of the tool's causes or can undo.
+
+Not shown: sound on the Apple TV with something playing; picture and sound in step; a long recording and its drift; an iPad; whether the phone's volume at zero empties the capture (four volume steps up made no difference to a silent capture, which says little).
+
 ### The Inspector's cursor, the whole hierarchy and a press through the shim
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. It was asleep; one `remote home` woke it. Every request was first read from Apple's own client, the Inspector's device manager (`XDMDeviceTransportBased` in `AccessibilityAuditDeviceManager.framework`, read with `otool`), and the tvOS simulator runtime's copy of `axauditd` gave the attribute names. After each new request the device's crash reports were listed: none for `axauditd` in the whole session. Nothing made the Mac's connection go stale.

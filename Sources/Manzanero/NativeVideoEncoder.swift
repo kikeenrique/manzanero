@@ -14,14 +14,44 @@ actor NativeVideoEncoder {
     private var last: CVReadOnlyPixelBuffer?
     private var lastTime: UInt64 = 0
     private var frameCount = 0
+    /// With sound, a second input: the device's audio decoded to PCM and
+    /// written as AAC.
+    private let audio: Bool
+    private var audioReceiver: AVAssetWriterInput.SampleBufferReceiver?
+    private var audioFormat: CMAudioFormatDescription?
+    private var audioEnd: UInt64 = 0
 
-    init(destination: URL, seconds: Double, codec: String) throws {
+    init(destination: URL, seconds: Double, codec: String, audio: Bool = false) throws {
         guard seconds.isFinite, (1...300).contains(seconds), ["h264", "hevc"].contains(codec) else {
             throw CommandFailure(.internal, "Invalid native recording duration or codec.", inputSent: .none)
         }
         self.destination = destination
         self.seconds = seconds
         self.codec = codec
+        self.audio = audio
+    }
+
+    /// Interleaved 16-bit samples at `nanoseconds` on the movie's timeline.
+    /// Sound that arrives before the first picture has no movie to go into
+    /// and is dropped; so is sound that would start before what is written.
+    func consumeAudio(_ samples: [Int16], nanoseconds: UInt64) async throws {
+        guard let audioReceiver, let audioFormat, !samples.isEmpty, nanoseconds >= audioEnd,
+              nanoseconds < UInt64(seconds * 1_000_000_000) else { return }
+        try Task.checkCancellation()
+        let frames = samples.count / NativeAudioDecoder.channels, bytes = samples.count * 2
+        var block: CMBlockBuffer?
+        guard CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil, blockLength: bytes,
+                blockAllocator: kCFAllocatorDefault, customBlockSource: nil, offsetToData: 0, dataLength: bytes, flags: 0,
+                blockBufferOut: &block) == noErr, let block,
+              samples.withUnsafeBytes({ CMBlockBufferReplaceDataBytes(with: $0.baseAddress!, blockBuffer: block, offsetIntoDestination: 0, dataLength: bytes) }) == noErr
+        else { throw CommandFailure(.toolFailed, "Cannot allocate a native audio sample.", inputSent: .none) }
+        var buffer: CMSampleBuffer?
+        guard CMAudioSampleBufferCreateReadyWithPacketDescriptions(allocator: kCFAllocatorDefault, dataBuffer: block, formatDescription: audioFormat,
+                sampleCount: frames, presentationTimeStamp: CMTime(value: Int64(nanoseconds), timescale: 1_000_000_000),
+                packetDescriptions: nil, sampleBufferOut: &buffer) == noErr, let buffer
+        else { throw CommandFailure(.toolFailed, "Cannot create a native audio sample.", inputSent: .none) }
+        try await audioReceiver.append(CMReadySampleBuffer(unsafeBuffer: buffer))
+        audioEnd = nanoseconds + UInt64(Double(frames) / NativeAudioDecoder.sampleRate * 1_000_000_000)
     }
 
     func consume(_ frame: NativeVideoFrame) async throws {
@@ -59,6 +89,20 @@ actor NativeVideoEncoder {
                 throw CommandFailure(.internal, "Cannot create native movie encoder input.", inputSent: .none)
             }
             receiver = writer.inputPixelBufferReceiver(for: input, pixelBufferAttributes: nil)
+            if audio {
+                let sound = AVAssetWriterInput(mediaType: .audio, outputSettings: [
+                    AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: NativeAudioDecoder.sampleRate,
+                    AVNumberOfChannelsKey: NativeAudioDecoder.channels, AVEncoderBitRateKey: 160_000])
+                sound.expectsMediaDataInRealTime = true
+                var pcm = NativeAudioDecoder.pcmFormat
+                var format: CMAudioFormatDescription?
+                guard writer.canAdd(sound), CMAudioFormatDescriptionCreate(allocator: kCFAllocatorDefault, asbd: &pcm, layoutSize: 0, layout: nil,
+                        magicCookieSize: 0, magicCookie: nil, extensions: nil, formatDescriptionOut: &format) == noErr, let format else {
+                    throw CommandFailure(.internal, "Cannot create native movie audio input.", inputSent: .none)
+                }
+                audioFormat = format
+                audioReceiver = writer.inputReceiver(for: sound)
+            }
             try writer.start()
             writer.startSession(atSourceTime: .zero)
             self.writer = writer
@@ -100,6 +144,7 @@ actor NativeVideoEncoder {
         }
         writer.endSession(atSourceTime: CMTime(seconds: seconds, preferredTimescale: 1_000_000_000))
         receiver.finish()
+        audioReceiver?.finish()
         await writer.finishWriting()
         guard writer.status == .completed else {
             // AVFoundation refused to finish the file; recording sends no input.
@@ -118,6 +163,8 @@ struct NativeRecordingReceipt: Sendable {
     let receiverReportsSent: UInt64
     let senderReportsObserved: UInt64
     let negotiatedFeedback: String
+    /// The sound written, when the recording asked for it.
+    var audio: NativeAudioTrack.Receipt? = nil
 }
 
 @MainActor enum NativeRecording {
@@ -138,7 +185,7 @@ struct NativeRecordingReceipt: Sendable {
             details: details, inventory: inventory, requested: command.device)
         let display = try DirectTouchDisplay(
             runner.run(AccessibilityDisplay.plan(device: identity.uuid).arguments, timeout: 15), capture: true)
-        let encoder = try NativeVideoEncoder(destination: staging, seconds: command.seconds, codec: command.codec)
+        let encoder = try NativeVideoEncoder(destination: staging, seconds: command.seconds, codec: command.codec, audio: command.audio)
         try await sessions.begin(endpoint.uuid)
         var capture: NativeMediaFrames?
         var decoder: NativeHEVCDecoder?
@@ -151,6 +198,17 @@ struct NativeRecordingReceipt: Sendable {
         }
         do {
             capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version, plainOffer: display.external)
+            // The device's sound is a second stream, started before the
+            // video as Apple's Device Hub starts it. With --audio a failure
+            // to start it fails the recording: there is no silent fallback.
+            var sound: NativeAudioTrack?
+            if command.audio {
+                try capture?.startAudio()
+                guard let agreed = capture?.audioProfile else {
+                    throw CommandFailure(.transportFailed, "Native recording has no negotiated audio profile.", inputSent: .none)
+                }
+                sound = try NativeAudioTrack(profile: agreed)
+            }
             try capture?.start(displayID: Int64(display.id))
             guard let profile = capture?.packetProfile(), let width = profile["width"], let height = profile["height"],
                 let payload = profile["payloadType"], let payloadType = UInt8(exactly: payload)
@@ -179,6 +237,14 @@ struct NativeRecordingReceipt: Sendable {
                 if now - checked >= 1_000_000_000 {
                     try capture?.requireActive()
                     checked = DispatchTime.now().uptimeNanoseconds
+                }
+                // Sound from before the first picture is dropped: the movie
+                // starts there.
+                while sound != nil, let datagram = try capture?.nextAudioPacket() {
+                    guard let first else { continue }
+                    for piece in sound?.accept(datagram, nanoseconds: now - first) ?? [] where piece.nanoseconds < duration {
+                        try await encoder.consumeAudio(piece.samples, nanoseconds: piece.nanoseconds)
+                    }
                 }
                 if let packet = try capture?.nextPacket() {
                     packetCount += 1
@@ -220,7 +286,7 @@ struct NativeRecordingReceipt: Sendable {
             return NativeRecordingReceipt(frames: frames, media: cleanup, assertionRelease: release.status,
                 receiverReportsSent: capture?.receiverReportsSent ?? 0,
                 senderReportsObserved: capture?.senderReportsObserved ?? 0,
-                negotiatedFeedback: capture?.negotiatedFeedback ?? "unknown")
+                negotiatedFeedback: capture?.negotiatedFeedback ?? "unknown", audio: sound?.receipt)
         } catch {
             let cleanup = closeMedia()
             let release = assertion.close()

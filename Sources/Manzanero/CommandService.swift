@@ -456,7 +456,7 @@ actor CommandService {
                 if recording.native {
                     return try json(["execution": "in-process", "backend": "coredevice-videotoolbox",
                         "frameworks": ["AVConference", "VideoToolbox", "AVFoundation"], "destination": recording.destination.path,
-                        "durationSeconds": recording.seconds, "codec": recording.codec,
+                        "durationSeconds": recording.seconds, "codec": recording.codec, "audio": recording.audio,
                         "stopPolicy": "Owned stream stop and fresh absence check, VideoToolbox invalidation, tunnel assertion release; publish only after artifact validation."] as [String: Any])
                 }
                 let plan = try recording.command(staging: directory.appendingPathComponent("capture.mp4"))

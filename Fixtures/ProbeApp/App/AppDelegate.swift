@@ -11,6 +11,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     let permissionProbe = PermissionProbeRequester()
     /// The URL probe (docs/probe-app.md#url-probe).
     let urlProbe = URLProbeReceiver()
+    /// The tone probe (docs/probe-app.md#tone-probe), silent unless asked for.
+    let toneProbe = ToneProbePlayer()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         logProbe.launched()
@@ -57,10 +59,12 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         (UIApplication.shared.delegate as? AppDelegate)?.permissionProbe.refresh()
         // Keep the display awake: Manzanero's touch and AX paths require an awake display.
         UIApplication.shared.isIdleTimerDisabled = true
+        (UIApplication.shared.delegate as? AppDelegate)?.toneProbe.start()
     }
 
     func sceneWillResignActive(_ scene: UIScene) {
         UIApplication.shared.isIdleTimerDisabled = false
+        (UIApplication.shared.delegate as? AppDelegate)?.toneProbe.stop()
         model?.flush()
     }
 

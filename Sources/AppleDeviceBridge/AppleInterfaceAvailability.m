@@ -115,6 +115,11 @@ static const ADCRequirementSpec ADCNativeRecording[] = {
     ADC_OPTIONAL_METHOD("VCMediaNegotiatorVideoConfiguration", "videoFeatureStrings"),
     ADC_OPTIONAL_METHOD("VCMediaNegotiatorVideoConfiguration", "setVideoFeatureStrings:"),
     ADC_OPTIONAL_METHOD("AVCMediaStreamNegotiator", "setMediaBlobCompressed:"),
+    // ADCStartAudioSession, for record --audio: without the settings class
+    // a recording with sound fails before any stream starts; without the
+    // payload table the sample rate is left unknown and the recording refused.
+    ADC_OPTIONAL_CLASS("AVCMediaStreamNegotiatorSettingsCoreDeviceSystemAudio"),
+    ADC_OPTIONAL_CLASS("VCPayloadUtils"),
 };
 // ADCPrepareCoreSimulator and ADCOpenSimulatorDevice: one SimDevice by UUID.
 #define ADC_CORESIMULATOR_DEVICE \
