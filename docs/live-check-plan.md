@@ -46,7 +46,7 @@ One Apple TV 4K has been driven; everything else in [other families](other-famil
   - `open-url`, with an address the human owner chooses. The other commands, `reports get` among them, ran on 2026-11-20 ([record](verification.md#the-commands-that-had-not-run-on-the-apple-tv)).
   - Through the accessibility shim ([record](verification.md#the-inspectors-cursor-the-whole-hierarchy-and-a-press-through-the-shim)): the cursor put on an element with `deviceInspectorFocusOnElement:`, a press of a row inside a list, a screen other than the probe's, and why one walk of ten entered the lists. Attributes, the hierarchy, the walk and one press ran, and `press` by the cursor ran from the command ([record](verification.md#press-by-the-inspectors-cursor-on-the-apple-tv-4k)).
   - The error a query gives in the stale state, which was built after the last stale period and has only run in unit tests.
-  - The video stream after its first pictures (recording and `frames` are refused meanwhile): the device changes the picture's scale without a key frame and the decoder shows damage ([record](verification.md#the-apple-tvs-video-stream-read-packet-by-packet)). The capture of the tvOS probe's still screen with the stream kept ran on 2026-11-20 ([record](verification.md#the-same-stream-from-a-still-screen-kept-and-read-again)). To run: `record`, and whatever is built to follow the change. The audio stream beside the video was tried and changes nothing.
+  - Recording and `frames` work since 2026-11-20 ([record](verification.md#the-apple-tvs-video-fixed-an-offer-without-resolution-adaptation)). To run: a screen that moves, with the room kept quiet, and a recording of a minute or more.
   - Not the Apple TV HD paired with the same Mac: it runs tvOS 26.6, cannot take 27, and the human owner discarded it for this tool on 2026-11-18.
 - Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), `button side`, and `button action` on an Apple Watch Ultra.
 
@@ -74,7 +74,7 @@ These need no hardware and no owner decision; they were left out of the simulato
 - Does setting or removing a passcode always drop the pairing?
 - What makes the Mac's connection to the Apple TV go stale, three times on 2026-11-18, and why does `remoted` not reconnect?
 - What wakes a sleeping Apple TV, and why did observation alone switch it on the first time?
-- Which values does Apple's AVConference give VideoToolbox's resolution adaptation for the Apple TV's stream, and where does it learn each frame's size?
+- Does an iPhone ever use the resolution adaptation this tool's offer still carries for it, and would its offer be better without?
 - Does a host remove a form that the server withdraws? If it does, a watching handoff could keep a form up as its "I will not do it" button.
 
 ## Stop conditions

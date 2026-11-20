@@ -1,14 +1,15 @@
 import Foundation
 
-/// Experiment only, with `MANZANERO_TV_CAPTURE=1`: keeps a capture's video as
-/// it arrived, beside the frames, so that it can be read and decoded again
-/// without the device. `stream.h265` is the access units in Annex B form,
+/// A diagnostic, with `MANZANERO_KEEP_STREAM=1`: `frames` keeps a capture's
+/// video as it arrived, beside the frames, so that it can be read and
+/// decoded again without the device. `stream.h265` is the access units in Annex B form,
 /// with the parameter sets before each random-access picture; `packets.txt`
 /// has one line for each RTP packet: sequence number, timestamp, marker,
 /// payload bytes, and the header extension's profile and data when there is
-/// one. An Apple TV 4K marks one later picture in that extension as it marks
-/// its key frame (docs/verification.md#the-apple-tvs-video-stream-read-packet-by-packet).
+/// one. Reading one of these showed what damaged an Apple TV's pictures
+/// (docs/verification.md#the-apple-tvs-video-stream-read-packet-by-packet).
 struct NativeStreamDump {
+    static var requested: Bool { ProcessInfo.processInfo.environment["MANZANERO_KEEP_STREAM"] == "1" }
     static let streamName = "stream.h265", packetsName = "packets.txt"
     static let maximumBytes = 256 * 1024 * 1024, maximumPackets = 500_000
     private(set) var stream = Data()

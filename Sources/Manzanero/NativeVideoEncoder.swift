@@ -150,7 +150,7 @@ struct NativeRecordingReceipt: Sendable {
             return capture?.close()
         }
         do {
-            capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version)
+            capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version, plainOffer: display.external)
             try capture?.start(displayID: Int64(display.id))
             guard let profile = capture?.packetProfile(), let width = profile["width"], let height = profile["height"],
                 let payload = profile["payloadType"], let payloadType = UInt8(exactly: payload)

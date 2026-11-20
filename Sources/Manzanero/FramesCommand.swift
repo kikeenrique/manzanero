@@ -75,6 +75,12 @@ struct FramesCommand: Sendable, Equatable {
     /// and bottom. A display larger than the stream keeps the whole picture.
     static func visibleSize(display: DirectTouchDisplay, stream: (width: Int, height: Int)) -> (width: Int, height: Int) {
         let width = Int(display.width.rounded()), height = Int(display.height.rounded())
+        // An Apple TV's 3840 x 2160 display comes scaled into the stream's
+        // width: 3168 x 1782 of a 3168 x 1792 frame, the rest black rows.
+        if display.external, width > stream.width, height > 0 {
+            let fitted = Int((Double(stream.width) * display.height / display.width).rounded())
+            return (1...stream.height).contains(fitted) ? (stream.width, fitted) : stream
+        }
         guard (1...stream.width).contains(width), (1...stream.height).contains(height) else { return stream }
         return (width, height)
     }

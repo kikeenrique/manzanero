@@ -1100,6 +1100,23 @@ So the format is identified and standard, and a standard decoder gives the damag
 
 Not shown: the values Apple's receiver passes (the sizes, the adaptation type, and whether something else has to be set when the session is made), which are in AVConference's code; and how the receiver learns each frame's size, which is not in the packets' header extension and not in the stream.
 
+#### The Apple TV's video, fixed: an offer without resolution adaptation
+
+On 2026-11-20, first on the Mac only, then on the Apple TV 4K (tvOS 27.2) with the tvOS probe in front, woken with one `remote home` and put back to sleep afterwards; no audio stream and no volume key.
+
+On the Mac: the texts around VideoToolbox's resolution adaptation in the system libraries name it in the feature lists AVConference negotiates (`RVRA1`, `VRAE`, "Unknown vra reference scaling method", `vra_width`, `vra_height`). The screen-sharing settings this tool's offer is made from carry, for the HEVC payload, the feature list `FLS;VRAE:0;SW:1;`: the tool, through Apple's negotiator, was offering the adaptation to the device. With `VRAE` taken out of the negotiator's local video configuration (`mediaNegotiator.localSettings`, `mediaConfigurationForMediaType:` 2 and 3, `videoFeatureStrings`), the negotiator's blob shrank from 205 to 193 bytes, and the offer made again from it (`setMediaBlobCompressed:`, `createOffer`) from 495 to 483.
+
+| On the Apple TV 4K | Result |
+| --- | --- |
+| `frames`, 6 seconds, with that offer | 1296 packets, 301 pictures, cleanup confirmed. The saved frames are the probe's screen as the screenshot before showed it, whole, across the frame |
+| The kept stream | One key frame of 43 kB, then pictures that grow from 0.4 to 8 kB over the first second: no picture of key-frame size at the 8th or the 10th, so no step in size |
+| `frames` with no switch set, after the change was made the behaviour for an external display | `captured`, 223 pictures in 5 seconds, frames saved at 3168 × 1782: the display's shape in the stream's width, without the ten black rows the frame ends with |
+| `record tv.mp4 5 --backend coredevice` | `recorded`, 77 source frames, `frameDecoded: true`, `audio: false`; an H.264 movie of 3168 × 1792 and 78 frames whose picture at 3 seconds is the probe's screen. The movie keeps the ten black rows at the bottom |
+
+So recording and `frames` work on the Apple TV: its pictures were damaged because this tool offered a feature its decoder cannot follow, and without the offer the device sends a stream any decoder shows right. The refusal is gone. The change applies to an external display only; a phone's offer is as it was.
+
+Not shown: a screen that moves (the earlier, damaged runs were of the screen saver; these were of a still screen); a longer recording; the same offer to an iPhone, whose recordings have not shown this damage; whether the device now holds one picture size or changes it with key frames, over more than six seconds.
+
 ### The Inspector's cursor, the whole hierarchy and a press through the shim
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. It was asleep; one `remote home` woke it. Every request was first read from Apple's own client, the Inspector's device manager (`XDMDeviceTransportBased` in `AccessibilityAuditDeviceManager.framework`, read with `otool`), and the tvOS simulator runtime's copy of `axauditd` gave the attribute names. After each new request the device's crash reports were listed: none for `axauditd` in the whole session. Nothing made the Mac's connection go stale.

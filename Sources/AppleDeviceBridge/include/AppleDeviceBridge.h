@@ -117,6 +117,10 @@ int ADCSendVideoReceiverReport(void *owner, const uint8_t *packet, size_t length
 int ADCVideoSessionActive(void *owner, int (^cancelled)(void), char *error, size_t errorCapacity);
 int ADCValidateOwnedVideoStatus(const void *reply, uint32_t identifier, char *error, size_t errorCapacity);
 int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void), char *error, size_t errorCapacity);
+/// Takes VideoToolbox's resolution adaptation (`VRAE`) out of the offer, so
+/// that the device sends a stream a standard decoder shows right. Call
+/// before the start.
+int ADCOfferVideoWithoutResolutionAdaptation(void *owner, char *error, size_t errorCapacity);
 /// Consumes owner, closes its socket and requests a stop of only its
 /// reply-derived RemoteSSRC with stopAll=false. No stop-all fallback.
 int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size_t errorCapacity);

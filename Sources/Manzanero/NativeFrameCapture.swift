@@ -27,16 +27,15 @@ import Foundation
         var decoder: NativeHEVCDecoder?
         var run = FrameRun(command: command, started: DispatchTime.now().uptimeNanoseconds)
         var packets = 0, units = 0
-        // The stream as it arrived, kept beside the frames only for the
-        // experiment on an external display.
-        var dump: NativeStreamDump? = DirectTouchDisplay.externalCaptureExperiment ? NativeStreamDump() : nil
+        // The stream as it arrived, kept beside the frames when asked for.
+        var dump: NativeStreamDump? = NativeStreamDump.requested ? NativeStreamDump() : nil
         defer { try? dump?.write(to: command.directory) }
         func closeMedia() -> NativeMediaFrames.Cleanup? {
             decoder?.close()
             return capture?.close()
         }
         do {
-            capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version)
+            capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version, plainOffer: display.external)
             try capture?.start(displayID: Int64(display.id))
             guard let profile = capture?.packetProfile(), let width = profile["width"], let height = profile["height"],
                   let payload = profile["payloadType"], let payloadType = UInt8(exactly: payload) else {

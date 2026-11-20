@@ -4,6 +4,9 @@ import Foundation
 
 struct DirectTouchDisplay: Equatable {
     let id: Int
+    /// An Apple TV's television: no touch, and a video stream that fits the
+    /// display into its own width.
+    private(set) var external = false
     let width: Double
     let height: Double
     let scale: Double
@@ -20,19 +23,11 @@ struct DirectTouchDisplay: Equatable {
     /// with that ID (a simulator whose interface is on another display, such
     /// as an unfolded iPhone Duo's LCD-1); the same checks apply to either.
     ///
-    /// An external primary display (an Apple TV's television) is refused:
-    /// such a device has no touch screen, and with `capture`, for recording
-    /// and `frames`, its video stream decodes right for a few frames only.
-    static let externalCaptureRefusal = "Recording and frames are not supported on an Apple TV: on an Apple TV 4K the stream's first frames decoded right, in the top-left 2400 × 1350 of a 3168 × 1792 frame, and every later one damaged, because the device changes the picture's scale inside the stream without a new key frame. Use screenshot. No capture started."
-
-    /// An experiment, not a feature: `MANZANERO_TV_CAPTURE=1` lets a capture
-    /// start on an external display, to look at the stream that is refused
-    /// (docs/other-families.md#a-physical-apple-tv). Its first frames are
-    /// right and the rest are not. Unset, the refusal stands.
-    static var externalCaptureExperiment: Bool { ProcessInfo.processInfo.environment["MANZANERO_TV_CAPTURE"] == "1" }
-
-    init(_ data: Data, displayId requested: Int? = nil, capture: Bool = false,
-         externalCapture: Bool = DirectTouchDisplay.externalCaptureExperiment) throws {
+    /// An external primary display (an Apple TV's television) is refused
+    /// for touch: such a device has no touch screen. With `capture`, for
+    /// recording and `frames`, it is taken as it is: it has no backlight
+    /// state to check.
+    init(_ data: Data, displayId requested: Int? = nil, capture: Bool = false) throws {
         func invalid() -> CommandFailure {
             CommandFailure(.transportFailed, "Expected one integrated primary display with valid typed geometry/orientation; no touch or capture started.", inputSent: .none)
         }
@@ -50,9 +45,8 @@ struct DirectTouchDisplay: Equatable {
         let rotations = ["rot0": 0, "rot90": 90, "rot180": 180, "rot270": 270]
         guard primary.count == 1, let display = primary.first else { throw invalid() }
         let external = DeviceUIReadiness.isExternal(display)
-        if external, !(capture && externalCapture) {
-            throw CommandFailure.unsupported(capture ? Self.externalCaptureRefusal : AppleTVRemote.touchRefusal)
-        }
+        if external, !capture { throw CommandFailure.unsupported(AppleTVRemote.touchRefusal) }
+        self.external = external
         guard external || (display["type"] as? [String: Any])?["integrated"] is [String: Any] else { throw invalid() }
         guard external || display["backlightState"] as? String == "activeOn" else {
             let subject = requested == nil ? "Primary display" : "Display"

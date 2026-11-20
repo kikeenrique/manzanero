@@ -107,6 +107,14 @@ static const ADCRequirementSpec ADCNativeRecording[] = {
     ADC_OPTIONAL_METHOD("VCMediaNegotiatorBase", "negotiatedScreenSettings"),
     ADC_OPTIONAL_CLASS("VCMediaNegotiatorResultsVideo"),
     ADC_OPTIONAL_METHOD("VCMediaNegotiatorResultsVideo", "isRTCPFBEnabled"),
+    // ADCOfferVideoWithoutResolutionAdaptation, for an Apple TV: without
+    // them its capture fails before any stream starts.
+    ADC_OPTIONAL_METHOD("VCMediaNegotiatorBase", "localSettings"),
+    ADC_OPTIONAL_METHOD("VCMediaNegotiatorBase", "negotiationData"),
+    ADC_OPTIONAL_METHOD("VCMediaNegotiatorLocalConfiguration", "mediaConfigurationForMediaType:"),
+    ADC_OPTIONAL_METHOD("VCMediaNegotiatorVideoConfiguration", "videoFeatureStrings"),
+    ADC_OPTIONAL_METHOD("VCMediaNegotiatorVideoConfiguration", "setVideoFeatureStrings:"),
+    ADC_OPTIONAL_METHOD("AVCMediaStreamNegotiator", "setMediaBlobCompressed:"),
 };
 // ADCPrepareCoreSimulator and ADCOpenSimulatorDevice: one SimDevice by UUID.
 #define ADC_CORESIMULATOR_DEVICE \

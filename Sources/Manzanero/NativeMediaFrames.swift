@@ -21,12 +21,21 @@ final class NativeMediaFrames {
     private(set) var senderReportsObserved: UInt64 = 0
     private(set) var negotiatedFeedback = "unknown"
 
-    init(endpoint: NativeMediaEndpoint, version: String) throws {
+    /// `plainOffer` takes VideoToolbox's resolution adaptation out of the
+    /// offer. An Apple TV uses it when it is offered, and its pictures then
+    /// come out on top of each other from any standard decoder, this one
+    /// included (docs/other-families.md#a-physical-apple-tv).
+    init(endpoint: NativeMediaEndpoint, version: String, plainOffer: Bool = false) throws {
         var pointer: UnsafeMutableRawPointer?, error = [CChar](repeating: 0, count: 1024)
         let result = ADCCreateVideoPacketSession(endpoint.uuid, version, endpoint.interface, endpoint.host, endpoint.device,
             { Task.isCancelled ? 1 : 0 }, &pointer, &error, error.count)
         guard result == 0, let pointer else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
         owner = pointer
+        if plainOffer, ADCOfferVideoWithoutResolutionAdaptation(pointer, &error, error.count) != 0 {
+            let message = Self.text(error)
+            _ = close()
+            throw CommandFailure(.transportFailed, message, inputSent: .none)
+        }
     }
 
     isolated deinit { _ = close() }

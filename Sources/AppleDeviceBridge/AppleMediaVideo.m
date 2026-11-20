@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
+#import <objc/message.h>
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <netinet/in.h>
@@ -283,6 +284,56 @@ int ADCCreateVideoPacketSession(const char *uuid, const char *version, const cha
         return VideoFail(error, capacity, @"Apple media negotiator did not create a bounded offer.");
     *owner = (void *)CFBridgingRetain(state);
     return 0;
+}
+
+// Apple's negotiator offers, for the HEVC payload, the feature `VRAE`:
+// VideoToolbox's resolution adaptation, with which a sender changes the
+// picture's size between key frames and the receiver's decoder has to be
+// told each frame's size. An Apple TV 4K uses it, and a standard decoder
+// then shows its pictures on top of each other. This takes the feature out
+// of the offer, whose blob is cached when the negotiator is made and so is
+// made again, before the stream is started.
+int ADCOfferVideoWithoutResolutionAdaptation(void *owner, char *error, size_t capacity) {
+    ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
+    if (!state || state.closing || state.startAttempted || ![NSThread isMainThread])
+        return VideoFail(error, capacity, @"The video offer cannot be changed now; no stream started.");
+    @try {
+        id media = [(id)state.negotiator valueForKey:@"mediaNegotiator"];
+        id local = [media valueForKey:@"localSettings"];
+        SEL selector = NSSelectorFromString(@"mediaConfigurationForMediaType:");
+        if (!local || ![local respondsToSelector:selector] || ![media respondsToSelector:NSSelectorFromString(@"negotiationData")])
+            return VideoFail(error, capacity, @"Installed Apple negotiator has no local video configuration; no stream started.");
+        NSRegularExpression *feature = [NSRegularExpression regularExpressionWithPattern:@"VRAE(:-?[0-9]+)?;" options:0 error:nil];
+        BOOL changed = NO;
+        // The two screen media types of the screen-sharing settings.
+        for (uint8_t type = 2; type <= 3; type++) {
+            id configuration = ((id (*)(id, SEL, uint8_t))objc_msgSend)(local, selector, type);
+            NSDictionary *strings = [configuration valueForKey:@"videoFeatureStrings"];
+            if (![strings isKindOfClass:NSDictionary.class]) continue;
+            NSMutableDictionary *plain = [NSMutableDictionary dictionary];
+            for (id key in strings) {
+                id value = strings[key];
+                if ([value isKindOfClass:NSString.class]) {
+                    NSString *without = [feature stringByReplacingMatchesInString:value options:0 range:NSMakeRange(0, [value length]) withTemplate:@""];
+                    if (![without isEqualToString:value]) changed = YES;
+                    value = without;
+                }
+                plain[key] = value;
+            }
+            [configuration setValue:plain forKey:@"videoFeatureStrings"];
+        }
+        if (!changed) return 0;
+        NSData *blob = [media valueForKey:@"negotiationData"];
+        if (![blob isKindOfClass:NSData.class] || !blob.length || blob.length > 1048576)
+            return VideoFail(error, capacity, @"Apple negotiator gave no bounded blob for the changed offer; no stream started.");
+        [(id)state.negotiator setValue:blob forKey:@"mediaBlobCompressed"];
+        if (![state.negotiator createOffer] || ![state.negotiator.offer isKindOfClass:NSData.class] ||
+            !state.negotiator.offer.length || state.negotiator.offer.length > 1048576)
+            return VideoFail(error, capacity, @"Apple media negotiator did not create the changed offer; no stream started.");
+        return 0;
+    } @catch (__unused NSException *exception) {
+        return VideoFail(error, capacity, @"Installed Apple negotiator refused the changed offer; no stream started.");
+    }
 }
 
 int ADCStartVideoSession(void *owner, int64_t displayID, int (^cancelled)(void), char *error, size_t capacity) {
