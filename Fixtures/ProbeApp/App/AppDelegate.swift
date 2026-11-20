@@ -9,6 +9,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     let logProbe = LogProbeEmitter()
     /// The permission probe (docs/probe-app.md#permission-probe).
     let permissionProbe = PermissionProbeRequester()
+    /// The URL probe (docs/probe-app.md#url-probe).
+    let urlProbe = URLProbeReceiver()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         logProbe.launched()
@@ -39,6 +41,15 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         if !lists, let surface = window.rootViewController?.view {
             (UIApplication.shared.delegate as? AppDelegate)?.logProbe.attach(to: surface)
             (UIApplication.shared.delegate as? AppDelegate)?.permissionProbe.attach(to: surface)
+            (UIApplication.shared.delegate as? AppDelegate)?.urlProbe.attach(to: surface)
+        }
+        // A URL that launched the app arrives here, not in `openURLContexts`.
+        self.scene(scene, openURLContexts: connectionOptions.urlContexts)
+    }
+
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        for context in URLContexts {
+            (UIApplication.shared.delegate as? AppDelegate)?.urlProbe.received(context.url)
         }
     }
 

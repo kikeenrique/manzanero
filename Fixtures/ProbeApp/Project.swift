@@ -63,6 +63,8 @@ let project = Project(
                                                           "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"],
                 // Lets the Documents directory (and touch-log.jsonl) be browsed and copied.
                 "UIFileSharingEnabled": true,
+                // The URL probe: `open-url manzanero-probe://…` reaches the app.
+                "CFBundleURLTypes": [["CFBundleURLName": "$(PRODUCT_BUNDLE_IDENTIFIER)", "CFBundleURLSchemes": ["manzanero-probe"]]],
             ]),
             sources: [.glob(.relativeToManifest("\(fixture)/App/**/*.swift"))],
             dependencies: [.package(product: "ProbeCore")],
@@ -101,6 +103,8 @@ let project = Project(
                 "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
                 "UILaunchScreen": [:],
                 "UIUserInterfaceStyle": "Automatic",
+                // `open-url manzanero-probe-tv://…` reaches the app.
+                "CFBundleURLTypes": [["CFBundleURLName": "$(PRODUCT_BUNDLE_IDENTIFIER)", "CFBundleURLSchemes": ["manzanero-probe-tv"]]],
             ]),
             sources: [.glob(.relativeToManifest("\(fixture)/TV/**/*.swift"))],
             settings: .settings(configurations: [

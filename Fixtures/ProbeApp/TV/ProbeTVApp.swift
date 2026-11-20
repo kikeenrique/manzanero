@@ -30,6 +30,17 @@ final class RemoteRecord {
         logger.info("remote \(self.count, privacy: .public) \(self.last, privacy: .public)")
     }
 
+    /// The URLs the app was opened with (scheme `manzanero-probe-tv`): `none`,
+    /// or the count and the last one. Kept apart from the remote's counts.
+    private(set) var url = "none"
+    private var urls = 0
+
+    func noteURL(_ opened: URL) {
+        urls += 1
+        url = "\(urls) \(opened.absoluteString)"
+        logger.info("url \(self.url, privacy: .public)")
+    }
+
     /// `up=1 down=0 …`, one entry per kind in a fixed order.
     var summary: String {
         Self.kinds.map { "\($0)=\(counts[$0, default: 0])" }.joined(separator: " ")
@@ -75,6 +86,7 @@ struct ProbeTVView: View {
         // Menu is recorded and kept: leave the probe with the Home button.
         .onExitCommand { record.note("menu") }
         .onPlayPauseCommand { record.note("play-pause") }
+        .onOpenURL { record.noteURL($0) }
     }
 
     private var controls: some View {
@@ -107,6 +119,7 @@ struct ProbeTVView: View {
             readout("probe.tv.last", "Last", record.last)
             readout("probe.tv.count", "Count", String(record.count))
             readout("probe.tv.summary", "Summary", record.summary)
+            readout("probe.tv.url", "URL", record.url)
         }
     }
 

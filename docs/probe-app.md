@@ -323,6 +323,22 @@ Activating it (`manzanero press --id probe.permission.request (--device <UDID> |
 
 On the iPhone 13 mini on 2026-11-17 the press raised "Probe quiere enviarte notificaciones", which the tree read with both buttons, and after the owner's choice the value read `denied` ([verification](verification.md#handoff-with-an-app-permission-prompt)). On an iPhone 17e simulator the same press raised "“Probe” Would Like to Send You Notifications" a few seconds later, and `press --label Allow` from a second process answered it while a handoff watched ([verification](verification.md#handoff-watch-a-timeout-on-the-phone-and-runs-on-a-simulator)).
 
+## URL probe
+
+Both probes register a URL scheme, so `open-url` can be checked against an app of the project's own instead of someone's website or app. Each shows what it was opened with.
+
+| App | Scheme | Element | Value |
+| --- | --- | --- | --- |
+| iOS probe | `manzanero-probe` | `probe.url`, label `Opened URL`, on the touch surface below `probe.log.emit` | `none`, or the count and the last URL: `2 manzanero-probe://again` |
+| tvOS probe | `manzanero-probe-tv` | `probe.tv.url`, label `URL`, the last line of the readouts | the same |
+
+```sh
+manzanero open-url 'manzanero-probe://hello?n=1' --simulator <simulator-UUID>
+manzanero open-url 'manzanero-probe-tv://hello?n=1' --device <UDID>
+```
+
+Each URL is also logged at info level with the category `url`. A URL that launches the app is counted like one that reaches it running. On iOS the system asks "Open in “Probe”?" the first time, before the app sees anything: the tree reads that prompt and `press --label Open` answers it, and the next URL arrived without a prompt. tvOS asks nothing. Run on one iPhone simulator and on the Apple TV 4K on 2026-11-20 ([record](verification.md#an-accessibility-tag-for-power-off-a-url-for-the-probes-and-a-recording-with-music)); not on a phone.
+
 ## List probe
 
 Launched with `-ProbeList YES`, the iOS probe shows two lists in place of the touch surface (`App/ProbeListViewController.swift`): a table of sixty rows and, above it, a strip of forty columns that moves sideways. Both keep only the cells near the screen, so a row further on has no accessibility element until its list has moved, which is what [`scroll --search`](direct-accessibility.md#searching-a-list-that-loads-its-rows---search) is for.
