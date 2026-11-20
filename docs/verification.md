@@ -1005,6 +1005,8 @@ The lead was the `universalhidservice` Apple's Device Hub used with this Apple T
 
 So the four swipes work on a physical Apple TV by the route built for simulators, and `remote` no longer refuses them there.
 
+Afterwards, some minutes after the last swipe, `button lock` was sent to open Control Centre and put the device back to sleep; the screenshot that followed was refused with a zero-sized display, so the Apple TV was already asleep or went to sleep on that press alone, and no select was sent. Which of the two is not known. On the Mac's side the simulator's swipes, whose request is now shared with the device's, were run again on a tvOS 27.2 simulator: `remote swipe-down` and `remote swipe-up`, both `dispatched`.
+
 Not shown: a swipe on the Home Screen or in another app; a swipe of another length or speed; a click of the surface; what happens to the created service when the connection closes (a second and a third swipe created it again without complaint); whether a sleeping Apple TV wakes on a swipe.
 
 ### The Apple TV's video stream, read packet by packet
