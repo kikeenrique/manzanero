@@ -158,6 +158,10 @@ struct NativeRecordingReceipt: Sendable {
                 throw CommandFailure(.transportFailed, "Native recording has no negotiated video profile.", inputSent: .none)
             }
             decoder = try NativeHEVCDecoder(width: Int(width), height: Int(height))
+            // An Apple TV's screen fills the stream's width and leaves black
+            // rows below it, which `frames` drops too. A phone's movie keeps
+            // the whole picture, as it always has.
+            let crop = display.external ? FramesCommand.visibleSize(display: display, stream: (Int(width), Int(height))) : nil
             var assembler = MediaHEVCAssembler()
             let startup = DispatchTime.now().uptimeNanoseconds + 12_000_000_000
             let duration = UInt64(command.seconds * 1_000_000_000)
@@ -186,7 +190,7 @@ struct NativeRecordingReceipt: Sendable {
                         let unit = try assembler.accept(packet)
                     {
                         unitCount += 1
-                        guard let pixels = try decoder?.decodePixels(unit, emit: first == nil || now - last >= 33_333_333)
+                        guard let pixels = try decoder?.decodePixels(unit, emit: first == nil || now - last >= 33_333_333, crop: crop)
                         else { continue }
                         decodedCount += 1
                         let time = DispatchTime.now().uptimeNanoseconds

@@ -23,6 +23,28 @@ struct NativeVideoTests {
         #expect(throws: CommandFailure.self) { try unsupported.withUnsafeBuffer { try NativeVideoFrame.copy($0, context: context) } }
     }
 
+    /// An Apple TV's movie drops the stream's black rows below the screen.
+    @available(macOS 26.0, *)
+    @Test func aCroppedCopyKeepsTheTopRows() throws {
+        let context = CIContext()
+        let source = try CVMutablePixelBuffer(.init(pixelFormatType: .init(rawValue: kCVPixelFormatType_32BGRA), size: .init(width: 64, height: 64)))
+        // Red on top, and ten blue rows at the bottom (Core Image's y 0..<10).
+        let picture = CIImage(color: .init(red: 1, green: 0, blue: 0)).cropped(to: CGRect(x: 0, y: 10, width: 64, height: 54))
+            .composited(over: CIImage(color: .init(red: 0, green: 0, blue: 1)).cropped(to: CGRect(x: 0, y: 0, width: 64, height: 64)))
+        source.withUnsafeBuffer { context.render(picture, to: $0) }
+        let copy = try source.withUnsafeBuffer { try NativeVideoFrame.copy($0, context: context, crop: (64, 54)) }
+        #expect(copy.size.width == 64 && copy.size.height == 54)
+        for y in [0, 53] {
+            var pixel = [UInt8](repeating: 0, count: 4)
+            copy.withUnsafeBuffer { context.render(CIImage(cvPixelBuffer: $0), toBitmap: &pixel, rowBytes: 4,
+                bounds: CGRect(x: 1, y: y, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB()) }
+            #expect(pixel[0] > 200 && pixel[2] < 40, "row \(y)")
+        }
+        // A crop larger than the picture keeps the picture.
+        let whole = try source.withUnsafeBuffer { try NativeVideoFrame.copy($0, context: context, crop: (100, 100)) }
+        #expect(whole.size.width == 64 && whole.size.height == 64)
+    }
+
     @Test func recordingReservationsRejectDuplicateUUIDsAndReleaseForReuse() async throws {
         let sessions = NativeRecordingSessions()
         try await sessions.begin("ABCD")

@@ -79,11 +79,12 @@ final class NativeHEVCDecoder {
         }
     }
 
-    func decodePixels(_ unit: MediaHEVCAccessUnit, emit: Bool) throws -> CVReadOnlyPixelBuffer? {
+    /// The decoded picture's pixels, or its top-left `crop` pixels.
+    func decodePixels(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int)? = nil) throws -> CVReadOnlyPixelBuffer? {
         let context = context
         return try decodeOutput(unit) { image in
             guard emit else { return nil }
-            return try NativeVideoFrame.copy(image, context: context)
+            return try NativeVideoFrame.copy(image, context: context, crop: crop)
         }
     }
 
