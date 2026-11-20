@@ -236,7 +236,7 @@ So the relay works over Apple's native tunnel on this phone, a PID filter holds 
 
 ### Phone session of 2026-11-20: a table row, a moving stream, open-url and logs
 
-**2026-11-20, from about 22:05 local time, at `9e72d73`** (the `logs` changes below on top of it), on the human owner's word for the iPhone 13 mini: iOS 27.2.1, unlocked, no passcode asked, portrait, on its cable. macOS 27.2.1, Xcode 27.2 (27B52). The probe app was built and installed again with `build-run` before the session. Every accessibility command ran on the tool's own tunnel (`serviceDirectory: own-tunnel`, `ownTunnelLink: cable`) unless said otherwise. Only the probe app was used.
+**2026-11-20, from about 22:05 local time, at `d0c6209`** (the `logs` changes below on top of it), on the human owner's word for the iPhone 13 mini: iOS 27.2.1, unlocked, no passcode asked, portrait, on its cable. macOS 27.2.1, Xcode 27.2 (27B52). The probe app was built and installed again with `build-run` before the session. Every accessibility command ran on the tool's own tunnel (`serviceDirectory: own-tunnel`, `ownTunnelLink: cable`) unless said otherwise. Only the probe app was used.
 
 | Check | Observed |
 | --- | --- |
@@ -251,7 +251,7 @@ So the relay works over Apple's native tunnel on this phone, a PID filter holds 
 | `logs --seconds 30 --bundle <the probe>`, and `terminate` of the probe's PID six seconds in | The relay did **not** end the stream when the process ended: it stayed open and silent until the 30 seconds were up (`stopReason: duration`, no records). So ending a capture with its app needs a check of the tool's own |
 | A mistake before that run | A first try took the PID from a `grep` of `processes` and got the process listed before the probe's, 7265: its stream received nothing, and `terminate` was sent to that PID with its output filtered away, so what 7265 was and whether it ended are not known. It was not in the process list afterwards. The phone stayed awake with the probe in front and reported no probe crash. Take a PID from a parsed result, never from neighbouring lines |
 
-Later that night, with the processes chosen as one, a group or all (decision L) on `bc8c5da` with the changes committed after it:
+Later that night, with the processes chosen as one, a group or all (decision L) on `b9cc943` with the changes committed after it:
 
 | Check | Observed |
 | --- | --- |
