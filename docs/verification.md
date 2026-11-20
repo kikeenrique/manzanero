@@ -234,6 +234,23 @@ The stream, over the route accessibility uses (tunnel assertion, port discovery,
 
 So the relay works over Apple's native tunnel on this phone, a PID filter holds on the device, the reference's record layout decoded every record seen, and debug-level lines of an app arrive, which `console` never shows. Not shown: entries with long or unusual fields, a stream of every process (`Pid: -1`), minutes-long streams, what a relaunch does to a PID stream, and whether closing the socket ends the subscription on the phone (a new stream opening is the only evidence). One phone, one iOS version.
 
+### Phone session of 2026-11-20: a table row, a moving stream, open-url and logs
+
+**2026-11-20, from about 22:05 local time, at `662ed96`** (the `logs` changes below on top of it), on the human owner's word for the iPhone 13 mini: iOS 27.2.1, unlocked, no passcode asked, portrait, on its cable. macOS 27.2.1, Xcode 27.2 (27B52). The probe app was built and installed again with `build-run` before the session. Every accessibility command ran on the tool's own tunnel (`serviceDirectory: own-tunnel`, `ownTunnelLink: cable`) unless said otherwise. Only the probe app was used.
+
+| Check | Observed |
+| --- | --- |
+| `press --id probe.list.row.5` on the probe's list screen (launched with `-ProbeList YES` through `devicectl device process launch … -- -ProbeList YES`) | Accepted, and the probe's label read "Last: row-5" in the next tree and on a screenshot. The first press of a plain `UITableViewCell` row on a phone; the guard of 2026-11-20 for a row's second object let it through |
+| `frames` (60 pictures, 200 ms apart, `MANZANERO_KEEP_STREAM=1`) and `scroll --id probe.list.row.55 --search 40` in one MCP session | The scroll ran while the stream did (4 steps, `postcondition-verified`) and its answer came first. A second process could not do the same: the `frames` lease refused its scroll, as designed. 435 packets. The saved frames show the list on rows 13–24, 25–36 and 49–60, each picture whole |
+| The kept stream, read on the Mac with `ffprobe` and decoded with `ffmpeg` | HEVC Main, 1136 × 2464, 283 pictures, one key frame at the start and no other picture near its size. Pictures 20, 120, 178 and 280 decoded by ffmpeg are whole, with nothing drawn on top of anything. So on this phone the stream does not use VideoToolbox's resolution adaptation, although the tool's offer still carries it for a phone's display: the iPhone's offer is left as it is |
+| `open-url 'manzanero-probe://check?n=1'` with the probe in front | `probe.url` read "1 manzanero-probe://check?n=1". No prompt: iOS did not ask, the probe being the app in front. The prompt case (opening the probe from another app) was not run |
+| `logs --seconds 15 --bundle <the probe> --level debug`, with `press --id probe.log.emit` twice from a second process | `--bundle` resolved to the probe's PID and executable. 180 records received (73 kB), 179 kept, all of that PID: 151 debug, 9 info, 15 default, 2 error, 3 fault. The probe's own subsystem had 12, six per press (default, info, debug, error, fault and a `<private>` line), with timestamps in UTC that matched the clock. One record did not parse; its cause was not kept, and the result now names the first failure (`firstParseFailure`). `devicectl`'s process table reached stderr; the queries now pass `--quiet` |
+| `logs --seconds 10 --process ProbeApp --subsystem <the probe's> --level debug`, one press | 61 records received, 6 kept, 55 filtered out, none failed to parse, stderr empty |
+| The same by `--bundle` with `MANZANERO_OWN_TUNNEL=0` | `serviceDirectory: opened`, Apple's tunnel: 61 received, the 6 lines of the press kept |
+| SIGINT eight seconds into a 30-second `logs` | Exit 130 within a second, no result on stdout |
+
+Not shown: what a relaunch does to a stream, a stream of minutes, records with unusual fields, a second phone.
+
 ### Phone session of 2026-11-17
 
 **2026-11-17, at `01988bf`**, the same iPhone 13 mini (unlocked, portrait, reached over `apple-network-rsd`), macOS 27.2.1, Xcode 27.2 (27B52), `devicectl` 651.32.

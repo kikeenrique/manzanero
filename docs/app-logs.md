@@ -4,7 +4,7 @@ An agent that sees a wrong screen needs to know why. Three commands read what th
 
 | Command | Simulator | Physical device |
 | --- | --- | --- |
-| `logs` | `simctl spawn <UUID> log stream\|show --style ndjson`. Verified on one simulator | The device's log relay, a stream from now ([below](#physical-devices)). Built on 2026-11-20 and unit-tested; the command has not run on a device yet (the relay itself was read in an experiment on 2026-11-18) |
+| `logs` | `simctl spawn <UUID> log stream\|show --style ndjson`. Verified on one simulator | The device's log relay, a stream from now ([below](#physical-devices)). Checked on one iPhone 13 mini on 2026-11-20, on both routes |
 | `console` | `simctl launch --stdout=<file> --stderr=<file>`. Verified on one simulator | `devicectl device process launch --console`. Checked on one iPhone 13 mini |
 | `last-crash` | Host `~/Library/Logs/DiagnosticReports`. Verified on one simulator | Existing `reports`/`report` route plus the same parser. Checked on one iPhone 13 mini |
 
@@ -72,7 +72,7 @@ An entry that would cross the entry or byte limit is not kept, and the capture s
 
 ### Physical devices
 
-On a device `logs` reads the device's log relay (`com.apple.os_trace_relay.shim.remote`, `OSTraceRelay` and `PhysicalLogCapture`), the route the experiment of 2026-11-18 proved ([record](verification.md#the-log-relay-on-the-phone)). Built on 2026-11-20; unit-tested against a fake relay on a socket pair, and not yet run on a device.
+On a device `logs` reads the device's log relay (`com.apple.os_trace_relay.shim.remote`, `OSTraceRelay` and `PhysicalLogCapture`), the route the experiment of 2026-11-18 proved ([record](verification.md#the-log-relay-on-the-phone)). Built on 2026-11-20 and unit-tested against a fake relay on a socket pair. The same evening, on the iPhone 13 mini, it kept the probe's lines at every level by `--bundle` and by `--process`, on the tool's own tunnel and on Apple's, and stopped with exit 130 on SIGINT ([record](verification.md#phone-session-of-2026-11-20-a-table-row-a-moving-stream-open-url-and-logs)). The result has `firstParseFailure` when a record does not parse; one in 180 did not in the first run.
 
 - **Time.** `--seconds` only, a stream from now. `--last` and `--start` are usage errors: the device's stored log is not read.
 - **Target.** The relay streams one PID. `--pid` is used as given. `--bundle` is resolved, with `devicectl device info apps` and `processes`, to the one running process whose executable is directly inside the app's `.app` (an extension's is deeper and does not count); `--process` to the one running process with that executable name. Not installed, not running, or more than one match is `target-unresolved`, with nothing captured. A relaunch changes the PID and is **not followed**: the stream ends its coverage there.

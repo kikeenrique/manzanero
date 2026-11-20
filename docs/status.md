@@ -29,13 +29,13 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
 | **Accessibility, read**: `tree`, `wait` | works, portrait only | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
 | **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait only | works | works, see the routes below | works | works (`press`) | partly: `press` fails in a letterboxed app |
-| **Accessibility, search a long list**: `scroll --search` | not run | works in four directions (iPhone) | works in four directions | works in four directions | not run | not run |
+| **Accessibility, search a long list**: `scroll --search` | works downward; the other directions not run | works in four directions (iPhone) | works in four directions | works in four directions | not run | not run |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | not run | works, with `--display` |
 | **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` | `record` works | not run | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | not run | works |
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
 | **Build and run**: `build-run` | works | works | works | not run | not run | not run |
-| **App output**: `console`, `last-crash`, `logs` | `console` and `last-crash` work; `logs` not run (built 2026-11-20) | works | `console` and `last-crash` work; `logs` not run | not run | not run | not run |
+| **App output**: `console`, `last-crash`, `logs` | works | works | `console` and `last-crash` work; `logs` not run | not run | not run | not run |
 | **A person's step**: `handoff` | works | works | works | works | not run | not run |
 | **Several commands at once**: `batch` | works | works | works | works | not run | not run |
 | **From an AI agent**: `mcp` | works | works | works | works | not run | works |
@@ -59,9 +59,9 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 ## What is open, in order
 
 1. **Push** the local commits, some fifty: three days of work, none of it in a release.
-2. **A phone session for changes never run on a phone**: pressing a plain table row, a recording of a moving screen to see whether the phone needs the Apple TV's video fix too, and `open-url` against the probe.
-3. **The next beta**: the first release with the tool's own tunnel, the Apple TV, `pair`, sleep and wake, and sound.
-4. **`logs` for devices**: built on 2026-11-20 on the device's log relay, unit-tested; its first run on the phone is owed.
+2. **The next beta**: the first release with the tool's own tunnel, the Apple TV, `pair`, sleep and wake, sound, and `logs` for devices.
+3. **The new `press` order on the Apple TV**: built and unit-tested, not yet run there.
+4. **`logs` for devices, the rest**: a relaunch during a stream, long streams, the Apple TV.
 5. **Sound in a recording, the rest**: picture and sound in step, a long recording, and the Apple TV with something playing.
 6. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
 7. **Small checks on the iPhone**: an action in flight when the cable is pulled, and an agent session over the network.
@@ -80,4 +80,5 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 - **Plain table rows** can be pressed, found with a new list screen in the iOS probe on a new phone simulator.
 - **Two tests that failed under load** are fixed.
 - **`press` on an Apple TV** goes by the tool's own tunnel first, then the Inspector's cursor, then Apple's tunnel (built and unit-tested; not yet run there).
-- **`logs` on a device**: one app's entries at every level, debug included, from the device's log relay (built and unit-tested; not yet run on a device).
+- **`logs` on a device**: one app's entries at every level, debug included, from the device's log relay; checked on the iPhone on both routes.
+- **On the iPhone**: a plain table row pressed; a moving screen streamed whole, so the phone does not need the Apple TV's video fix; `open-url` against the probe.

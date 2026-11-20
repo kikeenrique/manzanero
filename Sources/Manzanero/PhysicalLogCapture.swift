@@ -219,11 +219,14 @@ enum PhysicalLogCapture {
             throw CommandFailure(.deviceNotReady, "The device's details name no hardware identifier; nothing was captured.", inputSent: .none)
         }
         let device = capture.device
-        let resolved = try resolve(capture.target, apps: {
-            try environment.query(DeviceCommand.plan(physical: true, device: device, operation: "apps"))
-        }, processes: {
-            try environment.query(DeviceCommand.plan(physical: true, device: device, operation: "processes"))
-        })
+        // --quiet keeps devicectl's human-readable table off stderr.
+        func quiet(_ operation: String) throws -> DeviceCommand {
+            var plan = try DeviceCommand.plan(physical: true, device: device, operation: operation)
+            plan.arguments.append("--quiet")
+            return plan
+        }
+        let resolved = try resolve(capture.target, apps: { try environment.query(quiet("apps")) },
+                                   processes: { try environment.query(quiet("processes")) })
         let address = try RSDPortDiscovery.tunnelAddress(details: details, expectedUDID: udid)
         let connection = try await environment.open(udid, address, details)
         let reader = try await stream(connection, pid: resolved.pid, capture: capture)
@@ -288,6 +291,7 @@ enum PhysicalLogCapture {
                             "Entries are filtered by level, subsystem and category on the Mac; the device sends every level of the process."],
         ]
         if let executable = resolved.executable { result["executable"] = executable }
+        if let failure = reader.firstParseFailure { result["firstParseFailure"] = failure }
         if let output = capture.output { result["output"] = output; result["inlineEntryCount"] = inline.count }
         result.merge(route) { $1 }
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
@@ -326,6 +330,8 @@ struct PhysicalLogReader: Sendable {
     private(set) var receivedRecords = 0
     private(set) var filteredOut = 0
     private(set) var parseFailures = 0
+    /// Why the first record that did not parse was refused.
+    private(set) var firstParseFailure: String?
     private(set) var stopReason: StopReason?
 
     init(capture: LogCapture, pid: Int32, receivedBytesCeiling: Int) {
@@ -354,7 +360,12 @@ struct PhysicalLogReader: Sendable {
         receivedBytes += packet.count + 5
         receivedRecords += 1
         if receivedBytes > receivedBytesCeiling { stopReason = .byteLimit; return false }
-        guard let record = try? OSTraceRelay.parse(packet) else { parseFailures += 1; return true }
+        let record: OSTraceRelay.Record
+        do { record = try OSTraceRelay.parse(packet) } catch {
+            parseFailures += 1
+            if firstParseFailure == nil { firstParseFailure = "\(error) (\(packet.count) bytes)" }
+            return true
+        }
         let level = record.levelName
         guard Int32(bitPattern: record.pid) == pid, levels.contains(level) || level.hasPrefix("unknown"),
               subsystem.map({ record.subsystem == $0 }) ?? true, category.map({ record.category == $0 }) ?? true else {
