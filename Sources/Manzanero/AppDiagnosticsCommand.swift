@@ -65,13 +65,23 @@ struct DiagnosticOptions: Sendable {
     var flags: Set<String> = []
     var positional: [String] = []
     var trailing: [String] = []
+    /// Options that may be given more than once, in the order given.
+    var lists: [String: [String]] = [:]
 
     /// Leaves out options that were not given.
-    init(values: [String: String?] = [:], flags: [String: Bool] = [:], positional: [String] = [], trailing: [String] = []) {
+    init(values: [String: String?] = [:], flags: [String: Bool] = [:], positional: [String] = [], trailing: [String] = [],
+         lists: [String: [String]] = [:]) {
         self.values = values.compactMapValues { $0 }
         self.flags = Set(flags.filter(\.value).keys)
         self.positional = positional
         self.trailing = trailing
+        self.lists = lists.filter { !$0.value.isEmpty }
+    }
+
+    /// Every value of a repeatable option; a single value given as
+    /// `values` counts as one.
+    func list(_ name: String) -> [String] {
+        lists[name] ?? values[name].map { [$0] } ?? []
     }
 
     func integer(_ name: String, in range: ClosedRange<Int>) throws -> Int? {
@@ -115,6 +125,16 @@ enum DiagnosticNames {
         guard (1...255).contains(value.utf8.count),
               value.unicodeScalars.allSatisfy({ ($0.isASCII && CharacterSet.alphanumerics.contains($0)) || "._-".unicodeScalars.contains($0) }) else {
             throw CommandFailure.usage("Subsystems may contain only ASCII letters, digits, '.', '_' and '-' (1...255 characters).")
+        }
+        return value
+    }
+
+    /// Text a message must contain: any printable characters but the
+    /// predicate's quote and escape characters.
+    static func match(_ value: String) throws -> String {
+        guard (1...255).contains(value.utf8.count),
+              value.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) && $0 != "\"" && $0 != "\\" && $0 != "'" }) else {
+            throw CommandFailure.usage("--match takes 1...255 printable characters except quotes and backslashes.")
         }
         return value
     }

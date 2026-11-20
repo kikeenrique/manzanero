@@ -97,6 +97,11 @@ private extension Dictionary where Key == String, Value == MCP.Value {
         pairs.compactMap { self[$0.field] == nil ? nil : "\($0.option)=\(numeric ? number($0.field) : text($0.field))" }
     }
 
+    /// `--option=<value>` once for each string of an array field.
+    func repeated(_ pairs: [(field: String, option: String)]) -> [String] {
+        pairs.flatMap { pair in (self[pair.field]?.arrayValue ?? []).compactMap(\.stringValue).map { "\(pair.option)=\($0)" } }
+    }
+
     /// `--id=<text>`, `--label=<text>` or `--with-value=<text>`, then `--pid=<n>` and `--index=<n>` when given.
     var selector: [String] {
         ["\(text("by") == "identifier" ? "--id" : text("by") == "value" ? "--with-value" : "--label")=\(text("text"))"] + options([("pid", "--pid"), ("index", "--index")], numeric: true)
@@ -269,22 +274,30 @@ enum MCPTools {
 
     /// `logs`, `console` and `last-crash` (docs/app-logs.md).
     static let appDiagnostics: [MCPToolDefinition] = [
-        .init(name: "capture_logs", description: "A finite capture of one app's unified-log (os_log/Logger) entries. Simulator (the default platform): Apple's log tool inside a booted simulator (simctl spawn … log stream|show --style ndjson). Physical: the device's log relay, streamed from now, so seconds is the only time selection; the device sends one PID's entries at every level, debug included, and level, subsystem and category are filtered on the Mac; bundle_id and process are resolved to the one running process first, and a relaunch is not followed; stopReason can also be closed (the device ended the stream); the result says the route (serviceDirectory own-tunnel or opened). Give exactly one time selection: seconds (1...60, stream from now), last_seconds (1...3600, persisted entries; debug entries are not persisted, so capture debug live) or start [end] (ISO-8601). Give exactly one target: bundle_id (matched by its installed .app path, which survives relaunches), pid or process. Optional subsystem, category (needs subsystem) and level default|info|debug (default: default). Bounded by max_entries (default 2000, at most 10000) and max_bytes (default 1 MiB, at most 8 MiB); stopReason says duration, complete, entryLimit or byteLimit, and truncated says whether entries were dropped. The tool builds the predicate; no raw predicate is accepted. Optional output writes every kept entry as NDJSON to a new host file and returns only the newest 50 inline. Captured messages can contain private data in clear text. Simulator verified on one iPhone Air simulator (iOS 27.2).", fields: [
+        .init(name: "capture_logs", description: "A finite capture of one app's unified-log (os_log/Logger) entries. Simulator (the default platform): Apple's log tool inside a booted simulator (simctl spawn … log stream|show --style ndjson). Physical: the device's log relay, streamed from now, so seconds (up to 600) is the only time selection; entries come at every level, debug included, and are filtered on the Mac; one process (pid, or a single bundle_id or process matching one running process) is streamed until it ends (stopReason processEnded); a group or all streams every process and keeps the selected ones, a bundle by its app's folder, so an app launched meanwhile is included; stopReason can also be closed (the device ended the stream); the result says the route (serviceDirectory own-tunnel or opened). Give exactly one time selection: seconds (1...60, stream from now), last_seconds (1...3600, persisted entries; debug entries are not persisted, so capture debug live) or start [end] (ISO-8601). Give the processes as exactly one of: pid; bundle_id, bundle_ids, process and processes together (a group; a bundle matched by its installed .app path, which survives relaunches); or all true. Optional subsystem/subsystems and category/categories (any of them; a category needs a subsystem), match (text the message contains) and level default|info|debug (default: default). Bounded by max_entries (default 2000, at most 10000) and max_bytes (default 1 MiB, at most 8 MiB); stopReason says duration, complete, entryLimit or byteLimit, and truncated says whether entries were dropped. The tool builds the predicate; no raw predicate is accepted. Optional output writes every kept entry as NDJSON to a new host file and returns only the newest 50 inline. Captured messages can contain private data in clear text. Simulator verified on one iPhone Air simulator (iOS 27.2).", fields: [
             .init(name: "platform", description: "simulator (default) or physical.", required: false, choices: ["physical", "simulator"]),
             device,
-            .init(name: "seconds", kind: .integer, description: "Stream from now for 1...60 seconds.", required: false),
+            .init(name: "seconds", kind: .integer, description: "Stream from now for 1...60 seconds (1...600 on a physical device).", required: false),
             .init(name: "last_seconds", kind: .integer, description: "Query the last 1...3600 seconds of persisted entries.", required: false),
             .init(name: "start", description: "ISO-8601 start of a persisted window.", required: false),
             .init(name: "end", description: "ISO-8601 end of the window; needs start.", required: false),
             .init(name: "bundle_id", required: false), .init(name: "pid", kind: .integer, required: false), .init(name: "process", required: false),
+            .init(name: "bundle_ids", kind: .stringArray, description: "Several apps, with bundle_id and processes: a group.", required: false),
+            .init(name: "processes", kind: .stringArray, description: "Several process names, with process and bundle_ids: a group.", required: false),
+            .init(name: "all", kind: .boolean, description: "Every process.", required: false),
             .init(name: "subsystem", required: false), .init(name: "category", required: false),
+            .init(name: "subsystems", kind: .stringArray, description: "Any of these subsystems, with subsystem.", required: false),
+            .init(name: "categories", kind: .stringArray, description: "Any of these categories, with category; needs a subsystem.", required: false),
+            .init(name: "match", description: "Only messages that contain this text.", required: false),
             .init(name: "level", required: false, choices: LogCapture.Level.allCases.map(\.rawValue)),
             .init(name: "max_entries", kind: .integer, required: false), .init(name: "max_bytes", kind: .integer, required: false),
             .init(name: "output", description: "New host .ndjson path; its parent must exist.", required: false)], readOnly: true) { arguments in
             arguments.command(["logs"], platform: arguments.text("platform") == "physical" ? "physical" : "simulator", options: arguments.options([("seconds", "--seconds"), ("last_seconds", "--last"), ("pid", "--pid"),
                                                                                             ("max_entries", "--max-entries"), ("max_bytes", "--max-bytes")], numeric: true)
                 + arguments.options([("start", "--start"), ("end", "--end"), ("bundle_id", "--bundle"), ("process", "--process"), ("subsystem", "--subsystem"),
-                                     ("category", "--category"), ("level", "--level"), ("output", "--output")]))
+                                     ("category", "--category"), ("match", "--match"), ("level", "--level"), ("output", "--output")])
+                + arguments.repeated([("bundle_ids", "--bundle"), ("processes", "--process"), ("subsystems", "--subsystem"), ("categories", "--category")])
+                + (arguments["all"]?.boolValue == true ? ["--all"] : []))
         },
         .init(name: "capture_console", description: "Launch (relaunching if running) an app and return byte-bounded tails of its stdout and stderr. seconds 1...60; max_bytes per stream 1024...1048576 (default 65536). os_log true sets OS_ACTIVITY_DT_MODE so the app's own os_log lines at info level and above are mirrored to its stderr (one line each, category but no level or subsystem; debug lines are not mirrored). app_arguments are passed to the app. Simulator: simctl launch with stdout/stderr redirected to host files under tmp/ (paths returned); waits until the app exits or seconds pass; the app keeps running unless terminate is true. Print output that the app never flushes is lost in this mode. exitStatus is null because simctl does not report how the app ended; use latest_crash. Physical (checked on one iPhone; an app that crashes returns its output with appEndedAbnormally and the signal in exitStatus): devicectl launch --console; at seconds the app is always ended by a forwarded SIGINT; output includes devicectl's own status lines, appOutputObserved/captured say whether anything else arrived, and an empty capture does not prove the app printed nothing. Launches an app, so it is not read-only.", fields: [
             platform, device, .init(name: "bundle_id"), .init(name: "seconds", kind: .integer),

@@ -2,40 +2,41 @@ import Darwin
 import Foundation
 import Synchronization
 
-/// `logs` on a physical device: one process's unified-log entries, streamed
-/// from now through the device's log relay (`OSTraceRelay`), on the tool's
-/// own tunnel when it reaches the device and over Apple's tunnel otherwise
+/// `logs` on a physical device: unified-log entries streamed from now through
+/// the device's log relay (`OSTraceRelay`), on the tool's own tunnel when it
+/// reaches the device and over Apple's tunnel otherwise
 /// (docs/app-logs.md#physical-devices).
 ///
-/// The device is asked for one PID's entries at every level; level,
-/// subsystem and category are filtered on the Mac, and so is the PID again,
-/// so nothing of another process reaches the output. `--bundle` and
-/// `--process` are resolved to one running process first: the stream follows
-/// that PID, and a relaunch of the app is not followed.
+/// One process (`--pid`, or a single `--bundle` or `--process` that matches
+/// one running process): the device is asked for that PID, and the capture
+/// ends when the process ends. A group or `--all`: the device is asked for
+/// every process and the Mac keeps the selected ones, by PID, by process name
+/// or by the app's folder, so an app that launches meanwhile is included.
+/// Level, subsystem, category and `--match` are always filtered on the Mac.
 enum PhysicalLogCapture {
     /// Bytes read from the relay before the capture stops, whatever is kept.
-    static let receivedBytesCeiling = 64 * 1024 * 1024
+    static let receivedBytesCeiling = 256 * 1024 * 1024
+    /// How often the process of a one-process capture is looked for.
+    static let watchInterval = Duration.seconds(2)
 
     static func plan(_ capture: LogCapture) -> [String: Any] {
         var plan: [String: Any] = [
             "backend": "os-trace-relay", "operation": "logs", "platform": "physical", "device": capture.device, "readOnly": true,
-            "service": OSTraceRelay.service, "level": capture.level.rawValue, "source": capture.source,
+            "service": OSTraceRelay.service, "level": capture.level.rawValue, "source": capture.source, "all": capture.all,
             "hostFilter": filterDescription(capture),
+            "deviceStream": deviceStreamDescription(capture),
             "bounds": ["maxEntries": capture.maxEntries, "maxBytes": capture.maxBytes, "seconds": seconds(capture),
                        "receivedBytesCeiling": receivedBytesCeiling, "maximumRecordBytes": OSTraceRelay.maximumRecordBytes],
             "route": ["first": "the tool's own tunnel (MANZANERO_OWN_TUNNEL=0 turns it off)",
                       "fallback": "Apple's tunnel: a tunnel assertion, port discovery and the device's service directory"],
-            "execution": "Requires a paired device with Developer Mode. Asks the device's log relay for one process's entries at every level and filters on the Mac; stops at the duration, the entry limit or the byte limit, or when the device closes the stream. A relaunch of the app is not followed. Sends the device no input.",
+            "execution": "Requires a paired device with Developer Mode. Streams from the device's log relay and filters on the Mac; stops at the duration, the entry limit or the byte limit, when the device closes the stream, or, for one process, when that process ends. Sends the device no input.",
         ]
-        switch capture.target {
-        case .pid(let pid): plan["pid"] = Int(pid)
-        case .bundle(let bundle):
-            plan["targetResolution"] = ["bundle": bundle, "queries": ["devicectl device info apps", "devicectl device info processes"],
-                                        "match": "the one running process whose executable is directly inside the app's bundle"]
-        case .process(let name):
-            plan["targetResolution"] = ["process": name, "queries": ["devicectl device info processes"],
-                                        "match": "the one running process whose executable has this name"]
+        if !capture.bundles.isEmpty || !capture.processes.isEmpty {
+            plan["targetResolution"] = ["bundles": capture.bundles, "processes": capture.processes,
+                                        "queries": ["devicectl device info apps", "devicectl device info processes"],
+                                        "match": "a bundle by its installed .app folder, a process by its executable's name"]
         }
+        if case .pid(let pid) = capture.targets.first, capture.targets.count == 1 { plan["pid"] = Int(pid) }
         if let output = capture.output { plan["output"] = output; plan["inlineEntries"] = LogCapture.inlineEntriesWithOutput }
         return plan
     }
@@ -45,56 +46,96 @@ enum PhysicalLogCapture {
         return 0
     }
 
+    private static func deviceStreamDescription(_ capture: LogCapture) -> String {
+        if capture.all || capture.targets.count > 1 { return "every process" }
+        if case .pid(let pid) = capture.targets[0] { return "PID \(pid), until it ends" }
+        return "the one running process that matches, until it ends; every process when several match"
+    }
+
     private static func filterDescription(_ capture: LogCapture) -> String {
-        var clauses: [String]
-        switch capture.target {
-        case .pid(let pid): clauses = ["pid == \(pid)"]
-        case .bundle(let bundle): clauses = ["pid == <the running process of \(bundle)>"]
-        case .process(let name): clauses = ["pid == <the running process named \(name)>"]
+        var clauses: [String] = []
+        if !capture.all {
+            clauses.append("(" + capture.targets.map { target -> String in
+                switch target {
+                case .pid(let pid): "pid == \(pid)"
+                case .bundle(let bundle): "path inside the .app of \(bundle)"
+                case .process(let name): "process == \(name)"
+                }
+            }.joined(separator: " OR ") + ")")
         }
-        if let subsystem = capture.subsystem { clauses.append("subsystem == \(subsystem)") }
-        if let category = capture.category { clauses.append("category == \(category)") }
+        if !capture.subsystems.isEmpty { clauses.append("subsystem in \(capture.subsystems)") }
+        if !capture.categories.isEmpty { clauses.append("category in \(capture.categories)") }
+        if let match = capture.match { clauses.append("message contains \(LogCapture.quote(match))") }
         clauses.append("level in \(PhysicalLogReader.levels(capture.level).sorted())")
         return clauses.joined(separator: " AND ")
     }
 
-    // MARK: The process
+    // MARK: Which processes
 
-    struct Resolved: Equatable {
-        let pid: Int32
-        let executable: String?
+    /// What the device is asked for and what the Mac keeps.
+    struct Selection: Equatable, Sendable {
+        /// The one process the device streams, which ends the capture when it
+        /// ends; nil: every process.
+        var pid: Int32?
+        var pids: Set<Int32> = []
+        var names: Set<String> = []
+        /// `.app` folders, with a trailing slash and without `/private`.
+        var folders: [String] = []
+        /// The executable of the one process, when it was looked up.
+        var executable: String?
+
+        var everyProcess: Bool { pids.isEmpty && names.isEmpty && folders.isEmpty }
+
+        func accepts(pid: Int32, path: String) -> Bool {
+            if everyProcess { return true }
+            let path = PhysicalLogCapture.normalized(path)
+            return pids.contains(pid) || names.contains(URL(fileURLWithPath: path).lastPathComponent)
+                || folders.contains(where: path.hasPrefix)
+        }
     }
 
-    /// `--bundle` and `--process` to one running process; `apps` and
-    /// `processes` are the outputs of `devicectl device info apps` and
-    /// `processes` as JSON.
-    static func resolve(_ target: LogCapture.Target, apps: () throws -> Data, processes: () throws -> Data) throws -> Resolved {
-        if case .pid(let pid) = target { return Resolved(pid: pid, executable: nil) }
+    /// `apps` and `processes` are the outputs of `devicectl device info apps`
+    /// and `processes` as JSON, read only when a bundle or a name needs them.
+    static func select(_ capture: LogCapture, apps: () throws -> Data, processes: () throws -> Data) throws -> Selection {
+        if capture.all { return Selection() }
+        if case .pid(let pid) = capture.targets[0], capture.targets.count == 1 { return Selection(pid: pid, pids: [pid]) }
+        var folders: [String: String] = [:]
+        if !capture.bundles.isEmpty {
+            let installed = try apps()
+            for bundle in capture.bundles {
+                guard let folder = try appDirectory(installed, bundle: bundle) else {
+                    throw CommandFailure(.targetUnresolved, "\(bundle) is not installed on the device; nothing was captured.", inputSent: .none)
+                }
+                folders[bundle] = normalized(folder) + "/"
+            }
+        }
+        let selection = Selection(names: Set(capture.processes), folders: capture.bundles.compactMap { folders[$0] })
+        guard capture.targets.count == 1 else { return selection }
+        // One bundle or one name: the one running process, by its main
+        // executable (an extension's sits deeper in the bundle).
         let running = try runningProcesses(processes())
-        let matches: [(pid: Int32, executable: String)]
-        switch target {
-        case .pid: fatalError("handled above")
-        case .bundle(let bundle):
-            guard let app = try appDirectory(apps(), bundle: bundle) else {
-                throw CommandFailure(.targetUnresolved, "\(bundle) is not installed on the device; nothing was captured.", inputSent: .none)
-            }
-            // The main executable sits directly in the bundle; an extension's
-            // sits deeper, under PlugIns or Extensions.
-            matches = running.filter { URL(fileURLWithPath: $0.executable).deletingLastPathComponent().standardizedFileURL.path == app }
-            guard !matches.isEmpty else {
-                throw CommandFailure(.targetUnresolved, "\(bundle) is not running; launch it first (launch or console), then capture. Nothing was captured.", inputSent: .none)
-            }
-        case .process(let name):
-            matches = running.filter { URL(fileURLWithPath: $0.executable).lastPathComponent == name }
-            guard !matches.isEmpty else {
-                throw CommandFailure(.targetUnresolved, "No running process is named \(name); nothing was captured.", inputSent: .none)
+        let matches = running.filter { process in
+            switch capture.targets[0] {
+            case .bundle(let bundle): normalized(URL(fileURLWithPath: process.executable).deletingLastPathComponent().path) + "/" == folders[bundle]
+            case .process(let name): URL(fileURLWithPath: process.executable).lastPathComponent == name
+            case .pid: false
             }
         }
-        guard matches.count == 1 else {
-            let pids = matches.map { String($0.pid) }.joined(separator: ", ")
-            throw CommandFailure(.targetUnresolved, "\(matches.count) running processes match (PIDs \(pids)); give one with --pid. Nothing was captured.", inputSent: .none)
+        switch matches.count {
+        case 0:
+            let what = capture.bundles.first ?? "A process named \(capture.processes[0])"
+            throw CommandFailure(.targetUnresolved, "\(what) is not running; launch it first, or capture with --all and a filter to see it start. Nothing was captured.", inputSent: .none)
+        case 1:
+            return Selection(pid: matches[0].pid, pids: [matches[0].pid], executable: matches[0].executable)
+        default:
+            // Several processes of that name: every process, kept by name.
+            return selection
         }
-        return Resolved(pid: matches[0].pid, executable: matches[0].executable)
+    }
+
+    /// `/private/var/…` as `/var/…`: devicectl and the relay do not agree on it.
+    static func normalized(_ path: String) -> String {
+        path.hasPrefix("/private/var/") ? String(path.dropFirst("/private".count)) : path
     }
 
     static func runningProcesses(_ data: Data) throws -> [(pid: Int32, executable: String)] {
@@ -127,9 +168,14 @@ enum PhysicalLogCapture {
 
     // MARK: The stream
 
-    /// A socket to the device's log relay and what closes it.
+    /// Sockets to the device's log relay and what closes them.
     struct Connection: @unchecked Sendable {
         let descriptor: Int32
+        /// Opens another socket to the relay, until `close`: on the tool's
+        /// own tunnel only, where it is one more relayed connection. The
+        /// relay answers one `PidList` per socket, so each look at the
+        /// process list takes a new one.
+        var another: (@Sendable () throws -> Int32)? = nil
         /// `serviceDirectory`, `ownTunnelLink`, `ownTunnelUnavailable`: the
         /// route, in the words accessibility results use.
         let route: [String: String]
@@ -148,7 +194,9 @@ enum PhysicalLogCapture {
     static func live(device: String, details: @escaping @Sendable () throws -> Data, ownTunnel: OwnTunnelSource = .pooled) -> Environment {
         Environment(details: details, query: { plan in
             try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 60)
-        }, open: { udid, address, details in try await open(udid: udid, address: address, details: details, ownTunnel: ownTunnel) })
+        }, open: { udid, address, details in
+            try await open(udid: udid, address: address, details: details, ownTunnel: ownTunnel)
+        })
     }
 
     /// The tool's own tunnel when it can be had, where reading the directory
@@ -162,10 +210,12 @@ enum PhysicalLogCapture {
                 let directory = try RSDDirectoryConnection(tunnelAddress: "::1", port: try tunnel.relay(to: tunnel.info.serviceDirectoryPort),
                                                            expectedUDID: udid, relayed: true)
                 do {
-                    let port = try tunnel.relay(to: directory.shimServicePort(OSTraceRelay.service))
-                    let descriptor = try RSDDirectoryConnection.connectStream(address: "::1", port: port, relayed: true)
+                    let port = try directory.shimServicePort(OSTraceRelay.service)
+                    let descriptor = try RSDDirectoryConnection.connectStream(address: "::1", port: try tunnel.relay(to: port), relayed: true)
                     let owned = UncheckedBox(directory)
-                    return Connection(descriptor: descriptor, route: ["serviceDirectory": "own-tunnel", "ownTunnelLink": tunnel.info.link], close: {
+                    return Connection(descriptor: descriptor, another: {
+                        try RSDDirectoryConnection.connectStream(address: "::1", port: try tunnel.relay(to: port), relayed: true)
+                    }, route: ["serviceDirectory": "own-tunnel", "ownTunnelLink": tunnel.info.link], close: {
                         Darwin.close(descriptor)
                         owned.value.close()
                         ownTunnel.release(tunnel, tunnel.isAlive)
@@ -220,34 +270,90 @@ enum PhysicalLogCapture {
         }
         let device = capture.device
         // --quiet keeps devicectl's human-readable table off stderr.
-        func quiet(_ operation: String) throws -> DeviceCommand {
+        @Sendable func quiet(_ operation: String) throws -> DeviceCommand {
             var plan = try DeviceCommand.plan(physical: true, device: device, operation: operation)
             plan.arguments.append("--quiet")
             return plan
         }
-        let resolved = try resolve(capture.target, apps: { try environment.query(quiet("apps")) },
+        let selection = try select(capture, apps: { try environment.query(quiet("apps")) },
                                    processes: { try environment.query(quiet("processes")) })
         let address = try RSDPortDiscovery.tunnelAddress(details: details, expectedUDID: udid)
         let connection = try await environment.open(udid, address, details)
-        let reader = try await stream(connection, pid: resolved.pid, capture: capture)
-        return try result(capture, reader: reader, resolved: resolved, route: connection.route)
+        var watch: ProcessWatch?
+        if let pid = selection.pid {
+            if let another = connection.another {
+                watch = ProcessWatch(source: "relay", isRunning: { try relayLists(pid, another: another) })
+            } else {
+                let query = environment.query
+                watch = ProcessWatch(source: "devicectl", isRunning: {
+                    try runningProcesses(query(quiet("processes"))).contains { $0.pid == pid }
+                })
+            }
+        }
+        let outcome = try await stream(connection, selection: selection, capture: capture, watch: watch)
+        return try result(capture, outcome: outcome, selection: selection, route: connection.route)
+    }
+
+    /// How a one-process capture learns that its process has ended.
+    struct ProcessWatch: Sendable {
+        /// `relay` (its process list, on a socket of its own each time) or
+        /// `devicectl` (on Apple's tunnel, where no new socket can be had).
+        var source: String
+        var isRunning: @Sendable () throws -> Bool
+    }
+
+    /// Whether the relay lists `pid`, asked on a fresh socket: the relay
+    /// answers one `PidList` per socket and closes it on a second.
+    static func relayLists(_ pid: Int32, another: () throws -> Int32) throws -> Bool {
+        let descriptor = try another()
+        defer { Darwin.close(descriptor) }
+        let stream = OSTraceRelay.Stream(descriptor: descriptor, deadline: .now + .seconds(8))
+        try OSTraceRelay.checkIn(stream)
+        return try OSTraceRelay.pidList(stream).contains(pid)
+    }
+
+    /// What a stream read, and what became of the process watch.
+    struct Outcome: Sendable {
+        var reader: PhysicalLogReader
+        /// For one process: the watch's source while it worked to the end,
+        /// or why it stopped working.
+        var processWatch: String?
     }
 
     /// Reads on a thread of its own, so the command service's queue is free
-    /// for other calls meanwhile; cancellation stops it within 100 ms.
-    static func stream(_ connection: Connection, pid: Int32, capture: LogCapture,
-                       clock: ContinuousClock = ContinuousClock()) async throws -> PhysicalLogReader {
-        let flag = CancelFlag()
-        let start = PhysicalLogReader(capture: capture, pid: pid, receivedBytesCeiling: receivedBytesCeiling)
+    /// for other calls meanwhile; cancellation stops it within 100 ms. For
+    /// one process, a second thread looks for it every `watchInterval` and
+    /// ends the capture when it is gone.
+    static func stream(_ connection: Connection, selection: Selection, capture: LogCapture, watch: ProcessWatch? = nil,
+                       watchInterval: Duration = watchInterval) async throws -> Outcome {
+        let cancelled = CancelFlag(), ended = CancelFlag(), stopWatch = CancelFlag()
+        let watchNote = Mutex<String?>(nil)
+        let start = PhysicalLogReader(capture: capture, selection: selection, receivedBytesCeiling: receivedBytesCeiling)
         return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<PhysicalLogReader, any Error>) in
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Outcome, any Error>) in
                 Thread.detachNewThread {
-                    defer { connection.close() }
+                    let watcherDone = DispatchSemaphore(value: 0)
+                    var watching = false
+                    defer {
+                        stopWatch.set()
+                        if watching { watcherDone.wait() }
+                        connection.close()
+                    }
                     var reader = start
-                    let isCancelled: @Sendable () -> Bool = { flag.isSet }
+                    let isCancelled: @Sendable () -> Bool = { cancelled.isSet || ended.isSet }
                     do {
                         try OSTraceRelay.start(OSTraceRelay.Stream(descriptor: connection.descriptor, deadline: .now + .seconds(8),
-                                                                   cancelled: isCancelled), pid: pid)
+                                                                   cancelled: isCancelled), pid: selection.pid ?? -1)
+                        if selection.pid != nil, let watch {
+                            watching = true
+                            watchNote.withLock { $0 = watch.source }
+                            Thread.detachNewThread {
+                                defer { watcherDone.signal() }
+                                if let failure = watchProcess(watch.isRunning, every: watchInterval, stop: stopWatch, ended: ended) {
+                                    watchNote.withLock { $0 = "\(watch.source) \(failure)" }
+                                }
+                            }
+                        }
                         let reading = OSTraceRelay.Stream(descriptor: connection.descriptor, deadline: .now + .seconds(seconds(capture)),
                                                           cancelled: isCancelled)
                         reading: while true {
@@ -256,21 +362,43 @@ enum PhysicalLogCapture {
                                 reader.stop(.duration); break reading
                             } catch is OSTraceRelay.Closed {
                                 reader.stop(.closed); break reading
+                            } catch is CancellationError where ended.isSet && !cancelled.isSet {
+                                reader.stop(.processEnded); break reading
                             }
                             guard reader.feed(packet) else { break reading }
                         }
-                        continuation.resume(returning: reader)
+                        // The watch's last word, before the result is made.
+                        stopWatch.set()
+                        if watching { watcherDone.wait(); watching = false }
+                        continuation.resume(returning: Outcome(reader: reader, processWatch: watchNote.withLock { $0 }))
                     } catch {
                         continuation.resume(throwing: error)
                     }
                 }
             }
         } onCancel: {
-            flag.value.store(true, ordering: .relaxed)
+            cancelled.set()
         }
     }
 
-    static func result(_ capture: LogCapture, reader: PhysicalLogReader, resolved: Resolved, route: [String: String]) throws -> Data {
+    /// Looks for the process every `interval` until it is gone (then sets
+    /// `ended`) or `stop` is set. Returns why it stopped looking, if a look
+    /// failed; the capture then runs to its other limits.
+    static func watchProcess(_ isRunning: () throws -> Bool, every interval: Duration, stop: CancelFlag, ended: CancelFlag) -> String? {
+        while !stop.isSet {
+            do {
+                if try !isRunning() { ended.set(); return nil }
+            } catch {
+                return "unavailable: " + String("\(error)".prefix(300))
+            }
+            let next = ContinuousClock.now + interval
+            while ContinuousClock.now < next, !stop.isSet { Thread.sleep(forTimeInterval: 0.05) }
+        }
+        return nil
+    }
+
+    static func result(_ capture: LogCapture, outcome: Outcome, selection: Selection, route: [String: String]) throws -> Data {
+        let reader = outcome.reader
         var inline = reader.entries
         if let output = capture.output {
             var file = Data()
@@ -282,15 +410,15 @@ enum PhysicalLogCapture {
         }
         var result: [String: Any] = [
             "platform": "physical", "device": capture.device, "operation": "logs", "source": capture.source,
-            "pid": Int(resolved.pid),
+            "deviceStream": selection.pid.map { "pid \($0)" } ?? "every process",
             "entries": try inline.map { try JSONSerialization.jsonObject(with: $0) },
             "entryCount": reader.entries.count, "entryBytes": reader.entryBytes, "receivedBytes": reader.receivedBytes,
             "receivedRecords": reader.receivedRecords, "filteredOut": reader.filteredOut, "parseFailures": reader.parseFailures,
             "stopReason": (reader.stopReason ?? .duration).rawValue, "truncated": reader.truncated, "level": capture.level.rawValue,
-            "limitations": ["The stream follows one PID: a relaunch of the app is not followed.",
-                            "Entries are filtered by level, subsystem and category on the Mac; the device sends every level of the process."],
         ]
-        if let executable = resolved.executable { result["executable"] = executable }
+        if let pid = selection.pid { result["pid"] = Int(pid) }
+        if let executable = selection.executable { result["executable"] = executable }
+        if let watch = outcome.processWatch { result["processWatch"] = watch }
         if let failure = reader.firstParseFailure { result["firstParseFailure"] = failure }
         if let output = capture.output { result["output"] = output; result["inlineEntryCount"] = inline.count }
         result.merge(route) { $1 }
@@ -305,20 +433,22 @@ final class UncheckedBox<Value>: @unchecked Sendable {
     init(_ value: Value) { self.value = value }
 }
 
-/// Set when the command is cancelled; the reading thread checks it.
+/// Set once; the reading threads check it.
 final class CancelFlag: Sendable {
     let value = Atomic<Bool>(false)
     var isSet: Bool { value.load(ordering: .relaxed) }
+    func set() { value.store(true, ordering: .relaxed) }
 }
 
 /// Keeps or drops each record of the relay and enforces the bounds, as
 /// `UnifiedLogReader` does for a simulator. Entries have the same fields.
 struct PhysicalLogReader: Sendable {
-    enum StopReason: String, Sendable { case duration, closed, entryLimit, byteLimit }
+    enum StopReason: String, Sendable { case duration, closed, processEnded, entryLimit, byteLimit }
 
-    let pid: Int32
-    let subsystem: String?
-    let category: String?
+    let selection: PhysicalLogCapture.Selection
+    let subsystems: Set<String>
+    let categories: Set<String>
+    let match: String?
     let levels: Set<String>
     let maxEntries: Int
     let maxBytes: Int
@@ -334,8 +464,9 @@ struct PhysicalLogReader: Sendable {
     private(set) var firstParseFailure: String?
     private(set) var stopReason: StopReason?
 
-    init(capture: LogCapture, pid: Int32, receivedBytesCeiling: Int) {
-        self.pid = pid; subsystem = capture.subsystem; category = capture.category
+    init(capture: LogCapture, selection: PhysicalLogCapture.Selection, receivedBytesCeiling: Int) {
+        self.selection = selection
+        subsystems = Set(capture.subsystems); categories = Set(capture.categories); match = capture.match
         levels = Self.levels(capture.level)
         maxEntries = capture.maxEntries; maxBytes = capture.maxBytes; self.receivedBytesCeiling = receivedBytesCeiling
     }
@@ -367,8 +498,10 @@ struct PhysicalLogReader: Sendable {
             return true
         }
         let level = record.levelName
-        guard Int32(bitPattern: record.pid) == pid, levels.contains(level) || level.hasPrefix("unknown"),
-              subsystem.map({ record.subsystem == $0 }) ?? true, category.map({ record.category == $0 }) ?? true else {
+        guard selection.accepts(pid: Int32(bitPattern: record.pid), path: record.process),
+              levels.contains(level) || level.hasPrefix("unknown"),
+              subsystems.isEmpty || subsystems.contains(record.subsystem), categories.isEmpty || categories.contains(record.category),
+              match.map(record.message.contains) ?? true else {
             filteredOut += 1
             return true
         }

@@ -61,7 +61,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 1. **Push** the local commits, some fifty: three days of work, none of it in a release.
 2. **The next beta**: the first release with the tool's own tunnel, the Apple TV, `pair`, sleep and wake, sound, and `logs` for devices.
 3. **The new `press` order on the Apple TV**: built and unit-tested, not yet run there.
-4. **`logs` for devices, the rest**: a relaunch during a stream, long streams, the Apple TV.
+4. **`logs` for devices, the rest**: streams near ten minutes, the Apple TV.
 5. **Sound in a recording, the rest**: picture and sound in step, a long recording, and the Apple TV with something playing.
 6. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
 7. **Small checks on the iPhone**: an action in flight when the cable is pulled, and an agent session over the network.
@@ -80,5 +80,5 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 - **Plain table rows** can be pressed, found with a new list screen in the iOS probe on a new phone simulator.
 - **Two tests that failed under load** are fixed.
 - **`press` on an Apple TV** goes by the tool's own tunnel first, then the Inspector's cursor, then Apple's tunnel (built and unit-tested; not yet run there).
-- **`logs` on a device**: one app's entries at every level, debug included, from the device's log relay; checked on the iPhone on both routes.
+- **`logs` on a device**: entries at every level, debug included, from the device's log relay, of one process (until it ends), a group or every process, with filters; checked on the iPhone on both routes.
 - **On the iPhone**: a plain table row pressed; a moving screen streamed whole, so the phone does not need the Apple TV's video fix; `open-url` against the probe.

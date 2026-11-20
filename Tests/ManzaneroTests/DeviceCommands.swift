@@ -65,7 +65,7 @@ struct DeviceCommandsTests {
         let plan = try #require(JSONSerialization.jsonObject(with: output.data) as? [String: Any])
         #expect(plan["backend"] as? String == "os-trace-relay" && plan["platform"] as? String == "physical")
         #expect(plan["service"] as? String == OSTraceRelay.service && plan["readOnly"] as? Bool == true)
-        #expect((plan["targetResolution"] as? [String: Any])?["bundle"] as? String == "com.example.probe")
+        #expect((plan["targetResolution"] as? [String: Any])?["bundles"] as? [String] == ["com.example.probe"])
         for stored in [["--last", "30"], ["--start", "2026-11-20T10:00:00Z"]] {
             await #expect { _ = try await CommandService().run(["logs"] + stored + ["--pid", "1", "--device", "fixture"], dryRun: true) } throws: {
                 ($0 as? CommandFailure)?.code == .usage && ($0 as? CommandFailure)?.description.contains("--seconds") == true

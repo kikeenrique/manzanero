@@ -44,11 +44,17 @@ private func entry(_ message: String, level: String = "Default", pid: Int = 42, 
 struct LogCaptureParsingTests {
     @Test func streamDefaultsAndArguments() throws {
         let capture = try logs(["--seconds", "10", "--pid", "123"])
-        #expect(capture.mode == .stream(seconds: 10) && capture.target == .pid(123))
+        #expect(capture.mode == .stream(seconds: 10) && capture.targets == [.pid(123)])
         #expect(capture.level == .default && capture.maxEntries == 2000 && capture.maxBytes == 1024 * 1024)
         #expect(capture.hardDeadlineSeconds == 15)
-        #expect(capture.arguments(predicate: capture.predicate(appPath: nil)) == ["simctl", "spawn", uuid, "log", "stream", "--style", "ndjson",
+        #expect(capture.arguments(predicate: capture.predicate(appPaths: [:])) == ["simctl", "spawn", uuid, "log", "stream", "--style", "ndjson",
             "--level", "default", "--timeout", "10", "--predicate", "processID == 123"])
+    }
+
+    @Test func allProcessesWithoutAFilterPassNoPredicate() throws {
+        let capture = try logs(["--seconds", "10", "--all"])
+        #expect(capture.all && capture.predicate(appPaths: [:]).isEmpty)
+        #expect(capture.arguments(predicate: "") == ["simctl", "spawn", uuid, "log", "stream", "--style", "ndjson", "--level", "default", "--timeout", "10"])
     }
 
     @Test func showModesUseLevelFlagsAndUTCWindows() throws {
@@ -68,6 +74,7 @@ struct LogCaptureParsingTests {
         ["--seconds", "5", "--pid", "1", "--predicate", "TRUEPREDICATE"],
         ["--start", "yesterday", "--pid", "1"], ["--start", "2026-01-02T00:00:00Z", "--end", "2026-01-01T00:00:00Z", "--pid", "1"],
         ["--seconds", "5", "--end", "2026-01-01T00:00:00Z", "--pid", "1"], ["--seconds", "5", "--pid", "1", "extra"],
+        ["--seconds", "5", "--pid", "1", "--all"], ["--seconds", "5", "--all", "--match", "a\"b"],
     ])
     func invalidCallsAreUsageErrors(_ operands: [String]) {
         #expect { try logs(operands) } throws: { ($0 as? CommandFailure)?.code == .usage }
@@ -88,9 +95,16 @@ struct LogCaptureParsingTests {
 struct LogPredicateTests {
     @Test func predicateCombinesValidatedFields() throws {
         let capture = try logs(["--seconds", "5", "--bundle", "com.example.app", "--subsystem", "com.example.app", "--category", "UI Events"])
-        #expect(capture.predicate(appPath: "/sim/App.app") == #"processImagePath BEGINSWITH "/sim/App.app/" AND subsystem == "com.example.app" AND category == "UI Events""#)
-        #expect(capture.predicate(appPath: nil).contains("<installed app path>/"))
-        #expect(try logs(["--seconds", "5", "--process", "My App"]).predicate(appPath: nil) == #"process == "My App""#)
+        #expect(capture.predicate(appPaths: ["com.example.app": "/sim/App.app"]) == #"processImagePath BEGINSWITH "/sim/App.app/" AND subsystem == "com.example.app" AND category == "UI Events""#)
+        #expect(capture.predicate(appPaths: [:]).contains("<installed app path of com.example.app>/"))
+        #expect(try logs(["--seconds", "5", "--process", "My App"]).predicate(appPaths: [:]) == #"process == "My App""#)
+    }
+
+    @Test func aGroupAndRepeatedFiltersAreAlternativesAndMatchIsAContainment() throws {
+        let capture = try logs(["--seconds", "5", "--bundle", "com.example.app", "--process", "locationd", "--subsystem", "a.b", "--subsystem", "c.d",
+                                "--match", "failed: 401"])
+        #expect(capture.predicate(appPaths: ["com.example.app": "/sim/App.app"])
+            == #"(processImagePath BEGINSWITH "/sim/App.app/" OR process == "locationd") AND (subsystem == "a.b" OR subsystem == "c.d") AND eventMessage CONTAINS "failed: 401""#)
     }
 
     @Test(arguments: [
@@ -193,7 +207,7 @@ struct UnifiedLogReaderTests {
     }
 
     @Test func receivedBytesAreBoundedEvenWhenEverythingIsFilteredOut() {
-        var reader = reader(filter: .init(pid: 1))
+        var reader = reader(filter: .init(pids: [1]))
         reader.receivedBytesCeiling = 1000
         var more = true
         for _ in 0..<20 where more { more = reader.feed(Data((entry("other") + "\n").utf8)) }
@@ -201,14 +215,19 @@ struct UnifiedLogReaderTests {
     }
 
     @Test func hostFilterDropsOtherProcessesSubsystemsAndCategories() {
-        var reader = reader(filter: .init(imagePrefix: "/apps/Example.app/", subsystem: "com.example.app", category: "network"))
+        var reader = reader(filter: .init(imagePrefixes: ["/apps/Example.app/"], subsystems: ["com.example.app"], categories: ["network"]))
         let lines = [entry("keep"), entry("other app", image: "/apps/Other.app/Other"), entry("prefix trick", image: "/apps/Example.appX/E"),
                      entry("other subsystem", subsystem: "com.other"), entry("other category", category: "ui")].joined(separator: "\n") + "\n"
         let kept = reader.feed(Data(lines.utf8))
         #expect(kept && reader.entries.count == 1 && reader.filteredOut == 4)
-        var byName = self.reader(filter: .init(pid: 42, process: "Example"))
-        let keptByName = byName.feed(Data((entry("a") + "\n" + entry("b", pid: 7) + "\n" + entry("c", image: "/x/Other") + "\n").utf8))
-        #expect(keptByName && byName.entries.count == 1)
+        // A group: a process is kept when it matches any of the PIDs or names.
+        var byName = self.reader(filter: .init(pids: [7], processes: ["Example"]))
+        let keptByName = byName.feed(Data((entry("a") + "\n" + entry("b", pid: 7, image: "/x/Other") + "\n" + entry("c", pid: 8, image: "/x/Other") + "\n"
+            + entry("needle in it") + "\n").utf8))
+        #expect(keptByName && byName.entries.count == 3)
+        var byText = self.reader(filter: .init(match: "needle"))
+        _ = byText.feed(Data((entry("a needle") + "\n" + entry("hay", image: "/x/Other") + "\n").utf8))
+        #expect(byText.entries.count == 1 && byText.filteredOut == 1)
     }
 
     @Test func noiseDiagnosticsAreNotFailures() {
@@ -649,7 +668,7 @@ struct AppDiagnosticsServiceTests {
         let logsPlan = try object(await service().run(["logs", "--seconds", "10", "--bundle", "com.example.app", "--simulator", uuid], dryRun: true).data)
         #expect(logsPlan["readOnly"] as? Bool == true && logsPlan["source"] as? String == "simctl-log-stream")
         #expect((logsPlan["bounds"] as? [String: Any])?["hardDeadlineSeconds"] as? Double == 15)
-        #expect(((logsPlan["targetResolution"] as? [String: Any])?["query"] as? [String: Any])?["arguments"] as? [String] == ["simctl", "get_app_container", uuid, "com.example.app", "app"])
+        #expect((((logsPlan["targetResolution"] as? [[String: Any]])?.first)?["query"] as? [String: Any])?["arguments"] as? [String] == ["simctl", "get_app_container", uuid, "com.example.app", "app"])
         let consolePlan = try object(await service().run(["console", "com.example.app", "--seconds", "5", "--device", "phone"], dryRun: true).data)
         #expect(consolePlan["liveVerification"] as? String == "one iPhone 13 mini" && consolePlan["readOnly"] as? Bool == false && (consolePlan["execution"] as? String)?.contains("forwards to the app") == true)
         let simConsole = try object(await service().run(["console", "com.example.app", "--seconds", "5", "--simulator", uuid], dryRun: true).data)
@@ -691,6 +710,13 @@ struct AppDiagnosticsMCPTests {
                             "--subsystem=com.example.app", "--category=probe", "--level=debug"])
         guard case .logs(let parsed) = try diagnostics(logArgs) else { Issue.record("not logs"); return }
         #expect(parsed.maxEntries == 3 && parsed.level == .debug)
+        let group = try tool("capture_logs").command(["platform": "physical", "device": "phone", "seconds": 300, "bundle_ids": ["a.b", "c.d"],
+                                                      "processes": ["locationd"], "subsystems": ["x.y"], "match": "401"])
+        #expect(group == ["logs", "--device=phone", "--seconds=300", "--match=401", "--bundle=a.b", "--bundle=c.d", "--process=locationd", "--subsystem=x.y"])
+        guard case .logs(let groupParsed) = try diagnostics(group) else { Issue.record("not logs"); return }
+        #expect(groupParsed.targets == [.bundle("a.b"), .bundle("c.d"), .process("locationd")] && groupParsed.match == "401" && groupParsed.physical)
+        let all = try tool("capture_logs").command(["platform": "physical", "device": "phone", "seconds": 5, "all": true])
+        #expect(all == ["logs", "--device=phone", "--seconds=5", "--all"])
         let consoleArgs = try tool("capture_console").command(["platform": "simulator", "device": .string(uuid), "bundle_id": "a.b", "seconds": 5,
                                                                "os_log": true, "terminate": false, "app_arguments": ["-probeLogToken", "T1"]])
         #expect(consoleArgs == ["console", "--simulator=\(uuid)", "--seconds=5", "--os-log", "a.b", "--", "-probeLogToken", "T1"])

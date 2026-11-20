@@ -12,7 +12,7 @@ An agent that sees a wrong screen needs to know why. Three commands read what th
 
 ```sh
 manzanero logs (--seconds N | --last N | --start <ISO-8601> [--end <ISO-8601>])
-    (--bundle <id> | --pid N | --process <name>) [--subsystem S [--category C]]
+    (--pid N | --bundle <id>… --process <name>… | --all) [--subsystem S… [--category C…]] [--match <text>]
     [--level default|info|debug] [--max-entries N] [--max-bytes N] [--output <new.ndjson>]
     (--simulator <UUID> | --device <UDID>, with --seconds only)
 manzanero console <bundle-id> --seconds N [--max-bytes N] [--os-log] [--terminate]
@@ -29,19 +29,19 @@ MCP exposes them as `capture_logs` (`readOnly`; `platform` is `simulator` unless
 
 **Time.** Exactly one of:
 
-- `--seconds 1…60`: `log stream` from now. `log --timeout` ends it; the tool's hard deadline is five seconds later.
+- `--seconds 1…60` (`1…600` on a physical device): `log stream` from now. `log --timeout` ends it; the tool's hard deadline is five seconds later.
 - `--last 1…3600`: `log show --last <n>s` over the simulator's persisted store.
 - `--start <ISO-8601> [--end <ISO-8601>]`: `log show` over a window. The tool passes the instants in UTC.
 
-**Target.** Exactly one of:
+**Processes.** Exactly one of, as Apple's `log stream`, `idevicesyslog` and `pymobiledevice3 syslog` offer:
 
-- `--bundle <id>`: resolved with `simctl get_app_container <UUID> <id> app` to the installed `.app` directory, then matched with `processImagePath BEGINSWITH "<app>/"`. This covers the app and anything inside its bundle, and survives relaunches (Q7). A bundle that is not installed is `ambiguous-or-missing-target`.
-- `--pid N`: `processID == N`. A relaunch changes the PID.
-- `--process <name>`: `process == "<name>"`.
+- `--pid N`: one process, `processID == N`. A relaunch changes the PID.
+- `--bundle <id>` and `--process <name>`, each repeatable (at most 16), together a group: alternatives joined with `OR`. A bundle is resolved with `simctl get_app_container <UUID> <id> app` to the installed `.app` directory, then matched with `processImagePath BEGINSWITH "<app>/"`, which covers the app and anything inside its bundle and survives relaunches (Q7); a bundle that is not installed is `target-unresolved`. A name is `process == "<name>"`.
+- `--all`: every process. With no filter either, no predicate is passed at all.
 
-**Narrowing.** `--subsystem`, then `--category` (which needs a subsystem). `--level default|info|debug` (default `default`) is passed to `log stream --level` or as `--info`/`--debug` to `log show`.
+**Narrowing.** `--subsystem` and `--category` (each repeatable; a category needs a subsystem), each set joined with `OR`; `--match <text>`, `eventMessage CONTAINS "<text>"`. Every group of conditions is joined with `AND`. `--level default|info|debug` (default `default`) is passed to `log stream --level` or as `--info`/`--debug` to `log show`.
 
-**No raw predicate.** The tool builds the predicate itself. Bundle identifiers, subsystems and process names are limited to ASCII letters, digits and a few punctuation characters; categories to printable ASCII without quotes or backslashes. Values are also escaped when quoted. A capture is always limited to one app; entries that do not match the target, subsystem and category are dropped on the host as well and counted in `filteredOut`, as are entries that are not log events (activities).
+**No raw predicate.** The tool builds the predicate itself. Bundle identifiers, subsystems and process names are limited to ASCII letters, digits and a few punctuation characters; categories to printable ASCII, and `--match` to printable characters, both without quotes or backslashes. Values are also escaped when quoted. Entries that do not match the processes, subsystems, categories and text are dropped on the host as well and counted in `filteredOut`, as are entries that are not log events (activities). `--all` with no filter returns every process's messages, which can carry private data of other apps.
 
 **Bounds.**
 
@@ -74,11 +74,12 @@ An entry that would cross the entry or byte limit is not kept, and the capture s
 
 On a device `logs` reads the device's log relay (`com.apple.os_trace_relay.shim.remote`, `OSTraceRelay` and `PhysicalLogCapture`), the route the experiment of 2026-11-18 proved ([record](verification.md#the-log-relay-on-the-phone)). Built on 2026-11-20 and unit-tested against a fake relay on a socket pair. The same evening, on the iPhone 13 mini, it kept the probe's lines at every level by `--bundle` and by `--process`, on the tool's own tunnel and on Apple's, and stopped with exit 130 on SIGINT ([record](verification.md#phone-session-of-2026-11-20-a-table-row-a-moving-stream-open-url-and-logs)). The result has `firstParseFailure` when a record does not parse; one in 180 did not in the first run.
 
-- **Time.** `--seconds` only, a stream from now. `--last` and `--start` are usage errors: the device's stored log is not read.
-- **Target.** The relay streams one PID. `--pid` is used as given. `--bundle` is resolved, with `devicectl device info apps` and `processes`, to the one running process whose executable is directly inside the app's `.app` (an extension's is deeper and does not count); `--process` to the one running process with that executable name. Not installed, not running, or more than one match is `target-unresolved`, with nothing captured. A relaunch changes the PID and is **not followed**: the stream ends its coverage there.
-- **Levels and filters.** The device is asked for every level of that process, debug included, which `console --os-log` never shows. Level, subsystem and category are filtered on the Mac, and so is the PID again. `--level default` keeps default, error and fault; `info` adds info; `debug` adds debug. Entries have the simulator's fields (`timestamp` with microseconds, `level`, `pid`, `process`, `subsystem`, `category`, `sender`, `message`).
+- **Time.** `--seconds` only, 1…600, a stream from now. `--last` and `--start` are usage errors: the device's stored log is not read.
+- **One process, until it ends.** `--pid`, or a single `--bundle` or `--process` that matches one running process: `--bundle` is resolved with `devicectl device info apps` and `processes` to the running process whose executable is directly inside the app's `.app` (an extension's is deeper and does not count), `--process` to the running process with that executable name. The device is asked for that PID only, and the capture ends when the process does (`stopReason: processEnded`), which the relay does not do by itself: the tool looks for the PID every 2 s, in the relay's own process list on the tool's tunnel (`processWatch: relay`, one fresh socket per look, because the relay answers one `PidList` per socket and closes it on a second) or in `devicectl`'s on Apple's tunnel (`processWatch: devicectl`, since a directory there is only good for seconds). A look that fails is reported in `processWatch` and the capture runs to its other limits. Not installed or not running is `target-unresolved`, with nothing captured; to see an app start, capture a group or `--all` with a filter. A relaunch is not followed.
+- **A group or every process.** Several `--bundle`/`--process` values, `--all`, or a name that several running processes share: the device is asked for every process (`Pid: -1`, `deviceStream: every process`), and the Mac keeps a record when its PID, its executable's name, or its path inside a selected app's `.app` matches (`/private/var` and `/var` are taken as the same). Nothing needs to be running: an app launched during the capture is kept from its first lines. An idle iPhone 13 mini sent about 560 records and 200 kB a second this way.
+- **Levels and filters.** The device sends every level, debug included, which `console --os-log` never shows. Level, subsystems, categories and `--match` are filtered on the Mac. `--level default` keeps default, error and fault; `info` adds info; `debug` adds debug. Entries have the simulator's fields (`timestamp` with microseconds, `level`, `pid`, `process`, `subsystem`, `category`, `sender`, `message`). A record whose subsystem fields hold sizes but whose bytes end after the message (seen from `locationd`) has no subsystem.
 - **Route.** The tool's own tunnel when it reaches the device (result `serviceDirectory: own-tunnel`, `ownTunnelLink`), which disturbs nothing; otherwise Apple's tunnel, with a tunnel assertion, port discovery and one directory connection, which makes the device reset the Mac's `remoted` once (`serviceDirectory: opened`, and why in `ownTunnelUnavailable`). A stale connection is refused before it starts.
-- **Bounds and ending.** `--max-entries` and `--max-bytes` as on a simulator; reading stops after 64 MiB received whatever is kept, and a record longer than 1 MiB is refused before it is read. `stopReason` is `duration`, `entryLimit`, `byteLimit` or `closed` (the device ended the stream), and the result also has `receivedRecords`, `filteredOut` and `parseFailures`. The stream is read on a thread of its own, so an MCP server answers other calls meanwhile; cancellation stops it within 100 ms and closes the socket.
+- **Bounds and ending.** `--max-entries` and `--max-bytes` as on a simulator; reading stops after 256 MiB received whatever is kept (600 seconds of an idle phone's every process is about 120 MB), and a record longer than 1 MiB is refused before it is read. `stopReason` is `duration`, `processEnded`, `entryLimit`, `byteLimit` or `closed` (the device ended the stream), and the result also has `receivedRecords`, `filteredOut` and `parseFailures`. The stream is read on a thread of its own, so an MCP server answers other calls meanwhile; cancellation stops it within 100 ms and closes the socket.
 
 ## `console`
 
@@ -113,13 +114,13 @@ Returns the newest crash report (bug type 309) for the app, or `{"found":false,�
 ## Privacy
 
 - Captures are the app's own output and can contain user data. In the simulator, `privacy: .private` values were **not** redacted. Keep captures and `--output` files under `tmp/`, which is not tracked, and do not paste them into documents.
-- `logs` always filters to one app, by predicate and again on the host.
+- `logs` keeps only the processes asked for, by predicate and again on the host. `--all` asks for every process: give it a filter unless every app's messages are wanted. On a device, a group or `--all` brings every process's records into the Mac's memory before the filter drops them; they are never written out.
 - `last-crash` reads headers only until it finds a match, and returns only that report; for a device, other apps' candidate reports are deleted after their header is read.
 - Console files and downloaded reports stay under `tmp/` until deleted.
 
 ## Not implemented
 
-- On a physical device: following an app across a relaunch, a stream of every process (`Pid: -1`), the device's stored log (`CreateArchive`), and streams longer than 60 seconds.
+- On a physical device: the device's stored log (`CreateArchive`). Following one process across a relaunch is left out by decision: a one-process capture ends with its process.
 - Symbolication with a dSYM (`atos`).
 - Crash reports in `Retired/`, and hang or other non-crash report types.
 - Extensions: `--bundle` matching covers anything inside the `.app`, but no extension was tested.

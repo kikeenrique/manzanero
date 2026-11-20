@@ -251,6 +251,17 @@ So the relay works over Apple's native tunnel on this phone, a PID filter holds 
 | `logs --seconds 30 --bundle <the probe>`, and `terminate` of the probe's PID six seconds in | The relay did **not** end the stream when the process ended: it stayed open and silent until the 30 seconds were up (`stopReason: duration`, no records). So ending a capture with its app needs a check of the tool's own |
 | A mistake before that run | A first try took the PID from a `grep` of `processes` and got the process listed before the probe's, 7265: its stream received nothing, and `terminate` was sent to that PID with its output filtered away, so what 7265 was and whether it ended are not known. It was not in the process list afterwards. The phone stayed awake with the probe in front and reported no probe crash. Take a PID from a parsed result, never from neighbouring lines |
 
+Later that night, with the processes chosen as one, a group or all (decision L) on `bc8c5da` with the changes committed after it:
+
+| Check | Observed |
+| --- | --- |
+| `logs --all --seconds 30 --level debug` keeping nothing (`--match` with text no message has), the phone idle | 16,838 records, 5.9 MB: about 560 records and 200 kB a second. 142 did not parse, all of one shape: a record that ends after its message while its subsystem-size field holds a value (`0x9ba40000` in one from `locationd`). Parsed as a record without subsystem, as the reference does; a second run read 21,240 records with none failing |
+| `PidList` on the relay, read with a temporary test | On a fresh socket after the check-in: 433 PIDs. A second `PidList` on the same socket: the relay closed it. A fresh socket each time, while a stream ran on another: answered three times of three |
+| One process: `logs --seconds 60 --bundle <the probe>`, the probe terminated six seconds in, its PID checked against its executable first | `stopReason: processEnded` three seconds after the terminate, `processWatch: relay`, on the tool's own tunnel |
+| The same with `MANZANERO_OWN_TUNNEL=0` | `processEnded` one second after the terminate, `processWatch: devicectl`, `serviceDirectory: opened` |
+| A group, `--bundle <the probe> --process locationd --seconds 15 --level debug`, the probe not running and launched four seconds in | `deviceStream: every process`; 3,026 kept of 12,291 received, none failing to parse: 1,332 from `locationd` and 1,694 from the probe, from its first lines at launch; stopped at the default 1 MiB (`byteLimit`) |
+| On the project's simulator `manzanero-research-phone`, booted for it and shut down after | `--process SpringBoard --process backboardd`: the predicate joined them with `OR` and both processes' entries came back. `--all --match a`: `eventMessage CONTAINS "a"`, entries from many processes. Both stopped at 2,000 entries |
+
 Not shown: what a relaunch does to a stream, a stream of minutes, records with unusual fields, a second phone.
 
 ### Phone session of 2026-11-17

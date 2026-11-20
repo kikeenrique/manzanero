@@ -559,24 +559,29 @@ extension ManzaneroCLI {
     struct Logs: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "logs", abstract: "Capture one app's unified-log entries.",
             discussion: """
-            Give one time selection (--seconds, --last, or --start with optional --end) and one target (--bundle, \
-            --pid or --process). On a simulator Apple's log tool runs in it with a predicate built from these fields; \
-            --last and --start read persisted entries, which exclude debug. On a physical device the device's log \
-            relay streams one process's entries from now, debug included (--seconds only): --bundle and --process \
-            are resolved to the one running process first, a relaunch is not followed, and level, subsystem and \
-            category are filtered on the Mac. Messages can contain private data.
+            Give one time selection (--seconds, --last, or --start with optional --end) and the processes: one \
+            --pid, --bundle and --process (each repeatable; together a group), or --all. --subsystem and \
+            --category (repeatable) and --match narrow the entries further. On a simulator Apple's log tool runs \
+            in it with a predicate built from these fields; --last and --start read persisted entries, which \
+            exclude debug. On a physical device the device's log relay streams from now (--seconds only, up to \
+            600), debug included: one process (a --pid, or a --bundle or --process that matches one running \
+            process) is streamed until it ends; a group or --all streams every process and keeps the selected \
+            ones on the Mac, a --bundle by its app's folder, so an app that starts meanwhile is included. \
+            Messages can contain private data.
             """)
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        @Option(help: ArgumentHelp("Stream from now for 1...60 seconds.", valueName: "seconds")) var seconds: String?
+        @Option(help: ArgumentHelp("Stream from now for 1...60 seconds (1...600 on a physical device).", valueName: "seconds")) var seconds: String?
         @Option(help: ArgumentHelp("Read the last 1...3600 seconds of persisted entries.", valueName: "seconds")) var last: String?
         @Option(help: ArgumentHelp("ISO-8601 start of a persisted window.", valueName: "date")) var start: String?
         @Option(help: ArgumentHelp("ISO-8601 end of the window; needs --start.", valueName: "date")) var end: String?
-        @Option(help: ArgumentHelp("Bundle identifier of the app.", valueName: "bundle-id")) var bundle: String?
-        @Option(help: ArgumentHelp("PID of the app.", valueName: "pid")) var pid: String?
-        @Option(help: ArgumentHelp("Process name of the app.", valueName: "name")) var process: String?
-        @Option(help: ArgumentHelp("Only this subsystem.", valueName: "subsystem")) var subsystem: String?
-        @Option(help: ArgumentHelp("Only this category; needs --subsystem.", valueName: "category")) var category: String?
+        @Option(help: ArgumentHelp("Bundle identifier of an app; repeatable.", valueName: "bundle-id")) var bundle: [String] = []
+        @Option(help: ArgumentHelp("PID of one process.", valueName: "pid")) var pid: String?
+        @Option(help: ArgumentHelp("Process name; repeatable.", valueName: "name")) var process: [String] = []
+        @Flag(help: "Every process.") var all = false
+        @Option(help: ArgumentHelp("Only this subsystem; repeatable.", valueName: "subsystem")) var subsystem: [String] = []
+        @Option(help: ArgumentHelp("Only this category; repeatable; needs --subsystem.", valueName: "category")) var category: [String] = []
+        @Option(help: ArgumentHelp("Only messages that contain this text.", valueName: "text")) var match: String?
         @Option(help: ArgumentHelp("default (default), info or debug.", valueName: "level"),
                 completion: .list(LogCapture.Level.allCases.map(\.rawValue))) var level: String?
         @Option(help: ArgumentHelp("At most this many entries (default 2000, at most 10000).", valueName: "n")) var maxEntries: String?
@@ -584,9 +589,9 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("Write every kept entry as NDJSON to this new file.", valueName: "path"), completion: .file()) var output: String?
         func request(_ target: Target) throws -> CommandRequest {
             let options = DiagnosticOptions(values: [
-                "--seconds": seconds, "--last": last, "--start": start, "--end": end, "--bundle": bundle, "--pid": pid,
-                "--process": process, "--subsystem": subsystem, "--category": category, "--level": level,
-                "--max-entries": maxEntries, "--max-bytes": maxBytes, "--output": output])
+                "--seconds": seconds, "--last": last, "--start": start, "--end": end, "--pid": pid, "--match": match, "--level": level,
+                "--max-entries": maxEntries, "--max-bytes": maxBytes, "--output": output], flags: ["--all": all],
+                lists: ["--bundle": bundle, "--process": process, "--subsystem": subsystem, "--category": category])
             return .diagnostics(try .make(physical: target.platform == .physical, device: target.identifier, operation: "logs", options: options))
         }
     }

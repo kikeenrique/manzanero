@@ -75,13 +75,15 @@ func summary(_ request: CommandRequest) -> [String] {
         case .last(let seconds): ["--last", String(seconds)]
         case .range(let start, let end): ["--start", DiagnosticTime.iso8601(start)] + option("--end", end.map { DiagnosticTime.iso8601($0) })
         }
-        let target: [String] = switch logs.target {
-        case .pid(let pid): ["--pid", String(pid)]
-        case .bundle(let bundle): ["--bundle", bundle]
-        case .process(let process): ["--process", process]
+        let target: [String] = logs.all ? ["--all"] : logs.targets.flatMap { target -> [String] in
+            switch target {
+            case .pid(let pid): ["--pid", String(pid)]
+            case .bundle(let bundle): ["--bundle", bundle]
+            case .process(let process): ["--process", process]
+            }
         }
         return ["simulator", logs.device, "logs"] + mode + target
-            + option("--subsystem", logs.subsystem) + option("--category", logs.category)
+            + logs.subsystems.flatMap { ["--subsystem", $0] } + logs.categories.flatMap { ["--category", $0] } + option("--match", logs.match)
             + option("--level", logs.level == .default ? nil : logs.level.rawValue)
             + option("--max-entries", logs.maxEntries == LogCapture.defaultMaxEntries ? nil : String(logs.maxEntries))
             + option("--max-bytes", logs.maxBytes == LogCapture.defaultMaxBytes ? nil : String(logs.maxBytes))

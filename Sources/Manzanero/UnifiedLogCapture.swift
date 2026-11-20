@@ -25,6 +25,11 @@ struct LogCapture: Sendable, Equatable {
     enum Level: String, Sendable, CaseIterable { case `default`, info, debug }
 
     static let secondsRange = 1...60
+    /// A device's stream may run longer: it is read off the command queue.
+    static let physicalSecondsRange = 1...600
+    /// At most this many `--bundle`/`--process` targets, and this many values
+    /// of each repeatable filter.
+    static let maximumRepeats = 16
     static let lastRange = 1...3600
     static let defaultMaxEntries = 2000
     static let maxEntriesCeiling = 10000
@@ -41,9 +46,15 @@ struct LogCapture: Sendable, Equatable {
 
     let device: String
     let mode: Mode
-    let target: Target
-    let subsystem: String?
-    let category: String?
+    /// One `--pid`, or `--bundle` and `--process` values (a group); empty
+    /// for every process (`--all`).
+    let targets: [Target]
+    /// An entry is kept when its subsystem is one of these (any, if empty),
+    /// its category one of `categories` (any, if empty) and its message
+    /// contains `match`.
+    let subsystems: [String]
+    let categories: [String]
+    let match: String?
     let level: Level
     let maxEntries: Int
     let maxBytes: Int
@@ -52,11 +63,16 @@ struct LogCapture: Sendable, Equatable {
     /// a stream from now only.
     let physical: Bool
 
-    init(device: String, mode: Mode, target: Target, subsystem: String? = nil, category: String? = nil, level: Level = .default,
-         maxEntries: Int = defaultMaxEntries, maxBytes: Int = defaultMaxBytes, output: String? = nil, physical: Bool = false) {
-        self.device = device; self.mode = mode; self.target = target; self.subsystem = subsystem; self.category = category
-        self.level = level; self.maxEntries = maxEntries; self.maxBytes = maxBytes; self.output = output; self.physical = physical
+    init(device: String, mode: Mode, targets: [Target], subsystems: [String] = [], categories: [String] = [], match: String? = nil,
+         level: Level = .default, maxEntries: Int = defaultMaxEntries, maxBytes: Int = defaultMaxBytes, output: String? = nil,
+         physical: Bool = false) {
+        self.device = device; self.mode = mode; self.targets = targets; self.subsystems = subsystems; self.categories = categories
+        self.match = match; self.level = level; self.maxEntries = maxEntries; self.maxBytes = maxBytes; self.output = output
+        self.physical = physical
     }
+
+    /// Every process.
+    var all: Bool { targets.isEmpty }
 
     init(device: String, options: DiagnosticOptions, physical: Bool = false) throws {
         guard options.positional.isEmpty else { throw CommandFailure.usage("logs takes options only; see --help.") }
@@ -68,7 +84,7 @@ struct LogCapture: Sendable, Equatable {
             throw CommandFailure.usage("On a physical device logs streams from now only: use --seconds. A device's stored log is not read.")
         }
         let mode: Mode
-        if let seconds = try options.integer("--seconds", in: Self.secondsRange) {
+        if let seconds = try options.integer("--seconds", in: physical ? Self.physicalSecondsRange : Self.secondsRange) {
             mode = .stream(seconds: seconds)
         } else if let seconds = try options.integer("--last", in: Self.lastRange) {
             mode = .last(seconds: seconds)
@@ -81,21 +97,26 @@ struct LogCapture: Sendable, Equatable {
         if options.values["--end"] != nil, options.values["--start"] == nil {
             throw CommandFailure.usage("--end needs --start.")
         }
-        let targets = ["--pid", "--bundle", "--process"].filter { options.values[$0] != nil }
-        guard targets.count == 1 else {
-            throw CommandFailure.usage("logs needs exactly one of --pid, --bundle or --process; captures are always limited to one app.")
+        let bundles = options.list("--bundle"), processes = options.list("--process")
+        let kinds = [options.values["--pid"] != nil, !bundles.isEmpty || !processes.isEmpty, options.flags.contains("--all")]
+        guard kinds.filter({ $0 }).count == 1 else {
+            throw CommandFailure.usage("logs needs exactly one of --pid, --bundle and --process (each repeatable, together a group) or --all.")
         }
-        let target: Target
+        func repeats(_ values: [String], _ name: String) throws -> [String] {
+            guard values.count <= Self.maximumRepeats else { throw CommandFailure.usage("\(name) may be given at most \(Self.maximumRepeats) times.") }
+            return Array(NSOrderedSet(array: values)) as? [String] ?? values
+        }
+        var targets: [Target] = []
         if let pid = try options.integer("--pid", in: 1...Int(Int32.max)) {
-            target = .pid(Int32(pid))
-        } else if let bundle = options.values["--bundle"] {
-            target = .bundle(try DiagnosticNames.bundleIdentifier(bundle))
+            targets = [.pid(Int32(pid))]
         } else {
-            target = .process(try DiagnosticNames.processName(options.values["--process"]!))
+            targets = try repeats(bundles, "--bundle").map { .bundle(try DiagnosticNames.bundleIdentifier($0)) }
+                + repeats(processes, "--process").map { .process(try DiagnosticNames.processName($0)) }
         }
-        let subsystem = try options.values["--subsystem"].map(DiagnosticNames.subsystem)
-        let category = try options.values["--category"].map(DiagnosticNames.category)
-        if category != nil, subsystem == nil { throw CommandFailure.usage("--category needs --subsystem.") }
+        let subsystems = try repeats(options.list("--subsystem"), "--subsystem").map(DiagnosticNames.subsystem)
+        let categories = try repeats(options.list("--category"), "--category").map(DiagnosticNames.category)
+        if !categories.isEmpty, subsystems.isEmpty { throw CommandFailure.usage("--category needs --subsystem.") }
+        let match = try options.values["--match"].map(DiagnosticNames.match)
         var level = Level.default
         if let text = options.values["--level"] {
             guard let value = Level(rawValue: text) else { throw CommandFailure.usage("--level must be default, info or debug.") }
@@ -106,7 +127,7 @@ struct LogCapture: Sendable, Equatable {
             guard !path.hasPrefix("-") else { throw CommandFailure.usage("--output needs a host file path.") }
             output = path
         }
-        self.init(device: device, mode: mode, target: target, subsystem: subsystem, category: category, level: level,
+        self.init(device: device, mode: mode, targets: targets, subsystems: subsystems, categories: categories, match: match, level: level,
                   maxEntries: try options.integer("--max-entries", in: 1...Self.maxEntriesCeiling) ?? Self.defaultMaxEntries,
                   maxBytes: try options.integer("--max-bytes", in: 1024...Self.maxBytesCeiling) ?? Self.defaultMaxBytes,
                   output: output, physical: physical)
@@ -121,10 +142,12 @@ struct LogCapture: Sendable, Equatable {
 
     var source: String { physical ? "os-trace-relay" : isStream ? "simctl-log-stream" : "simctl-log-show" }
 
-    /// The query that resolves `--bundle` to its installed `.app` (read-only).
-    var appPathQuery: [String]? {
-        guard case .bundle(let bundle) = target else { return nil }
-        return ["simctl", "get_app_container", device, bundle, "app"]
+    var bundles: [String] { targets.compactMap { if case .bundle(let bundle) = $0 { bundle } else { nil } } }
+    var processes: [String] { targets.compactMap { if case .process(let name) = $0 { name } else { nil } } }
+
+    /// The query that resolves one `--bundle` to its installed `.app` (read-only).
+    func appPathQuery(_ bundle: String) -> [String] {
+        ["simctl", "get_app_container", device, bundle, "app"]
     }
 
     /// An NSPredicate string literal. Inputs are validated first; escaping is
@@ -133,31 +156,38 @@ struct LogCapture: Sendable, Equatable {
         "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
     }
 
-    /// `appPath` is the resolved `.app` directory for `--bundle`.
-    func predicate(appPath: String?) -> String {
-        var clauses: [String]
-        switch target {
-        case .pid(let pid): clauses = ["processID == \(pid)"]
-        case .process(let name): clauses = ["process == \(Self.quote(name))"]
-        case .bundle: clauses = ["processImagePath BEGINSWITH \(Self.quote(Self.directoryPrefix(appPath ?? "<installed app path>")))"]
+    /// `appPaths` are the resolved `.app` directories, by bundle. Empty for
+    /// `--all` with no filter.
+    func predicate(appPaths: [String: String]) -> String {
+        func any(_ clauses: [String]) -> [String] {
+            clauses.count > 1 ? ["(" + clauses.joined(separator: " OR ") + ")"] : clauses
         }
-        if let subsystem { clauses.append("subsystem == \(Self.quote(subsystem))") }
-        if let category { clauses.append("category == \(Self.quote(category))") }
-        return clauses.joined(separator: " AND ")
+        let who = any(targets.map { target -> String in
+            switch target {
+            case .pid(let pid): return "processID == \(pid)"
+            case .process(let name): return "process == \(Self.quote(name))"
+            case .bundle(let bundle):
+                return "processImagePath BEGINSWITH \(Self.quote(Self.directoryPrefix(appPaths[bundle] ?? "<installed app path of \(bundle)>")))"
+            }
+        })
+        let what = any(subsystems.map { "subsystem == \(Self.quote($0))" }) + any(categories.map { "category == \(Self.quote($0))" })
+            + (match.map { ["eventMessage CONTAINS \(Self.quote($0))"] } ?? [])
+        return (who + what).joined(separator: " AND ")
     }
 
     static func directoryPrefix(_ path: String) -> String { path.hasSuffix("/") ? path : path + "/" }
 
     func arguments(predicate: String) -> [String] {
         let base = ["simctl", "spawn", device, "log"]
+        let filter = predicate.isEmpty ? [] : ["--predicate", predicate]
         switch mode {
         case .stream(let seconds):
-            return base + ["stream", "--style", "ndjson", "--level", level.rawValue, "--timeout", "\(seconds)", "--predicate", predicate]
+            return base + ["stream", "--style", "ndjson", "--level", level.rawValue, "--timeout", "\(seconds)"] + filter
         case .last(let seconds):
-            return base + ["show", "--style", "ndjson"] + showLevel + ["--last", "\(seconds)s", "--predicate", predicate]
+            return base + ["show", "--style", "ndjson"] + showLevel + ["--last", "\(seconds)s"] + filter
         case .range(let start, let end):
             return base + ["show", "--style", "ndjson"] + showLevel + ["--start", DiagnosticTime.logArgument(start)]
-                + (end.map { ["--end", DiagnosticTime.logArgument($0)] } ?? []) + ["--predicate", predicate]
+                + (end.map { ["--end", DiagnosticTime.logArgument($0)] } ?? []) + filter
         }
     }
 
@@ -173,15 +203,17 @@ struct LogCapture: Sendable, Equatable {
         if physical { return PhysicalLogCapture.plan(self) }
         var plan: [String: Any] = [
             "backend": "simctl", "operation": "logs", "platform": "simulator", "device": device, "readOnly": true,
-            "executable": "/usr/bin/xcrun", "arguments": arguments(predicate: predicate(appPath: nil)),
-            "predicate": predicate(appPath: nil), "level": level.rawValue, "source": source,
+            "executable": "/usr/bin/xcrun", "arguments": arguments(predicate: predicate(appPaths: [:])),
+            "predicate": predicate(appPaths: [:]), "level": level.rawValue, "source": source, "all": all,
             "bounds": ["maxEntries": maxEntries, "maxBytes": maxBytes, "hardDeadlineSeconds": hardDeadlineSeconds,
                        "receivedBytesCeiling": Self.receivedBytesCeiling],
-            "execution": "Requires a booted simulator. Runs Apple's log tool inside the simulator; stops at the duration, the entry limit or the byte limit and reaps the child. No raw predicate; entries from other processes are dropped on the host as well.",
+            "execution": "Requires a booted simulator. Runs Apple's log tool inside the simulator; stops at the duration, the entry limit or the byte limit and reaps the child. No raw predicate; entries the predicate does not select are dropped on the host as well.",
         ]
-        if let query = appPathQuery {
-            plan["targetResolution"] = ["query": ["executable": "/usr/bin/xcrun", "arguments": query],
-                                        "placeholder": "<installed app path>", "match": "processImagePath BEGINSWITH the .app directory"]
+        if !bundles.isEmpty {
+            plan["targetResolution"] = bundles.map { bundle in
+                ["query": ["executable": "/usr/bin/xcrun", "arguments": appPathQuery(bundle)],
+                 "placeholder": "<installed app path of \(bundle)>", "match": "processImagePath BEGINSWITH the .app directory"] as [String: Any]
+            }
         }
         if let output { plan["output"] = output; plan["inlineEntries"] = Self.inlineEntriesWithOutput }
         return plan
@@ -195,20 +227,27 @@ struct LogCapture: Sendable, Equatable {
 struct UnifiedLogReader: Sendable {
     enum StopReason: String, Sendable { case duration, complete, entryLimit, byteLimit }
 
+    /// The predicate again, on the host. An entry is from a selected process
+    /// when it matches any of the PIDs, names or image prefixes, or when
+    /// none is given (every process).
     struct Filter: Sendable {
-        var pid: Int32?
-        var process: String?
-        var imagePrefix: String?
-        var subsystem: String?
-        var category: String?
+        var pids: Set<Int32> = []
+        var processes: Set<String> = []
+        var imagePrefixes: [String] = []
+        var subsystems: Set<String> = []
+        var categories: Set<String> = []
+        var match: String?
 
         func accepts(_ object: [String: Any]) -> Bool {
-            if let pid, (object["processID"] as? NSNumber)?.int32Value != pid { return false }
             let image = object["processImagePath"] as? String ?? ""
-            if let process, URL(fileURLWithPath: image).lastPathComponent != process { return false }
-            if let imagePrefix, !image.hasPrefix(imagePrefix) { return false }
-            if let subsystem, object["subsystem"] as? String != subsystem { return false }
-            if let category, object["category"] as? String != category { return false }
+            if !(pids.isEmpty && processes.isEmpty && imagePrefixes.isEmpty) {
+                let pid = (object["processID"] as? NSNumber)?.int32Value
+                guard pid.map(pids.contains) == true || processes.contains(URL(fileURLWithPath: image).lastPathComponent)
+                        || imagePrefixes.contains(where: image.hasPrefix) else { return false }
+            }
+            if !subsystems.isEmpty, !subsystems.contains(object["subsystem"] as? String ?? "") { return false }
+            if !categories.isEmpty, !categories.contains(object["category"] as? String ?? "") { return false }
+            if let match, !(object["eventMessage"] as? String ?? "").contains(match) { return false }
             return true
         }
     }
@@ -328,24 +367,26 @@ enum UnifiedLogExecution {
         if let output = capture.output, FileManager.default.fileExists(atPath: output) {
             throw CommandFailure.usage("--output refuses an existing file: \(output).")
         }
-        var appPath: String?
-        if let query = capture.appPathQuery {
+        var appPaths: [String: String] = [:]
+        for bundle in capture.bundles {
             let data: Data
-            do { data = try run(query) } catch {
-                throw CommandFailure(.targetUnresolved, "The bundle is not installed on this simulator (simctl get_app_container failed); nothing was captured.", inputSent: .none)
+            do { data = try run(capture.appPathQuery(bundle)) } catch {
+                throw CommandFailure(.targetUnresolved, "\(bundle) is not installed on this simulator (simctl get_app_container failed); nothing was captured.", inputSent: .none)
             }
             let path = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             guard path.hasPrefix("/"), !path.contains("\n"), !path.contains("\"") else {
-                throw CommandFailure(.toolFailed, "simctl returned an unusable app path for the bundle.", inputSent: .none)
+                throw CommandFailure(.toolFailed, "simctl returned an unusable app path for \(bundle).", inputSent: .none)
             }
-            appPath = path
+            appPaths[bundle] = path
         }
-        let predicate = capture.predicate(appPath: appPath)
-        var filter = UnifiedLogReader.Filter(subsystem: capture.subsystem, category: capture.category)
-        switch capture.target {
-        case .pid(let pid): filter.pid = pid
-        case .process(let name): filter.process = name
-        case .bundle: filter.imagePrefix = appPath.map(LogCapture.directoryPrefix)
+        let predicate = capture.predicate(appPaths: appPaths)
+        var filter = UnifiedLogReader.Filter(subsystems: Set(capture.subsystems), categories: Set(capture.categories), match: capture.match)
+        for target in capture.targets {
+            switch target {
+            case .pid(let pid): filter.pids.insert(pid)
+            case .process(let name): filter.processes.insert(name)
+            case .bundle(let bundle): filter.imagePrefixes.append(LogCapture.directoryPrefix(appPaths[bundle] ?? "/"))
+            }
         }
         let state = Mutex(UnifiedLogReader(maxEntries: capture.maxEntries, maxBytes: capture.maxBytes, filter: filter))
         let errors = Mutex(Data())

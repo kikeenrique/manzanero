@@ -144,21 +144,41 @@ enum OSTraceRelay {
         }
         let image = try take(imageSize, "image name")
         let message = try take(messageSize, "message")
-        let subsystem = subsystemSize > 0 && categorySize > 0 ? try take(subsystemSize, "subsystem") : ""
-        let category = subsystemSize > 0 && categorySize > 0 ? try take(categorySize, "category") : ""
+        // A record without a subsystem can still carry non-zero sizes there
+        // (seen from locationd on 2026-11-20); it ends after the message.
+        let labelled = subsystemSize > 0 && categorySize > 0 && offset < bytes.count
+        let subsystem = labelled ? try take(subsystemSize, "subsystem") : ""
+        let category = labelled ? try take(categorySize, "category") : ""
         return Record(pid: pid, level: level, seconds: seconds, microseconds: microseconds, process: process, image: image,
                       message: message, subsystem: subsystem, category: category)
     }
 
-    /// Check-in and a stream for one process, on a fresh socket to the
-    /// service. Throws unless the device answers `RequestSuccessful`.
-    static func start(_ stream: Stream, pid: Int32) throws {
+    /// The check-in every fresh socket to the service starts with.
+    static func checkIn(_ stream: Stream) throws {
         try stream.send(["Label": "manzanero", "ProtocolVersion": "2", "Request": "RSDCheckin"], format: .xml)
         let checkin = try stream.plist(), started = try stream.plist()
         guard checkin["Request"] as? String == "RSDCheckin", started["Request"] as? String == "StartService" else {
             let error = started["Error"] ?? checkin["Error"] ?? "unexpected check-in replies"
             throw CommandFailure(.transportFailed, "The log relay refused the check-in: \(error).", inputSent: .none)
         }
+    }
+
+    /// The PIDs the device lists as running (`PidList`), on a socket that
+    /// has checked in: the reply is one byte, then `{Payload: {"<pid>": …}}`.
+    static func pidList(_ stream: Stream) throws -> Set<Int32> {
+        try stream.send(["Request": "PidList"], format: .binary)
+        _ = try stream.read(1)
+        guard let payload = try stream.plist()["Payload"] as? [String: Any] else {
+            throw CommandFailure(.transportFailed, "The log relay's process list has no Payload.", inputSent: .none)
+        }
+        return Set(payload.keys.compactMap { Int32($0) })
+    }
+
+    /// Check-in and a stream for one process (`pid`), or every process
+    /// (`-1`), on a fresh socket to the service. Throws unless the device
+    /// answers `RequestSuccessful`.
+    static func start(_ stream: Stream, pid: Int32) throws {
+        try checkIn(stream)
         try stream.send(["Request": "StartActivity", "Pid": Int(pid), "MessageFilter": messageFilter, "StreamFlags": streamFlags], format: .binary)
         _ = try stream.read(1)
         let status = try stream.plist()
