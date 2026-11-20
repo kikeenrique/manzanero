@@ -248,6 +248,8 @@ So the relay works over Apple's native tunnel on this phone, a PID filter holds 
 | `logs --seconds 10 --process ProbeApp --subsystem <the probe's> --level debug`, one press | 61 records received, 6 kept, 55 filtered out, none failed to parse, stderr empty |
 | The same by `--bundle` with `MANZANERO_OWN_TUNNEL=0` | `serviceDirectory: opened`, Apple's tunnel: 61 received, the 6 lines of the press kept |
 | SIGINT eight seconds into a 30-second `logs` | Exit 130 within a second, no result on stdout |
+| `logs --seconds 30 --bundle <the probe>`, and `terminate` of the probe's PID six seconds in | The relay did **not** end the stream when the process ended: it stayed open and silent until the 30 seconds were up (`stopReason: duration`, no records). So ending a capture with its app needs a check of the tool's own |
+| A mistake before that run | A first try took the PID from a `grep` of `processes` and got the process listed before the probe's, 7265: its stream received nothing, and `terminate` was sent to that PID with its output filtered away, so what 7265 was and whether it ended are not known. It was not in the process list afterwards. The phone stayed awake with the probe in front and reported no probe crash. Take a PID from a parsed result, never from neighbouring lines |
 
 Not shown: what a relaunch does to a stream, a stream of minutes, records with unusual fields, a second phone.
 
