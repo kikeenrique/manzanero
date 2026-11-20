@@ -955,6 +955,26 @@ Kept from the experiment: `ADCOpenAccessibilityShim` in the bridge, `Accessibili
 
 Not shown: any element read through it; what an element looks like on the wire; how fast a tree built one request an element would be; an iPhone.
 
+### An element read through the shim
+
+On 2026-11-20, the Apple TV 4K (tvOS 27.2) with the tvOS probe in front, on the human owner's word. Requests in the audit server's own words, through `AccessibilityShim`.
+
+| Request | Answer |
+| --- | --- |
+| `deviceCurrentState` | 0 |
+| `deviceRunningApplications` | An empty array |
+| `deviceInspectorSupportedEventTypes` | 2 |
+| `deviceFetchSpecialElement:` with 0 | A dictionary: `ObjectType: AXAuditElement_v1`, and under `Value` a `PlatformElementValue_v1` of 20 bytes |
+| `deviceFetchSpecialElement:` with 1 | The same shape with `AccessibilityIdentifier_v1: probe.tv.col.12`: an element of the probe, by its identifier |
+| `deviceFetchElementAtNormalizedDeviceCoordinate:` with a point archived as an `NSValue` | An empty acknowledgement: not the form it wants |
+| `deviceElement:valueForAttribute:` with that element as received and the attribute's name as a plain string (`_AXIOSMACLabel`, a constant read from Apple's AccessibilityAudit framework on the Mac) | **The connection closed, and the Apple TV's `axauditd` left a crash report: `EXC_CRASH`, `SIGABRT`.** It happened twice, because the check ran a second time before the cause was understood |
+
+After each crash the daemon was running again within seconds: a `tree` on the other route read 112 nodes, and the shim answered its version and an element again. No connection went stale.
+
+So elements can be fetched, and they carry the identifier the tool's selectors use. Reading an attribute needs the argument in a form that was guessed wrong, and a wrong guess aborts a system daemon on the device. The request has been taken out of the opt-in check. The attribute names the framework exports are `_AXIOSMACLabel`, `_AXIOSMACValue`, `_AXIOSMACTraits`, `_AXIOSMACHint`, `_AXClassName`, `_AXHumanReadableDescription`, `_AXAncestorChain`, `_AXSiblingElements` and `_AXHierarchyElementsAttribute`; how one is wrapped for the wire has to be read from that framework's code (its classes `AXAuditElement` and `AXAuditElementAttribute`) before another request is sent.
+
+Not shown: any attribute, any child, any action.
+
 ### The commands that had not run on the Apple TV
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network, macOS 27.2.1, Xcode 27.2, on the human owner's word. It was asleep; one `remote home` woke it. The connection never went stale.

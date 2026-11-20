@@ -58,8 +58,9 @@ struct AccessibilityShimProbeTests {
     }
 }
 
-/// Opt-in: which requests does the daemon behind the shim answer? Sends a
-/// few read-only requests and prints the kind of each reply. Enabled by
+/// Opt-in: what the audit server behind the shim answers. Asks for its
+/// version, then for one element and a few of that element's attributes, in
+/// the server's own requests, and prints each reply. Read-only. Enabled by
 /// MANZANERO_SHIM_SELECTORS, the hardware UDID.
 struct AccessibilityShimSelectorProbeTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["MANZANERO_SHIM_SELECTORS"] != nil))
@@ -69,16 +70,15 @@ struct AccessibilityShimSelectorProbeTests {
         defer { shim.close() }
         let transport = shim.transport
         var identifier: UInt32 = 1
-        func ask(_ selector: String, _ argument: NSObject? = nil) throws {
-            let message = try AccessibilityDTX.invocation(selector, argument: argument, identifier: identifier)
+        @discardableResult func ask(_ selector: String, _ arguments: [NSObject] = [], show: Int = 1600) throws -> Data {
+            let message = try AccessibilityDTX.invocation(selector, arguments: arguments, identifier: identifier)
             identifier += 1
-            let limit = ContinuousClock.now.advanced(by: .seconds(4))
+            let limit = ContinuousClock.now.advanced(by: .seconds(6))
             try transport.write(message, until: limit, cancelled: { false })
             while true {
                 let frame = try transport.read(until: limit, cancelled: { false })
                 if frame.kind == .invocation {
                     let name = (try? KeyedArchiveInspector.decodeProtocol(frame.object)).map { "\($0)" } ?? "?"
-                    FileHandle.standardError.write(Data("  device calls \(name.prefix(80)) expectsReply=\(frame.expectsReply)\n".utf8))
                     if frame.expectsReply {
                         let seven = try NSKeyedArchiver.archivedData(withRootObject: NSNumber(value: 7), requiringSecureCoding: true)
                         try transport.write(frame.reply(object: name.contains("ersion") ? seven : Data()), until: limit, cancelled: { false })
@@ -87,13 +87,22 @@ struct AccessibilityShimSelectorProbeTests {
                 }
                 guard frame.isReply(to: message) else { continue }
                 let value = (try? KeyedArchiveInspector.decodeProtocol(frame.object)).map { "\($0)" } ?? "(\(frame.object.count) bytes)"
-                FileHandle.standardError.write(Data("\(selector) -> \(frame.kind) \(value.prefix(selector == "deviceCapabilities" ? 6000 : 300))\n".utf8))
-                return
+                let text = value.replacingOccurrences(of: "Manzanero.AccessibilityArchiveValue.", with: "")
+                FileHandle.standardError.write(Data("\(selector)\(arguments.count == 2 ? " \(arguments[1])" : "") -> \(frame.kind) [\(frame.object.count) bytes] \(text.prefix(show))\n".utf8))
+                return frame.object
             }
         }
-        for selector in ["deviceApiVersion", "deviceAPIVersion", "deviceCapabilities", "deviceAccessibilitySettings", "deviceAllAuditCaseIDs"] {
-            do { try ask(selector) } catch { FileHandle.standardError.write(Data("\(selector) -> threw \(error)\n".utf8)); break }
-        }
-        do { try ask("clientNeedsAccessibility:", NSNumber(value: false)) } catch { FileHandle.standardError.write(Data("clientNeedsAccessibility: -> threw \(error)\n".utf8)) }
+        try ask("deviceApiVersion")
+        let reply = try ask("deviceFetchSpecialElement:", [NSNumber(value: 1)])
+        // The element is a dictionary of property-list values.
+        let element = try #require(try NSKeyedUnarchiver.unarchivedObject(
+            ofClasses: [NSDictionary.self, NSString.self, NSData.self, NSNumber.self, NSArray.self], from: reply) as? NSDictionary)
+        #expect(element["ObjectType"] as? String == "AXAuditElement_v1")
+        // Do NOT ask for an attribute here by guessing its form. On
+        // 2026-11-20 `deviceElement:valueForAttribute:` with the element as
+        // received and the attribute's name as a plain string made the
+        // Apple TV's axauditd abort (SIGABRT), twice. The form the server
+        // expects has to be read from Apple's AccessibilityAudit framework
+        // first (docs/verification.md#an-element-read-through-the-shim).
     }
 }

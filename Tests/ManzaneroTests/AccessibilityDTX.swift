@@ -198,3 +198,18 @@ struct AccessibilityDTXTests {
         }
     }
 }
+
+@Suite struct AccessibilityDTXArgumentsTests {
+    /// Several arguments are one entry each in the auxiliary buffer, and one
+    /// argument is framed exactly as before.
+    @Test func argumentsAreFramedOneEntryEach() throws {
+        let one = try AccessibilityDTX.invocation("fixture:", argument: "a" as NSString, identifier: 3)
+        let same = try AccessibilityDTX.invocation("fixture:", arguments: ["a" as NSString], identifier: 3)
+        #expect(one.auxiliary == same.auxiliary && one.object == same.object)
+        let two = try AccessibilityDTX.invocation("fixture:with:", arguments: ["a" as NSString, NSNumber(value: 1)], identifier: 4)
+        let first = try NSKeyedArchiver.archivedData(withRootObject: "a" as NSString, requiringSecureCoding: true)
+        let second = try NSKeyedArchiver.archivedData(withRootObject: NSNumber(value: 1), requiringSecureCoding: true)
+        #expect(two.auxiliary.count == 16 + 12 + first.count + 12 + second.count)
+        #expect(try AccessibilityDTX.invocation("fixture", arguments: [], identifier: 5).auxiliary.isEmpty)
+    }
+}

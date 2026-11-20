@@ -119,18 +119,29 @@ struct AccessibilityDTX: Sendable {
 
     static func invocation(_ selector: String, argument: NSObject?, identifier: UInt32,
                            expectsReply: Bool = true) throws -> Self {
-        guard (1...4096).contains(selector.utf8.count), !selector.contains("\0") else { throw invalid("selector bounds") }
+        try invocation(selector, arguments: argument.map { [$0] } ?? [], identifier: identifier, expectsReply: expectsReply)
+    }
+
+    /// A request with any number of archived arguments, in order: one
+    /// entry each in the auxiliary buffer.
+    static func invocation(_ selector: String, arguments: [NSObject], identifier: UInt32,
+                           expectsReply: Bool = true) throws -> Self {
+        guard (1...4096).contains(selector.utf8.count), !selector.contains("\0"), arguments.count <= 8 else { throw invalid("selector bounds") }
         let object = try NSKeyedArchiver.archivedData(withRootObject: selector as NSString, requiringSecureCoding: true)
-        var auxiliary = Data()
-        if let argument {
+        var entries = Data()
+        for argument in arguments {
             let archive = try NSKeyedArchiver.archivedData(withRootObject: argument, requiringSecureCoding: true)
-            guard archive.count <= maximumBody - 4096 else { throw invalid("argument bounds") }
+            guard archive.count <= maximumBody - 4096 - entries.count else { throw invalid("argument bounds") }
+            append(UInt32(10), to: &entries)
+            append(UInt32(2), to: &entries)
+            append(UInt32(archive.count), to: &entries)
+            entries.append(archive)
+        }
+        var auxiliary = Data()
+        if !arguments.isEmpty {
             append(UInt64(0x1f0), to: &auxiliary)
-            append(UInt64(12 + archive.count), to: &auxiliary)
-            append(UInt32(10), to: &auxiliary)
-            append(UInt32(2), to: &auxiliary)
-            append(UInt32(archive.count), to: &auxiliary)
-            auxiliary.append(archive)
+            append(UInt64(entries.count), to: &auxiliary)
+            auxiliary.append(entries)
         }
         return Self(identifier: identifier, conversation: 0, channel: 0, expectsReply: expectsReply,
             kind: .invocation, auxiliary: auxiliary, object: object)
