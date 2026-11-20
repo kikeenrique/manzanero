@@ -70,7 +70,7 @@ struct AccessibilityShimSelectorProbeTests {
         defer { shim.close() }
         let transport = shim.transport
         var identifier: UInt32 = 1
-        @discardableResult func ask(_ selector: String, _ arguments: [NSObject] = [], show: Int = 1600) throws -> Data {
+        @discardableResult func ask(_ selector: String, _ arguments: [NSObject] = [], note: String = "", show: Int = 1600) throws -> Data {
             let message = try AccessibilityDTX.invocation(selector, arguments: arguments, identifier: identifier)
             identifier += 1
             let limit = ContinuousClock.now.advanced(by: .seconds(6))
@@ -88,21 +88,47 @@ struct AccessibilityShimSelectorProbeTests {
                 guard frame.isReply(to: message) else { continue }
                 let value = (try? KeyedArchiveInspector.decodeProtocol(frame.object)).map { "\($0)" } ?? "(\(frame.object.count) bytes)"
                 let text = value.replacingOccurrences(of: "Manzanero.AccessibilityArchiveValue.", with: "")
-                FileHandle.standardError.write(Data("\(selector)\(arguments.count == 2 ? " \(arguments[1])" : "") -> \(frame.kind) [\(frame.object.count) bytes] \(text.prefix(show))\n".utf8))
+                FileHandle.standardError.write(Data("\(selector)\(note.isEmpty ? "" : " \(note)") ->\(frame.kind) [\(frame.object.count) bytes] \(text.prefix(show))\n".utf8))
                 return frame.object
             }
         }
         try ask("deviceApiVersion")
-        let reply = try ask("deviceFetchSpecialElement:", [NSNumber(value: 1)])
+        // Special element 1 answered an element of the app in front once and
+        // nothing another time; 0 has always answered.
+        var reply = try ask("deviceFetchSpecialElement:", [NSNumber(value: 1)], note: "1")
+        if reply.isEmpty { reply = try ask("deviceFetchSpecialElement:", [NSNumber(value: 0)], note: "0") }
+        // Or the element at a point of the display, 0...1 each way, given as
+        // MANZANERO_SHIM_POINT=x,y. This request takes a plain point value:
+        // given Apple's typed AXAuditPoint dictionary instead, the server
+        // answered an error naming `CGPointValue`, without crashing.
+        if let text = ProcessInfo.processInfo.environment["MANZANERO_SHIM_POINT"] {
+            let parts = text.split(separator: ",").compactMap { Double($0) }
+            if parts.count == 2 {
+                let found = try ask("deviceFetchElementAtNormalizedDeviceCoordinate:", [NSValue(point: NSPoint(x: parts[0], y: parts[1]))], note: text)
+                if !found.isEmpty { reply = found }
+            }
+        }
         // The element is a dictionary of property-list values.
         let element = try #require(try NSKeyedUnarchiver.unarchivedObject(
             ofClasses: [NSDictionary.self, NSString.self, NSData.self, NSNumber.self, NSArray.self], from: reply) as? NSDictionary)
         #expect(element["ObjectType"] as? String == "AXAuditElement_v1")
-        // Do NOT ask for an attribute here by guessing its form. On
-        // 2026-11-20 `deviceElement:valueForAttribute:` with the element as
-        // received and the attribute's name as a plain string made the
-        // Apple TV's axauditd abort (SIGABRT), twice. The form the server
-        // expects has to be read from Apple's AccessibilityAudit framework
-        // first (docs/verification.md#an-element-read-through-the-shim).
+        // An attribute travels as Apple's own encoder writes it
+        // (`AXAuditObjectTransportManager` in the AccessibilityAudit
+        // framework, asked on the Mac): a typed dictionary, never a plain
+        // name. On 2026-11-20 a plain name made the Apple TV's axauditd abort
+        // (SIGABRT), twice (docs/verification.md#an-element-read-through-the-shim).
+        // The attributes asked for are named in MANZANERO_SHIM_ATTRIBUTES,
+        // comma-separated, so that a new one is tried alone.
+        func attribute(_ name: String) -> NSDictionary {
+            func plain(_ value: Any) -> NSDictionary { ["ObjectType": "passthrough", "Value": value] }
+            return ["ObjectType": "AXAuditElementAttribute_v1", "Value": plain([
+                "AttributeNameValue_v1": plain(name), "DisplayAsTree_v1": plain(false), "DisplayInlineValue_v1": plain(false),
+                "IsInternal_v1": plain(false), "PerformsActionValue_v1": plain(false), "SettableValue_v1": plain(false),
+                "ValueTypeValue_v1": plain(1)] as NSDictionary)]
+        }
+        for name in (ProcessInfo.processInfo.environment["MANZANERO_SHIM_ATTRIBUTES"] ?? "").split(separator: ",") {
+            do { try ask("deviceElement:valueForAttribute:", [element, attribute(String(name))], note: String(name), show: 1200) }
+            catch { FileHandle.standardError.write(Data("\(name) -> threw \(error)\n".utf8)); break }
+        }
     }
 }

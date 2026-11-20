@@ -60,7 +60,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 1. **Push** the local commits.
 2. **A test that failed once** (`aCancelledQueuedCallGivesUpItsPlace`) and could fail a CI run.
-3. **Apple TV, accessibility without the side effect**: an element was fetched through route 3. Before the next request, read from Apple's framework how an attribute is asked for: a guessed form made the device's accessibility daemon crash and restart.
+3. **Apple TV, accessibility without the side effect**: through route 3 an element's class, description and role were read, quickly and with no side effect. Still to find: the names for its label, value, position and children, and how to walk the whole screen. Then build trees and actions on it.
 4. **Apple TV, video**: start an audio stream beside the video, as Apple's Device Hub does. Not started; it changes the code that owns a stream and its cleanup.
 5. **Apple TV, the remote's swipes**: a lead to look at, the `universalhidservice` Apple's Device Hub uses with it.
 6. **`logs` for devices**: the way in is proven, the command is not built.

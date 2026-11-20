@@ -973,7 +973,24 @@ After each crash the daemon was running again within seconds: a `tree` on the ot
 
 So elements can be fetched, and they carry the identifier the tool's selectors use. Reading an attribute needs the argument in a form that was guessed wrong, and a wrong guess aborts a system daemon on the device. The request has been taken out of the opt-in check. The attribute names the framework exports are `_AXIOSMACLabel`, `_AXIOSMACValue`, `_AXIOSMACTraits`, `_AXIOSMACHint`, `_AXClassName`, `_AXHumanReadableDescription`, `_AXAncestorChain`, `_AXSiblingElements` and `_AXHierarchyElementsAttribute`; how one is wrapped for the wire has to be read from that framework's code (its classes `AXAuditElement` and `AXAuditElementAttribute`) before another request is sent.
 
-Not shown: any attribute, any child, any action.
+**The form, read from Apple's own encoder.** The AccessibilityAudit framework loads on the Mac, and its `AXAuditObjectTransportManager` was asked there, with nothing sent to a device, how it writes an attribute: a dictionary `ObjectType: AXAuditElementAttribute_v1` whose `Value` holds `AttributeNameValue_v1` and six flags, each wrapped as `{ObjectType: passthrough, Value: …}`. An element and a point are written the same way (`AXAuditElement_v1`, `AXAuditPoint_v1`). No disassembler was needed.
+
+With the attribute in that form, on the same Apple TV, each new request run once and the daemon's last crash report read after it:
+
+| Request | Answer |
+| --- | --- |
+| `deviceElement:valueForAttribute:` for `_AXClassName` on the probe's element | `SwiftUI.AccessibilityNode` |
+| The same for `_AXHumanReadableDescription` | `Col 12 Button` |
+| The same for `_AXHumanReadableRoleDescription` | `Button` |
+| The same for `_AXIOSMACLabel`, `_AXIOSMACValue`, `_AXIOSMACTraits` | Empty: those names answer nothing on tvOS |
+| The same for `_AXHierarchyElementsAttribute` on special element 0 | An `AXAuditNode_v1`: the element, two descriptions and `IsIgnoredValue_v1` |
+| `deviceFetchElementAtNormalizedDeviceCoordinate:` with the typed point dictionary | An error, not a crash: "-[__NSDictionaryI CGPointValue]: unrecognized selector". It takes a plain point value |
+| The same with a plain point value, at three points | Empty each time |
+| Seven requests on one connection | Half a second |
+
+No request in that form crashed the daemon: its last crash report stayed the one of 00:03:05 UTC. `deviceFetchSpecialElement:` with 1 answered the probe's element while the probe was in front and nothing while the Apple TV slept, where every attribute came back empty too; a sleeping device explains one run of empty answers.
+
+So attributes are readable through the shim, quickly, in a form that is now known and not guessed. Not shown: the names that answer a label, a value, a frame and the children on tvOS (Apple's Inspector is given its list by the device); why no element is found at a point; a way from one element to the whole screen; any action.
 
 ### The commands that had not run on the Apple TV
 
