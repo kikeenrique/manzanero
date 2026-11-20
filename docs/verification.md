@@ -992,6 +992,21 @@ No request in that form crashed the daemon: its last crash report stayed the one
 
 So attributes are readable through the shim, quickly, in a form that is now known and not guessed. Not shown here, and run later the same day ([record](#the-inspectors-cursor-the-whole-hierarchy-and-a-press-through-the-shim)): the names that answer a label, a value and the children on tvOS, a way from one element to the whole screen, and an action. Still not shown: why no element is found at a point.
 
+### Press by the Inspector's cursor on the Apple TV 4K
+
+On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, after the human owner chose to have `press` built on this route. The focus was on Button B throughout, on a screenshot before and after.
+
+| Command | Result |
+| --- | --- |
+| `press --id probe.tv.button.c` | `route: inspector`, `status: accepted`, `elementsWalked: 12`, `transport: apple-mobiledevice-shim`. The probe showed "Last: select:c" and its count went from 8 to 9 |
+| `press --label "Button A"` | The same route, the target's caption "Button A, Button"; the count went to 10 |
+| `press --id probe.tv.row.35`, a row of the list, visible on screen | The cursor did not reach it, so nothing was pressed there and the command went on by the route over Apple's tunnel: `status: accepted`, `serviceDirectory: opened`, and `inspectorUnavailable: "the Inspector's cursor reached 12 elements and none with that identifier"`. The probe showed "Last: select:row-35", count 11 |
+| The device's crash reports and the Mac's connection afterwards | No `axauditd` report; `remoted` showed the device connected |
+
+So a press of an element outside a list goes by the cursor with no connection of the tool's own to the device's service directory, and a row inside a list still costs the other route's reset, said in the result.
+
+Not shown: `remoted`'s log during these presses (the absence of a reset on this route was read on 2026-11-20 for the same requests, not again here); a press on a screen other than the probe's; a walk that enters a list and scrolls it; two elements with one label, which the unit tests cover and the device did not see.
+
 ### The remote's swipes on the Apple TV 4K
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. The device had gone to sleep; one `remote home` woke it, and a screenshot taken at once was black, a second one some seconds later showed the probe. The focus was read from a screenshot before each run.

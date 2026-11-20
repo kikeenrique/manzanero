@@ -218,7 +218,7 @@ static const ADCCapabilitySpec ADCCapabilities[] = {
       ADCRSDAccessibility, ADC_COUNT(ADCRSDAccessibility) },
     { "device-tunnel", "The tool's own tunnel to a device on its cable or on the network for the physical accessibility commands, used by default (MANZANERO_OWN_TUNNEL=0 turns it off): Apple's MobileDevice framework opens the device's tunnel service and lwIP, linked in, carries it", 0, 1,
       ADCDeviceTunnel, ADC_COUNT(ADCDeviceTunnel) },
-    { "accessibility-shim", "Experimental, used by no command: the device's accessibility daemon through the Mac's own remoted, by the shim Apple's MobileDevice framework is served, as Accessibility Inspector reaches it", 0, 0,
+    { "accessibility-shim", "press on a physical Apple TV by the Inspector's cursor, before the route over Apple's tunnel (MANZANERO_INSPECTOR_PRESS=0 turns it off): the device's accessibility daemon through the Mac's own remoted, by the shim Apple's MobileDevice framework is served, as Accessibility Inspector reaches it", 0, 1,
       ADCAccessibilityShim, ADC_COUNT(ADCAccessibilityShim) },
     { "media-inspection", "Read-only native media support and status through a CoreDevice RemoteXPC media socket", 0, 1,
       ADCMediaInspectionRequirements, ADC_COUNT(ADCMediaInspectionRequirements) },

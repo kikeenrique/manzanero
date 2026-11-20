@@ -32,7 +32,9 @@ actor CommandService {
     }, uiReadinessQuery: @escaping @Sendable (DeviceCommand) throws -> Data = { plan in
         try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 15)
     }, handoffWatchPause: Duration = .seconds(2), connectionState: @escaping @Sendable () throws -> Data = StaleDeviceConnection.liveDump,
-       tunnelLinks: @escaping @Sendable () -> [String: String] = DeviceTunnelLinks.live) {
+       tunnelLinks: @escaping @Sendable () -> [String: String] = DeviceTunnelLinks.live,
+       inspector: @escaping InspectorRoute.Open = InspectorRoute.live) {
+        self.inspector = inspector
         self.connectionState = connectionState
         self.tunnelLinks = tunnelLinks
         self.leases = leases
@@ -46,6 +48,9 @@ actor CommandService {
     private let handoffWatchPause: Duration
     /// remoted's state dump, read only after a query has timed out.
     private let connectionState: @Sendable () throws -> Data
+    /// Opens the audit server behind the accessibility shim, for a press
+    /// on an Apple TV.
+    private let inspector: InspectorRoute.Open
     /// The devices usbmuxd lists, for `devices`.
     private let tunnelLinks: @Sendable () -> [String: String]
 
@@ -357,7 +362,19 @@ actor CommandService {
                 return try AccessibilityWait.output(await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
             }
             if (["tree"] + DirectAccessibilityAction.operations + DirectAccessibilitySetValue.operations).contains(native.operation) {
-                return sent(try await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))
+                // A press on an Apple TV goes by the Inspector's cursor
+                // when it can, which does not reset the Mac's connection;
+                // what it cannot do falls to the route below, unpressed.
+                var inspectorNote: String?
+                if InspectorRoute.enabled {
+                    switch try InspectorRoute.press(native, query: query, open: inspector) {
+                    case .pressed(let data): return sent(data)
+                    case .unavailable(let reason): inspectorNote = reason
+                    case .notApplicable: break
+                    }
+                }
+                let data = try await DirectPhysicalAccessibility.executeNativeRSD(native, query: query)
+                return sent(inspectorNote.map { InspectorRoute.annotate(data, unavailable: $0) } ?? data)
             }
             if native.operation == "key" {
                 return sent(try DirectPhysicalKeyboard.execute(native, query: query))
