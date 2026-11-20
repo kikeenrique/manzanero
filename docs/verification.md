@@ -1224,7 +1224,7 @@ Still 2026-11-20, the Apple TV 4K (tvOS 27.2) on the network, macOS 27.2.1, Xcod
 | The same on port 49152 | Verify accepted, signature valid, a listener port given |
 | `tree`, with the pairing stored | `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`, 114 nodes: TLS with the pre-shared key through the Network framework, the greeting, the tool's network stack and the service directory read on the tool's own tunnel |
 | In `batch`es on that tunnel: `tree`, `scroll --search 30` to row 20, `wait --until value`, `set-value`, `press --id probe.tv.row.20 --index 1` | All `own-tunnel` and `paired`; the probe showed `Text: paired` and `Last: select:row-20`. A press of a row inside a list no longer needs Apple's tunnel |
-| The Mac's `remoted` log over those eight minutes, and `remotectl dumpstate` | No "Device connection interrupted", no new handshake; `connected` |
+| The Mac's `remoted` log for the Apple TV's own entry, the whole day, and `remotectl dumpstate` | No "Device connection interrupted" and no new handshake for that device, during these runs or before them; `connected`. The log has such lines every half minute for other devices on the network, so it has to be read for the one device. The first reading of it was worthless: `log` is a builtin of the shell the commands ran in, the call failed with its error hidden, and "0 lines" was taken for an answer; this row is from `/usr/bin/log` |
 | `pair`, then `pair --forget`, then `pair --pin-file` with the pairing screen closed, then `tree` | `already-paired`; `forgotten`; refused with the hint to open the pairing screen, nothing changed; the tree back on Apple's tunnel (`reused-saved-port`), saying the framework does not list the device |
 | `pair --pin-file` with the pairing screen open, the code read from a screenshot and written to the file | `paired`; the next `tree` `own-tunnel` and `paired` |
 | Two swipes on the Home Screen, `--travel 0.9 --seconds 0.5`, up then right | The name under the icon in focus changed each time: a swipe works outside the probe |
@@ -1234,7 +1234,7 @@ Three runs failed for reasons of their own, and say nothing against the route: a
 
 The device now lists the host `manzanero` twice, once for each pairing made; the first one's identity was deleted from the Mac by `--forget`.
 
-Not shown: a phone paired this way; the tunnel after the Apple TV restarts or after days; two processes pairing at once; a long session on the paired tunnel; the device unpaired from its own settings while the Mac keeps the identity (pair-verify should then be refused and the command fall back to Apple's tunnel).
+Not shown: the comparison that would prove the gain on the same day, a directory read on Apple's tunnel with its interruption in the log beside one on the tool's tunnel without (the day's commands on Apple's tunnel all reused a saved port and read no directory); a phone paired this way; the tunnel after the Apple TV restarts or after days; two processes pairing at once; a long session on the paired tunnel; the device unpaired from its own settings while the Mac keeps the identity (pair-verify should then be refused and the command fall back to Apple's tunnel).
 
 ### The Inspector's cursor, the whole hierarchy and a press through the shim
 
