@@ -51,7 +51,7 @@ A route is the way a command reaches the device. Most commands have one. Accessi
 | Video | Apple's media stream, decoded in process | Devices | Works on the phone, blank on the Apple TV |
 | Accessibility, route 1: **the tool's own tunnel** | A tunnel the tool opens itself, through the Mac's `usbmuxd` | A device `manzanero devices` shows as `ownTunnel: cable` or `network`: the iPhone and iPads, never an Apple TV | The default since 2026-11-19. Works on the iPhone, with no side effect on the Mac |
 | Accessibility, route 2: **Apple's tunnel** | The tunnel macOS keeps, plus a second connection of the tool's own to the device's list of services | The fallback, and the only one in use for the Apple TV | Works. Side effect: the device resets the Mac's own connection to it, and now and then that connection does not come back until it is replaced |
-| Accessibility, route 3: **the Inspector's way** | Through the Mac's `remoted`, as Apple's Accessibility Inspector does | Nothing yet: an experiment | Opens on the Apple TV with no side effect. It speaks other requests than routes 1 and 2, so trees and actions would have to be written again for it |
+| Accessibility, route 3: **the Inspector's way** | Through the Mac's `remoted`, as Apple's Accessibility Inspector does | Nothing yet: an experiment | Opens on the Apple TV with no side effect. A press worked on it; a full tree, `scroll` and `set-value` have no way there |
 | Accessibility on a simulator | Apple's simulator framework | Every simulator | Settled |
 
 A result says which accessibility route a command took: `serviceDirectory: own-tunnel` is route 1, and `opened`, `reused-port` or `reused-saved-port` are route 2.
@@ -60,7 +60,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 1. **Push** the local commits.
 2. **A test that failed once** (`aCancelledQueuedCallGivesUpItsPlace`) and could fail a CI run.
-3. **Apple TV, accessibility without the side effect**: through route 3 an element's class, description and role were read, quickly and with no side effect. Still to find: the names for its label, value, position and children, and how to walk the whole screen. Then build trees and actions on it.
+3. **Apple TV, accessibility without the side effect**: route 3 was tried in full on 2026-11-20. It pressed a button with no side effect and without moving the focus. It cannot give a tree: no positions, no focus, lists skipped. To decide: build `press` on it and leave the rest on route 2, or leave it as an experiment.
 4. **Apple TV, video**: start an audio stream beside the video, as Apple's Device Hub does. Not started; it changes the code that owns a stream and its cleanup.
 5. **Apple TV, the remote's swipes**: a lead to look at, the `universalhidservice` Apple's Device Hub uses with it.
 6. **`logs` for devices**: the way in is proven, the command is not built.

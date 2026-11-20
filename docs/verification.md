@@ -990,7 +990,35 @@ With the attribute in that form, on the same Apple TV, each new request run once
 
 No request in that form crashed the daemon: its last crash report stayed the one of 00:03:05 UTC. `deviceFetchSpecialElement:` with 1 answered the probe's element while the probe was in front and nothing while the Apple TV slept, where every attribute came back empty too; a sleeping device explains one run of empty answers.
 
-So attributes are readable through the shim, quickly, in a form that is now known and not guessed. Not shown: the names that answer a label, a value, a frame and the children on tvOS (Apple's Inspector is given its list by the device); why no element is found at a point; a way from one element to the whole screen; any action.
+So attributes are readable through the shim, quickly, in a form that is now known and not guessed. Not shown here, and run later the same day ([record](#the-inspectors-cursor-the-whole-hierarchy-and-a-press-through-the-shim)): the names that answer a label, a value and the children on tvOS, a way from one element to the whole screen, and an action. Still not shown: why no element is found at a point.
+
+### The Inspector's cursor, the whole hierarchy and a press through the shim
+
+On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, on the human owner's word. It was asleep; one `remote home` woke it. Every request was first read from Apple's own client, the Inspector's device manager (`XDMDeviceTransportBased` in `AccessibilityAuditDeviceManager.framework`, read with `otool`), and the tvOS simulator runtime's copy of `axauditd` gave the attribute names. After each new request the device's crash reports were listed: none for `axauditd` in the whole session. Nothing made the Mac's connection go stale.
+
+How Apple's client writes each request: `deviceInspectorMoveWithOptions:` takes a dictionary `direction`, `includeContainers`, `allowNonAX` written by the framework's encoder (each value wrapped as `passthrough`); `deviceInspectorFocusOnElement:` and `deviceInspectorPreviewOnElement:` an encoded element; `deviceInspectorSetMonitoredEventType:`, `deviceInspectorShowVisuals:`, `deviceInspectorShowIgnoredElements:` and `deviceFetchSpecialElement:` a plain number; `deviceFetchElementAtNormalizedDeviceCoordinate:` a plain point value; `deviceElement:valueForAttribute:` the encoded element and attribute; `deviceElement:performAction:withValue:` the encoded element, the encoded attribute and a null; `deviceElement:setValue:attribute:` the encoded element, value and attribute. Directions, from the reference project: 3 previous, 4 next, 5 first, 6 last.
+
+| Step | Result |
+| --- | --- |
+| One move (direction 4) with nothing sent before it | No answer in four seconds |
+| The same after `deviceSetAppMonitoringEnabled:` true and `deviceInspectorSetMonitoredEventType:` 0 | The device sent `hostInspectorCurrentElementChanged:` with a focus object: the element (`probe.tv.button.a` by its identifier), the caption "Button A, Button", and four sections naming the attributes it has: `Label`, `Value`, `Header`, `TraitsHumanReadable`, `Identifier`; the action `AXAction-2010` (Activate); `ElementClassName`, `ElementMemoryAddress`, `ElementViewControllerClassName`; `_AXHierarchyElementsAttribute` |
+| Each listed attribute asked for, given back as the device wrote it, on three elements in turn | `Label` "Button B", `Identifier` `probe.tv.button.b`, `TraitsHumanReadable` "Button", the class `SwiftUI.AccessibilityNode`; `Value` and `Header` empty. Three moves and 27 reads in 1.6 seconds |
+| `_AXHierarchyElementsAttribute` on the element under the cursor | The whole hierarchy in one answer, about 14 KB in a tenth of a second: 20 nodes (22 another time), each with its element, a description ("Button B Button"), a role and, for 11 of them, the identifier. It stops at the two lists: the table and the scroll view are leaves, and no row or column is in it. The tool's own `tree` reads 112 nodes on this screen |
+| The same four attributes on an element taken from that hierarchy, not under the cursor | Empty, all four: values are answered for the cursor's element only, as the reference project notes say |
+| `deviceFetchSpecialElement:` 0 and 1 | 0 an element with no identifier; 1 `probe.tv.col.12` each time, whatever had the focus |
+| The cursor moved until it met an element again, 83 moves | Once: every element, 82 of them, in 7.2 seconds, with all 40 rows and 30 columns of the two lists, and both lists were left scrolled to their ends. In every other run, nine of them, two straight after a fresh launch of the probe: 12 elements in about a second, the lists skipped. What made the one run enter the lists was looked for (the hierarchy request and the special elements were sent again before a walk) and not found |
+| The focus on screen, on screenshots before and after every run | Unmoved, on Button B. The cursor is not the focus: it also stayed where it was between one connection and the next |
+| The cursor moved to `probe.tv.button.a`, then `deviceElement:performAction:withValue:` with the Activate attribute as listed and a null | An acknowledgement. The probe showed "Last: select:a", its count went from 3 to 4, and the focus stayed on Button B |
+| What the probe's text field lists | The same attributes as a button, none of them settable |
+
+So, for the decision this was run for:
+
+- **Works on this route, with no reset:** a press of an element found by the cursor, by identifier or label, without moving the focus; the labels, identifiers and traits of the elements the cursor reaches; the hierarchy's outline in one request.
+- **Does not:** a tree like the tool's own. Values are read one element at a time and only under the cursor; the hierarchy has no label, value, frame or focus mark and stops at lists; no request seen gives a frame or says which element has the focus.
+- **Not dependable:** the cursor's reach into lists, and when it does go in it scrolls them, so reading the screen changes it.
+- **`set-value`:** the field offers nothing settable; no way seen.
+
+Not shown: why one walk entered the lists; `deviceInspectorFocusOnElement:` to put the cursor on an element from the hierarchy without walking; ignored elements and the autodrill setting; a press of a row inside a list; any screen other than the probe's; an iPhone.
 
 ### The commands that had not run on the Apple TV
 

@@ -132,3 +132,184 @@ struct AccessibilityShimSelectorProbeTests {
         }
     }
 }
+
+/// Opt-in: the audit server's inspector cursor, the way Apple's
+/// Accessibility Inspector goes from one element to the next. Each move is
+/// answered by the device with `hostInspectorCurrentElementChanged:`, whose
+/// focus object names the element, its caption and the attributes it has.
+/// Every request is in the form Apple's own client writes it
+/// (`XDMDeviceTransportBased` in the Inspector's device manager): the move
+/// options and an element as typed dictionaries, numbers and flags plain.
+/// Enabled by MANZANERO_SHIM_WALK, the hardware UDID; MANZANERO_SHIM_STEPS
+/// moves (default 1) in MANZANERO_SHIM_DIRECTION (default 4, next);
+/// MANZANERO_SHIM_SETUP names requests sent first (`monitor`, `events`,
+/// `ignored`); MANZANERO_SHIM_READ=1 also asks for each attribute the device
+/// listed, given back as received. Writes what it saw to tmp/shim-walk.txt.
+struct AccessibilityShimWalkProbeTests {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["MANZANERO_SHIM_WALK"] != nil))
+    func theInspectorCursorMovesThroughTheScreen() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        let device = try #require(environment["MANZANERO_SHIM_WALK"])
+        let shim = try AccessibilityShim(device: device)
+        defer { shim.close() }
+        let transport = shim.transport
+        var identifier: UInt32 = 1
+        var lines: [String] = []
+        func note(_ line: String) { lines.append(line) }
+        defer {
+            try? FileManager.default.createDirectory(atPath: "tmp", withIntermediateDirectories: true)
+            try? Data((lines.joined(separator: "\n") + "\n").utf8).write(to: URL(fileURLWithPath: "tmp/shim-walk.txt"))
+        }
+        let classes: [AnyClass] = [NSDictionary.self, NSString.self, NSData.self, NSNumber.self, NSArray.self, NSValue.self, NSNull.self, NSDate.self]
+        func unarchive(_ bytes: Data) -> Any? {
+            bytes.isEmpty ? nil : try? NSKeyedUnarchiver.unarchivedObject(ofClasses: classes, from: bytes)
+        }
+        // Typed dictionaries read without their wrapping.
+        func plain(_ value: Any) -> Any {
+            if let dictionary = value as? NSDictionary {
+                if let type = dictionary["ObjectType"] as? String {
+                    let inner = dictionary["Value"].map(plain) ?? "nil"
+                    return type == "passthrough" ? inner : ["<\(type)>": inner]
+                }
+                var result: [String: Any] = [:]
+                for (key, item) in dictionary { result["\(key)"] = plain(item) }
+                return result
+            }
+            if let array = value as? NSArray { return array.map(plain) }
+            if let data = value as? Data { return "data(\(data.count)) " + data.prefix(24).map { String(format: "%02x", $0) }.joined() }
+            return value
+        }
+        func text(_ bytes: Data) -> String {
+            if let object = unarchive(bytes) { return "\(plain(object))" }
+            return (try? KeyedArchiveInspector.decodeProtocol(bytes)).map { "\($0)" } ?? "(\(bytes.count) bytes)"
+        }
+        var events: [(name: String, argument: Data)] = []
+        // Answers what the device asks, and keeps what it announces.
+        func take(_ frame: AccessibilityDTX, until limit: ContinuousClock.Instant) throws {
+            let name = (unarchive(frame.object) as? String) ?? "?"
+            if frame.expectsReply {
+                let seven = try NSKeyedArchiver.archivedData(withRootObject: NSNumber(value: 7), requiringSecureCoding: true)
+                try transport.write(frame.reply(object: name.contains("ersion") ? seven : Data()), until: limit, cancelled: { false })
+            }
+            let argument = (try? frame.archiveArgument()) ?? Data()
+            events.append((name, argument))
+            note("<- \(name) [\(argument.count) bytes] \(text(argument))")
+        }
+        @discardableResult func ask(_ selector: String, _ arguments: [NSObject] = [], reply: Bool = true, note label: String = "") throws -> Data {
+            let message = try AccessibilityDTX.invocation(selector, arguments: arguments, identifier: identifier, expectsReply: reply)
+            identifier += 1
+            let limit = ContinuousClock.now.advanced(by: .seconds(6))
+            try transport.write(message, until: limit, cancelled: { false })
+            guard reply else { note("-> \(selector) \(label)"); return Data() }
+            while true {
+                let frame = try transport.read(until: limit, cancelled: { false })
+                if frame.kind == .invocation { try take(frame, until: limit); continue }
+                guard frame.isReply(to: message) else { continue }
+                note("-> \(selector) \(label) = \(frame.kind) [\(frame.object.count) bytes] \(text(frame.object))")
+                return frame.object
+            }
+        }
+        // Reads what the device sends by itself until an event of that name, or the time is up.
+        func wait(for name: String, seconds: Double) -> Data? {
+            let limit = ContinuousClock.now.advanced(by: .milliseconds(Int(seconds * 1000)))
+            let seen = events.count
+            while ContinuousClock.now < limit {
+                if let found = events[seen...].first(where: { $0.name == name }) { return found.argument }
+                guard let frame = try? transport.read(until: limit, cancelled: { false }) else { break }
+                if frame.kind == .invocation { try? take(frame, until: limit) }
+            }
+            return events[seen...].first(where: { $0.name == name })?.argument
+        }
+        func typed(_ value: Any) -> NSDictionary { ["ObjectType": "passthrough", "Value": value] }
+
+        try ask("deviceApiVersion")
+        for step in (environment["MANZANERO_SHIM_SETUP"] ?? "").split(separator: ",") {
+            switch step {
+            case "monitor": try ask("deviceSetAppMonitoringEnabled:", [NSNumber(value: true)], reply: false)
+            case "events": try ask("deviceInspectorSetMonitoredEventType:", [NSNumber(value: 0)], reply: false)
+            case "ignored": try ask("deviceInspectorShowIgnoredElements:", [NSNumber(value: true)], reply: false)
+            default: note("unknown setup step \(step)")
+            }
+        }
+        let direction = Int(environment["MANZANERO_SHIM_DIRECTION"] ?? "") ?? 4
+        let steps = Int(environment["MANZANERO_SHIM_STEPS"] ?? "") ?? 1
+        var seen = Set<Data>()
+        var cursor: NSDictionary?
+        var listed: [String: NSDictionary] = [:]
+        for step in 0..<steps {
+            let options = typed(["direction": typed(direction), "includeContainers": typed(true), "allowNonAX": typed(false)] as NSDictionary)
+            try ask("deviceInspectorMoveWithOptions:", [options], reply: false, note: "step \(step) direction \(direction)")
+            guard let argument = wait(for: "hostInspectorCurrentElementChanged:", seconds: 4) else { note("no element after step \(step)"); break }
+            // The focus object: the element, then the sections of attributes.
+            guard let focus = (unarchive(argument) as? NSDictionary)?["Value"] as? NSDictionary,
+                  let fields = focus["Value"] as? NSDictionary, let element = fields["ElementValue_v1"] as? NSDictionary else { continue }
+            if let token = ((element["Value"] as? NSDictionary)?["Value"] as? NSDictionary)?["PlatformElementValue_v1"] as? NSDictionary,
+               let bytes = token["Value"] as? Data, !seen.insert(bytes).inserted {
+                note("the cursor is back on an element already seen, after \(step + 1) moves")
+                break
+            }
+            guard let sections = (fields["InspectorSectionsValue_v1"] as? NSDictionary)?["Value"] as? NSArray else { continue }
+            cursor = element
+            for case let section as NSDictionary in sections {
+                guard let attributes = (((section["Value"] as? NSDictionary)?["Value"] as? NSDictionary)?["ElementAttributesValue_v1"] as? NSDictionary)?["Value"] as? NSArray else { continue }
+                for case let attribute as NSDictionary in attributes {
+                    let inner = (attribute["Value"] as? NSDictionary)?["Value"] as? NSDictionary
+                    let name = (inner?["AttributeNameValue_v1"] as? NSDictionary)?["Value"] as? String ?? "?"
+                    listed[name] = attribute
+                    guard environment["MANZANERO_SHIM_READ"] == "1" else { continue }
+                    // An attribute that performs an action is never asked for.
+                    if ((inner?["PerformsActionValue_v1"] as? NSDictionary)?["Value"] as? NSNumber)?.boolValue == true { note("   \(name): an action, not asked"); continue }
+                    do { try ask("deviceElement:valueForAttribute:", [element, attribute], note: name) }
+                    catch { note("\(name) threw \(error)"); return }
+                }
+            }
+            // MANZANERO_SHIM_PRESS names an identifier: when the cursor is
+            // on it, its Activate action is performed, as Apple's client
+            // writes it (the element, the action attribute as the device
+            // listed it, and a null value), and the walk ends.
+            let identifier = (((element["Value"] as? NSDictionary)?["Value"] as? NSDictionary)?["AccessibilityIdentifier_v1"] as? NSDictionary)?["Value"] as? String
+            if let target = environment["MANZANERO_SHIM_PRESS"], identifier == target {
+                guard let action = listed["AXAction-2010"] else { note("\(target) lists no Activate action"); break }
+                try ask("deviceElement:performAction:withValue:", [element, action, NSNull()], note: target)
+                _ = wait(for: "hostInspectorCurrentElementPropertiesChanged:", seconds: 1)
+                break
+            }
+            listed["AXAction-2010"] = nil
+        }
+        #expect(!events.isEmpty)
+        // The whole screen in one request: the hierarchy attribute of the
+        // element under the cursor answers the tree it belongs to. Then,
+        // for the identifiers named in MANZANERO_SHIM_ELEMENTS, the listed
+        // attributes of elements the cursor is not on.
+        guard environment["MANZANERO_SHIM_TREE"] == "1", let cursor, let hierarchy = listed["_AXHierarchyElementsAttribute"] else { return }
+        let started = ContinuousClock.now
+        let reply = try ask("deviceElement:valueForAttribute:", [cursor, hierarchy], note: "tree")
+        lines.removeLast()
+        note("tree: \(reply.count) bytes in \(ContinuousClock.now - started)")
+        var found: [String: NSDictionary] = [:]
+        var count = 0
+        func walk(_ node: Any?, depth: Int) {
+            guard let fields = ((node as? NSDictionary)?["Value"] as? NSDictionary)?["Value"] as? NSDictionary else { return }
+            func field(_ key: String) -> Any? { (fields[key] as? NSDictionary)?["Value"] }
+            let element = fields["AuditElementValue_v1"] as? NSDictionary
+            let identifier = (((element?["Value"] as? NSDictionary)?["Value"] as? NSDictionary)?["AccessibilityIdentifier_v1"] as? NSDictionary)?["Value"] as? String
+            if let identifier, let element { found[identifier] = element }
+            count += 1
+            let others = fields.allKeys.map { "\($0)" }.filter { !["AuditElementValue_v1", "ChildrenValue_v1", "HumanReadableDescriptionValue_v1", "HumanReadableRoleDescriptionValue_v1", "IsIgnoredValue_v1"].contains($0) }
+            note(String(repeating: "  ", count: depth) + "\(field("HumanReadableDescriptionValue_v1") ?? "-") | role \(field("HumanReadableRoleDescriptionValue_v1") ?? "-") | id \(identifier ?? "-") | ignored \(field("IsIgnoredValue_v1") ?? "-")\(others.isEmpty ? "" : " | also \(others)")")
+            for child in (field("ChildrenValue_v1") as? NSArray) ?? [] { walk(child, depth: depth + 1) }
+        }
+        walk(unarchive(reply), depth: 0)
+        note("tree: \(count) nodes, \(found.count) with an identifier")
+        for special in (environment["MANZANERO_SHIM_SPECIAL"] ?? "").split(separator: ",").compactMap({ Int($0) }) {
+            try ask("deviceFetchSpecialElement:", [NSNumber(value: special)], note: "\(special)")
+        }
+        for identifier in (environment["MANZANERO_SHIM_ELEMENTS"] ?? "").split(separator: ",").map(String.init) {
+            guard let element = found[identifier] else { note("no element \(identifier) in the tree"); continue }
+            for name in ["Label", "Value", "TraitsHumanReadable", "Identifier"] {
+                guard let attribute = listed[name] else { continue }
+                try ask("deviceElement:valueForAttribute:", [element, attribute], note: "\(identifier) \(name)")
+            }
+        }
+    }
+}
