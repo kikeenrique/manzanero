@@ -138,10 +138,10 @@ enum PhysicalLogCapture {
         path.hasPrefix("/private/var/") ? String(path.dropFirst("/private".count)) : path
     }
 
-    static func runningProcesses(_ data: Data) throws -> [(pid: Int32, executable: String)] {
+    static func runningProcesses(_ data: Data, consequence: String = "nothing was captured") throws -> [(pid: Int32, executable: String)] {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let running = (root["result"] as? [String: Any])?["runningProcesses"] as? [[String: Any]] else {
-            throw CommandFailure(.toolFailed, "devicectl's process list could not be read; nothing was captured.", inputSent: .none)
+            throw CommandFailure(.toolFailed, "devicectl's process list could not be read; \(consequence).", inputSent: .none)
         }
         return running.compactMap { process in
             guard let pid = (process["processIdentifier"] as? NSNumber).flatMap({ Int32(exactly: $0.intValue) }), pid > 0,
@@ -151,10 +151,10 @@ enum PhysicalLogCapture {
     }
 
     /// The installed `.app` directory of a bundle, without a trailing slash.
-    static func appDirectory(_ data: Data, bundle: String) throws -> String? {
+    static func appDirectory(_ data: Data, bundle: String, consequence: String = "nothing was captured") throws -> String? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let apps = (root["result"] as? [String: Any])?["apps"] as? [[String: Any]] else {
-            throw CommandFailure(.toolFailed, "devicectl's app list could not be read; nothing was captured.", inputSent: .none)
+            throw CommandFailure(.toolFailed, "devicectl's app list could not be read; \(consequence).", inputSent: .none)
         }
         guard let url = apps.first(where: { $0["bundleIdentifier"] as? String == bundle })?["url"] as? String else { return nil }
         return URL(fileURLWithPath: path(url)).standardizedFileURL.path

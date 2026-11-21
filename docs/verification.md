@@ -1757,6 +1757,10 @@ Simulator screenshot and finite H.264/HEVC movie checks passed. Build & Run pass
 
 Human handoff has synthetic terminal/form completion and per-device mutation-pause coverage. No actual biometric/passcode/purchase action, automatic prompt detection or native notification is claimed.
 
+### Launch options and terminate by bundle
+
+2026-11-21, `manzanero-research-phone` (iPhone simulator, iOS 27.2), Xcode 27.2. `launch com.lemambo.manzanero.probeapp --relaunch --env PROBE_X=1 --language es -- -ProbeList YES` started the probe on its list screen: the next `tree` held `probe.list.row.1` and the rows after it, which only that argument shows. `terminate com.lemambo.manzanero.probeapp` then ended it with exit 0. Whether the variable and the language reached the app was not read: the probe shows neither. Physical `terminate <bundle>`, which finds the app's one running process in `devicectl`'s app and process lists before it terminates, is unit-tested only; so is a physical launch with options, whose plan passes the environment as `--environment-variables` and the rest after the bundle, as `console` already did on the phone.
+
 ## Other simulator families
 
 Three simulators created for this work, headless (Simulator.app not opened): `manzanero-research-tv` (Apple TV 4K (4th generation) at 1080p, tvOS 27.2, 24K150), `manzanero-research-watch` (Apple Watch Series 12 (46mm), watchOS 27.2, 24S118) and `manzanero-research-duo` (iPhone Duo, iOS 27.2, 24B91016s). Host macOS 27.2.1 (26B131), Xcode 27.2 (27B52). No physical device was contacted. Background and the first pass are in [the research](other-families-research.md); the commands are described in [other simulator families](other-families.md).

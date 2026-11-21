@@ -12,6 +12,60 @@ struct DeviceCommandsTests {
         #expect(plan.jsonOutput)
     }
 
+    @Test func launchOptionsReachDevicectlAndSimctl() throws {
+        let options = try LaunchOptions(arguments: ["-ProbeList", "YES"], environment: ["A=1", "B=x=y"], language: "pt-BR", locale: "es_ES", relaunch: true)
+        let physical = try DeviceCommand.launch(physical: true, device: "fixture-phone", bundle: "com.example.app", options: options)
+        #expect(physical.arguments == ["devicectl", "device", "process", "launch", "--device", "fixture-phone", "--terminate-existing",
+            "--environment-variables", #"{"A":"1","B":"x=y"}"#, "--timeout", "60", "--json-output", "-", "com.example.app",
+            "-AppleLanguages", "(pt-BR)", "-AppleLocale", "es_ES", "-ProbeList", "YES"])
+        #expect(physical.environment.isEmpty)
+        let simulated = try DeviceCommand.launch(physical: false, device: simulator, bundle: "com.example.app", options: options)
+        #expect(simulated.arguments == ["simctl", "launch", "--terminate-running-process", simulator, "com.example.app",
+            "-AppleLanguages", "(pt-BR)", "-AppleLocale", "es_ES", "-ProbeList", "YES"])
+        #expect(simulated.environment == ["SIMCTL_CHILD_A": "1", "SIMCTL_CHILD_B": "x=y"])
+        // Without options, launch plans exactly as before.
+        #expect(try DeviceCommand.launch(physical: true, device: "fixture-phone", bundle: "com.apple.Preferences", options: LaunchOptions())
+            == DeviceCommand.plan(physical: true, device: "fixture-phone", operation: "launch", operands: ["com.apple.Preferences"]))
+    }
+
+    @Test(arguments: [(["=1"], nil, nil), (["1A=2"], nil, nil), (["A"], nil, nil), (["A=1", "A=2"], nil, nil),
+                      ([], "e", nil), ([], "es_ES", nil), ([], nil, "es-ES"), ([], nil, "es_")] as [([String], String?, String?)])
+    func invalidLaunchOptionsAreUsageErrors(_ environment: [String], _ language: String?, _ locale: String?) {
+        #expect(throws: CommandFailure.self) { try LaunchOptions(environment: environment, language: language, locale: locale) }
+    }
+
+    @Test func launchCommandParsesItsOptions() throws {
+        let parsed = try request(["launch", "com.example.app", "--device", "fixture-phone", "--env", "A=1", "--language", "es", "--relaunch", "--", "-x", "--y"])
+        guard case .tool(let tool) = parsed else { Issue.record("launch is not a tool request"); return }
+        #expect(tool.command == (try DeviceCommand.launch(physical: true, device: "fixture-phone", bundle: "com.example.app",
+            options: LaunchOptions(arguments: ["-x", "--y"], environment: ["A=1"], language: "es", relaunch: true))))
+    }
+
+    @Test func physicalTerminateByBundleResolvesItsOneProcess() throws {
+        let tool = try DeviceOperation(Target(platform: .physical, identifier: "fixture-phone"), "terminate", ["com.example.app"])
+        #expect(tool.bundleToResolve == "com.example.app")
+        #expect(tool.command.arguments.contains(DeviceCommand.resolvedPIDPlaceholder))
+        let byPID = try DeviceOperation(Target(platform: .physical, identifier: "fixture-phone"), "terminate", ["42"])
+        #expect(byPID.bundleToResolve == nil)
+        let onSimulator = try DeviceOperation(Target(platform: .simulator, identifier: simulator), "terminate", ["com.example.app"])
+        #expect(onSimulator.bundleToResolve == nil && onSimulator.command.arguments == ["simctl", "terminate", simulator, "com.example.app"])
+        #expect(throws: CommandFailure.self) { try DeviceOperation(Target(platform: .physical, identifier: "fixture-phone"), "terminate", ["0"]) }
+
+        let apps = Data(#"{"result":{"apps":[{"bundleIdentifier":"com.example.app","url":"file:///private/var/containers/Bundle/Application/X/App.app/"}]}}"#.utf8)
+        func processes(_ paths: [(Int, String)]) -> Data {
+            let list = paths.map { #"{"processIdentifier":\#($0.0),"executable":"file://\#($0.1)"}"# }.joined(separator: ",")
+            return Data(#"{"result":{"runningProcesses":[\#(list)]}}"#.utf8)
+        }
+        let main = "/var/containers/Bundle/Application/X/App.app/App"
+        let widget = "/var/containers/Bundle/Application/X/App.app/PlugIns/W.appex/W"
+        #expect(try RunningApp.pid(of: "com.example.app", apps: apps, processes: processes([(7, "/usr/libexec/x"), (42, main), (43, widget)])) == 42)
+        let none = try #require(throws: CommandFailure.self) { try RunningApp.pid(of: "com.example.app", apps: apps, processes: processes([(43, widget)])) }
+        #expect(none.description.contains("is not running") && none.inputSent == .none)
+        let two = try #require(throws: CommandFailure.self) { try RunningApp.pid(of: "com.example.app", apps: apps, processes: processes([(42, main), (44, main)])) }
+        #expect(two.description.contains("PIDs 42, 44"))
+        #expect(throws: CommandFailure.self) { try RunningApp.pid(of: "com.other.app", apps: apps, processes: processes([(42, main)])) }
+    }
+
     func failure(_ args: [String], dryRun: Bool) async -> String? {
         await commandFailure(args, dryRun: dryRun).map { String(describing: $0) }
     }

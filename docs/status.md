@@ -61,7 +61,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **`launch` with arguments, and `terminate` by bundle identifier**: needed by hand four times in two days.
+1. **`launch` with arguments, and `terminate` by bundle identifier**: built and run on a simulator on 2026-11-21; one run on the iPhone is owed.
 2. **The new `press` order on the Apple TV**: built and unit-tested, not yet run there.
 3. **Selectors that are not exact**: a label or identifier that contains a text, or matches a pattern.
 4. **Small checks on the iPhone**: `open-url` from another app, an action in flight when the cable is pulled, an agent session over the network.

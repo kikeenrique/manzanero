@@ -227,9 +227,26 @@ actor CommandService {
         case .tool(let tool):
             if !dryRun { try checkHandoffPause(request) }
             let command = tool.command
-            if dryRun { return try json(["executable": command.executable, "arguments": command.arguments]) }
+            if dryRun {
+                var plan: [String: Any] = ["executable": command.executable, "arguments": command.arguments]
+                if !command.environment.isEmpty { plan["environment"] = command.environment }
+                if let bundle = tool.bundleToResolve {
+                    plan["resolve"] = ["bundleId": bundle, "from": ["devicectl device info apps", "devicectl device info processes"],
+                                       "rule": "Exactly one running process whose executable is in the app's folder; none or several refuse with nothing terminated."]
+                }
+                return try json(plan)
+            }
             if tool.needsPreflight { try preflight(tool.device, operation: tool.operation) }
-            let data = try runner.run(command.arguments, executable: command.executable)
+            var arguments = command.arguments
+            if let bundle = tool.bundleToResolve {
+                func query(_ operation: String) throws -> Data {
+                    let plan = try DeviceCommand.plan(physical: true, device: tool.device, operation: operation)
+                    return try runner.run(plan.arguments, executable: plan.executable)
+                }
+                let pid = try RunningApp.pid(of: bundle, apps: query("apps"), processes: query("processes"))
+                arguments = arguments.map { $0 == DeviceCommand.resolvedPIDPlaceholder ? String(pid) : $0 }
+            }
+            let data = try runner.run(arguments, executable: command.executable, environment: command.environment)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
             if tool.platform == .physical, tool.operation == "screenshot" {
                 return CommandOutput(data: DeviceUIReadiness.annotateScreenshot(data, device: tool.device, query: uiReadinessQuery))

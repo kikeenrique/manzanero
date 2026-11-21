@@ -46,13 +46,26 @@ struct DeviceOperation: Sendable, Equatable {
     /// `files`, `pull`, `push`, `reports` and `report`.
     let operation: String
     let command: DeviceCommand
+    /// Physical `terminate <bundle>`: the bundle whose one running process
+    /// is resolved just before the terminate runs.
+    private(set) var bundleToResolve: String?
 
     init(_ target: Target, _ operation: String, _ operands: [String] = []) throws {
         platform = target.platform
         device = target.identifier
         self.operation = operation
         command = try DeviceCommand.plan(physical: target.platform == .physical, device: target.identifier, operation: operation, operands: operands)
+        if command.arguments.contains(DeviceCommand.resolvedPIDPlaceholder) { bundleToResolve = operands.first }
     }
+
+    /// `launch` with arguments, environment, language, locale or a relaunch.
+    init(_ target: Target, launch bundle: String, options: LaunchOptions) throws {
+        platform = target.platform
+        device = target.identifier
+        operation = "launch"
+        command = try DeviceCommand.launch(physical: target.platform == .physical, device: target.identifier, bundle: bundle, options: options)
+    }
+
 
     /// devicectl operations that first check Developer Mode.
     var needsPreflight: Bool {

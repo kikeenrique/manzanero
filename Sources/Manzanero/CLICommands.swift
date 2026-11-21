@@ -428,19 +428,38 @@ extension ManzaneroCLI {
     }
 
     struct Launch: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "launch", abstract: "Launch an app.")
+        static let configuration = CommandConfiguration(commandName: "launch", abstract: "Launch an app.",
+            discussion: """
+            Arguments after -- are passed to the app, for example `launch <bundle-id> --device <UDID> -- -ProbeList YES`. \
+            --language and --locale become the app's -AppleLanguages and -AppleLocale arguments, ahead of those; \
+            they change that launch only, not the device's settings. --env sets a variable in the app's environment \
+            (devicectl --environment-variables on a device, a SIMCTL_CHILD_ variable on a simulator). \
+            Without --relaunch, an app that is already running is brought to the front and may ignore the new arguments.
+            """)
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "Bundle identifier.") var bundleID: String
-        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "launch", [bundleID])) }
+        @Option(help: ArgumentHelp("An environment variable for the app; repeatable.", valueName: "name=value")) var env: [String] = []
+        @Option(help: ArgumentHelp("The app's language for this launch, such as es or pt-BR.", valueName: "code")) var language: String?
+        @Option(help: ArgumentHelp("The app's locale for this launch, such as es_ES.", valueName: "identifier")) var locale: String?
+        @Flag(help: "End a running copy of the app first.") var relaunch = false
+        @Argument(parsing: .postTerminator, help: ArgumentHelp("Arguments for the app, after --.", valueName: "app-argument")) var appArguments: [String] = []
+        func request(_ target: Target) throws -> CommandRequest {
+            .tool(try DeviceOperation(target, launch: bundleID, options: LaunchOptions(arguments: appArguments, environment: env,
+                                                                                         language: language, locale: locale, relaunch: relaunch)))
+        }
     }
 
     struct Terminate: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "terminate", abstract: "Terminate an app.",
-                                                        discussion: "A device takes a PID (see processes); a simulator a bundle identifier.")
+            discussion: """
+            Takes a bundle identifier, or on a device also a PID (see processes). On a device a bundle is resolved \
+            first, from the app and process lists, to the one running process whose executable is in the app's \
+            folder; when none or several run, nothing is terminated.
+            """)
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
-        @Argument(help: ArgumentHelp("PID (device) or bundle identifier (simulator).", valueName: "pid-or-bundle-id")) var app: String
+        @Argument(help: ArgumentHelp("Bundle identifier, or a PID on a device.", valueName: "bundle-id-or-pid")) var app: String
         func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "terminate", [app])) }
     }
 

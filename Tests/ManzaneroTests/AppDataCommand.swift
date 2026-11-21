@@ -28,7 +28,7 @@ struct AppDataCommandTests {
         ["push", "com.example.app", "tmp/file", "../x"],
         ["push", "--help", "tmp/file", "."], ["pull", "com.example.app", "."],
         ["terminate", "0"], ["terminate", "-1"], ["terminate", "4294967295"],
-        ["terminate", "com.example.app"], ["open-url", "relative/path"]
+        ["terminate", "com.example app"],["open-url", "relative/path"]
     ]) func invalidOperands(_ args: [String]) {
         #expect(throws: CommandFailure.self) { try Self.plan(args) }
     }

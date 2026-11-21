@@ -198,13 +198,21 @@ On the human owner's decisions A, B, C, E and L, with the iPhone 13 mini named f
 | The release binary without the builder's path | lwIP's assertions embedded the checkout's absolute path; the package task builds with a C macro prefix map and `test:package` refuses an executable that carries it | [Releasing](releasing.md) |
 | The second beta | v0.1.0-beta.2 after an audit and two manual workflow runs: one Apple silicon archive, published on 2026-11-21, its formula in the tap, clean under `brew audit --strict --online`, upgraded from beta.1 and tested on the development Mac | [Record](verification.md#second-beta-published) |
 
+### Added later on 2026-11-21: the work that needs no hardware
+
+The human owner asked for the pending tasks in order, leaving out hardware runs and anything that plays sound, and for a completeness run on the iPad, Apple Watch and iPhone Duo simulators. Where a task had a decision open, laia-LLM took the option it had recommended that day. Not in a release yet.
+
+| Task | Result | Record |
+| --- | --- | --- |
+| Launch options, and terminate by bundle identifier (item 28) | `launch <bundle> [--env NAME=VALUE]… [--language <code>] [--locale <id>] [--relaunch] [-- <app arguments>]`; language and locale become `-AppleLanguages` and `-AppleLocale` for that launch only. `terminate <bundle>` on a device resolves the app's one running process from `devicectl`'s lists and refuses when none or several run, naming their PIDs. MCP `app_action` takes the same. iPhone simulator; the device side is unit-tested | [Record](verification.md#launch-options-and-terminate-by-bundle) |
+
 ## Pending
 
 ### Next, in the order suggested
 
 The order is laia-LLM's suggestion, not one the human owner set.
 
-1. **Launch options, and terminate by bundle identifier** (item 28). Needed by hand four times in two days: the probe's list and tone screens through `devicectl … --`, and a PID read by hand from the process list that reached the wrong process.
+1. **Launch options and terminate by bundle on a device** (item 28): built on 2026-11-21 and run on a simulator; one launch with arguments and one terminate by bundle on the iPhone 13 mini are owed.
 2. **The new press order on the Apple TV 4K** (item 16): a button and a row inside a list, paired and with the pairing removed, the room kept quiet.
 3. **Selectors that are not exact** (item 26).
 4. **Small checks on the iPhone**: `open-url` from another app, where iOS asks first; an action in flight when the cable is pulled, which should fail once and not repeat; an MCP session or a `batch` over the network, or across a change of link; one interruption of `remoted` seen at a change of link, cause unknown.
@@ -274,7 +282,7 @@ Listed on 2026-11-18. Two were built the same day (24 and 25); the others are no
 25. **Scroll until an element is found: what is left.** `scroll --search <steps>` (MCP `search`) is built: it looks forward through a list that loads its rows as it moves, one scroll request at a time, and stops when the selector matches, the list stops moving or the steps run out ([guide](direct-accessibility.md#searching-a-list-that-loads-its-rows---search)). `--toward up`, `left` or `right` moves it the other ways, and it works with more than one list on screen. Run on tvOS simulators, on the physical Apple TV, and since 2026-11-20 on an iPhone simulator in four directions ([record](verification.md#a-search-on-an-iphone-simulator-and-a-table-rows-two-objects)), where it showed that a plain table row answers a hit test by another object than the tree's; the press guard now accepts that. On the iPhone 13 mini on 2026-11-20 it found row 55 of 60 downward in 4 steps, through MCP ([record](verification.md#phone-session-of-2026-11-20-a-table-row-a-moving-stream-open-url-and-logs)). Left: the other directions on a phone, an iPad, and a list whose rows do not share an edge.
 26. **Selectors that are not exact.** Add `contains` and regular-expression kinds for labels, identifiers and values in `AccessibilitySelector.kinds`, with exact matching still the default and `--index` for ties.
 27. **Device settings.** A `settings` group: appearance (light or dark), text size, contrast and the other accessibility switches, a simulated location with a way to clear it, and status bar overrides on simulators. Check what `devicectl` and `simctl` offer for each before choosing a route; a setting changed on the owner's device is the owner's call.
-28. **Launch options, and terminate by bundle identifier.** `launch` with arguments, environment variables, language and locale; physical `terminate` by bundle identifier, resolving the process first, instead of only by process identifier. Felt on 2026-11-20: the probe's launch arguments (`-ProbeTone YES`, `-ProbeList YES`) can only be given through `console`, which takes them after `--`, or through `devicectl` by hand.
+28. **Launch options, and terminate by bundle identifier: what is left.** Built on 2026-11-21 ([achieved](#added-later-on-2026-11-21-the-work-that-needs-no-hardware)) and run on an iPhone simulator. Left: one run of each on the iPhone 13 mini.
 29. **Rotation.** A command that turns the device or simulator to a named orientation. On a phone it is only useful once trees work in landscape (item 3).
 30. **Gesture presets.** `double-tap`, swipes from each screen edge and the system gestures (Home, app switcher, Control Centre, Notification Centre), as named presets over `tap` and `gesture` with no new input route.
 31. **A permission-alert helper.** One command that reads the system prompt in front and presses the button named, or Allow or Don't Allow. A convenience: the tree already reads and dismisses a prompt, and `handoff --until gone` covers the case where a person decides.

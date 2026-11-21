@@ -74,6 +74,20 @@ struct MCPToolsTests {
             request: .physicalInput(CoreDeviceInput(device: "phone", operation: "press-label", operands: ["3", "--dry-run"])), dryRun: false, errorFormat: nil))
     }
 
+    @Test func appActionLaunchCarriesItsOptions() throws {
+        let definition = try #require(MCPTools.definitions.first { $0.name == "app_action" })
+        let base: [String: Value] = ["platform": "physical", "device": "fixture-phone", "operation": "launch", "value": "com.example.app"]
+        #expect(try definition.command(base) == ["launch", "--device=fixture-phone", "com.example.app"])
+        let full = try definition.command(base.merging(["app_arguments": .array(["-ProbeList", "YES"]), "environment": .array(["A=1"]),
+                                                        "language": "es", "locale": "es_ES", "relaunch": true]) { $1 })
+        #expect(full == ["launch", "--device=fixture-phone", "--env=A=1", "--language=es", "--locale=es_ES", "--relaunch", "com.example.app", "--", "-ProbeList", "YES"])
+        guard case .tool(let tool) = try request(full) else { Issue.record("app_action launch is not a tool request"); return }
+        #expect(tool.command.arguments.suffix(7) == ["com.example.app", "-AppleLanguages", "(es)", "-AppleLocale", "es_ES", "-ProbeList", "YES"])
+        let terminate = try definition.command(["platform": "physical", "device": "fixture-phone", "operation": "terminate", "value": "com.example.app"])
+        guard case .tool(let ended) = try request(terminate) else { Issue.record("app_action terminate is not a tool request"); return }
+        #expect(ended.bundleToResolve == "com.example.app")
+    }
+
     @Test func buildRunProvisioningFlagsAreOptionalBooleans() throws {
         let definition = try #require(MCPTools.definitions.first { $0.name == "build_run" })
         let schema = try #require(definition.tool.inputSchema.objectValue)

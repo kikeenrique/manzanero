@@ -218,7 +218,22 @@ enum MCPTools {
         .init(name: "perform_gesture", description: "Send one bounded touch sequence through in-process Apple Universal HID; no helper executable. Platform defaults to physical; a booted simulator (by UUID) receives the same reports through its dtuhidd Universal HID service. sequence is JSON {frames:[{ms:integer,touches:[{id:integer,x:number,y:number}]}]}; 2...512 complete-state frames, first ms=0 with a touch, strictly increasing times through 10000 ms, last touches empty. IDs form 0...N-1, N<=5. Coordinates normalized in the current interface, with fresh display checks. Omitted contacts release at their last position; IDs may touch again. Supports sampled paths, holds, and repeated taps with no automatic interpolation or replay. Dispatch does not verify effect, timing, or release.", fields: [device, optionalPlatform, .init(name: "sequence", description: "JSON sequence, maximum 65536 UTF-8 bytes; each frame lists all active touches.")]) {
             $0.command(["gesture"], platform: $0.physicalByDefault, operands: [$0.text("sequence")])
         },
-        .init(name: "app_action", description: "Install, uninstall, launch, terminate an app, or open a URL. Value is a host app path for install, a URL for open-url, a positive PID for physical terminate, otherwise a bundle identifier. Uninstall deletes app data.", fields: [platform, device, .init(name: "operation", choices: ["install", "uninstall", "launch", "terminate", "open-url"]), .init(name: "value")]) { $0.command([$0.text("operation")], operands: [$0.text("value")]) },
+        .init(name: "app_action", description: "Install, uninstall, launch, terminate an app, or open a URL. Value is a host app path for install, a URL for open-url, otherwise a bundle identifier; physical terminate also takes a PID, and resolves a bundle to its one running process first (none or several: nothing is terminated). Launch only: app_arguments, environment (NAME=VALUE strings), language (such as es) and locale (such as es_ES) for that launch, which change no device setting; relaunch true ends a running copy first, without which a running app is brought to the front and may ignore the arguments. Uninstall deletes app data.", fields: [
+            platform, device, .init(name: "operation", choices: ["install", "uninstall", "launch", "terminate", "open-url"]), .init(name: "value"),
+            .init(name: "app_arguments", kind: .stringArray, description: "Launch: arguments passed to the app, at most 64.", required: false),
+            .init(name: "environment", kind: .stringArray, description: "Launch: NAME=VALUE variables for the app, at most 64.", required: false),
+            .init(name: "language", description: "Launch: the app's language, such as es or pt-BR.", required: false),
+            .init(name: "locale", description: "Launch: the app's locale, such as es_ES.", required: false),
+            .init(name: "relaunch", kind: .boolean, required: false)]) { arguments in
+            guard arguments.text("operation") == "launch" else {
+                return arguments.command([arguments.text("operation")], operands: [arguments.text("value")])
+            }
+            // The bundle precedes `--`, which here starts the app's own arguments.
+            let options = arguments.repeated([("environment", "--env")]) + arguments.options([("language", "--language"), ("locale", "--locale")])
+                + (arguments["relaunch"]?.boolValue == true ? ["--relaunch"] : [])
+            return arguments.command(["launch"], options: options + [arguments.text("value")],
+                                     operands: (arguments["app_arguments"]?.arrayValue ?? []).compactMap(\.stringValue))
+        },
         .init(name: "app_data", description: "Physical app-container listing or raw pull/push. Remote paths are relative; '.' means root. Listing is nonrecursive. Copies may overwrite selected destinations; app access is permission-dependent and unverified live. Not .xcappdata export/replacement.", fields: [device, .init(name: "operation", choices: ["files", "pull", "push"]), .init(name: "bundle_id"), .init(name: "remote_path"), .init(name: "local_path", required: false)]) {
             let op = $0.text("operation")
             let paths = op == "files" ? [$0.text("remote_path")] : (op == "pull" ? [$0.text("remote_path"), $0.text("local_path")] : [$0.text("local_path"), $0.text("remote_path")])
