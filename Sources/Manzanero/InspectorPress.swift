@@ -220,19 +220,20 @@ struct InspectorPress {
 }
 
 /// Where `press` on a physical Apple TV tries the Inspector's cursor: after
-/// the tool's own tunnel, which disturbs nothing either and takes every
-/// selector, and before the route over Apple's tunnel, which makes the
-/// device reset the Mac's connection. `MANZANERO_INSPECTOR_PRESS=0` turns
-/// the cursor off.
+/// the tool's own tunnel, which takes every selector. The route over Apple's
+/// tunnel that once came last is gone for an Apple TV: it left the Mac's
+/// connection to the device stale (the human owner's decision of
+/// 2026-11-21). `MANZANERO_INSPECTOR_PRESS=0` turns the cursor off.
 enum InspectorRoute {
-    /// The three routes of a press on a physical Apple TV, in order. Each of
-    /// the first two either presses or says, before anything is sent, why it
-    /// cannot; a failure of a press itself ends the command, because its
-    /// outcome is unknown and another route would press a second time.
+    /// The routes of a press on a physical Apple TV, in order: the tool's own
+    /// tunnel, then the Inspector's cursor. Each either presses or says,
+    /// before anything is sent, why it cannot, and when neither can the press
+    /// is refused with both reasons. A failure of a press itself ends the
+    /// command, because its outcome is unknown and another route would press
+    /// a second time.
     static func pressInOrder(isolation: isolated (any Actor)? = #isolation,
                              ownTunnel: () async throws -> Data,
-                             inspector: (() throws -> Outcome)?,
-                             appleTunnel: () async throws -> Data) async throws -> Data {
+                             inspector: (() throws -> Outcome)?) async throws -> Data {
         var notes: [String: String] = [:]
         do { return try await ownTunnel() } catch let refused as DirectPhysicalAccessibility.OwnTunnelRefused {
             notes["ownTunnelUnavailable"] = refused.reason
@@ -244,7 +245,8 @@ enum InspectorRoute {
             case .notApplicable: break
             }
         }
-        return annotate(try await appleTunnel(), notes)
+        let reasons = ["ownTunnelUnavailable", "inspectorUnavailable"].compactMap { key in notes[key].map { "\(key): \($0)" } }
+        throw CommandFailure(.deviceNotReady, DirectPhysicalAccessibility.appleTVTunnelRefusal(reasons.joined(separator: "; ")), inputSent: .none)
     }
 
     /// The device's details when the command is a press on a physical Apple

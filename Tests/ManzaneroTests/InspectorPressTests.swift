@@ -177,11 +177,10 @@ struct InspectorRouteTests {
         try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    @Test func thePairedTunnelPressesFirstAndTheOthersAreNotTried() async throws {
+    @Test func thePairedTunnelPressesFirstAndTheCursorIsNotTried() async throws {
         let data = try await InspectorRoute.pressInOrder(
             ownTunnel: { Data(#"{"serviceDirectory":"own-tunnel"}"#.utf8) },
-            inspector: { Issue.record("cursor tried"); return .notApplicable },
-            appleTunnel: { Issue.record("Apple's tunnel tried"); return Data() })
+            inspector: { Issue.record("cursor tried"); return .notApplicable })
         let root = try Self.json(data)
         #expect(root["serviceDirectory"] as? String == "own-tunnel" && root["ownTunnelUnavailable"] == nil)
     }
@@ -189,32 +188,33 @@ struct InspectorRouteTests {
     @Test func withoutTheTunnelTheCursorPressesAndSaysWhy() async throws {
         let data = try await InspectorRoute.pressInOrder(
             ownTunnel: { throw DirectPhysicalAccessibility.OwnTunnelRefused(reason: "not paired") },
-            inspector: { .pressed(Data(#"{"route":"inspector"}"#.utf8)) },
-            appleTunnel: { Issue.record("Apple's tunnel tried"); return Data() })
+            inspector: { .pressed(Data(#"{"route":"inspector"}"#.utf8)) })
         let root = try Self.json(data)
         #expect(root["route"] as? String == "inspector" && root["ownTunnelUnavailable"] as? String == "not paired")
     }
 
-    @Test func appleTunnelIsLastAndCarriesBothReasons() async throws {
-        let data = try await InspectorRoute.pressInOrder(
-            ownTunnel: { throw DirectPhysicalAccessibility.OwnTunnelRefused(reason: "not paired") },
-            inspector: { .unavailable("by value") },
-            appleTunnel: { Data(#"{"serviceDirectory":"opened"}"#.utf8) })
-        let root = try Self.json(data)
-        #expect(root["ownTunnelUnavailable"] as? String == "not paired" && root["inspectorUnavailable"] as? String == "by value")
-        // The cursor switched off goes straight from one tunnel to the other.
-        let off = try await InspectorRoute.pressInOrder(
-            ownTunnel: { throw DirectPhysicalAccessibility.OwnTunnelRefused(reason: "off") }, inspector: nil,
-            appleTunnel: { Data(#"{"serviceDirectory":"opened"}"#.utf8) })
-        #expect(try Self.json(off)["inspectorUnavailable"] == nil)
+    /// Apple's tunnel is never the last route on an Apple TV: when neither
+    /// route can press, the press is refused with both reasons, nothing sent.
+    @Test func withNeitherRouteThePressIsRefusedWithBothReasons() async throws {
+        let refusal = await #expect(throws: CommandFailure.self) {
+            _ = try await InspectorRoute.pressInOrder(
+                ownTunnel: { throw DirectPhysicalAccessibility.OwnTunnelRefused(reason: "not paired") },
+                inspector: { .unavailable("by value") })
+        }
+        #expect(refusal?.inputSent == CommandFailure.InputSent.none)
+        #expect(refusal?.description.contains("ownTunnelUnavailable: not paired") == true && refusal?.description.contains("inspectorUnavailable: by value") == true)
+        #expect(refusal?.description.contains("manzanero pair") == true)
+        let off = await #expect(throws: CommandFailure.self) {
+            _ = try await InspectorRoute.pressInOrder(ownTunnel: { throw DirectPhysicalAccessibility.OwnTunnelRefused(reason: "off") }, inspector: nil)
+        }
+        #expect(off?.description.contains("inspectorUnavailable") == false)
     }
 
     @Test func aFailedPressOnTheTunnelIsNeverPressedAgain() async throws {
         await #expect(throws: CommandFailure.self) {
             _ = try await InspectorRoute.pressInOrder(
                 ownTunnel: { throw CommandFailure(.inputOutcomeUnknown, "lost mid-press", inputSent: .possible) },
-                inspector: { Issue.record("cursor tried"); return .notApplicable },
-                appleTunnel: { Issue.record("Apple's tunnel tried"); return Data() })
+                inspector: { Issue.record("cursor tried"); return .notApplicable })
         }
     }
 }

@@ -401,15 +401,14 @@ actor CommandService {
             }
             if (["tree"] + DirectAccessibilityAction.operations + DirectAccessibilitySetValue.operations).contains(native.operation) {
                 // A press on an Apple TV goes by the tool's own tunnel, then
-                // by the Inspector's cursor, neither of which resets the
-                // Mac's connection, and only then over Apple's tunnel; each
+                // by the Inspector's cursor, and is refused when neither can
+                // take it: Apple's tunnel is not used for an Apple TV. Each
                 // route passes to the next only what it has not pressed.
                 if let details = try InspectorRoute.appleTVPress(native, query: query) {
                     let open = inspector
                     let data = try await InspectorRoute.pressInOrder(
                         ownTunnel: { try await DirectPhysicalAccessibility.executeNativeRSD(native, ownTunnelOnly: true, query: query) },
-                        inspector: InspectorRoute.enabled ? { try InspectorRoute.press(native, details: details, open: open) } : nil,
-                        appleTunnel: { try await DirectPhysicalAccessibility.executeNativeRSD(native, ownTunnel: .none, query: query) })
+                        inspector: InspectorRoute.enabled ? { try InspectorRoute.press(native, details: details, open: open) } : nil)
                     return sent(data)
                 }
                 return sent(try await DirectPhysicalAccessibility.executeNativeRSD(native, query: query))

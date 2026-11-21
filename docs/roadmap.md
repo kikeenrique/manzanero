@@ -269,7 +269,7 @@ What was decided is in the [decision tables](#owner-decisions-2026-11-17) below.
 ### Other families
 
 16. **The Apple TV 4K: what is left.** Every command family works there, and the three large items of 2026-11-20 are done: accessibility on a tunnel of the tool's own by `manzanero pair`, sleep and wake, and sound in a recording ([status](status.md), [guide](other-families.md#a-physical-apple-tv)). Left are checks and loose ends, in the order suggested:
-    - **The press order of 2026-11-21.** The tool's own tunnel, then the Inspector's cursor, then Apple's tunnel: unit-tested only.
+    - **The press order: done.** The tool's own tunnel and the Inspector's cursor each pressed the tvOS probe on 2026-11-21; Apple's tunnel was then taken out of an Apple TV's routes by the human owner's decision, after the connection went stale ([record](verification.md#the-press-order-on-the-apple-tv-4k-and-a-stale-connection)). Left: why the connection went stale right after the Inspector's press, which was recorded as harmless on 2026-11-20.
     - **`logs`.** Never run on an Apple TV; on the paired tunnel it should work as on the phone.
     - **The pairing over time.** The paired tunnel after a restart of the Apple TV and after days; a long session on it; what a command does when the host was removed in the device's own settings (pair-verify should be refused and the command fall back to Apple's tunnel, saying why). The device lists the host `manzanero` twice, once for each pairing made on 2026-11-20; the first is dead and can be removed there.
     - **The pairing's edges.** `pair` from an MCP host, which has no way to give the PIN; `devices` saying which devices the tool is paired with; the comparison that would show the gain in the Mac's log, a directory read on Apple's tunnel beside one on the tool's ([record](verification.md#a-pairing-of-the-tools-own-and-the-apple-tv-on-the-tools-tunnel)).
@@ -393,7 +393,7 @@ Two betas are out: v0.1.0-beta.1 on 2026-11-18 ([record](verification.md#first-b
 | A relaunch during `logs` (E) | "When the app finishes the log too": a one-process capture ends with its process; no reopening | Built: `stopReason: processEnded` |
 | Which processes `logs` takes (L) | One, a group or all, with filters, as other log tools do; up to 600 seconds on a device | Built and run on the phone and a simulator |
 | The pairing code, which follows idevice's | Keep the Swift reimplementation, with idevice's notice shipped; no dependency on the library | Unchanged ([dependencies](dependencies.md)) |
-| The order of a press on an Apple TV | The tool's own tunnel first, then the Inspector's cursor, then Apple's tunnel | Built (`InspectorRoute.pressInOrder`), unit-tested; not yet run on the Apple TV 4K ([guide](other-families.md#press-by-the-inspectors-cursor)) |
+| The order of a press on an Apple TV | The tool's own tunnel first, then the Inspector's cursor, then Apple's tunnel | Built (`InspectorRoute.pressInOrder`); the first two ran on the Apple TV 4K on 2026-11-21, and the third was removed that day ([decision](#owner-decisions-2026-11-21)) |
 
 ## Owner decisions, 2026-11-21
 
@@ -406,6 +406,7 @@ Two betas are out: v0.1.0-beta.1 on 2026-11-18 ([record](verification.md#first-b
 | Text entry on a watch | B1: `type` taps the on-screen keyboard's keys; B2 (accents, symbols, more keyboards) later | B1 built; an external-keyboard route was looked for and not found ([other families](other-families.md#digital-crown-and-side-button-apple-watch)) |
 | Sound in simulator recordings | Out of scope while Apple's tools give none: simulator recordings stay silent; no capture of the Mac's own audio | Unchanged: `simctl recordVideo` records no sound |
 | Recording recovery after a pulled cable failed to recover | A: wait for the device and stop the tool's own lost stream by its identifier; B: keep what was captured as a partial movie | Both built; B and then a full recovery seen on the iPhone 13 mini ([design](recording-recovery.md#changed-after-that-check-waiting-for-the-device-and-keeping-what-was-captured)) |
+| Apple's tunnel for an Apple TV | "This route that blocks the Apple TV must be disabled or the code removed; it is not viable", after it left the connection stale again; and restart the two services | Removed from an Apple TV's routes: its accessibility runs only on the tool's own tunnel and a press may still go by the Inspector's cursor; `remotepairingd` and `CoreDeviceService` restarted, which cleared the state ([record](verification.md#the-press-order-on-the-apple-tv-4k-and-a-stale-connection)) |
 
 ## Architecture constraints
 

@@ -33,6 +33,12 @@ enum DirectPhysicalAccessibility {
         var description: String { reason }
     }
 
+    /// Why an Apple TV's accessibility command was not run: its only route
+    /// is the tool's own tunnel, which needs `manzanero pair`.
+    static func appleTVTunnelRefusal(_ reason: String?) -> String {
+        "An Apple TV's accessibility commands run only on the tool's own tunnel, and it was not available\(reason.map { ": \($0)" } ?? ""). The route over Apple's tunnel is not used for an Apple TV: it leaves the Mac's connection to the device stale. Pair the tool with the Apple TV (manzanero pair, with the PIN the television shows) or check that the pairing still holds. remote, key and button still work. Nothing was sent."
+    }
+
     /// `ownTunnelOnly`: run on the tool's own tunnel or not at all, throwing
     /// `OwnTunnelRefused` before any request when that tunnel cannot be had,
     /// so the caller can choose the next route itself.
@@ -157,6 +163,14 @@ enum DirectPhysicalAccessibility {
             }
             if ownTunnelOnly, connected == nil {
                 throw OwnTunnelRefused(reason: tunnelNote ?? "the tool's own tunnel is switched off (\(DeviceTunnel.optOut)=0)")
+            }
+            // An Apple TV never goes over Apple's tunnel: the second
+            // directory connection there makes the device reset the Mac's
+            // remoted, which then leaves the connection stale until the
+            // services are restarted (2026-11-18 three times, and 2026-11-21).
+            // Removed from use by the human owner's decision of 2026-11-21.
+            if connected == nil, AppleTVRemote.deviceType(details) == "appleTV" {
+                throw CommandFailure(.deviceNotReady, Self.appleTVTunnelRefusal(tunnelNote ?? "it is switched off (\(DeviceTunnel.optOut)=0)"), inputSent: .none)
             }
             if connected == nil, let known = ports.port(device: udid, tunnelAddress: address) {
                 if let transport = try? RSDDirectoryConnection.openAccessibility(tunnelAddress: address, port: known.port) {
