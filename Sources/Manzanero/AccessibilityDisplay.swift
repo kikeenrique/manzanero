@@ -1,8 +1,9 @@
 import CoreFoundation
 import Foundation
 
-/// The effective primary display from Apple's devicectl JSON. Centre selection
-/// currently supports native portrait only, and never infers a display from AX.
+/// The effective primary display from Apple's devicectl JSON, never inferred
+/// from AX. `bounds` are the current interface's points, as the tree's frames
+/// are: a phone turned a quarter has them the other way round.
 struct AccessibilityDisplay: Equatable, Encodable {
     struct Bounds: Equatable, Encodable {
         let x: Double
@@ -13,8 +14,13 @@ struct AccessibilityDisplay: Equatable, Encodable {
     let bounds: Bounds
     let displayId: Int64
     let pointScale: Double
-    /// Always "rot0" from Apple's display JSON; a simulator reports what it assumes.
+    /// "rot0", "rot90", "rot180" or "rot270": the interface's turn from the
+    /// display's native portrait.
     let orientation: String
+    /// The same turn in degrees. Not printed.
+    var rotation = 0
+    /// The display's native portrait size in points. Not printed.
+    private var nativeSize: (width: Double, height: Double)? = nil
     /// An external primary display: an Apple TV's television. Not printed.
     /// There the foreground application is asked for by the frontmost
     /// request, because the centre hit test was refused (error 8) on an
@@ -26,6 +32,21 @@ struct AccessibilityDisplay: Equatable, Encodable {
     /// for a list row just inside the bottom edge.
     let focusDriven: Bool
     var center: (x: Double, y: Double) { (bounds.x + bounds.width / 2, bounds.y + bounds.height / 2) }
+
+    /// An interface point in the display's native portrait points, which a
+    /// hit test takes (measured on a simulator in landscape; on a phone in
+    /// landscape a wrong mapping would make the hit answer another element,
+    /// which the press guard refuses). Unchanged in portrait.
+    func native(_ x: Double, _ y: Double) -> (x: Double, y: Double) {
+        guard rotation != 0, let nativeSize else { return (x, y) }
+        let point = DirectTouchDisplay(rotation: rotation).portrait((x - bounds.x) / bounds.width, (y - bounds.y) / bounds.height)
+        return (point.0 * nativeSize.width, point.1 * nativeSize.height)
+    }
+
+    static func == (left: Self, right: Self) -> Bool {
+        left.bounds == right.bounds && left.displayId == right.displayId && left.pointScale == right.pointScale
+            && left.orientation == right.orientation && left.external == right.external && left.focusDriven == right.focusDriven
+    }
 
     private enum CodingKeys: String, CodingKey { case bounds, displayId, pointScale, orientation }
 
@@ -45,7 +66,7 @@ struct AccessibilityDisplay: Equatable, Encodable {
     }
 
     init(_ data: Data) throws {
-        func invalid() -> CommandFailure { CommandFailure(.transportFailed, "Invalid, ambiguous or unsupported primary display; native AX centre selection requires portrait geometry.", inputSent: .none) }
+        func invalid() -> CommandFailure { CommandFailure(.transportFailed, "Invalid, ambiguous or unsupported primary display geometry for native AX selection.", inputSent: .none) }
         guard data.count <= 1_048_576,
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               (root["info"] as? [String: Any])?["outcome"] as? String == "success",
@@ -62,8 +83,12 @@ struct AccessibilityDisplay: Equatable, Encodable {
         guard primary[0]["backlightState"] as? String == "activeOn" || external else {
             throw CommandFailure(.displayOff, "Primary display is off or its awake state is unknown. Wake/unlock the selected device before foreground AX inspection; no point query sent.", inputSent: .none)
         }
+        // A phone's display is native portrait; its interface may be turned.
+        // An Apple TV's television is taken as it is.
+        let rotations = ["rot0": 0, "rot90": 90, "rot180": 180, "rot270": 270]
         guard primary.count == 1, let display = primary.first,
-              display["nativeOrientation"] as? String == "rot0", display["currentOrientation"] as? String == "rot0",
+              display["nativeOrientation"] as? String == "rot0",
+              let turn = rotations[display["currentOrientation"] as? String ?? ""], turn == 0 || !external,
               let id = display["displayId"] as? NSNumber, CFGetTypeID(id) != CFBooleanGetTypeID(),
               ["c", "C", "s", "S", "i", "I", "l", "L", "q", "Q"].contains(String(cString: id.objCType)),
               id.doubleValue >= 0, id.doubleValue < Double(Int64.max),
@@ -83,9 +108,21 @@ struct AccessibilityDisplay: Equatable, Encodable {
         let x = try number(rawBounds[0][0]) / scale, y = try number(rawBounds[0][1]) / scale
         let width = try number(rawBounds[1][0]) / scale, height = try number(rawBounds[1][1]) / scale
         guard width > 0, height > 0, [x, y, width, height].allSatisfy({ $0.isFinite && abs($0) <= 10_000_000 }) else { throw invalid() }
-        bounds = Bounds(x: x, y: y, width: width, height: height)
+        if turn == 0 {
+            bounds = Bounds(x: x, y: y, width: width, height: height)
+            nativeSize = (width, height)
+        } else {
+            // A native-portrait display is the taller way whichever way
+            // devicectl writes a turned display's bounds, which has not been
+            // seen on a phone: take the short side as the native width.
+            let short = min(width, height), long = max(width, height), quarter = turn == 90 || turn == 270
+            guard x == 0, y == 0 else { throw invalid() }
+            bounds = Bounds(x: 0, y: 0, width: quarter ? long : short, height: quarter ? short : long)
+            nativeSize = (short, long)
+        }
         pointScale = scale
         displayId = id.int64Value
-        orientation = "rot0"
+        orientation = "rot\(turn)"
+        rotation = turn
     }
 }

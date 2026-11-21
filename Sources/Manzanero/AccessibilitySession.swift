@@ -82,8 +82,14 @@ final class AccessibilitySession {
         return try AccessibilityResponse.token(result)
     }
 
+    /// Hit points arrive in interface points (the tree's frames) and are sent
+    /// in the display's native portrait points, as a simulator takes them.
+    /// Set by each foreground selection from the display read for it.
+    private var hitDisplay: AccessibilityDisplay?
+
     func hit(x: Double, y: Double) throws -> AccessibilityRequest.Token {
-        let result = try exchange(AccessibilityRequest.hit(x: x, y: y), expected: .hit)
+        let point = hitDisplay?.native(x, y) ?? (x: x, y: y)
+        let result = try exchange(AccessibilityRequest.hit(x: point.x, y: point.y), expected: .hit)
         return try AccessibilityResponse.token(result)
     }
 
@@ -94,10 +100,12 @@ final class AccessibilitySession {
     /// On an external display (an Apple TV) the frontmost application is
     /// asked for instead, as on a simulator: tvOS has no touch point to test.
     func foregroundProcess(_ display: AccessibilityDisplay) throws -> AccessibilityRequest.Token {
+        hitDisplay = display
         if display.external {
             return try AccessibilityResponse.token(try exchange(AccessibilityRequest.frontmost(), expected: .frontmost))
         }
-        let result = try exchange(AccessibilityRequest.hit(x: display.center.x, y: display.center.y, container: true), expected: .hit)
+        let centre = display.native(display.center.x, display.center.y)
+        let result = try exchange(AccessibilityRequest.hit(x: centre.x, y: centre.y, container: true), expected: .hit)
         return try AccessibilityResponse.token(result)
     }
 

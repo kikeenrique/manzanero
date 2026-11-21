@@ -27,8 +27,8 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Apple TV remote**: `remote` | — | — | works: all eight buttons, held keys, swipes, `sleep` and `wake`; a held Home is refused | works, with holds and swipes; `sleep` and `wake` refused | — | — |
 | **Watch crown**: `crown` | — | — | — | — | works | — |
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
-| **Accessibility, read**: `tree`, `wait` | works, portrait only | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
-| **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait only | works | works, see the routes below | works | works (`press`) | partly: `press` fails in a letterboxed app |
+| **Accessibility, read**: `tree`, `wait` | works in portrait; landscape not run | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
+| **Accessibility, act**: `press`, `scroll`, `set-value` | works in portrait; landscape not run | works | works, see the routes below | works | works (`press`) | partly: `press` fails in a letterboxed app |
 | **Accessibility, search a long list**: `scroll --search` | works downward; the other directions not run | works in four directions (iPhone) | works in four directions | works in four directions | not run | not run |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | not run | works, with `--display` |
 | **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` | `record` works | not run | works, with `--display` |
