@@ -17,19 +17,22 @@ enum WatchKeyboard {
         let y: Double
     }
 
-    /// The characters of the letters and numbers pages (watchOS 27.2's
-    /// English QWERTY keyboard). Accents (a long press) and the symbols
-    /// page are not typed yet.
+    /// The characters of the numbers and symbols pages (watchOS 27.2's
+    /// English QWERTY keyboard; the symbols page is reached from the
+    /// numbers page and repeats its last row). Accents are not typed: their
+    /// long-press popup is drawn but is not in the keyboard's tree.
     static let numbersPage = Set("1234567890-/:;()$&@\".,?!'")
-    static let switchKeys = ["shift", "numbers", "letters"]
+    static let symbolsPage = Set("[]{}#%^*+=_\\|~<>€£¥•")
+    static let switchKeys = ["shift", "numbers", "symbols", "letters"]
 
     /// Refuses, before anything is sent, a text this keyboard cannot type.
     static func validate(_ text: String) throws {
         guard !text.isEmpty else { throw CommandFailure.usage("type needs a text; no input sent.") }
         for (offset, character) in text.enumerated() {
             let plain = character.isASCII && (character.isLetter || character.isNumber)
-            guard plain || character == " " || numbersPage.contains(character) else {
-                throw CommandFailure.unsupported("An Apple Watch is typed on through its on-screen keyboard, which this tool drives for ASCII letters, digits, space and \(String(numbersPage.filter { !$0.isNumber }.sorted())); '\(character)' (character \(offset + 1)) is not one of them. No input sent.")
+            guard plain || character == " " || numbersPage.contains(character) || symbolsPage.contains(character) else {
+                let marks = String(numbersPage.union(symbolsPage).filter { !$0.isNumber }.sorted())
+                throw CommandFailure.unsupported("An Apple Watch is typed on through its on-screen keyboard, which this tool drives for ASCII letters, digits, space and \(marks); '\(character)' (character \(offset + 1)) is not one of them (accented letters and emoji are not typed). No input sent.")
             }
         }
     }
@@ -44,10 +47,12 @@ enum WatchKeyboard {
     }
 
     /// The switch key to tap when a character's key is not showing: shift
-    /// for a letter in the other case, letters or numbers for the other page.
+    /// for a letter in the other case, letters, numbers or symbols for the
+    /// other page. A symbol from the letters page goes through numbers.
     static func switchKey(for character: Character, showing: Set<String>) -> String? {
         if character.isLetter { return showing.contains("letters") ? "letters" : (showing.contains("shift") ? "shift" : nil) }
         if character == " " { return nil }
+        if symbolsPage.contains(character), showing.contains("symbols") { return "symbols" }
         return showing.contains("numbers") ? "numbers" : nil
     }
 

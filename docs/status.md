@@ -23,7 +23,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown`, `create-simulator` (simulators) | works | works | works | works | works | works |
 | **Touch**: `tap`, `double-tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts; `tap` in landscape too | works; on an iPad four moving contacts are cancelled by iPadOS, even with its gesture settings off | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works |
 | **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: `home`, `side` and the Ultra's `action` work, `lock` does nothing, `key` refused | works; `wake` refused |
-| **Text**: `type`, `detect-layout`, `paste`, `set-value` | works | works; `paste` refused | works (`type`, `set-value`) | works | partly: `type` taps the on-screen keyboard (ASCII letters, digits, basic punctuation); `detect-layout` refused; `set-value` does not reach the app | works; `paste` refused |
+| **Text**: `type`, `detect-layout`, `paste`, `set-value` | works | works; `paste` refused | works (`type`, `set-value`) | works | partly: `type` taps the on-screen keyboard (ASCII letters, digits, the numbers and symbols pages; no accents); `detect-layout` refused; `set-value` does not reach the app | works; `paste` refused |
 | **Apple TV remote**: `remote` | — | — | works: all eight buttons, held keys, swipes, `sleep` and `wake`; a held Home is refused | works, with holds and swipes; `sleep` and `wake` refused | — | — |
 | **Watch crown**: `crown` | — | — | — | — | works | — |
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
@@ -69,7 +69,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 5. **Sound in a recording, the rest**, on a device: picture and sound in step, a long recording.
 6. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
 7. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
-8. **Watch typing, B2**: accents, the symbols page, other keyboards, a real watch.
+8. **Watch typing, B2**: the symbols page done; accents (drawn but not in the tree, a decision), other keyboards, a real watch.
 9. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
 
 ## Done later on 2026-11-21 (not released)

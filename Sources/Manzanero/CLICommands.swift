@@ -187,8 +187,9 @@ extension ManzaneroCLI {
             clipboard.
 
             An Apple Watch simulator takes no keyboard events, so there type taps the keys of the keyboard watchOS shows \
-            for a text field (press the field first): ASCII letters, digits, space and the numbers page's punctuation, \
-            switching case and page as needed, then Done, which hands the text to the app. --layout does not apply. \
+            for a text field (press the field first): ASCII letters, digits, space and the numbers and symbols pages' \
+            characters, switching case and page as needed, then Done, which hands the text to the app. Accented letters \
+            and emoji are refused. --layout does not apply. \
             \(receiptCaveat)
             """)
         @OptionGroup var target: TargetOptions
