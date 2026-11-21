@@ -1,6 +1,6 @@
 # Status at a glance
 
-One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on the evening of 2026-11-21; the work of that day after v0.1.0-beta.2 is in no release yet.
+One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on the night of 2026-11-21; the work of that day after v0.1.0-beta.2 is in no release yet.
 
 ## How to read it
 
@@ -28,10 +28,10 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Watch crown**: `crown` | — | — | — | — | works | — |
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
 | **Accessibility, read**: `tree`, `wait` | works, portrait and landscape | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
-| **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait and landscape | works | works, see the routes below | works | works | works, a letterboxed app too since 2026-11-21 |
+| **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait and landscape; web pages in Chrome and Safari (`set-value` does not change a web input) | works; a Safari page by `--pid <page>` since 2026-11-21 | works, see the routes below | works | works | works, a letterboxed app too since 2026-11-21 |
 | **Accessibility, search a long list**: `scroll --search` | works in four directions; downward in landscape too. Upward takes four times the steps of downward through a table | works in four directions (iPhone, iPad) | works in four directions | works in four directions | works, up and down (Series 12 and Ultra) | works in four directions |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | works | works, with `--display` |
-| **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`; both recover across a pulled cable (`record` without `--audio`); the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio`; a still screen sends no picture after five seconds, and since 2026-11-21 that no longer restarts a recording | `record` works | `record` works | works, with `--display` |
+| **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`, in step and to the end since 2026-11-21; both recover across a pulled cable (`record` without `--audio`); an interrupt stops the device's stream; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` (the sound fixes of 2026-11-21 not yet run here); a still screen sends no picture after five seconds, and since 2026-11-21 that no longer restarts a recording | `record` works | `record` works | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | works (Ultra) | works |
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
 | **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | works; `status-bar` refused (a device does not support it) | works (iPhone, 2026-11-21) | not run | not run | not run | not run |
@@ -63,14 +63,21 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **A release** of the work of 2026-11-21, which is in no beta yet.
-2. **Recording recovery, the rest**: `--audio`. When another viewer (Device Hub) takes the screen, the recording ends as `partial` and leaves that viewer alone. `frames` recovers the same way since 2026-11-21, across a pulled cable on the phone too. Silence is not a sign of a lost stream on any device (the human owner's decision: an Apple TV's still screen is silent).
-3. **Small checks on the iPhone: done.** At a pulled cable an action in flight failed once and was not repeated, a `batch` stopped at the step in flight, and `frames` recovered.
-4. **Simulator findings: done.** iPadOS cancels four moving contacts even with its gesture settings off; an iPhone simulator takes them whole. A limit of iPadOS, not of the tool.
-5. **Sound in a recording: fixed on the phone.** Two faults found and fixed on 2026-11-21: the sound drifted 1.7% ahead (a rounding), and the device ended the sound stream after 30 s (it got no receiver reports). A 75-second recording then kept its sound to the end, 39 to 117 ms after the picture, without drift. Left: the same on the Apple TV (quietly), and a sound restart in recording recovery.
-6. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
-7. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
-8. **Watch typing, B2**: the symbols page done; accents will not be built (the human owner's decision); other keyboards, a real watch.
-9. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
+2. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a quiet recording of several minutes with sound (the sound fixes ran on the phone only).
+3. **Sound in recording recovery**: a recording with `--audio` still fails on a loss instead of restarting.
+4. **Two choices for the human owner**: keep an interrupted recording's movie; wait for another viewer (Device Hub) to leave before restarting. Also open: signing and notarization.
+5. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only; a tester needs Xcode 27, launched once.
+6. **Web pages, the rest**: an app's own web view that does not start at the screen's corner, and `scroll` on a page.
+7. **Watch typing**: other keyboard languages and a real watch; accents will not be built (the human owner's decision).
+8. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
+
+## Done on the night of 2026-11-21 (not released)
+
+- **The iPhone cable checks**: an action in flight fails once and is not repeated; a `batch` stops at the step in flight; `frames` and `record` recover across a pulled cable.
+- **Recording**: `frames` recovers as `record` does; an interrupt stops the device's stream; a still Apple TV screen no longer restarts a recording; Device Hub taking the screen ends a recording as `partial` and is left alone.
+- **Sound**: in step with the picture and to the end of the recording (two faults fixed: a 1.7% drift and a stream that ended after 30 s); the iOS probe flashes with its beeps to measure it.
+- **Web pages**: Safari on the phone works by label; on a simulator a Safari page is acted on with `--pid <page>`.
+- **Smaller**: `devices` shows paired devices (`ownTunnel: paired`); the watch types its symbols page; searches run in four directions on the phone; iPadOS's four-contact cancel is a limit of iPadOS; the accessibility socket's failures have error categories.
 
 ## Done later on 2026-11-21 (not released)
 
