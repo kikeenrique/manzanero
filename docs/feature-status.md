@@ -42,7 +42,7 @@ The tool runs on an Apple silicon Mac with macOS 26.6 or later and Xcode 27 or l
 - Elements with neither label nor identifier, such as the Settings search field, are selected by their current value with `--with-value`, run on a simulator only; an element with no value either cannot be selected. One of several elements that share a label, which is common on web pages, is chosen with `--index` ([guide](direct-accessibility.md#current-guarded-native-press)).
 - [Device settings](device-settings.md) (`rotate`, `settings` for appearance, text size, contrast and reduced motion, `location`, `status-bar`) and reading the clipboard (`clipboard`) were added on 2026-11-21, through devicectl, and run on an iPhone simulator only.
 - `double-tap` was added on 2026-11-21 as a preset over `gesture` (simulator-checked). System gestures (Home, the Centres, back) are not: on a simulator such touch sequences reach the app, not the system ([presets](gesture-sequences.md#presets)).
-- No command yet for: a permission-alert helper. They are listed as [commands to add](roadmap.md#commands-to-add).
+- A permission prompt is answered with `press --label '^Allow' --match regex` ([recipe](direct-accessibility.md#current-native-tree-route)); there is no separate command, by choice. `create-simulator` makes a simulator of a named type and runtime. They are listed as [commands to add](roadmap.md#commands-to-add).
 
 Those retired routes used to reach AXe, idevice or ipb helpers. The CLI no longer contains them (see [retired helpers](dependencies.md#retired-helpers)), and the execution policy would refuse those binaries anyway.
 

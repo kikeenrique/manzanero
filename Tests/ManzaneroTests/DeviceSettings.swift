@@ -70,6 +70,16 @@ struct DeviceSettingsTests {
         #expect(try tool.command(["platform": "simulator", "device": .string(simulator), "x": 0.5, "y": 0.5]) == ["double-tap", "--simulator=\(simulator)", "--", "0.5", "0.5"])
     }
 
+    @Test func createSimulatorAddressesNoDeviceAndPlans() async throws {
+        let parsed = try request(["create-simulator", "scratch", "--type", "iPad mini (A20 Pro)", "--runtime", "iOS 27.2"])
+        #expect(parsed == .createSimulator(name: "scratch", type: "iPad mini (A20 Pro)", runtime: "iOS 27.2"))
+        #expect(parsed.addressed == nil)
+        let plan = try await CommandService().run(["create-simulator", "scratch", "--type", "iPad mini (A20 Pro)"], dryRun: true)
+        let json = try #require(try JSONSerialization.jsonObject(with: plan.data) as? [String: Any])
+        #expect(json["arguments"] as? [String] == ["simctl", "create", "scratch", "iPad mini (A20 Pro)"])
+        #expect(throws: (any Error).self) { try request(["create-simulator", "scratch", "--type", "x", "--runtime=-y"]) }
+    }
+
     @Test func mcpToolsRouteToTheSameCommands() throws {
         let settings = try #require(MCPTools.definitions.first { $0.name == "device_settings" })
         let base: [String: Value] = ["platform": "simulator", "device": .string(simulator)]

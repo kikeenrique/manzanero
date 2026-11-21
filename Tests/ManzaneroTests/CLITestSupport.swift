@@ -107,6 +107,8 @@ func summary(_ request: CommandRequest) -> [String] {
         return ["ocr", path]
     case .devices(let simulators):
         return ["devices", simulators ? "simulators" : "physical"]
+    case .createSimulator(let name, let type, let runtime):
+        return ["create-simulator", name, type] + (runtime.map { [$0] } ?? [])
     case .doctor:
         return ["doctor"]
     case .keyboardLayouts:

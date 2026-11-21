@@ -31,6 +31,8 @@ enum CommandRequest: Sendable, Equatable {
     case decodeArchive(path: String)
     case ocr(path: String)
     case devices(simulators: Bool)
+    /// `create-simulator`: `simctl create`, addressing no device yet.
+    case createSimulator(name: String, type: String, runtime: String?)
     case doctor
     /// The keyboard layouts `type` accepts, read from this Mac.
     case keyboardLayouts
@@ -103,7 +105,7 @@ extension CommandRequest {
         case .tool(let tool): (tool.platform.rawValue, tool.device, tool.operation)
         case .simulatorDisplay(let display): ("simulator", display.device, display.operation)
         case .batch(let batch): (batch.target.platform.rawValue, batch.target.identifier, "batch")
-        case .decodeArchive, .ocr, .devices, .doctor, .keyboardLayouts: nil
+        case .decodeArchive, .ocr, .devices, .createSimulator, .doctor, .keyboardLayouts: nil
         }
     }
 

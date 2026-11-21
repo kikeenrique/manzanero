@@ -157,6 +157,14 @@ actor CommandService {
             // Which of them a tunnel of the tool's own can be opened to.
             let annotated = try DeviceTunnelLinks.annotate(data, links: tunnelLinks())
             return CommandOutput(data: annotated.data, note: annotated.summary.joined(separator: "\n"))
+        case .createSimulator(let name, let type, let runtime):
+            let arguments = ["simctl", "create", name, type] + (runtime.map { [$0] } ?? [])
+            if dryRun { return try json(["executable": "/usr/bin/xcrun", "arguments": arguments]) }
+            let uuid = String(decoding: try runner.run(arguments, timeout: 120), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard UUID(uuidString: uuid) != nil else {
+                throw CommandFailure(.toolFailed, "simctl create did not print a simulator UUID: \(uuid.prefix(200))", inputSent: .none)
+            }
+            return try json(["status": "created", "udid": uuid, "name": name, "deviceType": type, "runtime": runtime.map { $0 as Any } ?? NSNull(), "state": "Shutdown"] as [String: Any])
         case .doctor:
             guard !dryRun else { throw CommandFailure.usage(CLI.noPlanMessage) }
             return try Doctor.run { try runner.run($0) }

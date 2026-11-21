@@ -751,6 +751,23 @@ extension ManzaneroCLI {
         func request(environment: [String: String]) throws -> CommandRequest { .devices(simulators: simulators) }
     }
 
+    struct CreateSimulator: CLICommand {
+        static let configuration = CommandConfiguration(commandName: "create-simulator", abstract: "Create a simulator and print its UUID.",
+            discussion: "simctl create. --type is a device type's name or identifier (xcrun simctl list devicetypes), such as \"iPad mini (A20 Pro)\"; --runtime a runtime's (xcrun simctl list runtimes), else the newest that fits the type. The new simulator is shut down; boot it with boot --simulator <UUID>. Nothing is deleted or changed.")
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "The new simulator's name.") var name: String
+        @Option(help: ArgumentHelp("Device type name or identifier.", valueName: "type")) var type: String
+        @Option(help: ArgumentHelp("Runtime name or identifier.", valueName: "runtime")) var runtime: String?
+        func request(environment: [String: String]) throws -> CommandRequest {
+            for (label, value) in [("name", name), ("--type", type), ("--runtime", runtime ?? "x")] {
+                guard (1...200).contains(value.utf8.count), !value.contains("\0"), !value.hasPrefix("-") else {
+                    throw CommandFailure.usage("create-simulator's \(label) must be 1...200 bytes, not beginning with '-'.")
+                }
+            }
+            return .createSimulator(name: name, type: type, runtime: runtime)
+        }
+    }
+
     struct Details: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "details", abstract: "Show CoreDevice details (physical devices).")
         @OptionGroup var target: TargetOptions
