@@ -63,7 +63,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **A release** of the work of 2026-11-21, which is in no beta yet.
-2. **Recording recovery, the rest**: the stream taken by another client, silence as a trigger on a phone only (a phone's still screen never went 120 ms without a picture; an Apple TV's goes silent after five seconds), `--audio`, `frames`.
+2. **Recording recovery, the rest**: the stream taken by another client, `--audio`, `frames`. Silence is not a sign of a lost stream on any device (the human owner's decision: an Apple TV's still screen is silent).
 3. **Small checks on the iPhone**: a `batch` across a change of link (needs the human owner). An action in flight at a pulled cable failed once and was not repeated, as designed.
 4. **Simulator findings: done.** iPadOS cancels four moving contacts even with its gesture settings off; an iPhone simulator takes them whole. A limit of iPadOS, not of the tool.
 5. **Sound in a recording, the rest**, on a device: picture and sound in step, a long recording.
