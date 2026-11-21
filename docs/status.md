@@ -65,8 +65,8 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 1. **The Apple TV session**, when it is free: the new `press` order, `logs`, and removing the dead `manzanero` host.
 2. **Recording recovery on the iPhone**: built for recordings without sound; needs the human owner at the phone.
 3. **A release** of the work of 2026-11-21, which is in no beta yet.
-4. **Small checks on the iPhone**: `open-url` from another app, an action in flight when the cable is pulled, an agent session over the network, landscape `scroll` and touch.
-5. **Simulator findings**: the Watch Ultra's `scroll --search`, the Duo's lost first URL, iPadOS cancelling four-finger drags.
+4. **Small checks on the iPhone**: an action in flight when the cable is pulled (needs the human owner); the rest ran on 2026-11-21.
+5. **Simulator findings**: iPadOS cancelling four-finger drags, unconfirmed; the rest settled on 2026-11-21.
 6. **Sound in a recording, the rest**, on a device: picture and sound in step, a long recording.
 7. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
 8. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
