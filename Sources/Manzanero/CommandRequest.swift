@@ -129,6 +129,11 @@ extension CommandRequest {
         case .simulatorInput: "simulator input"
         case .physicalInput: "physical input"
         case .frames: "frame capture"
+        // The in-process recording owns a stream on the device. Outside the
+        // scope an interrupt ended the process at once and left the stream
+        // running (the Apple TV 4K, 2026-11-21); inside it the loop stops
+        // its own stream and releases the tunnel, as `frames` does.
+        case .record(let recording) where recording.physical && recording.native: "native recording"
         case .detectLayout: "layout detection"
         case .batch(let batch): batch.requests.contains { $0.signalContext != nil } ? "batch" : nil
         default: nil

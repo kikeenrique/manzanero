@@ -65,6 +65,8 @@ Receipts report:
 
 `deviceStopConfirmed` means owned stop acknowledgement plus fresh server absence; it does not prove destruction of every native resource. Cancellation/failure publishes no successful movie receipt. Failed/staged artifacts may remain privately for investigation.
 
+**Interruption.** Since 2026-11-21 an in-process recording runs under the CLI's signal scope, as `frames` does: SIGINT or SIGTERM (exit 130/143) and MCP cancellation stop its own stream on the device, check the stream is gone and release the tunnel, and the movie is discarded. Until then `record` was outside the scope, so an interrupt ended the process at once and the device went on streaming: seen on the Apple TV 4K that night, when its five-minute recording was stopped from the outside. The tool has no stop-all, so the stream had no identifier left to stop it by; a one-frame `frames` run then started a new session (the device gives its screen to the newest client) and stopped it cleanly. SIGKILL cannot be handled: stop a recording with SIGINT or SIGTERM, never SIGKILL. The `devicectl` and simulator backends, which run Apple's tools, are unchanged.
+
 A native recording holds the per-device lease, so another `manzanero` process's input or native capture is refused while it runs ([ownership](native-input.md#ownership-across-processes)); within one process input is allowed alongside it. Xcode and other tools are not coordinated. Synchronous Apple calls have no independently enforced hard deadline.
 
 ## RTCP and keyframe limits

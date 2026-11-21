@@ -239,6 +239,16 @@ import Testing
         #expect(device.sessions.count == 1 && device.sessions[0].closed)
     }
 
+    /// An interrupt reaches an in-process recording as cancellation, so the
+    /// loop stops its own stream; the backends that run Apple's tools are
+    /// unchanged.
+    @Test func anInProcessRecordingRunsUnderTheSignalScope() throws {
+        let device = ["--device", "00008110-000A11112222801E"]
+        #expect(try request(["record", "tmp/a.mp4", "60", "--backend", "coredevice"] + device).signalContext == "native recording")
+        #expect(try request(["record", "tmp/a.mp4", "60"] + device).signalContext == nil)
+        #expect(try request(["record", "tmp/a.mp4", "60", "--simulator", "11111111-2222-3333-4444-555555555555"]).signalContext == nil)
+    }
+
     @Test func aStreamThatEndsAndComesBackLeavesOneGapInOneMovie() async throws {
         let device = Device()
         device.plans = [{ $0.endsAfter = 4 * Self.second }]
