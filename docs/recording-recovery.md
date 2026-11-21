@@ -1,8 +1,8 @@
 # Recording recovery: design
 
-A design for item 21 of the [roadmap](roadmap.md#not-built), written on 2026-11-21 by laia-LLM at the human owner's request to work through the pending tasks that need no hardware. The choice it rests on (one movie with its gaps marked, rather than a file per segment) is the option laia-LLM recommended that day; the human owner can still change it. Nothing here has run on a device.
+A design for what is item 22 of the [roadmap](roadmap.md#not-built), written on 2026-11-21 by laia-LLM at the human owner's request to work through the pending tasks that need no hardware. The choice it rests on (one movie with its gaps marked, rather than a file per segment) is the option laia-LLM recommended that day; the human owner can still change it.
 
-**Built the same day for `record --backend coredevice` without `--audio`** (`RecordingRecovery`, wired into `NativeRecording.execute`), unit-tested against the scenarios below and not run on a device. Two departures from the design as first written: silence alone does not start a restart (see the table), and a recording with `--audio` or a `frames` capture fails on a loss as before, because the sound stream's restart needs a device with something audible to check and `frames` was left for later.
+**Built the same day for `record --backend coredevice` without `--audio`** (`RecordingRecovery`, wired into `NativeRecording.execute`), unit-tested against the scenarios below, then changed after a first live check and seen to recover across a pulled cable on the iPhone 13 mini ([below](#changed-after-that-check-waiting-for-the-device-and-keeping-what-was-captured)). Two departures from the design as first written: silence alone does not start a restart (see the table), and a recording with `--audio` or a `frames` capture fails on a loss as before, because the sound stream's restart needs a device with something audible to check and `frames` was left for later.
 
 ## The problem
 
@@ -86,4 +86,4 @@ Seen on the iPhone 13 mini: with only the session count in place, a cable pull 6
 
 ## Live checks owed
 
-On the iPhone 13 mini, with a moving screen: pull the cable during a recording on the cable route (Apple's tunnel then drops); end the stream from the device by opening Device Hub's screen view of it mid-recording (the device gives the screen to the newest client); and record a still screen for a minute to read how often packets arrive, which tests the 3-second threshold. On the Apple TV 4K, the still-screen measurement, with the tvOS probe in front and the room kept quiet.
+The cable pull on the cable route is done (above). Still owed on the iPhone 13 mini, with a moving screen: end the stream from the device by opening Device Hub's screen view of it mid-recording (the device gives the screen to the newest client); and record a still screen for a minute to read how often packets arrive, which tests the 3-second threshold. On the Apple TV 4K, the still-screen measurement, with the tvOS probe in front and the room kept quiet.

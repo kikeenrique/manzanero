@@ -34,7 +34,7 @@ How it runs:
 
 - **It never watches forever.** The timeout is the same operand as before, 1...3600 seconds, default 300. At the deadline the result is `timedOut`, exit 1.
 - **The condition is read first.** A step that is already done returns at once with `alreadyMet: true` and nobody is asked. The same happens when there was never anything to wait for, such as `gone` for a prompt that is not on screen; `alreadyMet` is how to tell.
-- **It polls, read-only.** One look, then a 2-second pause, until the condition or the deadline. An element condition is a `wait` of 3 seconds each time. A look that fails (display asleep, device unreachable mid-pairing, a phone in landscape) counts as "not seen yet" and is reported in `observation.notObserved`; it is not an error, because the person may be in the middle of the step.
+- **It polls, read-only.** One look, then a 2-second pause, until the condition or the deadline. An element condition is a `wait` of 3 seconds each time. A look that fails (display asleep, device unreachable mid-pairing) counts as "not seen yet" and is reported in `observation.notObserved`; it is not an error, because the person may be in the middle of the step.
 - **Waiting costs no model tokens.** The polling is inside this process; a caller makes one call and is blocked until it returns.
 - **No terminal is needed**, so an agent's own shell can run it. At an interactive terminal the request is printed and `done`, `decline` and `cancel` are also taken between looks. From an MCP host there is no form: to refuse, cancel the call or let it time out.
 - **The pause holds throughout.** Mutations for the device are refused while it is watched, and the watch ends with the call, including when it is cancelled.

@@ -1,6 +1,6 @@
 # Status at a glance
 
-One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-21, after v0.1.0-beta.2.
+One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on the evening of 2026-11-21; the work of that day after v0.1.0-beta.2 is in no release yet.
 
 ## How to read it
 
@@ -20,8 +20,8 @@ One table of what works where, for a reader who wants the answer before the deta
 
 | Commands | iPhone, device | iPhone and iPad, simulator | Apple TV, device | Apple TV, simulator | Apple Watch, simulator | iPhone Duo, simulator |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown` | works | works | works | works | works | works |
-| **Touch**: `tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts | works; on an iPad a four-path `multi-drag` is cancelled by iPadOS | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works |
+| **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown`, `create-simulator` (simulators) | works | works | works | works | works | works |
+| **Touch**: `tap`, `double-tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts; `tap` in landscape too | works; on an iPad a four-path `multi-drag` is cancelled by iPadOS | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works |
 | **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: `home`, `side` and the Ultra's `action` work, `lock` does nothing, `key` refused | works; `wake` refused |
 | **Text**: `type`, `detect-layout`, `paste`, `set-value` | works | works; `paste` refused | works (`type`, `set-value`) | works | partly: `type` taps the on-screen keyboard (ASCII letters, digits, basic punctuation); `detect-layout` refused; `set-value` does not reach the app | works; `paste` refused |
 | **Apple TV remote**: `remote` | — | — | works: all eight buttons, held keys, swipes, `sleep` and `wake`; a held Home is refused | works, with holds and swipes; `sleep` and `wake` refused | — | — |
@@ -29,9 +29,9 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
 | **Accessibility, read**: `tree`, `wait` | works, portrait and landscape | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
 | **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait and landscape | works | works, see the routes below | works | works | works, a letterboxed app too since 2026-11-21 |
-| **Accessibility, search a long list**: `scroll --search` | works downward; the other directions not run | works in four directions (iPhone, iPad) | works in four directions | works in four directions | works, up and down (Series 12 and Ultra) | works in four directions |
+| **Accessibility, search a long list**: `scroll --search` | works downward, in portrait and landscape; the other directions not run | works in four directions (iPhone, iPad) | works in four directions | works in four directions | works, up and down (Series 12 and Ultra) | works in four directions |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | works | works, with `--display` |
-| **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` | `record` works | `record` works | works, with `--display` |
+| **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`, and recovers across a pulled cable (without `--audio`); the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` | `record` works | `record` works | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | works (Ultra) | works |
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
 | **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | works; `status-bar` refused (a device does not support it) | works (iPhone, 2026-11-21) | not run | not run | not run | not run |
@@ -63,21 +63,24 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **The Apple TV session**, when it is free: the new `press` order, `logs`, and removing the dead `manzanero` host.
-2. **Recording recovery**: works on the iPhone across a pulled cable (one movie, the gap listed); left: the stream taken by another client, and `--audio`.
+2. **Recording recovery, the rest**: the stream taken by another client, a still screen's packet rate, `--audio`, `frames`.
 3. **A release** of the work of 2026-11-21, which is in no beta yet.
-4. **Small checks on the iPhone**: an action in flight when the cable is pulled (needs the human owner); the rest ran on 2026-11-21.
-5. **Simulator findings**: iPadOS cancelling four-finger drags, unconfirmed; the rest settled on 2026-11-21.
+4. **Small checks on the iPhone**: an action in flight when the cable is pulled, and a `batch` across a change of link (both need the human owner).
+5. **Simulator findings**: iPadOS cancelling a four-path drag, unconfirmed.
 6. **Sound in a recording, the rest**, on a device: picture and sound in step, a long recording.
 7. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
 8. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
 9. **Watch typing, B2**: accents, the symbols page, other keyboards, a real watch.
-10. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
+10. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
 
 ## Done later on 2026-11-21 (not released)
 
-- **`launch` options** and **`terminate` by bundle**; **`--match contains|regex`** for selectors; **`rotate`, `settings`, `location`, `status-bar`, `clipboard`**; **`double-tap`**; **`create-simulator`**: all run on simulators.
-- **A phone in landscape** accepted by the accessibility commands, and **recording recovery** for recordings without sound: built and unit-tested, owed on the iPhone.
-- **A completeness run** on iPad, iPhone Duo and Apple Watch simulators filled most of their columns above; a letterboxed app on the Duo can now be pressed, and `detect-layout` is refused on a watch.
+- **New commands**: `launch` options and `terminate` by bundle, `--match contains|regex` for selectors, `rotate`, `settings`, `location`, `status-bar`, `clipboard`, `double-tap`, `create-simulator`. All ran on simulators, and on the iPhone all that apply to a phone (`status-bar` is refused there).
+- **A phone in landscape**: accessibility, a tap and a screenshot work on the iPhone.
+- **Recording recovery**: a recording on the iPhone survived a pulled cable as one movie with the gap listed; one that cannot recover keeps what it captured.
+- **Watch typing**: `type` taps the watch's on-screen keyboard (simulator).
+- **A completeness run** on iPad, iPhone Duo and Apple Watch simulators filled most of their columns above, with three fixes (Duo letterboxed press, watch list search, `detect-layout` refused on a watch).
+- **On the iPhone too**: `batch` and an MCP session over the network, and a `wait` that survived a pulled cable.
 
 ## Done on 2026-11-21
 

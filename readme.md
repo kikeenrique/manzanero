@@ -6,7 +6,7 @@ The project is in beta.
 
 Physical iPhone control is the current priority, and reliable unattended testing is still unfinished. iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope, with support varying by device and operation.
 
-Most live evidence comes from one iPhone 13 mini; one Apple TV 4K runs almost every command too, on the development branch and not yet in a release. Apple Watch, iPad and iPhone Duo have been run on simulators only. See [status at a glance](docs/status.md) for one table of what works where, [feature status](docs/feature-status.md) before relying on another device or operation, and the [roadmap](docs/roadmap.md) for what is achieved and what is pending.
+Most live evidence comes from one iPhone 13 mini; one Apple TV 4K runs almost every command too. Apple Watch, iPad and iPhone Duo have been run on simulators only. The commands added after v0.1.0-beta.2 (`launch` options, `--match`, `rotate`, `settings`, `location`, `status-bar`, `clipboard`, `double-tap`, `create-simulator`, recording recovery, `type` on a watch) are on the development branch and not yet in a release. See [status at a glance](docs/status.md) for one table of what works where, [feature status](docs/feature-status.md) before relying on another device or operation, and the [roadmap](docs/roadmap.md) for what is achieved and what is pending.
 
 <img src="docs/assets/manzanero-clay.png" alt="A cheerful orchard worker biting an apple beside a tree growing a phone, a foldable iPhone Duo, a tablet, a watch and an Apple TV with its remote." width="560">
 
@@ -39,7 +39,7 @@ Commands name the operation first and the target as an option: `--device <UDID>`
 
 ## Prepare a physical device
 
-Pair and trust the Mac using Apple's normal setup. Enable Developer Mode and **Settings → Developer → Enable UI Automation** on the device. Keep it awake and unlocked for the verified UI flows, in portrait: the accessibility tree is refused on a phone in landscape. A phone with a passcode works; `wake` stops at the lock screen and never enters a passcode, and [`handoff --until unlocked`](docs/handoff.md#watching-the-device---until) waits for a person to unlock it. Setting a passcode on an already paired phone dropped its pairing once, so pair again if `readiness` reports it unpaired.
+Pair and trust the Mac using Apple's normal setup. Enable Developer Mode and **Settings → Developer → Enable UI Automation** on the device. Keep it awake and unlocked for the verified UI flows; most were run in portrait, and the accessibility commands accept a phone in landscape since 2026-11-21. A phone with a passcode works; `wake` stops at the lock screen and never enters a passcode, and [`handoff --until unlocked`](docs/handoff.md#watching-the-device---until) waits for a person to unlock it. Setting a passcode on an already paired phone dropped its pairing once, so pair again if `readiness` reports it unpaired.
 
 ```sh
 mise run cli readiness --device <hardware-UDID>
@@ -61,7 +61,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Need | Command or guide |
 | --- | --- |
 | What works where, in one table | [Status at a glance](docs/status.md) |
-| Buttons, tap, swipe, drag, long press | [Physical input](docs/native-input.md) |
+| Buttons, tap, swipe, drag, long press | [Physical input](docs/native-input.md); `double-tap` is a [preset](docs/gesture-sequences.md#presets) |
 | Pinch or coordinated contacts | [Multitouch](docs/multitouch.md), [timed sequences](docs/gesture-sequences.md) |
 | Text entry | [Typing in a named keyboard layout](docs/physical-typing.md) ([layout research](docs/keyboard-layouts.md), [finding the device's layout](docs/physical-typing.md#finding-the-layout-detect-layout)), [Unicode text by set-value](docs/simulator-input.md#unicode-text-set-value), [Unicode paste](docs/native-input.md#direct-unicode-paste) |
 | Screen, hierarchy, OCR | [Screen inspection](docs/screen-understanding.md), [accessibility](docs/direct-accessibility.md) |
@@ -69,13 +69,14 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Rotation, appearance and text size, a simulated location, status bar overrides, reading the clipboard | [Device settings](docs/device-settings.md) |
 | Launching an app with arguments, environment, language or locale; terminating it by bundle identifier | `manzanero launch --help`, `manzanero terminate --help` |
 | Reading and pressing a web page | [Web content](docs/direct-accessibility.md#web-content) |
-| Video, with the device's sound if asked (`--audio`), or many screenshots in a row | [Recording](docs/recording.md), [sound](docs/recording.md#sound), [frames](docs/recording.md#frames-repeated-screenshots-from-one-stream) |
+| Video, with the device's sound if asked (`--audio`), or many screenshots in a row | [Recording](docs/recording.md), [sound](docs/recording.md#sound), [frames](docs/recording.md#frames-repeated-screenshots-from-one-stream), [recovery after a lost stream](docs/recording-recovery.md) |
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
 | A step that needs a person (unlock, pairing, a permission prompt) | [Human handoff](docs/handoff.md): `handoff --until` watches the device and ends by itself |
 | Several commands in one call | [`batch`](docs/mcp.md#several-steps-in-one-call-run_batch): up to 30 steps in order, stopped at the first failure |
 | Input sent to a locked phone | [Lock state in receipts](docs/native-input.md#receipts-and-partial-effects) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
-| Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown | [Other families](docs/other-families.md) |
+| Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown, typing on a watch's on-screen keyboard | [Other families](docs/other-families.md) |
+| A new simulator of a named type and runtime | `manzanero create-simulator --help` |
 | A physical Apple TV: trees with focus, the Siri Remote and its swipes, recording, `remote sleep` and `remote wake` | [A physical Apple TV](docs/other-families.md#a-physical-apple-tv), [sleep and wake](docs/other-families.md#sleep-and-wake) |
 | How a command reaches a device, and the tool's own tunnel | [Transport](docs/transport.md), [the services a device offers](docs/device-services.md) |
 | A row further down a long list | [`scroll --search`](docs/direct-accessibility.md#searching-a-list-that-loads-its-rows---search) |
@@ -94,7 +95,8 @@ These commands use the selected Xcode's `devicectl`:
 mise run cli apps --device <device>
 mise run cli processes --device <device>
 mise run cli launch com.example.app --device <device>
-mise run cli terminate <positive-PID> --device <device>
+mise run cli launch com.example.app --relaunch --env NAME=VALUE --device <device> -- -AppArgument YES
+mise run cli terminate com.example.app --device <device>
 mise run cli install 'tmp/My App.app' --device <device>
 mise run cli files list com.example.app Documents --device <device>
 mise run cli files pull com.example.app Documents/data.json tmp/data.json --device <device>
@@ -102,7 +104,7 @@ mise run cli reports list --device <device>
 mise run cli reports get 'My App.ips' 'tmp/My App.ips' --device <device>
 ```
 
-Container paths are relative; `.` means the selected domain's root. Listings are nonrecursive. Access depends on the app/device's authorization. Copies can overwrite destinations; these commands do not provide `.xcappdata` export, symbolication or whole-container replacement. Physical termination takes a PID; simulator termination takes a bundle identifier.
+Container paths are relative; `.` means the selected domain's root. Listings are nonrecursive. Access depends on the app/device's authorization. Copies can overwrite destinations; these commands do not provide `.xcappdata` export, symbolication or whole-container replacement. `terminate` takes a bundle identifier on every platform, and a PID on a device; on a device the bundle must have exactly one running process. App arguments follow `--`, after every option of `manzanero`'s own.
 
 Add `--dry-run` to a device command to print its plan as JSON without contacting the device; `devices`, `doctor`, `keyboard-layouts`, `ocr` and `mcp` refuse it as a usage error, although their help lists the option. Most physical wrappers preserve `devicectl` JSON; some simulator commands return plain text. A failure prints its message on stderr and exits 1, or 64 when the call itself is wrong; with `--error-format json` (or `MANZANERO_ERROR_FORMAT=json`) it prints one JSON object instead, with a category, whether input may have reached the device, and whether a retry is safe. See [errors](docs/errors.md).
 
@@ -121,12 +123,12 @@ Configure your host to launch the executable by absolute path with argument `mcp
 }
 ```
 
-Host configuration formats vary. Set a suitable working directory: relative files and temporary artifacts are created there. The host controls approvals; the server has no approval UI of its own. See [MCP tools and lifecycle](docs/mcp.md).
+Host configuration formats vary. Set a suitable working directory: relative files and temporary artifacts are created there. The host controls approvals; the server has no approval UI of its own. The server has 51 tools; see [MCP tools and lifecycle](docs/mcp.md).
 
 ## Limits that matter
 
 - Native input and AX actions are experimental. Successful transport acknowledgements are not UI assertions.
-- Native video has scoped CLI/MCP verification, including one five-minute capture and one recording with AX inspection and Home control. With the macOS firewall on, the executable needs an allow rule or recordings get no video; `doctor` reports it ([recording](docs/recording.md#the-macos-firewall-can-drop-the-video)). Recovery from loss, a crash or a disconnect is not built; it is to be a restart of the stream, because the test phone declines the RTCP feedback that keyframe requests would need ([design](docs/recording-recovery.md)).
+- Native video has scoped CLI/MCP verification, including one five-minute capture and one recording with AX inspection and Home control. With the macOS firewall on, the executable needs an allow rule or recordings get no video; `doctor` reports it ([recording](docs/recording.md#the-macos-firewall-can-drop-the-video)). A recording without `--audio` restarts a lost stream up to three times and keeps one movie with its gaps listed, and one that cannot recover keeps what it captured as `status: partial`; it recovered across a pulled cable on the test phone. A recording with sound and `frames` are not restarted after a loss ([recovery](docs/recording-recovery.md)).
 - SIGINT/SIGTERM and MCP EOF attempt owned cleanup. Forced exits and failed transports do not have a release guarantee: after one during an input, further input to that device is refused until you have looked at it and run `clear-quarantine` ([quarantine](docs/native-input.md#quarantine-after-an-uncertain-release)). A second `manzanero` process is refused input to a device another one is controlling.
 - A recording carries the device's sound only with `--audio`, and an app may mute its own player while the screen is captured ([sound](docs/recording.md#sound)).
 - `manzanero pair` leaves a pairing identity for the device under `~/Library/Application Support/manzanero/pairings/`. It is a private key: whoever can read it can open a tunnel to that device.

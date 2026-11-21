@@ -55,7 +55,7 @@ This opt-in test sends the supplied sequence, saves a receipt/screenshot and che
 
 ## Presets
 
-`double-tap <x> <y>` (MCP `double_tap`) is one sequence of two 60 ms taps 160 ms apart, on the same route as `gesture`, physical or simulator. On `manzanero-research-phone` on 2026-11-21 the probe counted two gestures of one contact each, 0.060 s and 0.061 s long. Not run on a device.
+`double-tap <x> <y>` (MCP `double_tap`) is one sequence of two 60 ms taps 160 ms apart, on the same route as `gesture`, physical or simulator. On `manzanero-research-phone` on 2026-11-21 the probe counted two gestures of one contact each, 0.060 s and 0.061 s long. On the iPhone 13 mini the same evening the probe counted two gestures too, from the CLI and through MCP `double_tap` ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)).
 
 System gestures are not presets. On the same simulator a swipe up from the bottom edge (from y 0.995, 0.999 and 1.0 to 0.6, 0.5 and 0.3, over 250 to 500 ms) never reached the system: over the probe, which keeps the screen edges for itself, the probe recorded the swipe, and over Settings the list scrolled and Settings stayed in front. So a touch sequence from this route is the app's, not SpringBoard's, on a simulator; Home is `button home`. Whether a phone's system takes such a sequence from its edge is not known.
 
