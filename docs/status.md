@@ -1,6 +1,6 @@
 # Status at a glance
 
-One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date at the end of 2026-11-20.
+One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-21, after v0.1.0-beta.2.
 
 ## How to read it
 
@@ -49,23 +49,34 @@ A route is the way a command reaches the device. Most commands have one. Accessi
 | Apps, files, reports, details, screenshots | Apple's own tools, `devicectl` for devices and `simctl` for simulators | Every platform | Settled |
 | Touch, buttons, keys, the remote | Apple's input services, called in process | Devices and simulators | Settled |
 | Video | Apple's media stream, decoded in process | Devices | Works on the phone and, since 2026-11-20, on the Apple TV |
+| Logs | The device's log relay, on the tool's own tunnel or Apple's | `logs` on a device | Works on the phone since 2026-11-20, on both tunnels; not run on the Apple TV |
 | Accessibility, route 1: **the tool's own tunnel** | A tunnel the tool opens itself, through the Mac's `usbmuxd` | A device `manzanero devices` shows as `ownTunnel: cable` or `network`, the iPhone and iPads; and an Apple TV after `manzanero pair`, which pairs the tool itself with it (PIN on the television) | The default since 2026-11-19. Works on the iPhone and, since 2026-11-20, on the Apple TV, with no side effect on the Mac |
 | Accessibility, route 2: **Apple's tunnel** | The tunnel macOS keeps, plus a second connection of the tool's own to the device's list of services | The fallback, and the one an Apple TV uses until the tool is paired with it | Works. Side effect: the device resets the Mac's own connection to it, and now and then that connection does not come back until it is replaced |
 | Accessibility, route 3: **the Inspector's way** | Through the Mac's `remoted`, as Apple's Accessibility Inspector does | `press` on the Apple TV, after the tool's own tunnel and before Apple's | Works with no side effect and without moving the focus. Rows inside lists, a full tree, `scroll` and `set-value` have no way there and use route 2 |
 | Accessibility on a simulator | Apple's simulator framework | Every simulator | Settled |
 
-A result says which accessibility route a command took: `serviceDirectory: own-tunnel` is route 1, `opened`, `reused-port` or `reused-saved-port` are route 2, and `route: inspector` is route 3. A press that tried route 3 and went by route 2 says why in `inspectorUnavailable`.
+A result says which accessibility route a command took: `serviceDirectory: own-tunnel` is route 1, `opened`, `reused-port` or `reused-saved-port` are route 2, and `route: inspector` is route 3. A press on an Apple TV that passed a route by says why: `ownTunnelUnavailable` for route 1 and `inspectorUnavailable` for route 3.
 
 ## What is open, in order
 
-1. **`launch` with arguments, and `terminate` by bundle identifier**: needed by hand four times this week.
-2. **An install on a tester's Mac**: v0.1.0-beta.2 is published and in the tap since 2026-11-21, installed on the development Mac only.
-3. **The new `press` order on the Apple TV**: built and unit-tested, not yet run there.
-4. **`logs` for devices, the rest**: streams near ten minutes, the Apple TV.
+The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
+
+1. **`launch` with arguments, and `terminate` by bundle identifier**: needed by hand four times in two days.
+2. **The new `press` order on the Apple TV**: built and unit-tested, not yet run there.
+3. **Selectors that are not exact**: a label or identifier that contains a text, or matches a pattern.
+4. **Small checks on the iPhone**: `open-url` from another app, an action in flight when the cable is pulled, an agent session over the network.
 5. **Sound in a recording, the rest**: picture and sound in step, a long recording, and the Apple TV with something playing.
-6. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
-7. **Small checks on the iPhone**: an action in flight when the cable is pulled, and an agent session over the network.
-8. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
+6. **Recording recovery**: a restart of the stream after a loss; a design first.
+7. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
+8. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, `logs` there, a recording of several minutes.
+9. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
+
+## Done on 2026-11-21
+
+- **v0.1.0-beta.2** published and in the Homebrew tap: one Apple silicon archive with everything below and since 2026-11-18.
+- **`press` on an Apple TV** goes by the tool's own tunnel first, then the Inspector's cursor, then Apple's tunnel (built and unit-tested; not yet run there).
+- **`logs` on a device**: entries at every level, debug included, from the device's log relay, of one process (until it ends), a group or every process, with filters; checked on the iPhone on both routes.
+- **On the iPhone**: a plain table row pressed; a moving screen streamed whole, so the phone does not need the Apple TV's video fix; `open-url` against the probe.
 
 ## Done on 2026-11-20
 
@@ -79,6 +90,3 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 - **Apple TV, `press` without the side effect**: by Apple's Inspector cursor, with the focus left where it was.
 - **Plain table rows** can be pressed, found with a new list screen in the iOS probe on a new phone simulator.
 - **Two tests that failed under load** are fixed.
-- **`press` on an Apple TV** goes by the tool's own tunnel first, then the Inspector's cursor, then Apple's tunnel (built and unit-tested; not yet run there).
-- **`logs` on a device**: entries at every level, debug included, from the device's log relay, of one process (until it ends), a group or every process, with filters; checked on the iPhone on both routes.
-- **On the iPhone**: a plain table row pressed; a moving screen streamed whole, so the phone does not need the Apple TV's video fix; `open-url` against the probe.

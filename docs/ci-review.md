@@ -1,6 +1,6 @@
 # CI and release workflow review
 
-> **Status (2026-11-18).** The release workflow passed a manual rehearsal and then published v0.1.0-beta.1 ([verification](verification.md#first-beta-published)). From the next beta, packaging builds one Apple silicon archive instead of the universal ones this review describes ([releasing](releasing.md)).
+> **Status (2026-11-21).** The release workflow passed a manual rehearsal and then published v0.1.0-beta.1 ([verification](verification.md#first-beta-published)); on 2026-11-21 it published v0.1.0-beta.2, one Apple silicon archive instead of the universal ones this review describes, after two manual runs ([verification](verification.md#second-beta-published), [releasing](releasing.md)).
 
 The release setup follows cmagic's shared mise tasks, universal macOS archives, checksums, manual nonpublishing workflow and tag-triggered publication. This review adds its missing ordinary CI, cache persistence and guarded release command while retaining immutable release assets.
 

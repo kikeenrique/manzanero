@@ -29,7 +29,7 @@ The device does not check who connects; `remoted` on the Mac does. That is why a
 | Service | Used for | How it is reached |
 | --- | --- | --- |
 | `com.apple.accessibility.axAuditDaemon.remoteAXService` | `tree`, `wait`, `press`, `scroll`, `set-value` on a device | The directory, read by the tool on its own tunnel or on Apple's |
-| `com.apple.accessibility.axAuditDaemon.remoteserver.shim.remote` | `press` on a physical Apple TV, tried first: the same daemon as Apple's Accessibility Inspector reaches it, by its cursor | `remoted`, through the MobileDevice framework |
+| `com.apple.accessibility.axAuditDaemon.remoteserver.shim.remote` | `press` on a physical Apple TV, after the tool's own tunnel and before Apple's: the same daemon as Apple's Accessibility Inspector reaches it, by its cursor | `remoted`, through the MobileDevice framework |
 | `com.apple.internal.devicecompute.CoreDeviceProxy` | The tool's own tunnel | `usbmuxd`, through the MobileDevice framework |
 | The pairing services a device advertises on the network, `_remotepairing._tcp` (port 49152) and, while an Apple TV shows its pairing screen, `_remotepairing-manual-pairing._tcp`. They are not directory entries | `pair`, and the tool's own tunnel to an Apple TV: a listener asked of the first, after a pairing made at the second | A TCP connection to the device's address in Apple's tunnel, found with the Mac's DNS Service Discovery ([transport](transport.md#a-pairing-of-the-tools-own)) |
 | `com.apple.os_trace_relay.shim.remote` | Physical `logs` (checked on the iPhone 13 mini on 2026-11-20), and the opt-in check `test:os-trace-relay` | The directory, on the tool's own tunnel or Apple's |

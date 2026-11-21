@@ -134,7 +134,7 @@ The AXe, Rust idevice and ipb helper backends have been removed: first their CLI
 
 - independent `pair wifi` and `--pairing-file` device operations (no longer recognised as commands);
 - `--physical-backend idevice` (the backend option itself is gone: `coredevice` is the only physical backend);
-- `hid-info` and raw live `ax-snapshot` with its archive saving (no longer commands), and the helper-based finite physical `logs` (physical `logs` is now refused as `unsupported-operation`; see [app logs](app-logs.md));
+- `hid-info` and raw live `ax-snapshot` with its archive saving (no longer commands), and the helper-based finite physical `logs` (physical `logs` now reads the device's log relay in process; see [app logs](app-logs.md#physical-devices));
 - AXe-backed simulator input and hierarchy (replaced by the in-process [simulator route](simulator-input.md));
 - the old ipb input helper plans (`coredevice-ipb` dry runs) and its video helper with the ADV1 JPEG pipe.
 

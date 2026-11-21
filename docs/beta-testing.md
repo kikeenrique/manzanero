@@ -6,7 +6,7 @@ The beta package contains the executable, any required Swift compatibility libra
 
 ## Installation
 
-The first beta, [v0.1.0-beta.1](https://github.com/kikeenrique/manzanero/releases/tag/v0.1.0-beta.1), was published on 2026-11-18 and its formula is in the tap. The install, `brew test` and a first run passed on one Mac, the development one ([record](verification.md#homebrew-install-from-the-tap)). For source builds, follow the [readme](../readme.md#build-and-start) and substitute `mise run cli` for the bare executable below.
+The current beta, [v0.1.0-beta.2](https://github.com/kikeenrique/manzanero/releases/tag/v0.1.0-beta.2), was published on 2026-11-21 and its formula is in the tap. An upgrade from beta.1, `brew audit`, `brew test` and a first run passed on one Mac, the development one ([record](verification.md#second-beta-published)). For source builds, follow the [readme](../readme.md#build-and-start) and substitute `mise run cli` for the bare executable below.
 
 ```sh
 brew install kikeenrique/tap/manzanero
@@ -23,7 +23,7 @@ Archives are ad-hoc signed, without Developer ID notarization. They do not provi
 ## Prepare the Mac and device
 
 - An Apple silicon Mac with macOS 26.6 or later. There is no Intel version: the tool works through Xcode 27, which does not run on Intel.
-- Xcode 27 or later, the full application, selected as the active developer directory, license accepted and developer components installed. From the beta after v0.1.0-beta.1, `manzanero doctor` reports an older Xcode as an unmet requirement; v0.1.0-beta.1 has no such check, and its formula still says macOS 15.
+- Xcode 27 or later, the full application, selected as the active developer directory, license accepted and developer components installed. From v0.1.0-beta.2, `manzanero doctor` reports an older Xcode as an unmet requirement; v0.1.0-beta.1 has no such check.
 - A paired, trusted device with Developer Mode enabled, or a booted simulator addressed by its UUID (`--simulator <UUID>`).
 - For the verified UI flows: awake/unlocked device and **Settings → Developer → Enable UI Automation** enabled.
 - For native recording with the macOS firewall on: a rule allowing incoming connections for the installed `manzanero` executable. The beta archive is ad-hoc signed, so it is not allowed automatically. `manzanero doctor` reports the state and the path; see [recording](recording.md#the-macos-firewall-can-drop-the-video).
@@ -56,4 +56,4 @@ Launch the installed executable with argument `mcp` from your host configuration
 
 Include the release version, host macOS/Xcode versions, device model/OS, redacted command, expected result and stderr. Review captures, app inventories, paths and `tmp/` contents before sharing. Never upload pairing records, credentials or commercial application binaries.
 
-Known gaps include recording recovery, device-side release after a failure (the Mac only [quarantines](native-input.md#quarantine-after-an-uncertain-release) the device), devices other than one iPhone 13 mini and one Apple TV 4K, and Apple Watch and iPhone Duo hardware (simulators only so far). The Apple TV work, `batch` and the searching `scroll` came after v0.1.0-beta.1 and are not in it. Check [feature status](feature-status.md), the [roadmap](roadmap.md#pending) and [verification](verification.md) before interpreting a failure.
+Known gaps include recording recovery, device-side release after a failure (the Mac only [quarantines](native-input.md#quarantine-after-an-uncertain-release) the device), devices other than one iPhone 13 mini and one Apple TV 4K, and Apple Watch and iPhone Duo hardware (simulators only so far). The Apple TV work, `batch`, the searching `scroll`, `pair`, sound in a recording and physical `logs` came after v0.1.0-beta.1 and are in v0.1.0-beta.2. Check [feature status](feature-status.md), the [roadmap](roadmap.md#pending) and [verification](verification.md) before interpreting a failure.
