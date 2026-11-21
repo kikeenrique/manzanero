@@ -1060,6 +1060,15 @@ So `scroll --search` works in four directions on an iPhone simulator, and plain 
 
 Not shown: a plain table row on a physical iPhone, where the same guard runs and nothing was tried; an iPad; a list whose rows do not share an edge; a table row hidden under another view with the same frame and no identifier or label, which the rule refuses by construction and no app showed.
 
+### The press order on the Apple TV 4K, and a stale connection
+
+On 2026-11-21 from 15:49, the Apple TV 4K (3rd generation, tvOS 27.2) with the tvOS probe in front, at the human owner's word; the room kept quiet. `readiness` and a screenshot read `displayPower: external`, and the probe's tree came over the tool's paired tunnel (`serviceDirectory: own-tunnel`, `ownTunnelLink: paired`).
+
+- `press --id probe.tv.button.b` went by the paired tunnel (no `route` field, `serviceDirectory: own-tunnel`) and the probe read `select:b`, count 1.
+- `MANZANERO_OWN_TUNNEL=0 press --id probe.tv.button.c` went by the Inspector's cursor (`route: inspector`, `ownTunnelUnavailable: "the tool's own tunnel is switched off (MANZANERO_OWN_TUNNEL=0)"`) and the probe read `select:c`, count 2. The press order of 2026-11-20 is so confirmed on the device for its first two routes.
+- `MANZANERO_OWN_TUNNEL=0 press --id probe.tv.row.3`, a row the Inspector cannot press, was refused before anything was sent: the Mac's connection to the device had gone stale (`remotectl dumpstate`: `State: attached`, `No connect() results`). Nothing more was sent to the device.
+- The logs (`mise run diagnose:device-services --minutes 25`, nothing restarted): `remotepairingd` answered the device's RSD heartbeat until 15:50:47 and logged "RSD Heartbeat … failed after 0ms" (or 2 ms) for it every 30 s from 15:51:16, 34 times by 16:07, the same line as the stale periods of 2026-11-18. The first failure falls just after the Inspector press, which was documented as leaving the Mac's connection alone; which step started it is not established. It had not cleared after 15 minutes with no command.
+
 ### Press by the Inspector's cursor on the Apple TV 4K
 
 On 2026-11-20, the Apple TV 4K (tvOS 27.2) over the network with the tvOS probe in front, macOS 27.2.1, Xcode 27.2, after the human owner chose to have `press` built on this route. The focus was on Button B throughout, on a screenshot before and after.
