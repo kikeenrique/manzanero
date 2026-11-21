@@ -391,6 +391,17 @@ Two betas are out: v0.1.0-beta.1 on 2026-11-18 ([record](verification.md#first-b
 | The pairing code, which follows idevice's | Keep the Swift reimplementation, with idevice's notice shipped; no dependency on the library | Unchanged ([dependencies](dependencies.md)) |
 | The order of a press on an Apple TV | The tool's own tunnel first, then the Inspector's cursor, then Apple's tunnel | Built (`InspectorRoute.pressInOrder`), unit-tested; not yet run on the Apple TV 4K ([guide](other-families.md#press-by-the-inspectors-cursor)) |
 
+## Owner decisions, 2026-11-21
+
+| Topic | Decision | State |
+| --- | --- | --- |
+| The pending tasks | In order, without hardware runs or sound work, with a completeness run on the iPad, Apple Watch and iPhone Duo simulators; laia-LLM's recommended options where a choice was open | Done ([achieved](#added-later-on-2026-11-21-the-work-that-needs-no-hardware)) |
+| Runs on the iPhone 13 mini and the Apple TV 4K (3rd generation) | Go ahead; the Apple TV once it is free | iPhone done ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)); Apple TV waiting |
+| Changing the phone's settings to check `settings` | Allowed | Read, changed and put back exactly |
+| The dead `manzanero` host on the Apple TV | laia-LLM removes it | Waiting for the Apple TV |
+| Text entry on a watch | B1: `type` taps the on-screen keyboard's keys; B2 (accents, symbols, more keyboards) later | B1 built; an external-keyboard route was looked for and not found ([other families](other-families.md#digital-crown-and-side-button-apple-watch)) |
+| Sound in simulator recordings | Out of scope while Apple's tools give none: simulator recordings stay silent; no capture of the Mac's own audio | Unchanged: `simctl recordVideo` records no sound |
+
 ## Architecture constraints
 
 Device operations communicate with Apple frameworks/APIs from this project's code or Apple executables. Non-Apple device helpers remain blocked. Use maintained general-purpose libraries where useful, and preserve attribution for implementation references.

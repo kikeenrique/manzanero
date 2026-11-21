@@ -78,7 +78,7 @@ Keyframe requests over negotiated feedback are therefore not planned: that phone
 
 ## Sound
 
-`record <output.mp4> <seconds> --backend coredevice --audio` (MCP `record_screen` with `audio: true`) records the device's sound into the movie, for an iPhone or iPad and for an Apple TV. Without `--audio` a movie has no sound track, as before. `frames` has none.
+`record <output.mp4> <seconds> --backend coredevice --audio` (MCP `record_screen` with `audio: true`) records the device's sound into the movie, for an iPhone or iPad and for an Apple TV. A simulator's recording has no sound: `simctl recordVideo` records none, and capturing the Mac's own audio (where a simulator's sound plays, through CoreSimulator's `SimAudioProcessorService`) is out of scope by the human owner's decision of 2026-11-21. Without `--audio` a movie has no sound track, as before. `frames` has none.
 
 How it works: the device's system audio is a second stream of the same session, started before the video as Apple's Device Hub starts it, on a socket of its own (`ADCStartAudioSession`, with the negotiator AVConference keeps for a CoreDevice's system audio). An iPhone 13 mini and an Apple TV 4K send AAC-ELD at 48 kHz in stereo, one packet of 480 samples every 10 ms, RTP payload type 101, each payload one access unit with nothing around it. `NativeAudioDecoder` decodes it with AudioToolbox, `NativeAudioTrack` puts the first packet where it arrived on the movie's timeline and from there follows the packets' own timestamps, and the movie gets an AAC track at 48 kHz stereo. A lost packet becomes silence of its length. The result says `audio: true` and, in `audioTrack`, the packets taken, lost and refused and the seconds written.
 

@@ -246,7 +246,7 @@ On the iPhone 13 mini (iOS 27.2.1), the evening of 2026-11-21, at the human owne
 - **`location 40.4168,-3.7038`** and **`location --clear`** succeeded. **`paste`** then **`clipboard`** read back "clip ñ 13m" exactly.
 - **`status-bar`** is refused by the phone: "The capability “Simulate Status Bar” is not supported by this device" (CoreDevice error 1001); the command now refuses a device before contacting it.
 - **`record … 8 --backend coredevice`** made an 8-second movie as before, with `recovery: {restarts: 0, gaps: [], lastPictureHeldFrom: null}` and the device's stop confirmed. Recovery itself (a stream taken away mid-recording) needs the human owner at the phone and did not run.
-- Not run: `settings` (appearance, text size), which would change the phone's own settings and cannot read back what they were.
+- **`settings`**, at the human owner's word: the read (`settings` without options, `devicectl device info appearance`) gave light, Extra Small, increase contrast off, reduce motion off; `settings --appearance dark --text-size small --increase-contrast on` read back as dark, Small, contrast on; `settings --appearance light --text-size extra-small --increase-contrast off` read back exactly as before.
 
 ### Phone session of 2026-11-20: a table row, a moving stream, open-url and logs
 

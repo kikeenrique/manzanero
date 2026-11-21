@@ -1,6 +1,6 @@
 # Orientation, settings, location, status bar and clipboard
 
-Five commands that change or read a target's state through Apple's `devicectl`, which addresses a booted simulator by its UUID exactly as it addresses a device. Built on 2026-11-21 and run on an iPhone simulator (`manzanero-research-phone`, iOS 27.2); on the iPhone 13 mini the same evening `rotate`, `location` and `clipboard` worked, `status-bar` is not supported by a device, and `settings` was not run ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)). On a device each command but `clipboard` changes the human owner's device, so ask first.
+Five commands that change or read a target's state through Apple's `devicectl`, which addresses a booted simulator by its UUID exactly as it addresses a device. Built on 2026-11-21 and run on an iPhone simulator (`manzanero-research-phone`, iOS 27.2); on the iPhone 13 mini the same evening `rotate`, `location`, `clipboard` and `settings` (read, changed and put back exactly) worked, and `status-bar` is not supported by a device ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)). On a device each command but `clipboard` changes the human owner's device, so ask first.
 
 ```sh
 manzanero rotate landscape-left --simulator <UUID>          # portrait, portrait-upside-down, landscape-left, landscape-right
