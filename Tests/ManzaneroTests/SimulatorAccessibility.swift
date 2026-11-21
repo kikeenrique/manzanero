@@ -83,6 +83,8 @@ final class SimulatorAXFixture: @unchecked Sendable {
     var transform: (String) -> String = { $0 }
     /// The display information every read returns.
     var displayInfo = SimulatorInputTests.displayJSON()
+    /// The application root's frame: the window, in the window's own points.
+    var rootFrame = NSRect(x: 0, y: 0, width: 390, height: 844)
     /// Hit points as sent (after the interface-to-native mapping).
     private(set) var hitPoints: [NSPoint] = []
     /// The client type of each hit test as archived (the bridge keeps it).
@@ -128,7 +130,7 @@ final class SimulatorAXFixture: @unchecked Sendable {
                                        frame: NSRect(x: 0, y: 0, width: 10, height: 10), reportedChildren: 3))
             }
             response = Response(kind: 2, translation: root, result: empty ? nil :
-                record(root, label: "App", identifier: nil, visible: true, frame: NSRect(x: 0, y: 0, width: 390, height: 844),
+                record(root, label: "App", identifier: nil, visible: true, frame: rootFrame,
                        children: children))
         case 4:
             let current = frontmostPIDs.isEmpty ? pid : frontmostPIDs.removeFirst()
@@ -345,6 +347,7 @@ struct SimulatorAccessibilityTests {
     func landscapeUsesTheInterfaceForFramesAndNativePointsForHits(_ current: String, _ sensor: String) async throws {
         let fixture = SimulatorAXFixture()
         fixture.displayInfo = SimulatorInputTests.displayJSON(current: current, sensor: sensor)
+        fixture.rootFrame = NSRect(x: 0, y: 0, width: 844, height: 390)
         // A landscape-only position: wholly outside the 390-point native width.
         fixture.elements = [.init(identifier: "fixture.target", label: "Target", frame: NSRect(x: 600, y: 200, width: 80, height: 40))]
         let tree = try Self.json(await Self.service(fixture).run(["tree", "--simulator", Self.uuid]))
@@ -358,6 +361,21 @@ struct SimulatorAccessibilityTests {
         let hit = try #require(fixture.hitPoints.last)
         let expected = current == "rot90" ? NSPoint(x: 220, y: 204) : NSPoint(x: 170, y: 640)
         #expect(abs(hit.x - expected.x) < 1e-9 && abs(hit.y - expected.y) < 1e-9)
+    }
+
+    /// A portrait-only window letterboxed in a landscape interface (an
+    /// iPhone Duo's inner display): frames are the window's, so the hit moves
+    /// by the window's centred offset before the native mapping.
+    @Test func aLetterboxedWindowMovesTheHitByItsCentredOffset() async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.displayInfo = SimulatorInputTests.displayJSON(current: "rot90", sensor: "landscapeRight")
+        fixture.rootFrame = NSRect(x: 0, y: 0, width: 300, height: 390)
+        fixture.elements = [.init(identifier: "fixture.target", label: "Target", frame: NSRect(x: 100, y: 200, width: 80, height: 40))]
+        let press = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).run(["press", "--id", "fixture.target", "--simulator", Self.uuid]))
+        #expect(press["status"] as? String == "accepted")
+        // Interface (140 + 272, 220); rot90 maps (x, y) to native (y, 844 - x).
+        let hit = try #require(fixture.hitPoints.last)
+        #expect(abs(hit.x - 220) < 1e-9 && abs(hit.y - 432) < 1e-9)
     }
 
     @Test func treeWithAPIDSkipsForegroundSelection() async throws {

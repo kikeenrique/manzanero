@@ -306,7 +306,7 @@ struct DirectAccessibilityAction {
             let before = try liveState(target, session: session, requireVisible: action == .press)
             if action == .press {
                 stage = "target-hit"
-                try verifyHit(target, frame: before.frame, geometry: geometry, session: session)
+                try verifyHit(target, frame: before.frame, geometry: geometry, session: session, root: root)
             }
             stage = "application/display-recheck"
             try verifySelection(root, centre: selected.pid, geometry: geometry, session: session, display: display)
@@ -336,7 +336,7 @@ struct DirectAccessibilityAction {
                     let afterTarget = try resolve(session.snapshot(root), root: root)
                     guard sameIdentity(afterTarget.token, target.token) else { throw failure("target identity changed after scroll", .preconditionChanged) }
                     let after = try liveState(afterTarget, session: session, requireVisible: true)
-                    try verifyHit(afterTarget, frame: after.frame, geometry: geometry, session: session)
+                    try verifyHit(afterTarget, frame: after.frame, geometry: geometry, session: session, root: root)
                     try verifySelection(root, centre: selected.pid, geometry: geometry, session: session, display: display)
                     result["after"] = after.json
                     result["status"] = "postcondition-verified"
@@ -392,7 +392,8 @@ struct DirectAccessibilityAction {
     }
 
     func verifyHit(_ target: AccessibilitySnapshot.Node, frame: AccessibilitySnapshot.Frame,
-                           geometry: AccessibilityDisplay, session: any AccessibilityExchange) throws {
+                           geometry: AccessibilityDisplay, session: any AccessibilityExchange,
+                           root: AccessibilityRequest.Token? = nil) throws {
         // The element may reach past an edge: a web page zoomed by focusing a
         // field puts a 392-point field on a 375-point display. Its centre
         // must be on the display, and the hit test there must answer the
@@ -405,7 +406,23 @@ struct DirectAccessibilityAction {
         // An Apple TV has no pointer: activation goes to the element, not to
         // a point, and the hit test there can answer the system process.
         if geometry.focusDriven { return }
-        let hit = try session.hit(x: x, y: y)
+        // A letterboxed app: an iPhone Duo's inner display centres a
+        // portrait-only app's window, 469 points wide in a 951-point
+        // interface, and its frames are relative to that window (measured on
+        // a simulator, 2026-11-21); a hit at the frame's own point lands in
+        // the margin and is refused (error 8), and a refusal ends the session.
+        // So in a landscape-shaped interface, the only place a portrait-only
+        // window is letterboxed, the application's root is read first, and a
+        // root smaller than the display moves the hit to the window's centred
+        // offset. The identity rule after it is unchanged.
+        var offset = (dx: 0.0, dy: 0.0)
+        if bounds.width > bounds.height, let root,
+           let window = try AccessibilitySnapshot.normalize(session.snapshot(root), root: root).first?.frame,
+           window.x == 0, window.y == 0, window.width > 0, window.height > 0,
+           window.width < bounds.width - 0.5 || window.height < bounds.height - 0.5 {
+            offset = ((bounds.width - window.width) / 2, (bounds.height - window.height) / 2)
+        }
+        let hit = try session.hit(x: x + offset.dx, y: y + offset.dy)
         guard try sameIdentity(hit, target.token) || sameElement(hit, as: target, frame: frame, session: session) else {
             throw failure("target centre hit is another native element", .targetUnresolved)
         }

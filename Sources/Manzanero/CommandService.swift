@@ -555,7 +555,10 @@ actor CommandService {
                 leased = identity.uuid
                 keyboard = .physical(uuid: identity.uuid, version: identity.version)
             case .simulator:
-                _ = try SimulatorDevice.requireBooted(command.device, operation: "detect-layout", lookup: simulator.lookup)
+                let booted = try SimulatorDevice.requireBooted(command.device, operation: "detect-layout", lookup: simulator.lookup)
+                // Its probe is typed, and keyboard events do not reach watchOS:
+                // on a watch simulator it changed the field and detected nothing.
+                if booted.isAppleWatch { throw CommandFailure.unsupported(DigitalCrown.keyboardRefusal) }
                 lease = try leases.acquire(device: command.device, operation: "detect-layout")
                 leased = command.device
                 keyboard = .simulator(command.device)

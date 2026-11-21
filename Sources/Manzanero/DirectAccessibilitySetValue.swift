@@ -87,7 +87,7 @@ struct DirectAccessibilitySetValue {
                 throw guards.failure("the target does not report a settable value (request type 3, attribute 53); nothing was sent. Select the text field itself, not its label or container", .targetUnresolved)
             }
             stage = "target-hit"
-            try guards.verifyHit(target, frame: before.frame, geometry: geometry, session: session)
+            try guards.verifyHit(target, frame: before.frame, geometry: geometry, session: session, root: root)
             stage = "application/display-recheck"
             try guards.verifySelection(root, centre: selected.pid, geometry: geometry, session: session, display: display)
             stage = "set-value"

@@ -79,6 +79,18 @@ struct SimulatorCrownTests {
         #expect(physical.code == .unsupportedOperation)
     }
 
+    /// detect-layout types its probe, so a watch refuses it as it refuses
+    /// key and type; on a watch simulator it had changed the field.
+    @Test func detectLayoutIsRefusedOnAWatchBeforeAnyKey() async throws {
+        let turned = Turned()
+        let service = Self.service(family: "Apple Watch", turned)
+        let refusal = await #expect(throws: CommandFailure.self) {
+            try await service.run(["detect-layout", "--id", "probe.text.field", "--simulator", Self.uuid])
+        }
+        #expect(refusal?.description.contains("Keyboard events do not reach watchOS") == true)
+        #expect(turned.keys == 0)
+    }
+
     @Test func sideButtonIsConsumerUsage0x95AndOtherButtonsAreUnchanged() async throws {
         let turned = Turned()
         let service = Self.service(family: "Apple Watch", turned)

@@ -21,24 +21,24 @@ One table of what works where, for a reader who wants the answer before the deta
 | Commands | iPhone, device | iPhone and iPad, simulator | Apple TV, device | Apple TV, simulator | Apple Watch, simulator | iPhone Duo, simulator |
 | --- | --- | --- | --- | --- | --- | --- |
 | **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown` | works | works | works | works | works | works |
-| **Touch**: `tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts | works | refused: no touch screen | refused: no touch screen | works (`tap`; the rest not run) | works |
-| **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: buttons work, `key` refused | not run |
-| **Text**: `type`, `detect-layout`, `paste`, `set-value` | works | works; `paste` refused | works (`type`, `set-value`) | works | partly: `type` refused, `set-value` does not reach the app | not run |
+| **Touch**: `tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts | works; on an iPad a four-path `multi-drag` is cancelled by iPadOS | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works |
+| **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: `home`, `side` and the Ultra's `action` work, `lock` does nothing, `key` refused | works; `wake` refused |
+| **Text**: `type`, `detect-layout`, `paste`, `set-value` | works | works; `paste` refused | works (`type`, `set-value`) | works | partly: `type` and `detect-layout` refused, `set-value` does not reach the app | works; `paste` refused |
 | **Apple TV remote**: `remote` | — | — | works: all eight buttons, held keys, swipes, `sleep` and `wake`; a held Home is refused | works, with holds and swipes; `sleep` and `wake` refused | — | — |
 | **Watch crown**: `crown` | — | — | — | — | works | — |
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
 | **Accessibility, read**: `tree`, `wait` | works in portrait; landscape not run | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
-| **Accessibility, act**: `press`, `scroll`, `set-value` | works in portrait; landscape not run | works | works, see the routes below | works | works (`press`) | partly: `press` fails in a letterboxed app |
-| **Accessibility, search a long list**: `scroll --search` | works downward; the other directions not run | works in four directions (iPhone) | works in four directions | works in four directions | not run | not run |
-| **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | not run | works, with `--display` |
-| **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` | `record` works | not run | works, with `--display` |
-| **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | not run | works |
+| **Accessibility, act**: `press`, `scroll`, `set-value` | works in portrait; landscape not run | works | works, see the routes below | works | works | works, a letterboxed app too since 2026-11-21 |
+| **Accessibility, search a long list**: `scroll --search` | works downward; the other directions not run | works in four directions (iPhone, iPad) | works in four directions | works in four directions | partly: up and down on the Series 12; fails on the Ultra | works in four directions |
+| **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | works | works, with `--display` |
+| **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` | `record` works | `record` works | works, with `--display` |
+| **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | works (Ultra) | works; a first URL after its prompt was lost once |
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
 | **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | not run | works (iPhone, 2026-11-21) | not run | not run | not run | not run |
 | **Build and run**: `build-run` | works | works | works | not run | not run | not run |
-| **App output**: `console`, `last-crash`, `logs` | works | works | `console` and `last-crash` work; `logs` not run | not run | not run | not run |
-| **A person's step**: `handoff` | works | works | works | works | not run | not run |
-| **Several commands at once**: `batch` | works | works | works | works | not run | not run |
+| **App output**: `console`, `last-crash`, `logs` | works | works | `console` and `last-crash` work; `logs` not run | not run | works | works |
+| **A person's step**: `handoff` | works | works | works | works | works (`--until`) | works (`--until`) |
+| **Several commands at once**: `batch` | works | works | works | works | works | works |
 | **From an AI agent**: `mcp` | works | works | works | works | not run | works |
 
 ## The routes
@@ -71,6 +71,12 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 7. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
 8. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, `logs` there, a recording of several minutes.
 9. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
+
+## Done later on 2026-11-21 (not released)
+
+- **`launch` options** and **`terminate` by bundle**; **`--match contains|regex`** for selectors; **`rotate`, `settings`, `location`, `status-bar`, `clipboard`**; **`double-tap`**; **`create-simulator`**: all run on simulators.
+- **A phone in landscape** accepted by the accessibility commands, and **recording recovery** for recordings without sound: built and unit-tested, owed on the iPhone.
+- **A completeness run** on iPad, iPhone Duo and Apple Watch simulators filled most of their columns above; a letterboxed app on the Duo can now be pressed, and `detect-layout` is refused on a watch.
 
 ## Done on 2026-11-21
 

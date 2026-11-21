@@ -1767,6 +1767,27 @@ Human handoff has synthetic terminal/form completion and per-device mutation-pau
 
 ## Other simulator families
 
+### Simulator completeness run: iPad, iPhone Duo and Apple Watch
+
+2026-11-21, at the human owner's request: every command family on an iPad mini (A20 Pro), briefly an iPad Pro 13-inch (M5), the iPhone Duo (`manzanero-research-duo`), an Apple Watch Series 12 (`manzanero-research-watch`) and an Apple Watch Ultra 4 (`manzanero-research-watch-ultra`). Runtimes iOS 27.2 (24B8117) and watchOS 27.2 (24S118), Xcode 27.2, macOS 27.2.1, the build of that afternoon (with `launch` options and `--match`, before the settings commands). Run by a delegated agent of laia-LLM. The iOS probe was installed on the iPads and the Duo, a text-field app on the Ultra, and both were removed afterwards. No sound, volume key or `--audio`.
+
+| Commands | iPad mini | iPhone Duo | Watch Series 12 | Watch Ultra 4 |
+| --- | --- | --- | --- | --- |
+| Find and check | works | works | works | works |
+| Touch | partly: a four-path `multi-drag` was cancelled by iPadOS after 0.09 s (also 0.13 s for a one-second one, and on the iPad Pro); two, three and five paths arrived whole at the probe | works, folded and unfolded, against the probe | works (`tap`, `swipe`, `long-press` effects seen); the multi-contact commands moved the interface, with no way to count contacts | as the Series |
+| Buttons and keys | works (`home`, `lock`, `key`); `side`, `action`, `wake` refused | works; `wake` refused | partly: `home` works, `side` opens Control Center, `action` and `lock` do nothing, `key` and `wake` refused | partly: `home`, `side` work, `action` opened "Choose Action", `lock` does nothing |
+| Text | works (`type`, `detect-layout`, `set-value`); `paste` refused | works, folded and unfolded | partly: `type` refused, `set-value` changes only the reported value; `detect-layout` was not refused and left `x` in the field (refused since, below) | as the Series |
+| Accessibility read | works, the Home Screen too; `wait` visible, gone, value, a timeout's exit 124, `--match contains` and `regex` | partly: Home Screen tree empty, as recorded; one error 17 two seconds after a launch on a fresh boot, gone three seconds later | works | works |
+| Accessibility act | works: `press --label 'row 1' --match contains --index 1`, and a regex with `--index 3` pressed Row 3 | partly: `press` in the letterboxed probe failed with error 8, as recorded (built since, below) | works (`press`, `scroll --id`, `set-value`) | works |
+| `scroll --search` | works, four directions | works, four directions, unfolded | works, up and down (Website Data in 4 steps) | fails: "the list stopped moving after 1 search step(s)", in Settings and Settings › General |
+| Pictures, `record` | works | works, with and without `--display` | works | works; `screen ocr` reads nothing of the large-digit face |
+| Apps | works; `--relaunch -- -ProbeList YES`, `--language es` and `--env A=1` were seen in the process's arguments and environment | partly: the first `open-url` after its prompt was answered did not arrive; a second URL arrived with no prompt | install, uninstall and `open-url` not run | works; `open-url` of a scheme nothing handles fails (error 115) |
+| `console`, `last-crash`, `logs`, `handoff --until`, `batch` | works (`build-run` too, 13 s) | works | works | works |
+
+Other observations: on the Duo a `tap` after `button lock` was dispatched where the iPad refused it as display off, and it took three `button home` presses to leave the lock screen; on the watch a Maps location prompt stayed up after `terminate` and caught later touches; simulator `screenshot`, `boot`, `shutdown`, `install` and `uninstall` print no JSON; `unfold` was seen after four display reads and `fold` after eighteen.
+
+Changed after the run, the same day: `detect-layout` is refused on a watch with the keyboard refusal, and was checked so on `manzanero-research-watch`. A letterboxed app on the Duo is pressed by moving the hit check by the window's centred offset ([guide](other-families.md#the-inner-display-unfolded)): `press --id probe.log.emit` was accepted and `set-value --id probe.text.field` wrote "duo ok". The Ultra's search was reproduced in Settings (`com.apple.NanoSettings`): the tree held Notifications to General, and the likely cause, not checked, is that every row it holds is already on the Ultra's taller screen, so scrolling the last one into view moves nothing. A fix would need another way to move a list (the crown, for one); it is left open.
+
 Three simulators created for this work, headless (Simulator.app not opened): `manzanero-research-tv` (Apple TV 4K (4th generation) at 1080p, tvOS 27.2, 24K150), `manzanero-research-watch` (Apple Watch Series 12 (46mm), watchOS 27.2, 24S118) and `manzanero-research-duo` (iPhone Duo, iOS 27.2, 24B91016s). Host macOS 27.2.1 (26B131), Xcode 27.2 (27B52). No physical device was contacted. Background and the first pass are in [the research](other-families-research.md); the commands are described in [other simulator families](other-families.md).
 
 ### iPhone Duo displays
