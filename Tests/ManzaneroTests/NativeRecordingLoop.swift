@@ -16,7 +16,10 @@ import Testing
     }
 
     /// What a session does when the loop asks it for a packet at a time.
-    enum Step { case picture, junk, silence }
+    /// `junk` is a new packet that decodes to nothing; `repeated` is the one
+    /// packet an Apple TV with a still screen sends again, unchanged, once
+    /// a second.
+    enum Step { case picture, junk, repeated, silence }
 
     @MainActor final class ScriptedSession: NativeRecordingSession {
         let clock: Clock
@@ -56,8 +59,21 @@ import Testing
             switch script(clock.now - opened) {
             case .silence: return nil
             case .junk:
+                // Video packets after a loss: dependent pictures with a gap
+                // before each, which the assembler discards until a key frame.
                 clock.now += 40_000_000
-                return Data([0x80, 0x10, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0])
+                sequence &+= 1
+                var bytes = Data([0x80, 0xe4, UInt8(sequence >> 8), UInt8(sequence & 255)])
+                for word in [timestamp, 1] { for shift in [24, 16, 8, 0] { bytes.append(UInt8(truncatingIfNeeded: word >> shift)) } }
+                bytes.append(Self.nal(1))
+                sequence &+= 1
+                timestamp &+= 3000
+                return bytes
+            case .repeated:
+                clock.now += 1_000_000_000
+                // Its own sequence (12 against the video's 53606) and not a
+                // video packet: the live recording took it without failing.
+                return Data([0x80, 0xfe, 0, 12, 0xc8, 0x3a, 0x5d, 0xb9, 0, 0, 0, 1] + [UInt8](repeating: 0, count: 48))
             case .picture:
                 clock.now += 40_000_000
                 // A new session starts with its parameter sets and a key frame.
@@ -208,6 +224,20 @@ import Testing
         #expect(held > 4.3 && held < 4.5)
         #expect(receipt.partial == nil && receipt.media.ownedStreamAbsent)
         #expect(await sink.finished == false)
+    }
+
+    /// The Apple TV 4K on 2026-11-21: a still screen sends pictures for
+    /// about five seconds, then only one unchanged packet once a second. That
+    /// is a quiet session, not a lost one: no restart, nothing held.
+    @Test func aStillAppleTVScreenWithOneRepeatedPacketIsNotRestarted() async throws {
+        let device = Device()
+        device.plans = [{ $0.script = { $0 < 5 * NativeRecordingLoopTests.second ? .picture : .repeated } }]
+        let sink = Sink()
+        let receipt = try await device.record(seconds: 30, sink: sink)
+        let recovery = try #require(receipt.recovery)
+        #expect(device.sessions.count == 1 && recovery.restarts == 0 && recovery.gaps.isEmpty && recovery.heldFrom == nil)
+        #expect(receipt.partial == nil, "\(receipt.partial ?? "")")
+        #expect(receipt.frames > 50, "\(receipt.frames)")
     }
 
     @Test func cancellationDuringARestartDiscardsTheMovie() async throws {

@@ -8,6 +8,12 @@ struct RecordingRecovery: Sendable {
     static let maximumRestarts = 3
     /// No packet, or packets and no picture, for this long is a loss.
     static let stallNanoseconds: UInt64 = 3_000_000_000
+    /// "Packets and no picture" needs a new video packet this recently: a
+    /// stream that fails to decode sends tens a second. An Apple TV with a
+    /// still screen sends one packet once a second after its pictures stop
+    /// (the Apple TV 4K, 2026-11-21), and counted within three seconds that
+    /// one packet restarted a healthy session.
+    static let flowNanoseconds: UInt64 = 1_000_000_000
     /// A restart must deliver its first picture within this.
     static let restartBudgetNanoseconds: UInt64 = 10_000_000_000
     /// No restart begins with less of the requested duration left.
@@ -72,7 +78,7 @@ struct RecordingRecovery: Sendable {
         if let restartedAt {
             return Self.span(now, restartedAt) >= Self.restartBudgetNanoseconds ? .noPictures : nil
         }
-        if Self.span(now, lastPicture) >= Self.stallNanoseconds, Self.span(now, lastPacket) < Self.stallNanoseconds { return .noPictures }
+        if Self.span(now, lastPicture) >= Self.stallNanoseconds, Self.span(now, lastPacket) < Self.flowNanoseconds { return .noPictures }
         return nil
     }
 

@@ -40,6 +40,11 @@ struct RecordingRecoveryTests {
         for t in stride(from: 1 * second, through: 5 * second, by: Int(second / 10)) { garbled.packet(at: t) }
         #expect(garbled.stall(at: 3 * second) == nil)
         #expect(garbled.stall(at: 5 * second) == .noPictures)
+        // One packet after the pictures stop, as a still Apple TV screen
+        // sends, is not a stream failing to decode.
+        var still = started()
+        still.packet(at: 2 * second)
+        #expect(still.stall(at: 4 * second + second / 2) == nil && still.stall(at: 30 * second) == nil)
     }
 
     @Test func threeRestartsThenAFailureIsThrownAsBefore() {

@@ -180,6 +180,14 @@ extension NativeVideoEncoder: NativeRecordingSink {}
             var last: UInt64 = 0
             var checked = link.now()
             var received = 0
+            /// The last video packet's sequence number and timestamp. Only a
+            /// new video packet counts as traffic for the stall "packets and
+            /// no picture". An Apple TV with a still screen sends no new
+            /// picture after about five seconds and repeats one 48-byte
+            /// packet, unchanged, once a second (the Apple TV 4K, 2026-11-21);
+            /// counted as traffic, the repeats and the datagrams between them
+            /// made that a stall and restarted a healthy session.
+            var lastPacketKey: Data?
             func restartSession() throws {
                 earlierReportsSent += capture?.receiverReportsSent ?? 0
                 earlierReportsObserved += capture?.senderReportsObserved ?? 0
@@ -298,15 +306,18 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                     continue
                 }
                 if let packet = next {
-                    recovery?.packet(at: now)
                     packetCount += 1
                     received += packet.count
                     guard received <= 1024 * 1024 * 1024 else {
                         throw CommandFailure(.transportFailed, "Native recording exceeded its one-GiB transport budget.", inputSent: .none)
                     }
-                    if let packet = MediaRTPPacket(packet, payloadType: payloadType),
-                        let unit = try assembler.accept(packet)
-                    {
+                    let video = MediaRTPPacket(packet, payloadType: payloadType)
+                    if video != nil {
+                        let key = packet.subdata(in: 2..<8)
+                        if key != lastPacketKey { recovery?.packet(at: now) }
+                        lastPacketKey = key
+                    }
+                    if let video, let unit = try assembler.accept(video) {
                         unitCount += 1
                         guard let pixels = try decoder?.decodePixels(unit, emit: first == nil || now - last >= 33_333_333, crop: cropped)
                         else { continue }

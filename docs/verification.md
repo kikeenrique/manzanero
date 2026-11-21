@@ -1094,6 +1094,15 @@ So `scroll --search` works in four directions on an iPhone simulator, and plain 
 
 Not shown: a plain table row on a physical iPhone, where the same guard runs and nothing was tried; an iPad; a list whose rows do not share an edge; a table row hidden under another view with the same frame and no identifier or label, which the rule refuses by construction and no app showed.
 
+### The Apple TV's still screen, and a restart it did not need
+
+2026-11-21, about 20:30, the Apple TV 4K (tvOS 27.2) at the human owner's word, the room kept quiet: video only, the tvOS probe in front (its still screen, Button A focused), nothing pressed. Its display reported `external`; the television was on.
+
+- **Pictures on a still screen.** `frames … --count 1000 --seconds 60` (no `--interval`, so every picture that arrived) saved 69 pictures, all in the first 4.7 s, a median of 61 ms apart and at most 165 ms; then none for the rest of the minute. A second run of 30 s with `MANZANERO_KEEP_STREAM=1` did the same (68 pictures, the last at 4.84 s) and kept 1002 packets: the video's up to about 5 s, and then one 48-byte packet with sequence number 12 and an unchanged timestamp, 30 times, once a second, a series of its own beside the video's (sequence numbers near 53606). So unlike the phone, whose still screen delivered a picture at least every 119 ms, a still Apple TV screen stops sending video after about five seconds.
+- **A restart it did not need.** `record … 15 --backend coredevice`, the first Apple TV recording since recovery was built, restarted its session once: `recovery.gaps` held one `no-pictures` gap at 4.9 s. Recovery counted every datagram as traffic, so the repeated packet made "packets and no picture for 3 s" a stall. Counting only new video packets (the negotiated payload type, a new sequence number and timestamp) still left one restart in a 30-second recording: the repeat's first arrival is new, and one packet within the 3 s was enough. With the stall also needing a new video packet within the last second (`RecordingRecovery.flowNanoseconds`; a stream that fails to decode sends tens a second), a 30-second recording of the same screen had `restarts: 0` and no gap, 73 source pictures, the last one held to the end, and a confirmed stop.
+
+So silence cannot be a sign of a lost stream on an Apple TV: its still screen is silent, apart from that repeat, for as long as nothing moves.
+
 ### The press order on the Apple TV 4K, and a stale connection
 
 On 2026-11-21 from 15:49, the Apple TV 4K (3rd generation, tvOS 27.2) with the tvOS probe in front, at the human owner's word; the room kept quiet. `readiness` and a screenshot read `displayPower: external`, and the probe's tree came over the tool's paired tunnel (`serviceDirectory: own-tunnel`, `ownTunnelLink: paired`).
