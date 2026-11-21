@@ -142,6 +142,13 @@ int ADCReadAudioPacketProfile(void *owner, ADCAudioPacketProfile *profile);
 /// Consumes owner, closes its socket and requests a stop of only its
 /// reply-derived RemoteSSRC with stopAll=false. No stop-all fallback.
 int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size_t errorCapacity);
+/// The device's identifier of an open session's owned video stream; 0 when known.
+int ADCReadVideoOwnedIdentifier(void *owner, uint32_t *identifier);
+/// Stops one owned video stream by its identifier over a fresh control
+/// connection (never stop-all) and reads whether any session remains: for a
+/// session whose stop could not be sent because the device was unreachable.
+int ADCStopVideoStreamByIdentifier(const char *uuid, const char *version, uint32_t identifier, int (^cancelled)(void),
+                                   ADCVideoCleanup *result, char *error, size_t errorCapacity);
 
 typedef int (^ADCInputShouldStop)(void);
 /// Non-zero status of the input functions below (digitizer reports, button,

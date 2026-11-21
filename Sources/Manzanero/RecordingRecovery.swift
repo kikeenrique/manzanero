@@ -12,6 +12,9 @@ struct RecordingRecovery: Sendable {
     static let restartBudgetNanoseconds: UInt64 = 10_000_000_000
     /// No restart begins with less of the requested duration left.
     static let minimumRemainingNanoseconds: UInt64 = 2_000_000_000
+    /// How long a restart waits for a device that stopped answering (a
+    /// pulled cable) before it gives up on the lost session's end.
+    static let linkWaitNanoseconds: UInt64 = 30_000_000_000
 
     enum Reason: String, Sendable {
         case streamEnded = "stream-ended", transportFailed = "transport-failed"

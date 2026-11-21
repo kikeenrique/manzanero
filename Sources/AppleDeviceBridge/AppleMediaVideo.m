@@ -710,3 +710,45 @@ int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size
     if (!confirmed || !audioConfirmed) return VideoFail(error, capacity, @"Owned media stop is unconfirmed; no stop-all fallback was sent.");
     return 0;
 }
+
+int ADCReadVideoOwnedIdentifier(void *owner, uint32_t *identifier) {
+    if (!owner || !identifier) return 1;
+    ADCVideoOwner *state = (__bridge ADCVideoOwner *)owner;
+    if (!state.hasIdentifier) return 1;
+    *identifier = state.ownedIdentifier;
+    return 0;
+}
+
+int ADCStopVideoStreamByIdentifier(const char *uuid, const char *version, uint32_t identifier, int (^cancelled)(void),
+                                   ADCVideoCleanup *result, char *error, size_t capacity) {
+    @autoreleasepool {
+        if (result) memset(result, 0, sizeof(*result));
+        if (result) result->startAttempted = 1;
+        ADCMediaControl *control = [ADCMediaControl openUUID:uuid version:version streaming:NO cancelled:cancelled error:error capacity:capacity];
+        if (!control) return 1;
+        BOOL confirmed = NO;
+        @try {
+            // The one owned stream, by its identifier; never stop-all.
+            xpc_object_t input = xpc_dictionary_create_empty(), identifiers = xpc_array_create_empty();
+            xpc_dictionary_set_bool(input, "stopAll", false);
+            xpc_array_append_value(identifiers, xpc_uint64_create(identifier));
+            xpc_dictionary_set_value(input, "identifiers", identifiers);
+            xpc_object_t reply = [control requestAction:"com.apple.coredevice.action.mediastreamstop" input:input deadline:VideoNow() + 4ULL * NSEC_PER_SEC cancelled:cancelled error:error capacity:capacity];
+            xpc_object_t output = reply ? xpc_dictionary_get_dictionary(reply, "CoreDevice.output") : nil;
+            xpc_object_t stopped = output ? xpc_dictionary_get_array(output, "stoppedStreams") : nil;
+            if (stopped && xpc_array_get_count(stopped) <= 128) {
+                for (size_t i = 0; i < xpc_array_get_count(stopped); i++) {
+                    uint64_t value;
+                    if (VideoUInt(xpc_array_get_value(stopped, i), &value) && value == identifier) confirmed = YES;
+                }
+            }
+            if (result && confirmed) result->stopAcknowledged = 1;
+            xpc_object_t status = [control requestAction:"com.apple.coredevice.action.mediastreamstatus" input:xpc_dictionary_create_empty() deadline:VideoNow() + 4ULL * NSEC_PER_SEC cancelled:cancelled error:error capacity:capacity];
+            xpc_object_t info = status ? xpc_dictionary_get_dictionary(status, "CoreDevice.output") : nil;
+            xpc_object_t sessions = info ? xpc_dictionary_get_array(info, "sessions") : nil;
+            if (sessions && xpc_array_get_count(sessions) == 0 && result) result->ownedStreamAbsent = 1;
+        } @finally { [control close]; }
+        if (!confirmed) return VideoFail(error, capacity, @"The owned stream's stop by identifier was not acknowledged; no stop-all was sent.");
+        return 0;
+    }
+}

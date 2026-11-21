@@ -106,6 +106,11 @@ struct RecordingCommand: Sendable, Equatable {
                         "packetsRefused": sound.refused, "secondsWritten": sound.seconds] as [String: Any]
                 }
                 if let recovery = nativeReceipt.recovery { result["recovery"] = recovery.json }
+                if let partial = nativeReceipt.partial {
+                    // What was captured before a failure, kept; the command exits 1.
+                    result["status"] = "partial"
+                    result["stopReason"] = partial
+                }
                 result["rtcp"] = ["receiverReportsSent": nativeReceipt.receiverReportsSent,
                     "senderReportsObserved": nativeReceipt.senderReportsObserved,
                     "negotiatedFeedback": nativeReceipt.negotiatedFeedback] as [String: Any]

@@ -4,6 +4,19 @@ import Foundation
 /// Read-only control evidence for the in-process video implementation. No
 /// negotiator offer, stream start/stop, decoder hook or media socket is created.
 enum NativeMediaInspection {
+    /// The number of media sessions the device runs now, read over a fresh
+    /// connection; nothing is started or stopped. Recording recovery reads it
+    /// to see a lost session gone before it opens the next.
+    static func sessionCount(uuid: String, version: String) throws -> UInt64 {
+        var result = ADCMediaInspection(), error = [CChar](repeating: 0, count: 1024)
+        let status = ADCInspectMedia(uuid, version, { Task.isCancelled ? 1 : 0 }, &result, &error, error.count)
+        try Task.checkCancellation()
+        guard status == 0 else {
+            throw CommandFailure(.transportFailed, String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self), inputSent: .none)
+        }
+        return result.sessionCount
+    }
+
     static func execute(device: String, query: (DeviceCommand) throws -> Data) throws -> Data {
         try Task.checkCancellation()
         let input = CoreDeviceInput(device: device, operation: "media-status", operands: [])

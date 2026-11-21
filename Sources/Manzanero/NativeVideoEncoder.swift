@@ -132,17 +132,20 @@ actor NativeVideoEncoder {
         frameCount += 1
     }
 
-    func finish() async throws -> Int {
+    /// Ends the movie at the requested duration, or, for a recording kept
+    /// after a failure (`partial`), shortly after its last picture.
+    func finish(partial: Bool = false) async throws -> Int {
         guard let writer, let receiver, let last else {
             throw CommandFailure(.transportFailed, "Native video produced no encodable frame.", inputSent: .none)
         }
         // Deduplication/static screens must retain their last image through the
         // requested interval instead of becoming a one-frame-duration movie.
-        let tail = UInt64(seconds * 1_000_000_000) - 1_000_000
+        let end = partial ? min(lastTime + 100_000_000, UInt64(seconds * 1_000_000_000)) : UInt64(seconds * 1_000_000_000)
+        let tail = end - 1_000_000
         if lastTime < tail {
             try await receiver.append(last, with: CMTime(value: Int64(tail), timescale: 1_000_000_000))
         }
-        writer.endSession(atSourceTime: CMTime(seconds: seconds, preferredTimescale: 1_000_000_000))
+        writer.endSession(atSourceTime: CMTime(value: Int64(end), timescale: 1_000_000_000))
         receiver.finish()
         audioReceiver?.finish()
         await writer.finishWriting()
@@ -167,6 +170,8 @@ struct NativeRecordingReceipt: Sendable {
     var audio: NativeAudioTrack.Receipt? = nil
     /// Restarts and gaps, for a recording without sound.
     var recovery: RecordingRecovery? = nil
+    /// Why the recording ended early, when what was captured was kept.
+    var partial: String? = nil
 }
 
 @MainActor enum NativeRecording {
@@ -178,12 +183,14 @@ struct NativeRecordingReceipt: Sendable {
         let input = CoreDeviceInput(device: command.device, operation: "record", operands: [])
         let details = try runner.run(input.identityPlan().arguments, timeout: 20)
         let identity = try DirectPhysicalInput.identity(input, query: { _ in details })
-        let assertion = try NativeTunnelAssertion(device: command.device, details: details)
+        // Both are taken again when a restart follows a lost link: the
+        // device's address in the tunnel can change when its cable comes back.
+        var assertion = try NativeTunnelAssertion(device: command.device, details: details)
         defer { assertion.close() }
         let inventory = try runner.run([
             "devicectl", "list", "devices", "--timeout", "15", "--json-output", "-", "--quiet",
         ])
-        let endpoint = try NativeMediaEndpoint.resolve(
+        var endpoint = try NativeMediaEndpoint.resolve(
             details: details, inventory: inventory, requested: command.device)
         let display = try DirectTouchDisplay(
             runner.run(AccessibilityDisplay.plan(device: identity.uuid).arguments, timeout: 15), capture: true)
@@ -198,6 +205,21 @@ struct NativeRecordingReceipt: Sendable {
             decoder?.close()
             return capture?.close()
         }
+        let duration = UInt64(command.seconds * 1_000_000_000)
+        // A lost session after the first picture is restarted on the same
+        // endpoint (docs/recording-recovery.md). With --audio there is no
+        // restart: the sound stream's restart has not been checked.
+        var recovery = command.audio ? nil : RecordingRecovery(durationNanoseconds: duration)
+        var earlierReportsSent: UInt64 = 0, earlierReportsObserved: UInt64 = 0
+        /// The last lost session's cleanup, for a recording that ends holding
+        /// its picture, or is kept after a failure, with no session open.
+        var closedCleanup: NativeMediaFrames.Cleanup?
+        /// A lost session's absence read from the device's session count
+        /// after its stop could not be confirmed (an unreachable device).
+        var absenceByCount = false
+        /// The lost session's stream identifier, kept across restart attempts.
+        var lostIdentifier: UInt32?
+        var stoppedByIdentifier = false
         do {
             capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version, plainOffer: display.external)
             // The device's sound is a second stream, started before the
@@ -224,27 +246,59 @@ struct NativeRecordingReceipt: Sendable {
             let crop = display.external ? FramesCommand.visibleSize(display: display, stream: (Int(width), Int(height))) : nil
             var assembler = MediaHEVCAssembler()
             let startup = DispatchTime.now().uptimeNanoseconds + 12_000_000_000
-            let duration = UInt64(command.seconds * 1_000_000_000)
             var first: UInt64?
             var last: UInt64 = 0
             var checked = DispatchTime.now().uptimeNanoseconds
             var received = 0
-            // A lost session after the first picture is restarted on the same
-            // endpoint (docs/recording-recovery.md). With --audio there is no
-            // restart: the sound stream's restart has not been checked.
-            var recovery = command.audio ? nil : RecordingRecovery(durationNanoseconds: duration)
-            var earlierReportsSent: UInt64 = 0, earlierReportsObserved: UInt64 = 0
-            /// The last lost session's confirmed cleanup, for a recording
-            /// that ends holding its picture after a restart failed to open.
-            var closedCleanup: NativeMediaFrames.Cleanup?
             func restartSession() throws {
                 earlierReportsSent += capture?.receiverReportsSent ?? 0
                 earlierReportsObserved += capture?.senderReportsObserved ?? 0
                 decoder?.close(); decoder = nil
+                if let identifier = capture?.ownedIdentifier { lostIdentifier = identifier }
                 let cleanup = capture?.close() ?? closedCleanup; capture = nil
                 closedCleanup = cleanup
-                guard let cleanup, cleanup.stopAcknowledged, cleanup.ownedStreamAbsent else {
-                    throw CommandFailure(.transportFailed, "Native recording could not confirm the end of a lost session, so it was not restarted: owned stop=\(cleanup?.stopAcknowledged ?? false), stream absent=\(cleanup?.ownedStreamAbsent ?? false). \(cleanup?.diagnostic ?? "")", inputSent: .none)
+                if cleanup?.stopAcknowledged != true || cleanup?.ownedStreamAbsent != true {
+                    // The stop could not be confirmed, as when the cable is
+                    // pulled: the device cannot answer. Wait for it to answer
+                    // again, then require that it runs no media session at
+                    // all; a session still running is not stopped.
+                    let deadline = DispatchTime.now().uptimeNanoseconds + RecordingRecovery.linkWaitNanoseconds
+                    var count: UInt64?
+                    while count == nil {
+                        try Task.checkCancellation()
+                        count = try? NativeMediaInspection.sessionCount(uuid: identity.uuid, version: identity.version)
+                        if count == nil {
+                            guard DispatchTime.now().uptimeNanoseconds < deadline else {
+                                throw CommandFailure(.timeout, "Native recording lost the device and it did not answer again within \(RecordingRecovery.linkWaitNanoseconds / 1_000_000_000) s, so the lost session's end could not be confirmed and no new one was opened. \(cleanup?.diagnostic ?? "")", inputSent: .none)
+                            }
+                            Thread.sleep(forTimeInterval: 1)
+                        }
+                    }
+                    if count != 0 {
+                        // Seen on the iPhone 13 mini after a pulled cable: the
+                        // lost session was still running. Stop it by its own
+                        // identifier, the stop that could not be sent before,
+                        // and require that no session remains.
+                        guard let identifier = lostIdentifier else {
+                            throw CommandFailure(.preconditionChanged, "Native recording's lost session ended unconfirmed and the device still runs \(count!) media session(s) it cannot identify as its own, so no new one was opened; nothing was stopped.", inputSent: .none)
+                        }
+                        let stopped = NativeMediaFrames.stop(identifier: identifier, uuid: identity.uuid, version: identity.version)
+                        guard stopped.ownedStreamAbsent else {
+                            throw CommandFailure(.preconditionChanged, "Native recording stopped its lost session by identifier (acknowledged: \(stopped.stopAcknowledged)) but the device still runs a media session, so no new one was opened. \(stopped.diagnostic ?? "")", inputSent: .none)
+                        }
+                        stoppedByIdentifier = true
+                    }
+                    absenceByCount = true
+                    closedCleanup = NativeMediaFrames.Cleanup(startAttempted: true, stopAcknowledged: (cleanup?.stopAcknowledged ?? false) || stoppedByIdentifier,
+                        ownedStreamAbsent: true, diagnostic: stoppedByIdentifier
+                            ? "The lost session was stopped by its identifier once the device answered again; no session remained."
+                            : "The lost session's absence was read from the device's media session count (0).")
+                    // The link may have come back on another address.
+                    let fresh = try runner.run(input.identityPlan().arguments, timeout: 20)
+                    assertion.close()
+                    assertion = try NativeTunnelAssertion(device: command.device, details: fresh)
+                    endpoint = try NativeMediaEndpoint.resolve(details: fresh, inventory: runner.run([
+                        "devicectl", "list", "devices", "--timeout", "15", "--json-output", "-", "--quiet"]), requested: command.device)
                 }
                 capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version, plainOffer: display.external)
                 try capture?.start(displayID: Int64(display.id))
@@ -272,7 +326,9 @@ struct NativeRecordingReceipt: Sendable {
                         do { try restartSession(); return true }
                         catch {
                             if error is CancellationError || Task.isCancelled { throw CancellationError() }
-                            if let failure = error as? CommandFailure, failure.code == .preconditionChanged { throw failure }
+                            // A changed stream, a session still running or a device that
+                            // never came back: another attempt would meet the same.
+                            if let failure = error as? CommandFailure, [.preconditionChanged, .timeout].contains(failure.code) { throw failure }
                             lastError = error
                         }
                     }
@@ -348,7 +404,7 @@ struct NativeRecordingReceipt: Sendable {
                 throw CommandFailure(.internal, "Native recording lost its media owner.", inputSent: .none)
             }
             let release = assertion.close()
-            guard cleanup.stopAcknowledged, cleanup.ownedStreamAbsent, release.confirmed else {
+            guard cleanup.stopAcknowledged || absenceByCount, cleanup.ownedStreamAbsent, release.confirmed else {
                 throw CommandFailure(.transportFailed,
                         "Native recording cleanup unconfirmed: owned stop=\(cleanup.stopAcknowledged), stream absent=\(cleanup.ownedStreamAbsent), tunnel release=\(release.status). \(cleanup.diagnostic ?? "")",
                         inputSent: .none
@@ -362,8 +418,20 @@ struct NativeRecordingReceipt: Sendable {
                 senderReportsObserved: reportsObserved,
                 negotiatedFeedback: capture?.negotiatedFeedback ?? "unknown", audio: sound?.receipt, recovery: recovery)
         } catch {
-            let cleanup = closeMedia()
+            let cleanup = closeMedia() ?? closedCleanup
             let release = assertion.close()
+            // A failure after pictures were captured keeps them: the movie ends
+            // after its last picture and the result says it is partial. An
+            // interrupt still discards it.
+            if !(error is CancellationError), !Task.isCancelled, decodedCount > 0,
+               let frames = try? await encoder.finish(partial: true) {
+                await sessions.end(endpoint.uuid)
+                return NativeRecordingReceipt(frames: frames,
+                    media: cleanup ?? NativeMediaFrames.Cleanup(startAttempted: true, stopAcknowledged: false, ownedStreamAbsent: false, diagnostic: nil),
+                    assertionRelease: release.status, receiverReportsSent: earlierReportsSent, senderReportsObserved: earlierReportsObserved,
+                    negotiatedFeedback: "unknown", recovery: recovery,
+                    partial: "\(error) Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount).")
+            }
             await encoder.cancel()
             await sessions.end(endpoint.uuid)
             var detail = "\(error) Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount). Cleanup: owned stop=\(cleanup?.stopAcknowledged ?? false), stream absent=\(cleanup?.ownedStreamAbsent ?? false), tunnel release=\(release.status). \(cleanup?.diagnostic ?? "")"

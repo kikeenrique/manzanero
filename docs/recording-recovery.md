@@ -75,6 +75,15 @@ As built, the decisions live in `RecordingRecovery`, which the loop feeds with p
 
 On the iPhone 13 mini on 2026-11-21 the cable was pulled 12 s into a 240-second recording. The loss was seen and a restart begun, but closing the lost session could not confirm its stop (the phone was unreachable), and the rule above ("each earlier session's stop must have been acknowledged and its stream absent before the next was opened, or the recording fails then") ended the recording, with its 101 pictures discarded ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)). So for a lost link the rule as written defeats recovery: the stop of a session on a device that cannot be reached can only be confirmed once it can be reached again.
 
+## Changed after that check: waiting for the device, and keeping what was captured
+
+At the human owner's choice of options A and B the same day:
+
+- **A, a lost link.** When the lost session's stop cannot be confirmed, the restart asks the device every second, for up to 30 s (`RecordingRecovery.linkWaitNanoseconds`), how many media sessions it runs (`ADCInspectMedia`, read-only, over a fresh connection). With none, the new session is opened on freshly read details, tunnel assertion and endpoint, because the device's address can change when its cable comes back. With one still running, the tool stops its own lost stream by the identifier it was given at the start (`ADCStopVideoStreamByIdentifier`: the same `mediastreamstop` with `stopAll: false` that a normal stop sends, now over a new connection) and requires that no session remains. Anything else, a session it cannot identify as its own or a device that does not answer within 30 s, ends the recording, and nothing else is ever stopped.
+- **B, a recording that cannot recover.** A failure after the first picture, other than an interrupt, keeps the movie: it ends just after its last picture, the result says `status: partial` with `stopReason`, and the command exits 1.
+
+Seen on the iPhone 13 mini: with only the session count in place, a cable pull 62 s into a 240-second recording found the device answering again and still running one session (the lost one), opened nothing, and B kept the 62.6-second movie (`partial`, `recovery.gaps` with one `stream-ended`). The stop by identifier was added after that run; a further run with the cable pulled showed no loss at all (240 s, no restart), probably because the pull did not fall inside it or the stream moved to the network without ending. A restart that completes is still to be seen.
+
 ## Live checks owed
 
 On the iPhone 13 mini, with a moving screen: pull the cable during a recording on the cable route (Apple's tunnel then drops); end the stream from the device by opening Device Hub's screen view of it mid-recording (the device gives the screen to the newest client); and record a still screen for a minute to read how often packets arrive, which tests the 3-second threshold. On the Apple TV 4K, the still-screen measurement, with the tvOS probe in front and the room kept quiet.

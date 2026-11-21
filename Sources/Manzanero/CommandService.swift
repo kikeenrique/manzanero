@@ -513,7 +513,10 @@ actor CommandService {
                     ? try leases.acquire(device: CoreDeviceInput.resolve(readinessQuery(recording.device), requested: recording.device), operation: "record")
                     : nil
                 defer { lease?.release() }
-                return CommandOutput(data: try await recording.execute(directory: directory, runner: runner))
+                let data = try await recording.execute(directory: directory, runner: runner)
+                // A partial recording is published, and still not a success.
+                let partial = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["status"] as? String == "partial"
+                return CommandOutput(data: data, exitCode: partial ? 1 : 0)
             } catch let failure as CommandFailure {
                 throw failure.noInputSent()
             }

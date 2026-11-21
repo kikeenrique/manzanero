@@ -60,7 +60,8 @@ Receipts report:
 - actual artifact duration, decoded dimensions and codec;
 - separate stream/tunnel cleanup fields;
 - RTCP report counters and negotiated-feedback observation;
-- without `--audio`, `recovery`: restarts, gaps and `lastPictureHeldFrom` ([recovery](recording-recovery.md), since 2026-11-21, not yet run on a device).
+- without `--audio`, `recovery`: restarts, gaps and `lastPictureHeldFrom` ([recovery](recording-recovery.md), since 2026-11-21);
+- `status: partial` and `stopReason` when a failure after the first picture ended the recording early: what was captured is kept and the command exits 1 (seen on the iPhone 13 mini with a pulled cable).
 
 `deviceStopConfirmed` means owned stop acknowledgement plus fresh server absence; it does not prove destruction of every native resource. Cancellation/failure publishes no successful movie receipt. Failed/staged artifacts may remain privately for investigation.
 

@@ -151,6 +151,21 @@ final class NativeMediaFrames {
         }
     }
 
+    /// The device's identifier of this session's video stream, once started.
+    var ownedIdentifier: UInt32? {
+        var identifier: UInt32 = 0
+        return ADCReadVideoOwnedIdentifier(owner, &identifier) == 0 ? identifier : nil
+    }
+
+    /// Stops a lost session's stream by its identifier, once the device can
+    /// be reached again; nothing else is stopped.
+    static func stop(identifier: UInt32, uuid: String, version: String) -> Cleanup {
+        var result = ADCVideoCleanup(), error = [CChar](repeating: 0, count: 1024)
+        let status = ADCStopVideoStreamByIdentifier(uuid, version, identifier, { Task.isCancelled ? 1 : 0 }, &result, &error, error.count)
+        return Cleanup(startAttempted: true, stopAcknowledged: result.stopAcknowledged != 0, ownedStreamAbsent: result.ownedStreamAbsent != 0,
+                       diagnostic: status == 0 ? "Stopped by identifier after the device answered again." : text(error))
+    }
+
     @discardableResult
     func close() -> Cleanup {
         if let cleanup { return cleanup }
