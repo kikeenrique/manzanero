@@ -62,16 +62,15 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **Apple TV**: the press order, `logs` and removing the dead pairing were done on 2026-11-21; three more presses by the Inspector's cursor left the connection healthy, so that route stays; the earlier stale state's cause is unknown.
+1. **A release** of the work of 2026-11-21, which is in no beta yet.
 2. **Recording recovery, the rest**: the stream taken by another client, a still screen's packet rate, `--audio`, `frames`.
-3. **A release** of the work of 2026-11-21, which is in no beta yet.
-4. **Small checks on the iPhone**: an action in flight when the cable is pulled, and a `batch` across a change of link (both need the human owner).
-5. **Simulator findings**: iPadOS cancelling a four-path drag, unconfirmed.
-6. **Sound in a recording, the rest**, on a device: picture and sound in step, a long recording.
-7. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
-8. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
-9. **Watch typing, B2**: accents, the symbols page, other keyboards, a real watch.
-10. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
+3. **Small checks on the iPhone**: an action in flight when the cable is pulled, and a `batch` across a change of link (both need the human owner).
+4. **Simulator findings**: iPadOS cancelling a four-path drag, unconfirmed.
+5. **Sound in a recording, the rest**, on a device: picture and sound in step, a long recording.
+6. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
+7. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
+8. **Watch typing, B2**: accents, the symbols page, other keyboards, a real watch.
+9. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
 
 ## Done later on 2026-11-21 (not released)
 
@@ -81,6 +80,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 - **Watch typing**: `type` taps the watch's on-screen keyboard (simulator).
 - **A completeness run** on iPad, iPhone Duo and Apple Watch simulators filled most of their columns above, with three fixes (Duo letterboxed press, watch list search, `detect-layout` refused on a watch).
 - **On the iPhone too**: `batch` and an MCP session over the network, and a `wait` that survived a pulled cable.
+- **Apple TV**: the `press` order (the tool's paired tunnel, then the Inspector's cursor) and `logs` ran on the device; the dead pairing was removed; Apple's tunnel is no longer used for an Apple TV, after it left the connection stale once more.
 
 ## Done on 2026-11-21
 
