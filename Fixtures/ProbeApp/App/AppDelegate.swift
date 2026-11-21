@@ -40,6 +40,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = lists ? ProbeListViewController() : ProbeViewController(model: model)
         window.makeKeyAndVisible()
         self.window = window
+        (UIApplication.shared.delegate as? AppDelegate)?.toneProbe.attach(to: window)
         if !lists, let surface = window.rootViewController?.view {
             (UIApplication.shared.delegate as? AppDelegate)?.logProbe.attach(to: surface)
             (UIApplication.shared.delegate as? AppDelegate)?.permissionProbe.attach(to: surface)

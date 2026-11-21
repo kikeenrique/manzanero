@@ -350,6 +350,8 @@ manzanero record tmp/sound.mp4 8 --backend coredevice --audio --device <UDID>
 
 A first version generated a sine wave with `AVAudioEngine`: it started without an error and nobody heard it. This one builds a WAV in memory and plays it with `AVAudioPlayer`. The tvOS probe has no tone: the room it is in stays quiet.
 
+**The flash.** Since 2026-11-21 the whole screen turns white while the first beep of each round sounds (a round is 1.6 s: four beeps of 0.2 s with 0.1 s gaps, then 0.4 s of rest), so that a recording's picture and sound can be lined up. A display-link callback reads the player's position, takes off the audio session's output latency (printed with `probe.tone playing`), and shows the flash for the first 0.2 s of each round; the flash is a plain view, not touchable and hidden from accessibility, and exists only with `-ProbeTone YES`. Seen in `frames` on the iPhone 13 mini: white frames every 1.6 s. The phone's volume is the phone's: on 2026-11-21 it was at its lowest and the first beeps were not heard until the human owner raised it.
+
 ## List probe
 
 Launched with `-ProbeList YES`, the iOS probe shows two lists in place of the touch surface (`App/ProbeListViewController.swift`): a table of sixty rows and, above it, a strip of forty columns that moves sideways. Both keep only the cells near the screen, so a row further on has no accessibility element until its list has moved, which is what [`scroll --search`](direct-accessibility.md#searching-a-list-that-loads-its-rows---search) is for.
