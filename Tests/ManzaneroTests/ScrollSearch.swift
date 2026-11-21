@@ -19,6 +19,9 @@ struct ScrollSearchTests {
         var withContainer = false
         /// A second list that runs sideways, lower on the screen than the rows.
         var withStrip = false
+        /// A watch's list: each row holds its text as a hidden child that
+        /// starts at another x, and only the row itself moves the list.
+        var watchRows = false
         var platform: AccessibilityPlatform { .simulator }
 
         init(count: Int) { self.count = count }
@@ -35,6 +38,15 @@ struct ScrollSearchTests {
             var rows: [Value] = []
             for offset in 0..<5 where first + offset <= count {
                 let row = first + offset
+                if watchRows {
+                    let text = HostedProcessActionTests.Session.record(UInt64(300 + row), pid: pid, attributes: [
+                        "2001": .string("Row \(row)"),
+                        "2003": .object(className: "NSValue", fields: ["NS.rectval": .string("{{\(40 + offset * 9), \(offset * 60 + 10)}, {150, 40}}")]),
+                        "2025": .boolean(false)])
+                    rows.append(HostedProcessActionTests.Session.record(UInt64(100 + row), pid: pid, attributes: [
+                        "5019": .string("row.\(row)"), "2003": Self.rectangle(offset * 60), "2025": .boolean(offset < 4)], children: [text]))
+                    continue
+                }
                 rows.append(HostedProcessActionTests.Session.record(UInt64(100 + row), pid: pid, attributes: [
                     "2001": .string("Row \(row)"), "5019": .string("row.\(row)"),
                     "2003": Self.rectangle(offset * 60), "2025": .boolean(offset < 4)]))
@@ -100,6 +112,15 @@ struct ScrollSearchTests {
         // The strip's columns are the lowest elements, and are never scrolled to.
         #expect(try search(9, steps: 30, in: session) == 4)
         #expect(session.scrolled == [105, 106, 107, 108])
+    }
+
+    /// Watch Ultra Settings: no two texts share a line, so the rows are tried
+    /// once the texts have moved nothing, and they move the list.
+    @Test func aWatchListIsSearchedByItsRowsWhenItsTextsMoveNothing() throws {
+        let session = ListSession(count: 20)
+        session.watchRows = true
+        #expect(try search(9, steps: 30, in: session) == 4)
+        #expect(session.scrolled.filter { $0 >= 100 && $0 < 200 } == [105, 106, 107, 108])
     }
 
     @Test func itStopsAtTheStepLimitAndAtTheEndOfTheList() throws {

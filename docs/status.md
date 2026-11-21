@@ -29,7 +29,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
 | **Accessibility, read**: `tree`, `wait` | works, portrait and landscape | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
 | **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait and landscape | works | works, see the routes below | works | works | works, a letterboxed app too since 2026-11-21 |
-| **Accessibility, search a long list**: `scroll --search` | works downward; the other directions not run | works in four directions (iPhone, iPad) | works in four directions | works in four directions | partly: up and down on the Series 12; fails on the Ultra | works in four directions |
+| **Accessibility, search a long list**: `scroll --search` | works downward; the other directions not run | works in four directions (iPhone, iPad) | works in four directions | works in four directions | works, up and down (Series 12 and Ultra) | works in four directions |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | works | works, with `--display` |
 | **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` | `record` works | `record` works | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | works (Ultra) | works; a first URL after its prompt was lost once |

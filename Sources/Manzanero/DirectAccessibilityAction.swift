@@ -243,6 +243,19 @@ struct DirectAccessibilityAction {
                 if reach(first) != reach(second) { return reach(first) > reach(second) }
                 return first.token.objectID < second.token.objectID
             }
+            // The rows themselves too: a watch shrinks a list's rows towards
+            // its edges, so the texts inside them start at different x and
+            // few share a line, while the rows do (Watch Ultra Settings on
+            // 2026-11-21: texts at x 42.5, 43.8 and 85, rows at x 2; the
+            // search stopped after one step). Rows come after the texts when
+            // some texts form a list, and before them when none do.
+            let rows = placed.filter { !$0.children.isEmpty && ($0.label != nil || $0.identifier != nil) }
+            let rowGroups = Dictionary(grouping: rows, by: { line($0) ?? .nan }).values.filter { Set($0.compactMap(position)).count > 1 }
+            let known = Set(candidates.map(\.token.objectID))
+            let rowCandidates = rowGroups.compactMap { $0.max(by: { reach($0) < reach($1) }) }
+                .filter { !known.contains($0.token.objectID) }
+                .sorted { reach($0) != reach($1) ? reach($0) > reach($1) : $0.token.objectID < $1.token.objectID }
+            candidates = along.isEmpty ? rowCandidates + candidates : candidates + rowCandidates
             guard !candidates.isEmpty else {
                 throw failure("selector not found and the tree has no element to scroll from", .targetUnresolved, inputSent: sent)
             }
