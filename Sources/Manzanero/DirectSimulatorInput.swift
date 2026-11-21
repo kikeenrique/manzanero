@@ -134,6 +134,33 @@ enum DirectSimulatorInput {
             try Task.checkCancellation()
             try environment.crown(input.device, DigitalCrown.steps(units, events: events), DigitalCrown.intervalMilliseconds * 1_000_000)
             result["crown"] = DigitalCrown.describe(units, events: events)
+        case "type" where info.isAppleWatch:
+            let text = input.operands[0]
+            try WatchKeyboard.validate(text)
+            let session: any AccessibilityExchange
+            do { session = try environment.accessibility(input.device, .seconds(20 + 2 * text.count)) }
+            catch let failure as CommandFailure { throw failure.noInputSent() }
+            defer { session.close() }
+            try session.start()
+            let display = try SimulatorDisplay.read(input.device, environment: environment)
+            let bounds = display.accessibility(info).bounds
+            let app = try session.foregroundProcess(display.accessibility(info))
+            guard let process = WatchKeyboard.keyboardProcess(try AccessibilitySnapshot.normalize(session.snapshot(app), root: app)) else {
+                throw CommandFailure(.targetUnresolved, "No watch keyboard is open: press the text field first, so watchOS shows its keyboard, then type. No input sent.", inputSent: .none)
+            }
+            let keyboard = try session.application(pid: process)
+            let typed = try WatchKeyboard.type(text, read: {
+                WatchKeyboard.keys(try AccessibilitySnapshot.normalize(session.snapshot(keyboard), root: keyboard), bounds: bounds)
+            }, tap: { key in
+                let tap = try SimulatorInput(device: input.device, operation: "tap", operands: [String(key.x), String(key.y)])
+                _ = try execute(tap, info: info, environment: environment)
+            })
+            result["route"] = "watch-on-screen-keyboard"
+            result["keyboardProcess"] = Int(process)
+            result["keyTaps"] = typed.taps
+            result["doneTapped"] = typed.submitted
+            result["textUTF8Bytes"] = text.utf8.count
+            result["insertionVerified"] = false
         case "type":
             let (text, layout) = try DirectPhysicalTyping.request(input.operands, subject: "Simulator")
             let schedule = try layout.samples(text)

@@ -184,7 +184,12 @@ extension ManzaneroCLI {
             A simulator's layout setting is read first: a different explicit layout is refused, and an automatic one is \
             reported as not checked. A physical device's layout cannot be read; the receipt says so. For text no layout \
             types, use set-value, which replaces a named element's whole value, or paste (physical), which replaces the \
-            clipboard. \(receiptCaveat)
+            clipboard.
+
+            An Apple Watch simulator takes no keyboard events, so there type taps the keys of the keyboard watchOS shows \
+            for a text field (press the field first): ASCII letters, digits, space and the numbers page's punctuation, \
+            switching case and page as needed, then Done, which hands the text to the app. --layout does not apply. \
+            \(receiptCaveat)
             """)
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions

@@ -112,14 +112,17 @@ struct SimulatorCrownTests {
         #expect(home["usage"] as? Int == 64 && home["usagePage"] as? Int == 12)
     }
 
-    @Test func keyAndTypeAreRefusedOnAWatchBeforeAnyInput() async throws {
+    @Test func keyIsRefusedOnAWatchAndTypeSendsNoKeyboardEvents() async throws {
         let turned = Turned()
-        for args in [["key", "return"], ["type", "ab"]] {
-            let failure = await #expect(throws: CommandFailure.self) {
-                _ = try await Self.service(family: "Apple Watch", turned).run(args + ["--simulator", Self.uuid])
-            }
-            #expect(failure?.code == .unsupportedOperation && failure?.inputSent == CommandFailure.InputSent.none)
+        let failure = await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(family: "Apple Watch", turned).run(["key", "return", "--simulator", Self.uuid])
         }
+        #expect(failure?.code == .unsupportedOperation && failure?.inputSent == CommandFailure.InputSent.none)
+        // type goes to the on-screen keyboard; text it cannot type is refused before anything.
+        let accent = await #expect(throws: CommandFailure.self) {
+            _ = try await Self.service(family: "Apple Watch", turned).run(["type", "Gómez", "--simulator", Self.uuid])
+        }
+        #expect(accent?.inputSent == CommandFailure.InputSent.none && accent?.description.contains("on-screen keyboard") == true)
         #expect(turned.keys == 0)
     }
 

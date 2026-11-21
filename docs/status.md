@@ -23,7 +23,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown` | works | works | works | works | works | works |
 | **Touch**: `tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts | works; on an iPad a four-path `multi-drag` is cancelled by iPadOS | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works |
 | **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: `home`, `side` and the Ultra's `action` work, `lock` does nothing, `key` refused | works; `wake` refused |
-| **Text**: `type`, `detect-layout`, `paste`, `set-value` | works | works; `paste` refused | works (`type`, `set-value`) | works | partly: `type` and `detect-layout` refused, `set-value` does not reach the app | works; `paste` refused |
+| **Text**: `type`, `detect-layout`, `paste`, `set-value` | works | works; `paste` refused | works (`type`, `set-value`) | works | partly: `type` taps the on-screen keyboard (ASCII letters, digits, basic punctuation); `detect-layout` refused; `set-value` does not reach the app | works; `paste` refused |
 | **Apple TV remote**: `remote` | — | — | works: all eight buttons, held keys, swipes, `sleep` and `wake`; a held Home is refused | works, with holds and swipes; `sleep` and `wake` refused | — | — |
 | **Watch crown**: `crown` | — | — | — | — | works | — |
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |

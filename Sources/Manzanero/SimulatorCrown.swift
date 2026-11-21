@@ -72,13 +72,14 @@ enum DigitalCrown {
     /// `key` and `type` were dispatched on a watchOS 27.2 simulator and
     /// changed nothing, in Calculator and in the system text entry sheet of a
     /// SwiftUI text field (docs/other-families.md).
-    static let keyboardRefusal = "Keyboard events do not reach watchOS: key and type were dispatched on a watchOS 27.2 simulator and changed nothing, even in the system text entry sheet. No input sent."
+    static let keyboardRefusal = "Keyboard events do not reach watchOS: key and keyboard-event typing were dispatched on a watchOS 27.2 simulator and changed nothing, even in the system text entry sheet. type uses the watch's on-screen keyboard instead. No input sent."
 
     static func checkFamily(_ input: SimulatorInput, info: SimulatorDeviceInfo) throws {
         if input.operation == "button", let name = input.operands.first, watchButtons[name] != nil, !info.isAppleWatch {
             throw CommandFailure.unsupported("button \(name) is an Apple Watch button; this simulator is \(info.family.isEmpty ? "of an unknown family" : "an \(info.family)"). No input sent.")
         }
-        if info.isAppleWatch, ["key", "type"].contains(input.operation) { throw CommandFailure.unsupported(keyboardRefusal) }
+        // `type` goes through the on-screen keyboard there (WatchKeyboard).
+        if info.isAppleWatch, input.operation == "key" { throw CommandFailure.unsupported(keyboardRefusal) }
         if input.operation == "crown", !info.isAppleWatch {
             throw CommandFailure.unsupported("crown turns an Apple Watch simulator's Digital Crown; this simulator is \(info.family.isEmpty ? "of an unknown family" : "an \(info.family)"). No input sent.")
         }
