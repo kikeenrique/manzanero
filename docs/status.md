@@ -62,7 +62,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **Apple TV**: the press order, `logs` and removing the dead pairing were done on 2026-11-21; open is why the connection went stale right after a press by the Inspector's cursor.
+1. **Apple TV**: the press order, `logs` and removing the dead pairing were done on 2026-11-21; three more presses by the Inspector's cursor left the connection healthy, so that route stays; the earlier stale state's cause is unknown.
 2. **Recording recovery, the rest**: the stream taken by another client, a still screen's packet rate, `--audio`, `frames`.
 3. **A release** of the work of 2026-11-21, which is in no beta yet.
 4. **Small checks on the iPhone**: an action in flight when the cable is pulled, and a `batch` across a change of link (both need the human owner).
