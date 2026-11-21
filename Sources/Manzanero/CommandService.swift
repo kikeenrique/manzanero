@@ -246,6 +246,15 @@ actor CommandService {
                 let pid = try RunningApp.pid(of: bundle, apps: query("apps"), processes: query("processes"))
                 arguments = arguments.map { $0 == DeviceCommand.resolvedPIDPlaceholder ? String(pid) : $0 }
             }
+            if tool.operation == "clipboard" {
+                // The text is devicectl's stdout; its JSON result goes to a file of this run.
+                let directory = URL(fileURLWithPath: "tmp", isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let file = directory.appendingPathComponent("clipboard-\(UUID().uuidString).json")
+                defer { try? FileManager.default.removeItem(at: file) }
+                let text = try runner.run(arguments.map { $0 == DeviceSettings.resultPlaceholder ? file.path : $0 }, executable: command.executable)
+                return try json(DeviceSettings.clipboardResult(stdout: text, resultFile: Data(contentsOf: file)))
+            }
             let data = try runner.run(arguments, executable: command.executable, environment: command.environment)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
             if tool.platform == .physical, tool.operation == "screenshot" {
@@ -637,7 +646,7 @@ actor CommandService {
     static let nativeObservations = ["tree"] + AccessibilityWait.operations
 
     /// Device operations that only read: not paused by a pending handoff.
-    static let observationOperations = ["readiness", "details", "apps", "processes", "screen", "screenshot", "files", "pull", "reports", "report"]
+    static let observationOperations = ["readiness", "details", "apps", "processes", "screen", "screenshot", "files", "pull", "reports", "report", "clipboard"]
         + nativeObservations + AppDiagnosticsCommand.observations + ["displays", SimulatorHinge.angleOperation]
 
     /// `logs`, `console` and `last-crash` (docs/app-logs.md). The handoff

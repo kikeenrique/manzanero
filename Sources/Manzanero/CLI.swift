@@ -221,6 +221,7 @@ struct ManzaneroCLI: ParsableCommand {
             CommandGroup(name: "Device state", subcommands: [
                 Devices.self, Details.self, Processes.self, Readiness.self, MediaStatus.self, Boot.self, Shutdown.self, Handoff.self, ClearQuarantine.self, Pair.self,
                 Batch.self]),
+            CommandGroup(name: "Settings", subcommands: [Rotate.self, Settings.self, Location.self, StatusBar.self, Clipboard.self]),
             CommandGroup(name: "Host", subcommands: [Doctor.self, KeyboardLayouts.self, OCR.self, DecodeAXArchive.self, MCPServe.self]),
         ])
 

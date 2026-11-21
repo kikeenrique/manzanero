@@ -47,6 +47,8 @@ struct DeviceCommand: Sendable, Equatable {
                 throw CommandFailure.usage("\(operation) expects \(count) nonempty operand(s), without a leading '-'.")
             }
         }
+        // The same devicectl invocation for a device and a simulator.
+        if let settings = try DeviceSettings.plan(device: device, operation: operation, operands: operands) { return settings }
         let command: [String]
         if physical {
             if let dataCommand = try (AppDataCommand.plan(operation: operation, operands: operands) ?? ReportCommand.plan(operation: operation, operands: operands)) {

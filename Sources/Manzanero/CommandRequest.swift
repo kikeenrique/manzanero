@@ -69,7 +69,7 @@ struct DeviceOperation: Sendable, Equatable {
 
     /// devicectl operations that first check Developer Mode.
     var needsPreflight: Bool {
-        platform == .physical && ["launch", "terminate", "processes", "open-url", "screenshot"].contains(operation)
+        platform == .physical && (["launch", "terminate", "processes", "open-url", "screenshot"] + DeviceSettings.operations).contains(operation)
     }
 }
 

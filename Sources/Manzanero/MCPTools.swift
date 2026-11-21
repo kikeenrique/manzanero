@@ -236,6 +236,38 @@ enum MCPTools {
             return arguments.command(["launch"], options: options + [arguments.text("value")],
                                      operands: (arguments["app_arguments"]?.arrayValue ?? []).compactMap(\.stringValue))
         },
+        .init(name: "device_settings", description: "Change a device's or booted simulator's state through Apple's devicectl, which addresses a simulator by UUID. operation rotate: orientation (portrait, portrait-upside-down, landscape-left, landscape-right); an app that supports fewer orientations stays as it is, so read the tree after. settings: any of appearance (light, dark), text_size (extra-small ... extra-extra-extra-large, accessibility-medium ... accessibility-extra-extra-extra-large), increase_contrast and reduce_motion (on, off). location: latitude and longitude in decimal degrees, or clear true. status-bar: any of time, battery_level (0...100), battery_state (draining, charging, charged), wifi_bars (1...3), cellular_bars (1...5), data_network, or clear true. On a physical device these change the owner's device: ask first.", fields: [
+            platform, device, .init(name: "operation", choices: ["rotate", "settings", "location", "status-bar"]),
+            .init(name: "orientation", required: false, choices: DeviceSettings.orientations.map(\.name)),
+            .init(name: "appearance", required: false, choices: ["light", "dark"]),
+            .init(name: "text_size", required: false, choices: DeviceSettings.textSizes),
+            .init(name: "increase_contrast", required: false, choices: ["on", "off"]),
+            .init(name: "reduce_motion", required: false, choices: ["on", "off"]),
+            .init(name: "latitude", kind: .number, required: false), .init(name: "longitude", kind: .number, required: false),
+            .init(name: "time", required: false), .init(name: "battery_level", kind: .integer, required: false),
+            .init(name: "battery_state", required: false, choices: DeviceSettings.batteryStates),
+            .init(name: "wifi_bars", kind: .integer, required: false), .init(name: "cellular_bars", kind: .integer, required: false),
+            .init(name: "data_network", required: false, choices: DeviceSettings.dataNetworks),
+            .init(name: "clear", kind: .boolean, required: false)]) { arguments in
+            let clear = arguments["clear"]?.boolValue == true ? ["--clear"] : []
+            switch arguments.text("operation") {
+            case "rotate":
+                return arguments.command(["rotate"], operands: [arguments.text("orientation")])
+            case "settings":
+                return arguments.command(["settings"], options: arguments.options([("appearance", "--appearance"), ("text_size", "--text-size"),
+                    ("increase_contrast", "--increase-contrast"), ("reduce_motion", "--reduce-motion")]))
+            case "location":
+                guard clear.isEmpty else { return arguments.command(["location"], options: clear) }
+                return arguments.command(["location"], operands: ["\(arguments.number("latitude")),\(arguments.number("longitude"))"])
+            default:
+                return arguments.command(["status-bar"], options: clear + arguments.options([("time", "--time"), ("battery_state", "--battery-state"),
+                    ("data_network", "--data-network")]) + arguments.options([("battery_level", "--battery-level"), ("wifi_bars", "--wifi-bars"),
+                    ("cellular_bars", "--cellular-bars")], numeric: true))
+            }
+        },
+        .init(name: "read_clipboard", description: "Read the text on a device's or booted simulator's clipboard through devicectl; read-only. Returns text (the first item, at most 1 MiB), contentType and bytes, or empty true.", fields: [platform, device], readOnly: true) {
+            $0.command(["clipboard"])
+        },
         .init(name: "app_data", description: "Physical app-container listing or raw pull/push. Remote paths are relative; '.' means root. Listing is nonrecursive. Copies may overwrite selected destinations; app access is permission-dependent and unverified live. Not .xcappdata export/replacement.", fields: [device, .init(name: "operation", choices: ["files", "pull", "push"]), .init(name: "bundle_id"), .init(name: "remote_path"), .init(name: "local_path", required: false)]) {
             let op = $0.text("operation")
             let paths = op == "files" ? [$0.text("remote_path")] : (op == "pull" ? [$0.text("remote_path"), $0.text("local_path")] : [$0.text("local_path"), $0.text("remote_path")])

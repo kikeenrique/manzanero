@@ -34,6 +34,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` | `record` works | not run | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | not run | works |
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
+| **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | not run | works (iPhone, 2026-11-21) | not run | not run | not run | not run |
 | **Build and run**: `build-run` | works | works | works | not run | not run | not run |
 | **App output**: `console`, `last-crash`, `logs` | works | works | `console` and `last-crash` work; `logs` not run | not run | not run | not run |
 | **A person's step**: `handoff` | works | works | works | works | not run | not run |

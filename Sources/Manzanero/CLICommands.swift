@@ -487,6 +487,84 @@ extension ManzaneroCLI {
         func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "open-url", [url])) }
     }
 
+    // MARK: Settings
+
+    static let settingsCaveat = "Through devicectl, on a device or a booted simulator. On a device it changes the owner's device: ask first."
+
+    struct Rotate: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "rotate", abstract: "Turn the interface to an orientation.",
+            discussion: "\(settingsCaveat) An app that supports only some orientations stays as it is; read the tree afterwards (its screen orientation says where the interface went).")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: ArgumentHelp("portrait, portrait-upside-down, landscape-left or landscape-right.", valueName: "orientation"),
+                  completion: .list(DeviceSettings.orientations.map(\.name))) var orientation: String
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "rotate", [orientation])) }
+    }
+
+    struct Settings: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "settings", abstract: "Set appearance, text size, contrast or reduced motion.",
+            discussion: "\(settingsCaveat) Give at least one option. An accessibility text size also turns Larger Accessibility Sizes on.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Option(help: ArgumentHelp("light or dark.", valueName: "style")) var appearance: String?
+        @Option(help: ArgumentHelp("extra-small … extra-extra-extra-large, or accessibility-medium … accessibility-extra-extra-extra-large.", valueName: "size"),
+                completion: .list(DeviceSettings.textSizes)) var textSize: String?
+        @Option(help: ArgumentHelp("on or off.", valueName: "state")) var increaseContrast: String?
+        @Option(help: ArgumentHelp("on or off.", valueName: "state")) var reduceMotion: String?
+        func request(_ target: Target) throws -> CommandRequest {
+            let pairs = [("--appearance", appearance), ("--text-size", textSize), ("--increase-contrast", increaseContrast), ("--reduce-motion", reduceMotion)]
+            return .tool(try DeviceOperation(target, "settings", pairs.flatMap { name, value in value.map { [name, $0] } ?? [] }))
+        }
+    }
+
+    struct Location: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "location", abstract: "Simulate a location, or clear it.",
+            discussion: "\(settingsCaveat) A southern or western coordinate begins with '-': put it after --, as in `location --simulator <UUID> -- -33.8688,151.2093`.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: ArgumentHelp("Latitude and longitude in decimal degrees, joined by a comma.", valueName: "latitude,longitude")) var coordinate: String?
+        @Flag(help: "Stop simulating a location.") var clear = false
+        func request(_ target: Target) throws -> CommandRequest {
+            switch (coordinate, clear) {
+            case (nil, true): return .tool(try DeviceOperation(target, "location", [DeviceSettings.clear]))
+            case (let coordinate?, false):
+                let parts = coordinate.split(separator: ",", omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespaces) }
+                guard parts.count == 2 else { throw CommandFailure.usage("location takes <latitude>,<longitude>, or --clear.") }
+                return .tool(try DeviceOperation(target, "location", parts))
+            default: throw CommandFailure.usage("location takes <latitude>,<longitude> or --clear, not both.")
+            }
+        }
+    }
+
+    struct StatusBar: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "status-bar", abstract: "Override what the status bar shows, or clear the overrides.",
+            discussion: "\(settingsCaveat) Give at least one option, or --clear.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Option(help: ArgumentHelp("The time to show, such as 9:41.", valueName: "text")) var time: String?
+        @Option(help: ArgumentHelp("0...100.", valueName: "percent")) var batteryLevel: String?
+        @Option(help: ArgumentHelp("draining, charging or charged.", valueName: "state")) var batteryState: String?
+        @Option(help: ArgumentHelp("Wi-Fi bars, 1...3.", valueName: "bars")) var wifiBars: String?
+        @Option(help: ArgumentHelp("Cellular bars, 1...5.", valueName: "bars")) var cellularBars: String?
+        @Option(help: ArgumentHelp("hide, wifi, hotspot, 1x, GPRS, Edge, UMTS, 4G, LTE, LTEA, LTEPlus, 5G, 5GPlus, 5GUWB or 5GUC.", valueName: "type")) var dataNetwork: String?
+        @Flag(help: "Remove every override.") var clear = false
+        func request(_ target: Target) throws -> CommandRequest {
+            let pairs = [("--time", time), ("--battery-level", batteryLevel), ("--battery-state", batteryState),
+                         ("--wifi-bars", wifiBars), ("--cellular-bars", cellularBars), ("--data-network", dataNetwork)]
+                .flatMap { name, value in value.map { [name, $0] } ?? [] }
+            guard !(clear && !pairs.isEmpty) else { throw CommandFailure.usage("status-bar takes overrides or --clear, not both.") }
+            return .tool(try DeviceOperation(target, "status-bar", clear ? [DeviceSettings.clear] : pairs))
+        }
+    }
+
+    struct Clipboard: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "clipboard", abstract: "Read the text on the clipboard.",
+            discussion: "Through devicectl, on a device or a booted simulator; read-only. Returns the first item's text (at most \(DeviceSettings.clipboardLimit) bytes), its type and size, or empty: true.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "clipboard")) }
+    }
+
     struct Files: ParsableCommand {
         static let configuration = CommandConfiguration(commandName: "files", abstract: "List or copy files in an app's data container (physical devices).",
             discussion: "Remote paths are relative to the container; '.' is its root. Copies may overwrite the destination.",

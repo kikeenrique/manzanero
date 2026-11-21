@@ -65,7 +65,9 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Pinch or coordinated contacts | [Multitouch](docs/multitouch.md), [timed sequences](docs/gesture-sequences.md) |
 | Text entry | [Typing in a named keyboard layout](docs/physical-typing.md) ([layout research](docs/keyboard-layouts.md), [finding the device's layout](docs/physical-typing.md#finding-the-layout-detect-layout)), [Unicode text by set-value](docs/simulator-input.md#unicode-text-set-value), [Unicode paste](docs/native-input.md#direct-unicode-paste) |
 | Screen, hierarchy, OCR | [Screen inspection](docs/screen-understanding.md), [accessibility](docs/direct-accessibility.md) |
-| Exact accessibility press or scroll by identifier, label or current value (`--with-value`), and choosing among elements that share one (`--index`) | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
+| Accessibility press or scroll by identifier, label or current value (`--with-value`), exact or by part or pattern (`--match contains\|regex`), and choosing among elements that share one (`--index`) | [Selector actions](docs/direct-accessibility.md#current-guarded-native-press) |
+| Rotation, appearance and text size, a simulated location, status bar overrides, reading the clipboard | [Device settings](docs/device-settings.md) |
+| Launching an app with arguments, environment, language or locale; terminating it by bundle identifier | `manzanero launch --help`, `manzanero terminate --help` |
 | Reading and pressing a web page | [Web content](docs/direct-accessibility.md#web-content) |
 | Video, with the device's sound if asked (`--audio`), or many screenshots in a row | [Recording](docs/recording.md), [sound](docs/recording.md#sound), [frames](docs/recording.md#frames-repeated-screenshots-from-one-stream) |
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
