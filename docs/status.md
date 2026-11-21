@@ -66,7 +66,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 3. **Selectors that are not exact**: built as `--match contains|regex` and run on a simulator on 2026-11-21.
 4. **Small checks on the iPhone**: `open-url` from another app, an action in flight when the cable is pulled, an agent session over the network.
 5. **Sound in a recording, the rest**: picture and sound in step, a long recording, and the Apple TV with something playing.
-6. **Recording recovery**: a restart of the stream after a loss; a design first.
+6. **Recording recovery**: a restart of the stream after a loss; [designed](recording-recovery.md) on 2026-11-21, not built.
 7. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
 8. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, `logs` there, a recording of several minutes.
 9. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.

@@ -1,0 +1,74 @@
+# Recording recovery: design
+
+A design for item 21 of the [roadmap](roadmap.md#not-built), written on 2026-11-21 by laia-LLM at the human owner's request to work through the pending tasks that need no hardware. The choice it rests on (one movie with its gaps marked, rather than a file per segment) is the option laia-LLM recommended that day; the human owner can still change it. Nothing here has run on a device.
+
+## The problem
+
+`record --backend coredevice` and `frames` read one media session from start to end (`NativeRecording.execute` in `NativeVideoEncoder.swift`, `NativeFrameCapture.execute`). Three things end a recording today, and each loses all of it:
+
+| What happens | What the loop sees now | Result now |
+| --- | --- | --- |
+| The device ends the stream (a crash of its media service, another client taking the screen) | `requireActive()` fails at the next one-second look | The recording fails; the staged movie is cancelled |
+| The socket or the tunnel fails (cable pulled, Wi-Fi lost, `remoted` reset) | `nextPacket()` throws, or `requireActive()` fails | The recording fails |
+| Packets stop arriving, or arrive and no picture can be decoded from them (a loss with no random-access picture after it) | Nothing: the loop waits, and the last picture is held to the end | A movie whose end is one frozen picture, with no word of it in the result |
+
+Asking the device for a new key frame is not a route: the phone negotiated RTCP feedback as `disabled` three times, once for an offer that asked for it ([recording](recording.md#rtcp-and-keyframe-limits)). A new session starts with a key frame, so the route is a restart of the session.
+
+## What a restart is
+
+After the first picture, a loss that can be recovered closes the session it belongs to and opens a new one on the same endpoint, while the movie stays open:
+
+1. Close the media owner (`NativeMediaFrames.close()`), which sends the owned stop and checks the stream is gone, as at the end of a recording, and close the decoder.
+2. If the tunnel assertion no longer holds, take a new one (`NativeTunnelAssertion`) from fresh device details; if that fails, stop recovering.
+3. Open a new `NativeMediaFrames` with the same endpoint and offer, start it on the same display, and make a new `NativeHEVCDecoder` and `MediaHEVCAssembler`.
+4. Wait for the new session's first picture within a budget of its own (below). Its pictures go on the movie's timeline at their host arrival time, as every picture does now (`timeline: host-pixel-delivery`), so the gap is the previous picture held, which is what the movie shows today for a still screen.
+
+The requested duration counts wall-clock time from the first picture, gaps included, as now: a recording of 60 seconds is a movie of 60 seconds, with its gaps in it.
+
+## When to restart
+
+| Signal | Threshold | Why this value |
+| --- | --- | --- |
+| `requireActive()` fails | At once | The device has ended the stream |
+| `nextPacket()` throws a transport error | At once | The socket is gone |
+| No packet at all | 3 s | A still screen still delivers packets: `frames` saved pictures from a still screen on the phone and the Apple TV, so silence is a loss and not a quiet screen. Not measured how long a still Apple TV can go between packets: check with `MANZANERO_KEEP_STREAM=1` before trusting the value there |
+| Packets arrive and no picture is decoded | 3 s | The assembler discards everything after a gap until a random-access picture; three seconds without one is a picture that will not come |
+
+Never restarted, failed as now: cancellation (SIGINT, SIGTERM, MCP cancel), the 1 GiB transport budget, an encoder error, a change of picture size (a rotation, which the encoder refuses today), and anything before the first picture. A start that never delivers a picture is left alone on purpose: its diagnosis, the [firewall](recording.md#the-macos-firewall-can-drop-the-video) hint among them, depends on the zero-packet count it has now.
+
+## Bounds
+
+- **At most 3 restarts** in one recording. When they are used up, a lost stream fails the recording as now. A stall after the last restart is not a failure: the last picture is held to the end, as today, and the result says so.
+- **10 s for a restart to deliver its first picture**, shorter than the first start's 12 s because the device has just answered. A restart that runs past it counts as used and the next one is tried, within the three.
+- **The time left wins**: no restart begins with less than 2 s of the requested duration left; the last picture is held to the end instead.
+- Each restart is one more media session the device must accept; the per-device lease and the process's reservation (`NativeRecordingSessions`) are held throughout, so no other capture or input from another process can slip in between sessions.
+
+## The result
+
+The receipt keeps `status: recorded` when the movie is published, and adds:
+
+```json
+"recovery": {
+  "restarts": 1,
+  "gaps": [{"atSeconds": 21.4, "seconds": 2.9, "reason": "stream-ended"}],
+  "lastPictureHeldFrom": null
+}
+```
+
+`reason` is `stream-ended`, `transport-failed`, `no-packets` or `no-pictures`. `lastPictureHeldFrom` is the second from which the picture was held to the end, when restarts ran out or the time left was too short. `cleanup` describes the last session; each earlier session's stop must have been acknowledged and its stream absent before the next was opened, or the recording fails then, with that session's cleanup in the error. `rtcp` counters add up across sessions; `negotiatedFeedback` is the last session's.
+
+## Sound
+
+With `--audio`, the sound stream belongs to the session and ends with it. A restart starts a new sound stream before the new video, as the first start does, and a new `NativeAudioTrack` anchored at its first packet's arrival on the movie's timeline; the gap is silence. If the new sound stream cannot start, the recording fails, because `--audio` has no silent fallback. This part needs a device with something audible to check, so it waits for the human owner's word on sound work.
+
+## `frames`
+
+`frames` gets the same restart and bounds. Its index already holds each frame's time from the first, so a gap shows as a jump in those times; the index gains the same `recovery` object.
+
+## How it is tested before a device
+
+The loop reads a media session through a small protocol (packets, liveness, close, the negotiated profile) that `NativeMediaFrames` implements; a test stream implements it too, with a script of packets, silences, an ended stream and a thrown error. Tests then cover: a stream that ends after the first picture and comes back (one gap, the movie continues); one that never comes back (three restarts, then the failure); a stall with restarts used up (the picture held, `lastPictureHeldFrom`); cancellation during a restart (no restart, cancellation as now); a change of size after a restart (failure as now); and a loss before the first picture (failure as now, no restart).
+
+## Live checks owed
+
+On the iPhone 13 mini, with a moving screen: pull the cable during a recording on the cable route (Apple's tunnel then drops); end the stream from the device by opening Device Hub's screen view of it mid-recording (the device gives the screen to the newest client); and record a still screen for a minute to read how often packets arrive, which tests the 3-second threshold. On the Apple TV 4K, the still-screen measurement, with the tvOS probe in front and the room kept quiet.
