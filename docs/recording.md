@@ -77,6 +77,8 @@ The media owner sends bounded compound Receiver Reports plus a random per-sessio
 
 `rtcp.negotiatedFeedback` is `enabled`, `disabled` or `unknown` from Apple's negotiated screen result after answer acceptance. Class/selector/return-ABI guards preserve unknown for unsupported contracts. It does not infer feedback from ordinary RTCP enablement, alter an offer or send feedback. Installed getter signatures are verified. Read live on the iPhone 13 mini on 2026-11-17, it was `disabled` twice with the stock offer, which does not ask for feedback, and `disabled` again in one recording whose offer did ask ([verification](verification.md#an-offer-that-asks-for-rtcp-feedback)). Even enabled would not establish PLI/FIR compatibility.
 
+A phone in landscape streams in its display's native portrait size: on the iPhone 13 mini on 2026-11-22 `frames` gave 1125 × 2436 pictures and a recording a 1136 × 2464 movie, with the landscape interface sideways in them ([record](verification.md#the-phone-in-landscape-keys-several-contacts-frames-and-a-recording)). The tool does not turn them.
+
 Keyframe requests over negotiated feedback are therefore not planned: that phone declines them. Recovery from loss, a crash or a disconnect is a restart of the stream ([design](recording-recovery.md)): built on 2026-11-21 for recordings without sound, and on the iPhone 13 mini the same day a recording with the cable pulled 27 s in recovered after one restart, a 240-second movie with a 7.2-second gap ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)). Startup failures with zero packets on the test Mac were traced to the firewall (above); whether every earlier startup failure had that cause was not checked.
 
 ## Sound
