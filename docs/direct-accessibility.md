@@ -29,7 +29,16 @@ The normalizer caps output at 512 nodes/depth 32, validates declared children an
 
 ### Web content
 
-On a simulator the page is read with `tree --pid <web content process>`, the `processIdentifier` of the `AXRemoteElement` in the browser's own tree; selector actions on it are refused for now, because there the browser is the foreground process and the page the one it hosts ([roadmap](roadmap.md#dependable-physical-testing)). What follows is the phone.
+**On a simulator** the browser is the foreground application and the page is a process it shows, the reverse of a phone. Safari's tree names the page's process twice: as `WebViewProcessID=<n>` in its tab's identifier and as the `processIdentifier` of its `AXRemoteElement` (which reported itself hidden while the page was on screen). Give that PID:
+
+```sh
+manzanero tree --pid <page> --simulator <UUID>
+manzanero press --label Send --pid <page> --simulator <UUID>
+```
+
+Since 2026-11-21, by the human owner's word, `press`, `scroll`, `set-value` and `wait` accept on a simulator a PID that one of the foreground application's remote elements shows with a frame (`AccessibilityPlatform.acceptsShownProcess`); the receipt says `application.selection: explicit-pid-shown-by-frontmost-or-centre-hit` and gives Safari's PID as `hostPid`. A device keeps the rule below. Every other guard is unchanged, the hit test at the target's centre included; on Safari's page the frames were already in screen points, because its web view starts at the screen's top-left corner, so the hit needed no offset. A web view that does not start there is unchecked. Without `--pid` nothing changed: Safari's tree stops at the remote element, so a selector for a page element has no match. Taps at points and `type` worked on the page before and still do ([record](verification.md#safari-on-a-simulator-by-selector)). `set-value` is acknowledged by a web input and does not change it, as on the phone: press the field, then `type`.
+
+What follows is the phone.
 
 A web page is drawn by a content process of its own, inside the browser's or app's `WKWebView`. Once the page's accessibility is awake, the display centre belongs to that process, and its application snapshot comes back rooted at the host's `AXRemoteElement` with the page's elements beneath. The normalizer accepts that one shape: the root node then carries `externalProcessReference: true` and the host's PID in `processIdentifier`, and `application.pid` is the content process. Seen with Chrome on one iPhone 13 mini ([verification](verification.md#web-content-on-the-phone)).
 

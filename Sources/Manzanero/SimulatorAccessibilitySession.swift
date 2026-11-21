@@ -331,5 +331,6 @@ extension AccessibilityPlatform {
         selectionSubject: "foreground application", selection: "frontmost-or-centre-hit", failurePrefix: "Simulator",
         treeSelectionLimitation: "The foreground application is the simulator's frontmost application, or the process under the screen centre when the simulator reports none (see foregroundSelection); system overlays such as alerts or the keyboard belong to other processes. This is not a combined display tree.",
         waitSelectionLimitation: "Every poll re-selects the foreground application (frontmost, else the process under the screen centre); an app launch is followed once the simulator reports it, which can lag the launch by seconds. The condition is evaluated in that poll's process.",
-        cleanupLimitation: "The simulator route has no accessibility subscription; each request is independent.")
+        cleanupLimitation: "The simulator route has no accessibility subscription; each request is independent.",
+        acceptsShownProcess: true)
 }

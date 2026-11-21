@@ -527,6 +527,30 @@ So the phone was asked and did not agree, and asking did no harm to the stream. 
 
 Decision that follows, as the owner set it beforehand: keyframe requests over negotiated feedback (PLI/FIR) are dropped, and recovery is to be a restart of the stream. The scratch change was not kept: it added four private interfaces for a result that is now known.
 
+### Safari on a simulator, by selector
+
+2026-11-21, evening, `manzanero-research-phone` (iPhone 17, iOS 27.2), Xcode 27.2. A test page typed into Safari's address bar as a `data:` URL (no website): a heading "Ready", a field labelled Email and a Send button whose click writes "Clicked " and the field's text into the heading. `simctl openurl` refuses a `data:` URL (LSApplicationWorkspaceErrorDomain error 115). The page's process was 85695 (`WebViewProcessID` in Safari's tree), Safari's 85662.
+
+Before the change:
+
+| Command | Result |
+| --- | --- |
+| `tree` | Safari only: no page element |
+| `tree --pid 85695` | The page: Ready, Email, Send. Send's frame 8, 188, 97 × 69, where the screenshot draws it |
+| `wait --label Send --pid 85695` | `condition-met` |
+| `press --label Send`, `set-value --label Email …` | Refused before input: no match in the snapshot |
+| the same with `--pid 85695` | Refused before input: "requested PID differs from foreground application process and does not host it" |
+| `tap` on the field, `type 'tap ok'`, `tap` on Send | The heading read "Clicked tap ok": the page could be used by points all along |
+
+After it (`acceptsShownProcess` on the simulator platform):
+
+| Command | Result |
+| --- | --- |
+| `set-value --label Email web-1 --pid 85695` | `acknowledged`, `valueMatches: false`, the field unchanged, as with a web input on the phone |
+| the field changed to "zz" by taps and keys, then `press --label Send --pid 85695` | `accepted`, `selection: explicit-pid-shown-by-frontmost-or-centre-hit`, `hostPid: 85662`; the heading went from "Clicked tap ok" to "Clicked zz" |
+
+No offset was needed for the hit: Safari's remote element spans the whole screen from 0, 0. Not run: a web view that does not start at the screen's corner (an app's `WKWebView` under a bar), `scroll` on a page, and Safari on the phone, which has only been seen in Chrome.
+
 ### Web content on the phone
 
 **2026-11-17, later the same day**, same phone and host, Chrome with public test pages. This follows the web form failure in the session above.

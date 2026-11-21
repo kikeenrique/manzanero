@@ -46,6 +46,11 @@ struct AccessibilityPlatform: Sendable {
     let treeSelectionLimitation: String
     let waitSelectionLimitation: String
     let cleanupLimitation: String
+    /// Whether `--pid` may also name a process the foreground one shows in a
+    /// remote element: a web page inside Safari on a simulator, where the
+    /// browser is the foreground application. A device keeps the narrower
+    /// rule, because there the page is the display-centre process already.
+    var acceptsShownProcess = false
 
     var capitalizedSelectionSubject: String { selectionSubject.prefix(1).uppercased() + selectionSubject.dropFirst() }
 

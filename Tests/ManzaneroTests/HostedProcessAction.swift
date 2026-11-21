@@ -90,6 +90,51 @@ struct HostedProcessActionTests {
         #expect(parsed.overlayProcess == nil && parsed.pid == 77)
     }
 
+    /// A simulator's Safari: the foreground application (`browser`), whose
+    /// tree holds a remote element for the page's process (`page`), as read
+    /// on an iOS 27.2 simulator on 2026-11-21 (hidden, with a frame).
+    final class Browser: AccessibilityExchange {
+        let browser: Int32 = 42, page: Int32 = 43
+        var platform: AccessibilityPlatform
+        var frame: Value? = .object(className: "NSValue", fields: ["NS.rectval": .string("{{0, 0}, {402, 874}}")])
+        init(platform: AccessibilityPlatform) { self.platform = platform }
+
+        func start() throws {}
+        func application(pid: Int32) throws -> AccessibilityRequest.Token { try AccessibilityResponse.token(Session.token(1, pid: pid)) }
+        func hit(x: Double, y: Double) throws -> AccessibilityRequest.Token { try AccessibilityResponse.token(Session.token(5, pid: page)) }
+        func snapshot(_ token: AccessibilityRequest.Token) throws -> Value {
+            var attributes: [String: Value] = ["5003": .string("AXRemoteElement"), "2025": .boolean(false)]
+            if let frame { attributes["2003"] = frame }
+            let remote = Session.record(9, pid: page, attributes: attributes)
+            return Session.record(1, pid: browser, attributes: ["2001": .string("Safari")], children: [remote])
+        }
+        func attributes(_ attributes: [Int], of token: AccessibilityRequest.Token) throws -> Value { .dictionary([:]) }
+        func performAction(_ token: AccessibilityRequest.Token, action: AccessibilityRequest.Action, onSubmission: () -> Void) throws -> Bool { false }
+        func close() -> AccessibilitySession.Cleanup { .notSubscribed }
+    }
+
+    @Test func onASimulatorAProcessTheBrowserShowsIsAccepted() throws {
+        let session = Browser(platform: .simulator)
+        let chosen = try action(pid: session.page).chooseProcess(selected: session.browser, session: session)
+        #expect(chosen.pid == session.page && chosen.shown)
+        let json = action(pid: session.page).applicationJSON(session.page, centre: session.browser, platform: .simulator, shown: true)
+        #expect(json["selection"] as? String == "explicit-pid-shown-by-frontmost-or-centre-hit" && json["hostPid"] as? Int32 == session.browser)
+    }
+
+    /// A device keeps the narrower rule; on a simulator a process that no
+    /// remote element shows, or one shown with no frame, is refused.
+    @Test func aShownProcessIsRefusedOnADeviceAndWithoutARemoteElementWithAFrame() throws {
+        let device = Browser(platform: .physical)
+        let unframed = Browser(platform: .simulator)
+        unframed.frame = nil
+        for (session, pid) in [(device, device.page), (Browser(platform: .simulator), Int32(77)), (unframed, unframed.page)] {
+            let failure = try #require(throws: CommandFailure.self) { try action(pid: pid).actionProcess(selected: session.browser, session: session) }
+            #expect(failure.code == .targetUnresolved && failure.inputSent == .none)
+        }
+        let failure = try #require(throws: CommandFailure.self) { try action(pid: 77).actionProcess(selected: 42, session: Browser(platform: .simulator)) }
+        #expect(failure.description.contains("no remote element of it shows that process"))
+    }
+
     /// Any other process is refused before the action: one that hosts
     /// nothing, and one that is not the host of the centre process.
     @Test func aPIDThatDoesNotHostTheCentreProcessIsRefused() throws {

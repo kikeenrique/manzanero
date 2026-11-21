@@ -302,7 +302,7 @@ struct DirectAccessibilityAction {
             try session.start()
             stage = "select-process"
             let selected = try session.foregroundProcess(geometry)
-            let process = try actionProcess(selected: selected.pid, session: session)
+            let (process, shown) = try chooseProcess(selected: selected.pid, session: session)
             stage = "application"
             let root = try session.application(pid: process)
             var searchSteps: Int?
@@ -327,7 +327,7 @@ struct DirectAccessibilityAction {
             let native = try session.performAction(target.token, action: action, onSubmission: { state = "submitted" })
             var result: [String: Any] = ["backend": platform.backend, "operation": operation,
                 "verified": false, "atomic": false,
-                "application": applicationJSON(root.pid, centre: selected.pid, platform: platform),
+                "application": applicationJSON(root.pid, centre: selected.pid, platform: platform, shown: shown),
                 "selector": selector.json, "coordinateSpace": "device-logical-points",
                 "limitations": ["Sequential guards are not atomic or a complete hittability check.",
                     "Unit attribute/action replies can lack target/sequence identity; one request is outstanding.",
@@ -450,23 +450,39 @@ struct DirectAccessibilityAction {
     /// unchanged, and the hit test at the target's centre still has to
     /// answer the target itself, in that process.
     func actionProcess(selected: Int32, session: any AccessibilityExchange) throws -> Int32 {
-        guard let pid, pid != selected else { return selected }
-        if pid == overlayProcess { return pid }
-        let subject = session.platform.selectionSubject
+        try chooseProcess(selected: selected, session: session).pid
+    }
+
+    /// The process the action runs in, and whether it is one the centre
+    /// process shows rather than hosts. On a simulator (and only there, by
+    /// the human owner's word of 2026-11-21) `--pid` may also name a process
+    /// that one of the foreground application's remote elements points to:
+    /// Safari is the foreground application and the page is the process it
+    /// shows, the reverse of a phone (iOS 27.2 simulator, 2026-11-21; the
+    /// remote element reported itself hidden while the page was on screen,
+    /// so visibility is not required, only a frame). The hit test at the
+    /// target's centre must still answer the target, in that process.
+    func chooseProcess(selected: Int32, session: any AccessibilityExchange) throws -> (pid: Int32, shown: Bool) {
+        guard let pid, pid != selected else { return (selected, false) }
+        if pid == overlayProcess { return (pid, false) }
+        let platform = session.platform
         let page = try session.application(pid: selected)
         let nodes = try AccessibilitySnapshot.normalize(session.snapshot(page), root: page)
-        guard let host = nodes.first, host.externalProcessReference == true, host.processIdentifier == pid else {
-            throw failure("requested PID differs from \(subject) process and does not host it", .targetUnresolved)
-        }
-        return pid
+        if let host = nodes.first, host.externalProcessReference == true, host.processIdentifier == pid { return (pid, false) }
+        if platform.acceptsShownProcess, nodes.contains(where: {
+            $0.externalProcessReference == true && $0.processIdentifier == pid && ($0.frame.map { $0.width > 0 && $0.height > 0 } ?? false)
+        }) { return (pid, true) }
+        let shown = platform.acceptsShownProcess ? ", and no remote element of it shows that process" : ""
+        throw failure("requested PID differs from \(platform.selectionSubject) process and does not host it\(shown)", .targetUnresolved)
     }
 
     /// `application` in a receipt: the process acted on and how it was chosen.
-    func applicationJSON(_ process: Int32, centre: Int32, platform: AccessibilityPlatform) -> [String: Any] {
+    func applicationJSON(_ process: Int32, centre: Int32, platform: AccessibilityPlatform, shown: Bool = false) -> [String: Any] {
         guard process != centre else {
             return ["pid": process, "selection": pid == nil ? platform.selection : "explicit-pid+\(platform.selection)"]
         }
         if process == overlayProcess { return ["pid": process, "selection": "overlay-process", "frontmostPid": centre] }
+        if shown { return ["pid": process, "selection": "explicit-pid-shown-by-\(platform.selection)", "hostPid": centre] }
         return ["pid": process, "selection": "explicit-pid-hosting-\(platform.selection)", "hostedPid": centre]
     }
 

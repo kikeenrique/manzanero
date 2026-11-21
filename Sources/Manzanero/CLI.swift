@@ -141,7 +141,7 @@ struct SelectorOptions: ParsableArguments {
             completion: .list(AccessibilitySelector.MatchMode.allCases.map(\.rawValue)))
     var match: String?
 
-    @Option(help: ArgumentHelp("Positive PID of the application to inspect (default: the foreground application).", valueName: "pid"))
+    @Option(help: ArgumentHelp("Positive PID of the application to act in (default: the foreground application). It may also be the process that hosts it (a browser around its page on a device) and, on a simulator, a process it shows in a remote element: a web page in Safari, whose PID is WebViewProcessID in Safari's tree.", valueName: "pid"))
     var pid: String?
 
     @Option(help: ArgumentHelp("Choose among several matching elements by position, counted from 1 in the tree's node order (the order an ambiguous-selector failure lists them). Positional: check the tree first.", valueName: "position"))

@@ -70,7 +70,7 @@ struct DirectAccessibilitySetValue {
             try session.start()
             stage = "select-process"
             let selected = try session.foregroundProcess(geometry)
-            let process = try guards.actionProcess(selected: selected.pid, session: session)
+            let (process, shown) = try guards.chooseProcess(selected: selected.pid, session: session)
             stage = "application"
             let root = try session.application(pid: process)
             stage = "first-snapshot"
@@ -95,7 +95,7 @@ struct DirectAccessibilitySetValue {
             state = "acknowledged"
             var result: [String: Any] = ["backend": platform.backend, "operation": operation,
                 "status": "acknowledged", "verified": false, "atomic": false,
-                "application": guards.applicationJSON(root.pid, centre: selected.pid, platform: platform),
+                "application": guards.applicationJSON(root.pid, centre: selected.pid, platform: platform, shown: shown),
                 "selector": guards.selector.json, "coordinateSpace": "device-logical-points",
                 "target": before.json, "requestedUTF8Bytes": value.utf8.count,
                 "limitations": ["Sequential guards are not atomic or a complete hittability check.",
