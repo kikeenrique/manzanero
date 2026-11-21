@@ -69,7 +69,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 5. **Sound in a recording, the rest**, on a device: picture and sound in step, a long recording.
 6. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
 7. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
-8. **Watch typing, B2**: the symbols page done; accents (drawn but not in the tree, a decision), other keyboards, a real watch.
+8. **Watch typing, B2**: the symbols page done; accents will not be built (the human owner's decision); other keyboards, a real watch.
 9. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
 
 ## Done later on 2026-11-21 (not released)
