@@ -103,6 +103,16 @@ extension ManzaneroCLI {
         func request(_ target: Target) throws -> CommandRequest { try .input(target, "gesture", [sequence]) }
     }
 
+    struct DoubleTap: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "double-tap", abstract: "Tap twice at one point.",
+            discussion: "Two 60 ms taps 160 ms apart, sent as one gesture sequence. \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Normalized x, 0...1.") var x: Double
+        @Argument(help: "Normalized y, 0...1.") var y: Double
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, "gesture", [GesturePresets.doubleTap(x: x, y: y)]) }
+    }
+
     struct Button: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "button", abstract: "Press a hardware button.",
                                                         discussion: "lock toggles the display. side is the Apple Watch side button and action the Apple Watch Ultra's Action button (watch simulators only). \(receiptCaveat)")

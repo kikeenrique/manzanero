@@ -58,6 +58,18 @@ struct DeviceSettingsTests {
         #expect(throws: CommandFailure.self) { try DeviceSettings.clipboardResult(stdout: Data(), resultFile: Data("{}".utf8)) }
     }
 
+    @Test func doubleTapIsTwoTapsOfOneGestureSequence() throws {
+        let input = try #require(try physicalInput(["double-tap", "0.25", "0.75", "--device", device]))
+        #expect(input.operation == "gesture")
+        let sequence = try #require(try JSONSerialization.jsonObject(with: Data(input.operands[0].utf8)) as? [String: Any])
+        let frames = try #require(sequence["frames"] as? [[String: Any]])
+        #expect(frames.map { $0["ms"] as? Int } == [0, 60, 160, 220])
+        #expect(frames.map { ($0["touches"] as? [Any])?.count } == [1, 0, 1, 0])
+        #expect(throws: (any Error).self) { try request(["double-tap", "1.5", "0.5", "--device", device]) }
+        let tool = try #require(MCPTools.definitions.first { $0.name == "double_tap" })
+        #expect(try tool.command(["platform": "simulator", "device": .string(simulator), "x": 0.5, "y": 0.5]) == ["double-tap", "--simulator=\(simulator)", "--", "0.5", "0.5"])
+    }
+
     @Test func mcpToolsRouteToTheSameCommands() throws {
         let settings = try #require(MCPTools.definitions.first { $0.name == "device_settings" })
         let base: [String: Value] = ["platform": "simulator", "device": .string(simulator)]
