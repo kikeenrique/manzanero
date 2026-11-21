@@ -66,7 +66,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 2. **Recording recovery, the rest**: `--audio`. When another viewer (Device Hub) takes the screen, the recording ends as `partial` and leaves that viewer alone. `frames` recovers the same way since 2026-11-21, across a pulled cable on the phone too. Silence is not a sign of a lost stream on any device (the human owner's decision: an Apple TV's still screen is silent).
 3. **Small checks on the iPhone: done.** At a pulled cable an action in flight failed once and was not repeated, a `batch` stopped at the step in flight, and `frames` recovered.
 4. **Simulator findings: done.** iPadOS cancels four moving contacts even with its gesture settings off; an iPhone simulator takes them whole. A limit of iPadOS, not of the tool.
-5. **Sound in a recording: out of step.** Measured on 2026-11-21: the sound runs ahead of the picture and drifts further, about 5 ms a second (96 ms to 390 ms over a minute). To be fixed, then measured again.
+5. **Sound in a recording: drift fixed, to be measured.** On 2026-11-21 the sound ran ahead of the picture by 1.7% (96 ms to 390 ms over a minute): a rounding made the writer skip one sound piece in 58. Fixed the same night; a new measurement with the probe's beeps is owed.
 6. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
 7. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
 8. **Watch typing, B2**: the symbols page done; accents will not be built (the human owner's decision); other keyboards, a real watch.

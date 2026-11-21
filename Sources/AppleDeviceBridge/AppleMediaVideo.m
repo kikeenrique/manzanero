@@ -707,7 +707,14 @@ int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size
         if (state.audioSocket >= 0) { close(state.audioSocket); state.audioSocket = -1; }
         [state.control close];
     }
-    if (!confirmed || !audioConfirmed) return VideoFail(error, capacity, @"Owned media stop is unconfirmed; no stop-all fallback was sent.");
+    // Which acknowledgement is missing: on 2026-11-21 a recording with sound
+    // ended with no stream left on the device and its stop unconfirmed, and
+    // the message did not say whether the video or the sound was not named.
+    if (!confirmed || !audioConfirmed) {
+        NSString *missing = [NSString stringWithFormat:@"Owned media stop is unconfirmed (video named: %@, sound named: %@); no stop-all fallback was sent.",
+            confirmed ? @"yes" : @"no", state.audioStartAttempted ? (audioConfirmed ? @"yes" : @"no") : @"no sound stream"];
+        return VideoFail(error, capacity, missing);
+    }
     return 0;
 }
 

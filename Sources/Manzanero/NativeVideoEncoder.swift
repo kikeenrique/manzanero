@@ -51,7 +51,9 @@ actor NativeVideoEncoder {
                 packetDescriptions: nil, sampleBufferOut: &buffer) == noErr, let buffer
         else { throw CommandFailure(.toolFailed, "Cannot create a native audio sample.", inputSent: .none) }
         try await audioReceiver.append(CMReadySampleBuffer(unsafeBuffer: buffer))
-        audioEnd = nanoseconds + UInt64(Double(frames) / NativeAudioDecoder.sampleRate * 1_000_000_000)
+        // The same whole-number length NativeAudioTrack places pieces by, so
+        // the next piece never seems to start before this one ends.
+        audioEnd = nanoseconds + NativeAudioTrack.nanoseconds(frames: UInt64(frames))
     }
 
     func consume(_ frame: NativeVideoFrame) async throws {

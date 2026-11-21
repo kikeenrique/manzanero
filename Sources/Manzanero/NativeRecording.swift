@@ -308,12 +308,13 @@ extension NativeVideoEncoder: NativeRecordingSink {}
         // endpoint (docs/recording-recovery.md). With --audio there is no
         // restart: the sound stream's restart has not been checked.
         var recovery = audio ? nil : RecordingRecovery(durationNanoseconds: duration)
+        /// The sound track, with --audio; its receipt goes with a kept movie too.
+        var sound: NativeAudioTrack?
         do {
             let first = try media.open()
             // The device's sound is a second stream, started before the
             // video as Apple's Device Hub starts it. With --audio a failure
             // to start it fails the recording: there is no silent fallback.
-            var sound: NativeAudioTrack?
             if audio {
                 try first.startAudio()
                 guard let agreed = first.audioProfile else {
@@ -420,7 +421,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                 return NativeRecordingReceipt(frames: frames,
                     media: cleanup ?? NativeMediaFrames.Cleanup(startAttempted: true, stopAcknowledged: false, ownedStreamAbsent: false, diagnostic: nil),
                     assertionRelease: release.status, receiverReportsSent: media.closedReports.sent, senderReportsObserved: media.closedReports.observed,
-                    negotiatedFeedback: "unknown", recovery: recovery,
+                    negotiatedFeedback: "unknown", audio: sound?.receipt, recovery: recovery,
                     partial: "\(error) Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount).")
             }
             await encoder.cancel()

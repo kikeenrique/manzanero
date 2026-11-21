@@ -37,6 +37,24 @@ struct NativeAudioTests {
         #expect(track.receipt.packets == 3 && track.receipt.lost == 0 && abs(track.receipt.seconds - 0.03) < 0.0001)
     }
 
+    /// A minute of packets: each piece starts exactly where the one before
+    /// ends. In floating point about one in 58 started a nanosecond early,
+    /// the movie writer skipped it, and the sound ran 1.7% ahead of the
+    /// picture (the iPhone 13 mini, 2026-11-21).
+    @Test func aMinuteOfPacketsLeavesNoPieceBeforeTheEndOfTheLast() throws {
+        var track = try NativeAudioTrack(profile: Self.profile)
+        var end: UInt64 = 0
+        var early = 0
+        for index in 0..<6000 {
+            let pieces = track.accept(Self.packet(sequence: UInt16(truncatingIfNeeded: index), timestamp: UInt32(index * 480)), nanoseconds: UInt64(index) * 10_000_000)
+            for piece in pieces {
+                if piece.nanoseconds < end { early += 1 }
+                end = piece.nanoseconds + NativeAudioTrack.nanoseconds(frames: UInt64(piece.samples.count / 2))
+            }
+        }
+        #expect(early == 0 && end == 60_000_000_000)
+    }
+
     @Test func aLostPacketBecomesSilenceAndALateOneIsDropped() throws {
         var track = try NativeAudioTrack(profile: Self.profile)
         _ = track.accept(Self.packet(sequence: 1, timestamp: 0), nanoseconds: 0)

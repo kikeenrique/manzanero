@@ -39,8 +39,17 @@ struct NativeAudioTrack {
         decoder = try NativeAudioDecoder()
     }
 
+    /// In whole numbers: computed in floating point and truncated, about one
+    /// 480-sample piece in 58 came out a nanosecond before the previous
+    /// piece's end, the movie writer skipped it, and the sound ran ahead of
+    /// the picture by 1.7% (the iPhone 13 mini, 2026-11-21).
     private func time(_ timestamp: UInt32, from anchor: (timestamp: UInt32, nanoseconds: UInt64)) -> UInt64 {
-        anchor.nanoseconds + UInt64(Double(timestamp &- anchor.timestamp) / NativeAudioDecoder.sampleRate * 1_000_000_000)
+        anchor.nanoseconds + Self.nanoseconds(frames: UInt64(timestamp &- anchor.timestamp))
+    }
+
+    /// The length of `frames` samples at 48 kHz, exactly: 480 are 10 ms.
+    static func nanoseconds(frames: UInt64) -> UInt64 {
+        frames * 1_000_000_000 / UInt64(NativeAudioDecoder.sampleRate)
     }
 
     /// One datagram of the stream, arrived `nanoseconds` after the movie's
