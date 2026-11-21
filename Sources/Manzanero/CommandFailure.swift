@@ -137,6 +137,16 @@ struct CommandFailure: Error, CustomStringConvertible {
     static func foreignCode(_ error: any Error) -> Code {
         // A reply that does not decode: malformed JSON or property list.
         if error is DecodingError { return .transportFailed }
+        // The accessibility socket's own failures: a deadline (seen when the
+        // cable was pulled during a batch on 2026-11-21, which reported it
+        // unclassified), a closed socket, or a system call's error number.
+        if let socket = error as? AccessibilitySocketTransport.Failure {
+            switch socket {
+            case .deadline: return .timeout
+            case .closed: return .transportFailed
+            case .system(_, let code): return foreignCode(NSError(domain: NSPOSIXErrorDomain, code: Int(code)))
+            }
+        }
         let error = error as NSError
         switch error.domain {
         case NSPOSIXErrorDomain:

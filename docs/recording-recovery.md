@@ -73,7 +73,7 @@ With `--audio`, the sound stream belongs to the session and ends with it. A rest
 - A run without `--seconds` counts as the longest one (300 s) for the rule that no restart begins near the end.
 - When restarts are used up during a stall, the run ends with `stopReason: stream-stalled` and its frames kept; before recovery a count the stream could no longer reach kept it open.
 
-`NativeRecordingLoopTests` drives `frames` on the scripted stream too: a stream that ends and comes back (one restart, `recovery` in `frames.json`), a stalled run that ends as `stream-stalled` after three restarts, and a loss before the first picture. On the devices that evening, with no loss to recover from: 12 s of `frames` on the Apple TV 4K and 20 frames on the iPhone 13 mini, each without a restart and with a confirmed stop, and a 5-second recording on the phone after the restart code moved.
+`NativeRecordingLoopTests` drives `frames` on the scripted stream too: a stream that ends and comes back (one restart, `recovery` in `frames.json`), a stalled run that ends as `stream-stalled` after three restarts, and a loss before the first picture. On the devices that evening, with no loss to recover from: 12 s of `frames` on the Apple TV 4K and 20 frames on the iPhone 13 mini, each without a restart and with a confirmed stop, and a 5-second recording on the phone after the restart code moved. Later that night a cable pulled 7.5 s into a two-minute `frames` run on the phone for about 12 s was recovered: one restart, a 6.9-second gap in the frames' offsets, the run ended by its duration with a confirmed stop ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)).
 
 ## How it is tested before a device
 

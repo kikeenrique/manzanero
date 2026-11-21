@@ -134,6 +134,7 @@ What remains `unclassified`:
   | POSIX connection errors (refused, reset, aborted, broken pipe, not connected, host or network unreachable or down); other `NSURLErrorDomain` errors | `transport-failed` |
   | A file or directory on this Mac that is missing, unreadable, unwritable, full, read-only or already there (POSIX and Cocoa file errors) | `host-requirement` |
   | `AVFoundationErrorDomain` and `NSOSStatusErrorDomain` | `tool-failed` |
+  | The accessibility socket's own failures (`AccessibilitySocketTransport.Failure`, since 2026-11-21): its deadline; a closed socket; a system call's error, as its POSIX number above | `timeout`; `transport-failed`; as above |
 
   The site of such an error is not known, so `inputSent` stays `unknown` and `retry` is `after-inspection`, except that the accessibility action and tree paths, which know their stage, report `none` before the action. Anything else (`EIO`, an unknown domain) is still `unclassified`.
 - A wrapped failure keeps the inner category, so a wrapper around an unrecognised error stays unclassified.

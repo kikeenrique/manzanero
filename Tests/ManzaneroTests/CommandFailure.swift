@@ -65,7 +65,10 @@ struct CommandFailureTests {
             (CocoaError(.userCancelled), .unclassified),
             (NSError(domain: "AVFoundationErrorDomain", code: -11800), .toolFailed),
             (NSError(domain: NSOSStatusErrorDomain, code: -12909), .toolFailed),
-            (NSError(domain: "SomeOtherDomain", code: 1), .unclassified)
+            (NSError(domain: "SomeOtherDomain", code: 1), .unclassified),
+            (AccessibilitySocketTransport.Failure.deadline, .timeout), (AccessibilitySocketTransport.Failure.closed, .transportFailed),
+            (AccessibilitySocketTransport.Failure.system("read", ECONNRESET), .transportFailed),
+            (AccessibilitySocketTransport.Failure.system("read", EIO), .unclassified)
         ]
         for (error, code) in cases {
             let classified = CommandFailure.classify(error)
