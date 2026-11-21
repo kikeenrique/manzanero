@@ -1826,6 +1826,19 @@ Other observations: on the Duo a `tap` after `button lock` was dispatched where 
 
 Changed after the run, the same day: `detect-layout` is refused on a watch with the keyboard refusal, and was checked so on `manzanero-research-watch`. A letterboxed app on the Duo is pressed by moving the hit check by the window's centred offset ([guide](other-families.md#the-inner-display-unfolded)): `press --id probe.log.emit` was accepted and `set-value --id probe.text.field` wrote "duo ok". The Ultra's search was reproduced in Settings (`com.apple.NanoSettings`), and the guess first written here (every row already on screen) was wrong: General's row sat at y 255 of 257, mostly below the edge. The search anchors on elements without children, here the rows' texts, and a watch shrinks rows towards the list's edges, so the texts started at x 42.5, 43.8 and 85 and only two shared a line; that pair's lowest text was on screen, so its scroll moved nothing and the search stopped. The rows themselves, which all start at x 2, are now candidates too (before the texts when no texts form a list, after them otherwise). Afterwards `scroll --label Bluetooth --search 15` found Bluetooth in 5 steps on the Ultra and in 4 on the Series 12, and Website Data was found in Settings › General on the Ultra.
 
+**The four-path drag on the iPad, looked at again** the same evening, on the iPad mini (A20 Pro) simulator (iOS 27.2) with the iOS probe installed by `build-run`, each drag after `press --id probe.touch.reset`, the probe's summary read from `tree`:
+
+| Paths, iPadOS's gesture settings | What the probe received |
+| --- | --- |
+| Four, upward, both switches on (the default) | Nothing: the iPad went to its Home Screen, iPadOS's four-finger gesture |
+| Two, three and five, upward, both switches off | Every contact began, moved 27 to 30 times and ended |
+| Four, upward, with Settings › Multitasking & Gestures › Four & Five Finger App Switching off | 4 began, 4 cancelled after one move each |
+| Four, with Productivity Gestures off as well: upward, downward, sideways, close together, over 0.6 s and over 3 s | The same each time, cancelled after one move |
+| Four contacts that do not move (start and end alike) | 4 began, 4 ended, none cancelled |
+| The same four paths on `manzanero-research-phone` (iPhone, iOS 27.2) | 4 began, 120 moves, 4 ended |
+
+So iPadOS cancels four moving contacts whatever their direction, with both of its gesture switches off, and lets five through; four contacts that stay put are not cancelled, and an iPhone takes the same four paths whole. The tool sends them as it sends two, three and five. Which recognizer of iPadOS claims them is not known; the switches were put back on and the probe removed afterwards.
+
 Three simulators created for this work, headless (Simulator.app not opened): `manzanero-research-tv` (Apple TV 4K (4th generation) at 1080p, tvOS 27.2, 24K150), `manzanero-research-watch` (Apple Watch Series 12 (46mm), watchOS 27.2, 24S118) and `manzanero-research-duo` (iPhone Duo, iOS 27.2, 24B91016s). Host macOS 27.2.1 (26B131), Xcode 27.2 (27B52). No physical device was contacted. Background and the first pass are in [the research](other-families-research.md); the commands are described in [other simulator families](other-families.md).
 
 ### iPhone Duo displays

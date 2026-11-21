@@ -21,7 +21,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | Commands | iPhone, device | iPhone and iPad, simulator | Apple TV, device | Apple TV, simulator | Apple Watch, simulator | iPhone Duo, simulator |
 | --- | --- | --- | --- | --- | --- | --- |
 | **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown`, `create-simulator` (simulators) | works | works | works | works | works | works |
-| **Touch**: `tap`, `double-tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts; `tap` in landscape too | works; on an iPad a four-path `multi-drag` is cancelled by iPadOS | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works |
+| **Touch**: `tap`, `double-tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts; `tap` in landscape too | works; on an iPad four moving contacts are cancelled by iPadOS, even with its gesture settings off | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works |
 | **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: `home`, `side` and the Ultra's `action` work, `lock` does nothing, `key` refused | works; `wake` refused |
 | **Text**: `type`, `detect-layout`, `paste`, `set-value` | works | works; `paste` refused | works (`type`, `set-value`) | works | partly: `type` taps the on-screen keyboard (ASCII letters, digits, basic punctuation); `detect-layout` refused; `set-value` does not reach the app | works; `paste` refused |
 | **Apple TV remote**: `remote` | — | — | works: all eight buttons, held keys, swipes, `sleep` and `wake`; a held Home is refused | works, with holds and swipes; `sleep` and `wake` refused | — | — |
@@ -65,7 +65,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 1. **A release** of the work of 2026-11-21, which is in no beta yet.
 2. **Recording recovery, the rest**: the stream taken by another client, a still screen's packet rate, `--audio`, `frames`.
 3. **Small checks on the iPhone**: a `batch` across a change of link (needs the human owner). An action in flight at a pulled cable failed once and was not repeated, as designed.
-4. **Simulator findings**: iPadOS cancelling a four-path drag, unconfirmed.
+4. **Simulator findings: done.** iPadOS cancels four moving contacts even with its gesture settings off; an iPhone simulator takes them whole. A limit of iPadOS, not of the tool.
 5. **Sound in a recording, the rest**, on a device: picture and sound in step, a long recording.
 6. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
 7. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
