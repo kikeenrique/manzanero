@@ -1,6 +1,6 @@
 # Orientation, settings, location, status bar and clipboard
 
-Five commands that change or read a target's state through Apple's `devicectl`, which addresses a booted simulator by its UUID exactly as it addresses a device. Built on 2026-11-21 and run on an iPhone simulator (`manzanero-research-phone`, iOS 27.2); none has run on a device yet. On a device each command but `clipboard` changes the human owner's device, so ask first.
+Five commands that change or read a target's state through Apple's `devicectl`, which addresses a booted simulator by its UUID exactly as it addresses a device. Built on 2026-11-21 and run on an iPhone simulator (`manzanero-research-phone`, iOS 27.2); on the iPhone 13 mini the same evening `rotate`, `location` and `clipboard` worked, `status-bar` is not supported by a device, and `settings` was not run ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)). On a device each command but `clipboard` changes the human owner's device, so ask first.
 
 ```sh
 manzanero rotate landscape-left --simulator <UUID>          # portrait, portrait-upside-down, landscape-left, landscape-right
@@ -20,7 +20,7 @@ MCP: `device_settings` (`operation`: `rotate`, `settings`, `location`, `status-b
 | `rotate` | `device orientation set` | The interface turns only as far as the app in front allows: read the tree afterwards (its `screen.orientation` on a simulator). Accessibility commands follow the turn on a simulator; on a phone they accept it since 2026-11-21 and have not run there ([accessibility](direct-accessibility.md#current-native-tree-route)) |
 | `settings` | `device settings appearance` | `--appearance light\|dark`, `--text-size` (the twelve sizes, from `extra-small` to `accessibility-extra-extra-extra-large`), `--increase-contrast on\|off`, `--reduce-motion on\|off`; an accessibility text size also turns Larger Accessibility Sizes on, which devicectl requires for those sizes |
 | `location` | `device simulate location coordinate` / `clear` | Decimal degrees, latitude −90…90 and longitude −180…180 |
-| `status-bar` | `device simulate statusBar override` / `clear` | `--time` (text), `--battery-level 0…100`, `--battery-state draining\|charging\|charged`, `--wifi-bars 1…3`, `--cellular-bars 1…5` (each also sets its mode to active), `--data-network` (hide, wifi, hotspot, 1x, GPRS, Edge, UMTS, 4G, LTE, LTEA, LTEPlus, 5G, 5GPlus, 5GUWB, 5GUC) |
+| `status-bar` | `device simulate statusBar override` / `clear`, simulators only: the iPhone 13 mini answered that the capability is not supported, so a device is refused before it is contacted | `--time` (text), `--battery-level 0…100`, `--battery-state draining\|charging\|charged`, `--wifi-bars 1…3`, `--cellular-bars 1…5` (each also sets its mode to active), `--data-network` (hide, wifi, hotspot, 1x, GPRS, Edge, UMTS, 4G, LTE, LTEA, LTEPlus, 5G, 5GPlus, 5GUWB, 5GUC) |
 | `clipboard` | `device pasteboard paste` | The first item's text, at most 1 MiB, with `contentType` and `bytes`; `empty: true` when there is nothing. devicectl writes the text to its stdout and its JSON to a file of the run, which is deleted afterwards |
 
 Every command has a `--dry-run` plan, the invocation above, and each value is checked before any device is contacted. On a device, each first checks Developer Mode as `launch` does.

@@ -385,6 +385,9 @@ struct ConsoleCaptureTests {
         #expect(physical.environment == ["DEVICECTL_CHILD_OS_ACTIVITY_DT_MODE": "enable"])
         #expect(physical.physicalArguments(json: "/j") == ["devicectl", "device", "process", "launch", "--device", "phone", "--console",
             "--terminate-existing", "--timeout", "70", "--json-output", "/j", "com.example.app"])
+        // App arguments follow `--`, or devicectl reads -ProbeList's letters as its own options.
+        let withArguments = ConsoleCapture(physical: true, device: "phone", bundle: "com.example.app", seconds: 10, appArguments: ["-ProbeList", "YES"])
+        #expect(withArguments.physicalArguments(json: "/j").suffix(4) == ["--", "com.example.app", "-ProbeList", "YES"])
         #expect(physical.hardDeadlineSeconds == 30)
         #expect(try console(["console", "a.b", "--seconds", "1", "--simulator", uuid]).environment.isEmpty)
     }

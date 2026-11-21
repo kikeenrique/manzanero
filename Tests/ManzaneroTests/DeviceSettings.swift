@@ -23,13 +23,16 @@ struct DeviceSettingsTests {
             #expect(try arguments(["location", target, id, "--", "-33.8688,151.2093"])
                 == ["devicectl", "device", "simulate", "location", "coordinate", "--latitude=-33.8688", "--longitude=151.2093", "--device", id] + tail)
             #expect(try arguments(["location", "--clear", target, id]) == ["devicectl", "device", "simulate", "location", "clear", "--device", id] + tail)
-            #expect(try arguments(["status-bar", "--time", "9:41", "--wifi-bars", "3", "--battery-level", "100", target, id])
-                == ["devicectl", "device", "simulate", "statusBar", "override", "--time=9:41", "--battery-level=100",
-                    "--wifi-mode", "active", "--wifi-strength", "3", "--device", id] + tail)
-            #expect(try arguments(["status-bar", "--clear", target, id]) == ["devicectl", "device", "simulate", "statusBar", "clear", "--device", id] + tail)
             #expect(try arguments(["clipboard", target, id])
                 == ["devicectl", "device", "pasteboard", "paste", "--device", id, "--timeout", "30", "--json-output", DeviceSettings.resultPlaceholder])
         }
+        // The status bar is a simulator's only: a device refuses the capability.
+        #expect(try arguments(["status-bar", "--time", "9:41", "--wifi-bars", "3", "--battery-level", "100", "--simulator", simulator])
+            == ["devicectl", "device", "simulate", "statusBar", "override", "--time=9:41", "--battery-level=100",
+                "--wifi-mode", "active", "--wifi-strength", "3", "--device", simulator] + tail)
+        #expect(try arguments(["status-bar", "--clear", "--simulator", simulator]) == ["devicectl", "device", "simulate", "statusBar", "clear", "--device", simulator] + tail)
+        let refused = try #require(throws: CommandFailure.self) { try request(["status-bar", "--clear", "--device", device]) }
+        #expect(refused.description.contains("status-bar is for simulators"))
     }
 
     @Test(arguments: [["rotate", "sideways"], ["settings"], ["settings", "--appearance", "blue"], ["settings", "--text-size", "huge"],
@@ -42,7 +45,7 @@ struct DeviceSettingsTests {
 
     @Test func clipboardIsReadOnlyAndTheOthersAreNot() throws {
         #expect(try request(["clipboard", "--simulator", simulator]).isReadOnly)
-        for cli in [["rotate", "portrait"], ["settings", "--appearance", "dark"], ["location", "--clear"], ["status-bar", "--clear"]] {
+        for cli in [["rotate", "portrait"], ["settings", "--appearance", "dark"], ["location", "--clear"]] {
             let readOnly = try request(cli + ["--device", device]).isReadOnly
             #expect(!readOnly)
         }

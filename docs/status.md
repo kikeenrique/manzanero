@@ -27,14 +27,14 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Apple TV remote**: `remote` | — | — | works: all eight buttons, held keys, swipes, `sleep` and `wake`; a held Home is refused | works, with holds and swipes; `sleep` and `wake` refused | — | — |
 | **Watch crown**: `crown` | — | — | — | — | works | — |
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
-| **Accessibility, read**: `tree`, `wait` | works in portrait; landscape not run | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
-| **Accessibility, act**: `press`, `scroll`, `set-value` | works in portrait; landscape not run | works | works, see the routes below | works | works | works, a letterboxed app too since 2026-11-21 |
+| **Accessibility, read**: `tree`, `wait` | works, portrait and landscape | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
+| **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait and landscape | works | works, see the routes below | works | works | works, a letterboxed app too since 2026-11-21 |
 | **Accessibility, search a long list**: `scroll --search` | works downward; the other directions not run | works in four directions (iPhone, iPad) | works in four directions | works in four directions | partly: up and down on the Series 12; fails on the Ultra | works in four directions |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | works | works, with `--display` |
 | **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` | `record` works | `record` works | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | works (Ultra) | works; a first URL after its prompt was lost once |
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
-| **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | not run | works (iPhone, 2026-11-21) | not run | not run | not run | not run |
+| **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | `rotate`, `location`, `clipboard` work; `status-bar` refused (a device does not support it); `settings` not run | works (iPhone, 2026-11-21) | not run | not run | not run | not run |
 | **Build and run**: `build-run` | works | works | works | not run | not run | not run |
 | **App output**: `console`, `last-crash`, `logs` | works | works | `console` and `last-crash` work; `logs` not run | not run | works | works |
 | **A person's step**: `handoff` | works | works | works | works | works (`--until`) | works (`--until`) |
@@ -62,7 +62,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **`launch` with arguments, and `terminate` by bundle identifier**: built and run on a simulator on 2026-11-21; one run on the iPhone is owed.
+1. **`launch` with arguments, and `terminate` by bundle identifier**: done, on a simulator and the iPhone, 2026-11-21.
 2. **The new `press` order on the Apple TV**: built and unit-tested, not yet run there.
 3. **Selectors that are not exact**: built as `--match contains|regex` and run on a simulator on 2026-11-21.
 4. **Small checks on the iPhone**: `open-url` from another app, an action in flight when the cable is pulled, an agent session over the network.

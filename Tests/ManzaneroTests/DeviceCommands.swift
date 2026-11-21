@@ -16,7 +16,7 @@ struct DeviceCommandsTests {
         let options = try LaunchOptions(arguments: ["-ProbeList", "YES"], environment: ["A=1", "B=x=y"], language: "pt-BR", locale: "es_ES", relaunch: true)
         let physical = try DeviceCommand.launch(physical: true, device: "fixture-phone", bundle: "com.example.app", options: options)
         #expect(physical.arguments == ["devicectl", "device", "process", "launch", "--device", "fixture-phone", "--terminate-existing",
-            "--environment-variables", #"{"A":"1","B":"x=y"}"#, "--timeout", "60", "--json-output", "-", "com.example.app",
+            "--environment-variables", #"{"A":"1","B":"x=y"}"#, "--timeout", "60", "--json-output", "-", "--", "com.example.app",
             "-AppleLanguages", "(pt-BR)", "-AppleLocale", "es_ES", "-ProbeList", "YES"])
         #expect(physical.environment.isEmpty)
         let simulated = try DeviceCommand.launch(physical: false, device: simulator, bundle: "com.example.app", options: options)

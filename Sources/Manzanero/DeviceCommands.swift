@@ -28,8 +28,11 @@ struct DeviceCommand: Sendable, Equatable {
                 let data = try JSONSerialization.data(withJSONObject: options.environment, options: [.sortedKeys])
                 arguments += ["--environment-variables", String(decoding: data, as: UTF8.self)]
             }
-            // Options before the bundle: devicectl passes everything after it to the app.
-            return Self(arguments: arguments + ["--timeout", "60", "--json-output", "-", bundle] + appArguments, jsonOutput: true)
+            // Options before the bundle, and `--` before it when the app has
+            // arguments: devicectl reads an app argument such as -ProbeList as
+            // its own short options (-t took "YES"; seen on the iPhone 13 mini).
+            return Self(arguments: arguments + ["--timeout", "60", "--json-output", "-"] + (appArguments.isEmpty ? [] : ["--"])
+                        + [bundle] + appArguments, jsonOutput: true)
         }
         let environment = Dictionary(uniqueKeysWithValues: options.environment.map { ("SIMCTL_CHILD_" + $0.key, $0.value) })
         return Self(arguments: ["simctl", "launch"] + (options.relaunch ? ["--terminate-running-process"] : []) + [device, bundle] + appArguments,
@@ -46,6 +49,11 @@ struct DeviceCommand: Sendable, Equatable {
             guard operands.count == count, operands.allSatisfy({ !$0.isEmpty && !$0.hasPrefix("-") }) else {
                 throw CommandFailure.usage("\(operation) expects \(count) nonempty operand(s), without a leading '-'.")
             }
+        }
+        // devicectl answered the iPhone 13 mini: "The capability “Simulate
+        // Status Bar” is not supported by this device" (error 1001).
+        if physical, operation == "status-bar" {
+            throw CommandFailure.unsupported("status-bar is for simulators: a device answers that the capability \"Simulate Status Bar\" is not supported (seen on an iPhone). No device was contacted.")
         }
         // The same devicectl invocation for a device and a simulator.
         if let settings = try DeviceSettings.plan(device: device, operation: operation, operands: operands) { return settings }

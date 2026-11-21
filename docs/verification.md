@@ -234,6 +234,20 @@ The stream, over the route accessibility uses (tunnel assertion, port discovery,
 
 So the relay works over Apple's native tunnel on this phone, a PID filter holds on the device, the reference's record layout decoded every record seen, and debug-level lines of an app arrive, which `console` never shows. Not shown: entries with long or unusual fields, a stream of every process (`Pid: -1`), minutes-long streams, what a relaunch does to a PID stream, and whether closing the socket ends the subscription on the phone (a new stream opening is the only evidence). One phone, one iOS version.
 
+### Phone session of 2026-11-21: the day's new commands, landscape and a recording
+
+On the iPhone 13 mini (iOS 27.2.1), the evening of 2026-11-21, at the human owner's word, with the probe app. The tool's own tunnel was not available ("Apple's MobileDevice framework does not list the device"), so accessibility ran over Apple's tunnel (`serviceDirectory: reused-saved-port`).
+
+- **`launch` with app arguments** failed at first: `devicectl` read `-ProbeList` as its own short options and its `-t` took `YES` ("The value 'YES' is invalid for '-t <seconds>'"). `console`'s `-ProbeTone YES` had passed only because it has no lowercase `t`. Both now put `--` before the bundle when the app has arguments, as `devicectl`'s help asks; then `launch … --relaunch --env PROBE_X=1 -- -ProbeList YES` opened the list screen.
+- **`--match regex`**: `press --label '^Row 4$' --match regex` was accepted and the probe read `row-4`.
+- **`terminate <bundle>`** ended the probe (no ProbeApp process afterwards); a second one said "is not running; nothing was terminated".
+- **`double-tap 0.5 0.3`**: the probe counted two gestures.
+- **Landscape** (the probe launched with `-ProbeAllowRotation YES`, the phone turned with `rotate landscape-left` and `landscape-right`): `tree` read `rot270` with 812 × 375 bounds; `press --id probe.text.field` was accepted in both turns and `set-value` wrote "landscape ok" into it, so the mapping of hit points to native portrait holds on the phone. `press --id probe.touch.reset` was refused in landscape at the hit check and accepted in portrait: in landscape its centre (406, 269) lies inside the frame of `probe.touch.last-gesture` (y 164 to 284), which answers the hit; a layout overlap of the probe, and the guard doing its job. `probe.log.emit` was refused as not visible: at y 400 it is below a 375-point screen. `rotate portrait` turned it back.
+- **`location 40.4168,-3.7038`** and **`location --clear`** succeeded. **`paste`** then **`clipboard`** read back "clip ñ 13m" exactly.
+- **`status-bar`** is refused by the phone: "The capability “Simulate Status Bar” is not supported by this device" (CoreDevice error 1001); the command now refuses a device before contacting it.
+- **`record … 8 --backend coredevice`** made an 8-second movie as before, with `recovery: {restarts: 0, gaps: [], lastPictureHeldFrom: null}` and the device's stop confirmed. Recovery itself (a stream taken away mid-recording) needs the human owner at the phone and did not run.
+- Not run: `settings` (appearance, text size), which would change the phone's own settings and cannot read back what they were.
+
 ### Phone session of 2026-11-20: a table row, a moving stream, open-url and logs
 
 **2026-11-20, from about 22:05 local time, at `d0c6209`** (the `logs` changes below on top of it), on the human owner's word for the iPhone 13 mini: iOS 27.2.1, unlocked, no passcode asked, portrait, on its cable. macOS 27.2.1, Xcode 27.2 (27B52). The probe app was built and installed again with `build-run` before the session. Every accessibility command ran on the tool's own tunnel (`serviceDirectory: own-tunnel`, `ownTunnelLink: cable`) unless said otherwise. Only the probe app was used.

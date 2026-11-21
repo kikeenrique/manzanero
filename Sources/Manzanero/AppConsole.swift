@@ -66,9 +66,10 @@ struct ConsoleCapture: Sendable, Equatable {
     }
 
     func physicalArguments(json: String) -> [String] {
-        // Options before the bundle: devicectl passes everything after it to the app.
+        // Options before the bundle, and `--` before it when the app has
+        // arguments: devicectl reads one such as -ProbeList as its own short options.
         ["devicectl", "device", "process", "launch", "--device", device, "--console", "--terminate-existing",
-         "--timeout", "\(seconds + 60)", "--json-output", json, bundle] + appArguments
+         "--timeout", "\(seconds + 60)", "--json-output", json] + (appArguments.isEmpty ? [] : ["--"]) + [bundle] + appArguments
     }
 
     var hardDeadlineSeconds: Double { Double(seconds + Self.physicalGraceSeconds) }
