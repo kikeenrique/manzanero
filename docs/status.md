@@ -63,7 +63,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 
 1. **`launch` with arguments, and `terminate` by bundle identifier**: built and run on a simulator on 2026-11-21; one run on the iPhone is owed.
 2. **The new `press` order on the Apple TV**: built and unit-tested, not yet run there.
-3. **Selectors that are not exact**: a label or identifier that contains a text, or matches a pattern.
+3. **Selectors that are not exact**: built as `--match contains|regex` and run on a simulator on 2026-11-21.
 4. **Small checks on the iPhone**: `open-url` from another app, an action in flight when the cable is pulled, an agent session over the network.
 5. **Sound in a recording, the rest**: picture and sound in step, a long recording, and the Apple TV with something playing.
 6. **Recording recovery**: a restart of the stream after a loss; a design first.

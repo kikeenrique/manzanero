@@ -29,6 +29,7 @@ struct DirectAccessibilitySetValue {
     init(_ input: CoreDeviceInput) throws {
         var operands = input.operands
         let index = try AccessibilitySelector.takeIndex(&operands, minimumCount: 4)
+        let match = try AccessibilitySelector.takeMatch(&operands, minimumCount: 4)
         guard Self.operations.contains(input.operation), (2...3).contains(operands.count) else {
             throw CommandFailure.usage("Usage: set-value-id|set-value-label|set-value-value [positive-pid] <exact-selector> <text>; text is 1...\(Self.maximumTextBytes) UTF-8 bytes without NUL.")
         }
@@ -45,7 +46,8 @@ struct DirectAccessibilitySetValue {
             pid = value
         }
         guards = DirectAccessibilityAction(guardsFor: "set-value", by: AccessibilitySelector.by(operation: input.operation),
-                                           text: selector, pid: pid, index: index)
+                                           text: selector, pid: pid, index: index, match: match)
+        try match.validate(selector)
         self.value = value
     }
 

@@ -10,6 +10,8 @@ struct DirectAccessibilityAction {
     let text: String
     /// `--index`: the position among the distinct matches, counted from 1.
     let index: Int?
+    /// `--match`: how the selector's text is compared; exact unless given.
+    var match: AccessibilitySelector.MatchMode = .exact
     /// `--search`, scroll only: how many steps to look forward for a target
     /// that is not in the tree yet (a list that loads its rows as it moves).
     let search: Int?
@@ -58,18 +60,19 @@ struct DirectAccessibilityAction {
 
     /// The selector and guards for an operation other than press or scroll
     /// (`DirectAccessibilitySetValue`); `execute` is not used with it.
-    init(guardsFor operation: String, by: String, text: String, pid: Int32?, index: Int? = nil) {
+    init(guardsFor operation: String, by: String, text: String, pid: Int32?, index: Int? = nil, match: AccessibilitySelector.MatchMode = .exact) {
         action = .press
         operationName = operation
         self.by = by
         self.text = text
         self.pid = pid
         self.index = index
+        self.match = match
         search = nil
         toward = .down
     }
 
-    /// Operands: `[pid] <selector> [--index <n>] [--search <steps> [--toward <direction>]]`.
+    /// Operands: `[pid] <selector> [--match <mode>] [--index <n>] [--search <steps> [--toward <direction>]]`.
     init(_ input: CoreDeviceInput) throws {
         var operands = input.operands
         if operands.count >= 5, operands[operands.count - 2] == Self.towardOption, operands[operands.count - 4] == Self.searchOption {
@@ -87,10 +90,13 @@ struct DirectAccessibilityAction {
             operands.removeLast(2)
         } else { search = nil }
         index = try AccessibilitySelector.takeIndex(&operands, minimumCount: 3)
+        let match = try AccessibilitySelector.takeMatch(&operands, minimumCount: 3)
         guard Self.operations.contains(input.operation), (1...2).contains(operands.count),
               let text = operands.last, (1...4096).contains(text.utf8.count), !text.contains("\0") else {
             throw CommandFailure.usage("Native AX selector action requires an optional positive PID and 1...4096 UTF-8 bytes of exact selector without NUL.")
         }
+        try match.validate(text)
+        self.match = match
         if operands.count == 2 {
             guard let pid = Int32(operands[0]), pid > 0 else { throw CommandFailure.usage("Native AX selector PID must be positive.") }
             self.pid = pid
@@ -103,7 +109,7 @@ struct DirectAccessibilityAction {
     /// `press-…` and `scroll-…` for every selector kind.
     static let operations = AccessibilitySelector.operations("press") + AccessibilitySelector.operations("scroll")
 
-    var selector: AccessibilitySelector { AccessibilitySelector(by: by, text: text, index: index) }
+    var selector: AccessibilitySelector { AccessibilitySelector(by: by, text: text, index: index, match: match) }
 
     func resolve(_ snapshot: AccessibilityArchiveValue, root: AccessibilityRequest.Token) throws -> AccessibilitySnapshot.Node {
         // One entry per distinct element; repeated paths must agree.
@@ -485,9 +491,56 @@ struct AccessibilitySelector: Sendable, Equatable {
     /// node order (the order an ambiguous-selector failure lists them); nil
     /// requires the selector to settle on one element by itself.
     var index: Int? = nil
+    /// How `text` is compared with the node's field.
+    var match: MatchMode = .exact
 
     static let indexOption = "--index"
     static let indexRange = 1...512
+    static let matchOption = "--match"
+
+    /// `exact` (the default) is the whole field, case-sensitive. `contains`
+    /// finds the text anywhere in it, ignoring case and diacritics. `regex`
+    /// is an ICU regular expression searched anywhere in it (anchor it with
+    /// `^…$`; `(?i)` ignores case).
+    enum MatchMode: String, CaseIterable, Sendable {
+        case exact, contains, regex
+
+        /// Refuses a pattern that does not compile, before any device is contacted.
+        func validate(_ text: String) throws {
+            guard self == .regex else { return }
+            do { _ = try NSRegularExpression(pattern: text) }
+            catch { throw CommandFailure.usage("\(AccessibilitySelector.matchOption) regex: '\(text)' is not a valid regular expression.") }
+        }
+    }
+
+    /// Whether a node's field matches the selector.
+    func accepts(_ candidate: String?) -> Bool {
+        guard let candidate else { return false }
+        switch match {
+        case .exact: return candidate == text
+        case .contains: return candidate.range(of: text, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        case .regex:
+            guard let expression = try? NSRegularExpression(pattern: text) else { return false }
+            return expression.firstMatch(in: candidate, range: NSRange(candidate.startIndex..., in: candidate)) != nil
+        }
+    }
+
+    /// Removes a trailing `--match <mode>` from positional selector operands,
+    /// after any `--index` has been taken; as for `takeIndex`, `minimumCount`
+    /// keeps a selector or value that is itself "--match" from being read as one.
+    static func takeMatch(_ operands: inout [String], minimumCount: Int) throws -> MatchMode {
+        guard operands.count >= minimumCount, operands[operands.count - 2] == matchOption else { return .exact }
+        let mode = try parseMatch(operands[operands.count - 1])
+        operands.removeLast(2)
+        return mode
+    }
+
+    static func parseMatch(_ text: String) throws -> MatchMode {
+        guard let mode = MatchMode(rawValue: text) else {
+            throw CommandFailure.usage("\(matchOption) is exact, contains or regex.")
+        }
+        return mode
+    }
 
     /// The node fields a selector can compare, by the suffix of the internal
     /// operation name (`press-id`, `wait-label`, `set-value-value`). `value`
@@ -511,6 +564,7 @@ struct AccessibilitySelector: Sendable, Equatable {
     var json: [String: Any] {
         var json: [String: Any] = ["by": by, "text": text]
         if let index { json["index"] = index }
+        if match != .exact { json["match"] = match.rawValue }
         return json
     }
 
@@ -539,12 +593,18 @@ struct AccessibilitySelector: Sendable, Equatable {
         let nodes = try AccessibilitySnapshot.normalize(snapshot, root: root)
         var records = [snapshot]
         var found: [Match] = []
+        let expression = match == .regex ? try? NSRegularExpression(pattern: text) : nil
+        func accepts(_ field: AccessibilitySnapshot.Scalar?) -> Bool {
+            guard case .string(let candidate)? = field else { return false }
+            if let expression { return expression.firstMatch(in: candidate, range: NSRange(candidate.startIndex..., in: candidate)) != nil }
+            return self.accepts(candidate)
+        }
         for (index, node) in nodes.enumerated() {
             guard case .dictionary(let record) = records[index], case .array(let children) = record["UIAccessibilitySnapshotKeyChildren"],
                   let attributes = record["UIAccessibilitySnapshotKeyAttributes"] else { throw failure("invalid snapshot record") }
             records.append(contentsOf: children)
             let value = by == "identifier" ? node.identifier : by == "value" ? node.value : node.label
-            if value == .string(text) { found.append(Match(node: node, attributes: attributes)) }
+            if accepts(value) { found.append(Match(node: node, attributes: attributes)) }
         }
         return found
     }

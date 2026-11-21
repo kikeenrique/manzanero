@@ -125,16 +125,21 @@ struct TargetOptions: ParsableArguments {
     }
 }
 
-/// An exact accessibility selector: `--id`, `--label` or `--with-value`, and an optional PID.
+/// An accessibility selector: `--id`, `--label` or `--with-value`, how it
+/// matches, and an optional PID.
 struct SelectorOptions: ParsableArguments {
-    @Option(parsing: .unconditional, help: ArgumentHelp("Exact, case-sensitive current value, for an element with neither identifier nor label (a search field that only shows its placeholder).", valueName: "value"))
+    @Option(parsing: .unconditional, help: ArgumentHelp("Current value, for an element with neither identifier nor label (a search field that only shows its placeholder).", valueName: "value"))
     var withValue: String?
 
-    @Option(parsing: .unconditional, help: ArgumentHelp("Exact, case-sensitive accessibility identifier.", valueName: "identifier"))
+    @Option(parsing: .unconditional, help: ArgumentHelp("Accessibility identifier.", valueName: "identifier"))
     var id: String?
 
-    @Option(parsing: .unconditional, help: ArgumentHelp("Exact, case-sensitive accessibility label.", valueName: "label"))
+    @Option(parsing: .unconditional, help: ArgumentHelp("Accessibility label.", valueName: "label"))
     var label: String?
+
+    @Option(help: ArgumentHelp("How the text is compared: exact (default; the whole field, case-sensitive), contains (anywhere in it, ignoring case and accents) or regex (an ICU regular expression found anywhere in it; anchor with ^…$, (?i) ignores case).", valueName: "mode"),
+            completion: .list(AccessibilitySelector.MatchMode.allCases.map(\.rawValue)))
+    var match: String?
 
     @Option(help: ArgumentHelp("Positive PID of the application to inspect (default: the foreground application).", valueName: "pid"))
     var pid: String?
@@ -180,8 +185,11 @@ extension SelectorOptions {
     /// `[pid] <text>`, the operands the selector operations validate.
     var operands: [String] { (pid.map { [$0] } ?? []) + [text] }
 
-    /// `--index <n>` when given; it follows every positional operand.
-    var indexOperands: [String] { index.map { [AccessibilitySelector.indexOption, $0] } ?? [] }
+    /// `--match <mode>` and `--index <n>` when given, in that order; they
+    /// follow every positional operand.
+    var trailingOperands: [String] {
+        (match.map { [AccessibilitySelector.matchOption, $0] } ?? []) + (index.map { [AccessibilitySelector.indexOption, $0] } ?? [])
+    }
 }
 
 struct ManzaneroCLI: ParsableCommand {

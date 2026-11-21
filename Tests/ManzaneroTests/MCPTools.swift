@@ -74,6 +74,20 @@ struct MCPToolsTests {
             request: .physicalInput(CoreDeviceInput(device: "phone", operation: "press-label", operands: ["3", "--dry-run"])), dryRun: false, errorFormat: nil))
     }
 
+    @Test func selectorToolsCarryTheMatchMode() throws {
+        for name in ["press_element", "scroll_to_element", "wait_for_element", "set_element_value"] {
+            let tool = try #require(MCPTools.definitions.first { $0.name == name })
+            #expect(tool.fields.contains { $0.name == "match" && !$0.required && $0.choices == ["exact", "contains", "regex"] })
+        }
+        let detect = try #require(MCPTools.definitions.first { $0.name == "detect_keyboard_layout" })
+        #expect(!detect.fields.contains { $0.name == "match" })
+        let press = try #require(MCPTools.definitions.first { $0.name == "press_element" })
+        let routed = try press.command(["device": "phone", "by": "label", "text": "row", "match": "contains", "index": 2])
+        #expect(routed == ["press", "--device=phone", "--label=row", "--match=contains", "--index=2"])
+        #expect(try CLI.invocation(routed).request == .physicalInput(CoreDeviceInput(device: "phone", operation: "press-label", operands: ["row", "--match", "contains", "--index", "2"])))
+        #expect(throws: MCPError.self) { try press.command(["device": "phone", "by": "label", "text": "row", "match": "fuzzy"]) }
+    }
+
     @Test func appActionLaunchCarriesItsOptions() throws {
         let definition = try #require(MCPTools.definitions.first { $0.name == "app_action" })
         let base: [String: Value] = ["platform": "physical", "device": "fixture-phone", "operation": "launch", "value": "com.example.app"]

@@ -171,6 +171,56 @@ struct DirectAccessibilityActionTests {
         if case .failure(let error) = plain { #expect(String(describing: error).contains("with --index")) } else { Issue.record("Ambiguity resolved itself") }
     }
 
+    /// `--match contains` and `regex` reach the same matches as an exact
+    /// selector, and every guard after selection is unchanged.
+    @Test func matchModesSelectTheSameElementsAsAnExactSelector() throws {
+        func press(_ operands: [String]) throws -> Result<[String: Any], any Error> {
+            let action = try DirectAccessibilityAction(.init(device: "fixture", operation: "press-id", operands: operands))
+            return Result { () throws -> [String: Any] in
+                let data = try action.execute(session: AccessibilitySession(transport: Wire("ambiguous")), display: { try AccessibilityDisplay(AccessibilityDisplayTests.data(scale: 3)) })
+                return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            }
+        }
+        let contains = try press(["42", "FIXTURE.CONT", "--match", "contains", "--index", "1"]).get()
+        #expect((contains["selector"] as? [String: Any])?["match"] as? String == "contains")
+        #expect(contains["nativeAccepted"] as? Bool == true)
+        #expect(try press(["42", "^fixture\\.control$", "--match", "regex", "--index", "1"]).get()["nativeAccepted"] as? Bool == true)
+        // A pattern that matches nothing finds nothing; a substring alone stays exact.
+        if case .success = try press(["^control", "--match", "regex"]) { Issue.record("An anchored pattern matched the middle of a field") }
+        if case .success = try press(["fixture.cont"]) { Issue.record("An exact selector matched a prefix") }
+    }
+
+    @Test func matchModesCompareAsDocumented() throws {
+        func selector(_ text: String, _ mode: AccessibilitySelector.MatchMode) -> AccessibilitySelector { .init(by: "label", text: text, match: mode) }
+        #expect(selector("Café", .exact).accepts("Café") && !selector("Café", .exact).accepts("café") && !selector("Caf", .exact).accepts("Café"))
+        #expect(selector("cafe", .contains).accepts("Mi CAFÉ favorito") && !selector("té", .contains).accepts("Café"))
+        #expect(selector("^Row [0-9]+$", .regex).accepts("Row 12") && !selector("^Row [0-9]+$", .regex).accepts("Row 12 detail"))
+        #expect(selector("(?i)row", .regex).accepts("ROW") && !selector("row", .regex).accepts("ROW"))
+        #expect(!selector("x", .contains).accepts(nil))
+        #expect(selector("x", .exact).json["match"] == nil && selector("x", .regex).json["match"] as? String == "regex")
+    }
+
+    @Test func matchOperandsParseBeforeTheIndexAndValidatePatterns() throws {
+        func action(_ operands: [String]) throws -> DirectAccessibilityAction { try .init(.init(device: "fixture", operation: "press-label", operands: operands)) }
+        let both = try action(["7", "Save", "--match", "contains", "--index", "2"])
+        #expect(both.match == .contains && both.index == 2 && both.pid == 7 && both.text == "Save")
+        #expect(try action(["Save", "--match", "regex"]).match == .regex && action(["Save"]).match == .exact)
+        // Two operands are always PID and selector.
+        #expect(try action(["7", "--match"]).text == "--match")
+        for operands in [["Save", "--match", "fuzzy"], ["(", "--match", "regex"], ["Save", "--index", "2", "--match", "contains"]] {
+            #expect(throws: CommandFailure.self) { try action(operands) }
+        }
+        func setValue(_ operands: [String]) throws -> DirectAccessibilitySetValue { try .init(.init(device: "fixture", operation: "set-value-label", operands: operands)) }
+        let set = try setValue(["Field", "text", "--match", "contains", "--index", "3"])
+        #expect(set.guards.match == .contains && set.guards.index == 3 && set.value == "text")
+        // Three operands are PID, selector and value: a selector "--match" stays a selector.
+        let literal = try setValue(["7", "--match", "regex"])
+        #expect(literal.guards.text == "--match" && literal.value == "regex" && literal.guards.match == .exact)
+        let wait = try AccessibilityWait(.init(device: "fixture", operation: "wait-label", operands: ["Row", "--match", "contains", "--until", "gone"]))
+        #expect(wait.selector.match == .contains)
+        #expect(throws: CommandFailure.self) { try AccessibilityWait(.init(device: "fixture", operation: "wait-label", operands: ["[", "--match", "regex"])) }
+    }
+
     @Test func indexOperandsParseOnlyWhereTheyCannotBeASelectorOrValue() throws {
         func action(_ operands: [String]) throws -> DirectAccessibilityAction { try .init(.init(device: "fixture", operation: "press-label", operands: operands)) }
         #expect(try action(["Save", "--index", "2"]).index == 2 && action(["7", "Save", "--index", "2"]).pid == 7)

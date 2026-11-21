@@ -153,11 +153,11 @@ struct InspectorPress {
     }
 
     private func matches(_ element: Element, session: AuditSession) throws -> Bool {
-        if selector.by == "identifier" { return element.identifier == selector.text }
+        if selector.by == "identifier" { return selector.accepts(element.identifier) }
         guard let label = element.label else { return false }
         let reply = try session.ask("deviceElement:valueForAttribute:", [element.object, label])
         let value = (AuditSession.unarchive(reply) as? NSDictionary)?["Value"]
-        return value as? String == selector.text
+        return selector.accepts(value as? String)
     }
 
     /// Walks the cursor through the screen, settles on the one element the

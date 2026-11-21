@@ -244,16 +244,16 @@ extension ManzaneroCLI {
     }
 
     struct Press: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "press", abstract: "Press one element by exact identifier, label or value.",
+        static let configuration = CommandConfiguration(commandName: "press", abstract: "Press one element by identifier, label or value.",
             discussion: "Two fresh unique snapshots and live state, frame and hit checks precede one accessibility press. On a physical Apple TV a press goes first by the tool's own tunnel (once `manzanero pair` has paired the tool with it), then, for --id or --label, by Apple's Accessibility Inspector cursor (result route: inspector), which makes none of those checks, and last over Apple's tunnel; neither of the first two disturbs the Mac's connection to the device, and the result says why a route was passed over in ownTunnelUnavailable and inspectorUnavailable. \(receiptCaveat)")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @OptionGroup var selector: SelectorOptions
-        func request(_ target: Target) throws -> CommandRequest { try .input(target, selector.operation("press"), selector.operands + selector.indexOperands) }
+        func request(_ target: Target) throws -> CommandRequest { try .input(target, selector.operation("press"), selector.operands + selector.trailingOperands) }
     }
 
     struct Scroll: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "scroll", abstract: "Scroll one element into view by exact identifier, label or value.",
+        static let configuration = CommandConfiguration(commandName: "scroll", abstract: "Scroll one element into view by identifier, label or value.",
             discussion: "The element must already be in the snapshot, unless --search is given: a list that loads its rows as it moves holds only the rows near the screen. --search moves down one step at a time, or the way --toward names, reading the tree after each, until the element appears, the list stops moving or the steps run out; it does not move the list back. Visibility is observed afterward and reported separately.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
@@ -264,7 +264,7 @@ extension ManzaneroCLI {
             guard toward == nil || search != nil else {
                 throw CommandFailure.usage("\(DirectAccessibilityAction.towardOption) belongs to scroll \(DirectAccessibilityAction.searchOption).")
             }
-            return try .input(target, selector.operation("scroll"), selector.operands + selector.indexOperands
+            return try .input(target, selector.operation("scroll"), selector.operands + selector.trailingOperands
                        + (search.map { [DirectAccessibilityAction.searchOption, $0] } ?? [])
                        + (toward.map { [DirectAccessibilityAction.towardOption, $0] } ?? []))
         }
@@ -283,7 +283,7 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("Seconds between polls, 0.25...5 (default 0.5).", valueName: "seconds")) var interval: String?
         /// AccessibilityWait reads the options after the selector, by name.
         func request(_ target: Target) throws -> CommandRequest {
-            try .input(target, selector.operation("wait"), selector.operands + selector.indexOperands
+            try .input(target, selector.operation("wait"), selector.operands + selector.trailingOperands
                 + [("--until", until), ("--value", value), ("--timeout", timeout), ("--interval", interval)]
                     .flatMap { name, value in value.map { [name, $0] } ?? [] })
         }
@@ -297,7 +297,7 @@ extension ManzaneroCLI {
         @OptionGroup var selector: SelectorOptions
         @Argument(help: "The new value, 1...65536 UTF-8 bytes without NUL.") var text: String
         func request(_ target: Target) throws -> CommandRequest {
-            try .input(target, selector.operation("set-value"), selector.operands + [text] + selector.indexOperands)
+            try .input(target, selector.operation("set-value"), selector.operands + [text] + selector.trailingOperands)
         }
     }
 
