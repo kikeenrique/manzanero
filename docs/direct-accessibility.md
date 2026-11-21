@@ -29,6 +29,8 @@ The normalizer caps output at 512 nodes/depth 32, validates declared children an
 
 ### Web content
 
+On a simulator the page is read with `tree --pid <web content process>`, the `processIdentifier` of the `AXRemoteElement` in the browser's own tree; selector actions on it are refused for now, because there the browser is the foreground process and the page the one it hosts ([roadmap](roadmap.md#dependable-physical-testing)). What follows is the phone.
+
 A web page is drawn by a content process of its own, inside the browser's or app's `WKWebView`. Once the page's accessibility is awake, the display centre belongs to that process, and its application snapshot comes back rooted at the host's `AXRemoteElement` with the page's elements beneath. The normalizer accepts that one shape: the root node then carries `externalProcessReference: true` and the host's PID in `processIdentifier`, and `application.pid` is the content process. Seen with Chrome on one iPhone 13 mini ([verification](verification.md#web-content-on-the-phone)).
 
 What follows from it:
