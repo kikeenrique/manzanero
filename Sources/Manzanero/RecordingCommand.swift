@@ -105,6 +105,7 @@ struct RecordingCommand: Sendable, Equatable {
                         "channels": NativeAudioDecoder.channels, "packets": sound.packets, "packetsLost": sound.lost,
                         "packetsRefused": sound.refused, "secondsWritten": sound.seconds] as [String: Any]
                 }
+                if let recovery = nativeReceipt.recovery { result["recovery"] = recovery.json }
                 result["rtcp"] = ["receiverReportsSent": nativeReceipt.receiverReportsSent,
                     "senderReportsObserved": nativeReceipt.senderReportsObserved,
                     "negotiatedFeedback": nativeReceipt.negotiatedFeedback] as [String: Any]

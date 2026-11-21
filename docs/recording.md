@@ -59,7 +59,8 @@ Receipts report:
 - `backend: coredevice-videotoolbox`, `sourceFrames`, `timeline: host-pixel-delivery`, `audio: false`;
 - actual artifact duration, decoded dimensions and codec;
 - separate stream/tunnel cleanup fields;
-- RTCP report counters and negotiated-feedback observation.
+- RTCP report counters and negotiated-feedback observation;
+- without `--audio`, `recovery`: restarts, gaps and `lastPictureHeldFrom` ([recovery](recording-recovery.md), since 2026-11-21, not yet run on a device).
 
 `deviceStopConfirmed` means owned stop acknowledgement plus fresh server absence; it does not prove destruction of every native resource. Cancellation/failure publishes no successful movie receipt. Failed/staged artifacts may remain privately for investigation.
 
@@ -73,7 +74,7 @@ The media owner sends bounded compound Receiver Reports plus a random per-sessio
 
 `rtcp.negotiatedFeedback` is `enabled`, `disabled` or `unknown` from Apple's negotiated screen result after answer acceptance. Class/selector/return-ABI guards preserve unknown for unsupported contracts. It does not infer feedback from ordinary RTCP enablement, alter an offer or send feedback. Installed getter signatures are verified. Read live on the iPhone 13 mini on 2026-11-17, it was `disabled` twice with the stock offer, which does not ask for feedback, and `disabled` again in one recording whose offer did ask ([verification](verification.md#an-offer-that-asks-for-rtcp-feedback)). Even enabled would not establish PLI/FIR compatibility.
 
-Keyframe requests over negotiated feedback are therefore not planned: that phone declines them. Recovery from loss, a crash or a disconnect is to be a restart of the stream ([design](recording-recovery.md)). Startup failures with zero packets on the test Mac were traced to the firewall (above); whether every earlier startup failure had that cause was not checked.
+Keyframe requests over negotiated feedback are therefore not planned: that phone declines them. Recovery from loss, a crash or a disconnect is a restart of the stream ([design](recording-recovery.md)): built on 2026-11-21 for recordings without sound, unit-tested, not yet run on a device. Startup failures with zero packets on the test Mac were traced to the firewall (above); whether every earlier startup failure had that cause was not checked.
 
 ## Sound
 

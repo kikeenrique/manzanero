@@ -165,6 +165,8 @@ struct NativeRecordingReceipt: Sendable {
     let negotiatedFeedback: String
     /// The sound written, when the recording asked for it.
     var audio: NativeAudioTrack.Receipt? = nil
+    /// Restarts and gaps, for a recording without sound.
+    var recovery: RecordingRecovery? = nil
 }
 
 @MainActor enum NativeRecording {
@@ -227,6 +229,58 @@ struct NativeRecordingReceipt: Sendable {
             var last: UInt64 = 0
             var checked = DispatchTime.now().uptimeNanoseconds
             var received = 0
+            // A lost session after the first picture is restarted on the same
+            // endpoint (docs/recording-recovery.md). With --audio there is no
+            // restart: the sound stream's restart has not been checked.
+            var recovery = command.audio ? nil : RecordingRecovery(durationNanoseconds: duration)
+            var earlierReportsSent: UInt64 = 0, earlierReportsObserved: UInt64 = 0
+            /// The last lost session's confirmed cleanup, for a recording
+            /// that ends holding its picture after a restart failed to open.
+            var closedCleanup: NativeMediaFrames.Cleanup?
+            func restartSession() throws {
+                earlierReportsSent += capture?.receiverReportsSent ?? 0
+                earlierReportsObserved += capture?.senderReportsObserved ?? 0
+                decoder?.close(); decoder = nil
+                let cleanup = capture?.close() ?? closedCleanup; capture = nil
+                closedCleanup = cleanup
+                guard let cleanup, cleanup.stopAcknowledged, cleanup.ownedStreamAbsent else {
+                    throw CommandFailure(.transportFailed, "Native recording could not confirm the end of a lost session, so it was not restarted: owned stop=\(cleanup?.stopAcknowledged ?? false), stream absent=\(cleanup?.ownedStreamAbsent ?? false). \(cleanup?.diagnostic ?? "")", inputSent: .none)
+                }
+                capture = try NativeMediaFrames(endpoint: endpoint, version: identity.version, plainOffer: display.external)
+                try capture?.start(displayID: Int64(display.id))
+                guard let again = capture?.packetProfile(), again["width"] == width, again["height"] == height, again["payloadType"] == payload else {
+                    throw CommandFailure(.preconditionChanged, "A restarted native session negotiated another picture size or payload; the recording stops.", inputSent: .none)
+                }
+                decoder = try NativeHEVCDecoder(width: Int(width), height: Int(height))
+                assembler = MediaHEVCAssembler()
+            }
+            /// Restarts after a loss when the bounds allow; false when the
+            /// picture is to be held instead. A failure without a restart is
+            /// thrown as it always was.
+            func recover(_ reason: RecordingRecovery.Reason, _ error: (any Error)?) throws -> Bool {
+                guard var state = recovery else {
+                    if let error { throw error }
+                    return false
+                }
+                defer { recovery = state }
+                var lastError = error
+                while true {
+                    switch state.decide(reason, at: DispatchTime.now().uptimeNanoseconds) {
+                    case .hold: return false
+                    case .fail: throw lastError ?? CommandFailure(.transportFailed, "Native recording lost its stream (\(reason.rawValue)).", inputSent: .none)
+                    case .restart:
+                        do { try restartSession(); return true }
+                        catch {
+                            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+                            if let failure = error as? CommandFailure, failure.code == .preconditionChanged { throw failure }
+                            lastError = error
+                        }
+                    }
+                }
+            }
+            func recoverable(_ error: any Error) -> Bool {
+                recovery?.first != nil && !(error is CancellationError) && !Task.isCancelled
+            }
             while true {
                 try Task.checkCancellation()
                 let now = DispatchTime.now().uptimeNanoseconds
@@ -234,8 +288,17 @@ struct NativeRecordingReceipt: Sendable {
                 if first == nil, now >= startup {
                     throw CommandFailure(.timeout, "Native recording exceeded its twelve-second first-frame budget.", inputSent: .none)
                 }
-                if now - checked >= 1_000_000_000 {
-                    try capture?.requireActive()
+                if let reason = recovery?.stall(at: now) {
+                    _ = try recover(reason, nil)
+                    continue
+                }
+                if now - checked >= 1_000_000_000, recovery?.heldFrom == nil {
+                    do { try capture?.requireActive() }
+                    catch where recoverable(error) {
+                        _ = try recover(.streamEnded, error)
+                        checked = DispatchTime.now().uptimeNanoseconds
+                        continue
+                    }
                     checked = DispatchTime.now().uptimeNanoseconds
                 }
                 // Sound from before the first picture is dropped: the movie
@@ -246,7 +309,14 @@ struct NativeRecordingReceipt: Sendable {
                         try await encoder.consumeAudio(piece.samples, nanoseconds: piece.nanoseconds)
                     }
                 }
-                if let packet = try capture?.nextPacket() {
+                let next: Data?
+                do { next = recovery?.heldFrom == nil ? try capture?.nextPacket() : nil }
+                catch where recoverable(error) {
+                    _ = try recover(.transportFailed, error)
+                    continue
+                }
+                if let packet = next {
+                    recovery?.packet(at: now)
                     packetCount += 1
                     received += packet.count
                     guard received <= 1024 * 1024 * 1024 else {
@@ -261,6 +331,7 @@ struct NativeRecordingReceipt: Sendable {
                         decodedCount += 1
                         let time = DispatchTime.now().uptimeNanoseconds
                         if first == nil { first = time }
+                        recovery?.picture(at: time)
                         guard let first, time - first < duration else { break }
                         try await encoder.consume(NativeVideoFrame(nanoseconds: time - first, pixels: pixels))
                         last = time
@@ -269,8 +340,11 @@ struct NativeRecordingReceipt: Sendable {
                     try await Task.sleep(for: .milliseconds(2))
                 }
             }
-            try capture?.requireActive()
-            guard let cleanup = closeMedia() else {
+            // A held picture means the stream was lost for good; its cleanup is still checked.
+            if recovery?.heldFrom == nil { try capture?.requireActive() }
+            let reportsSent = earlierReportsSent + (capture?.receiverReportsSent ?? 0)
+            let reportsObserved = earlierReportsObserved + (capture?.senderReportsObserved ?? 0)
+            guard let cleanup = closeMedia() ?? (recovery?.heldFrom != nil ? closedCleanup : nil) else {
                 throw CommandFailure(.internal, "Native recording lost its media owner.", inputSent: .none)
             }
             let release = assertion.close()
@@ -284,9 +358,9 @@ struct NativeRecordingReceipt: Sendable {
             let frames = try await encoder.finish()
             await sessions.end(endpoint.uuid)
             return NativeRecordingReceipt(frames: frames, media: cleanup, assertionRelease: release.status,
-                receiverReportsSent: capture?.receiverReportsSent ?? 0,
-                senderReportsObserved: capture?.senderReportsObserved ?? 0,
-                negotiatedFeedback: capture?.negotiatedFeedback ?? "unknown", audio: sound?.receipt)
+                receiverReportsSent: reportsSent,
+                senderReportsObserved: reportsObserved,
+                negotiatedFeedback: capture?.negotiatedFeedback ?? "unknown", audio: sound?.receipt, recovery: recovery)
         } catch {
             let cleanup = closeMedia()
             let release = assertion.close()

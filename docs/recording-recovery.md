@@ -2,6 +2,8 @@
 
 A design for item 21 of the [roadmap](roadmap.md#not-built), written on 2026-11-21 by laia-LLM at the human owner's request to work through the pending tasks that need no hardware. The choice it rests on (one movie with its gaps marked, rather than a file per segment) is the option laia-LLM recommended that day; the human owner can still change it. Nothing here has run on a device.
 
+**Built the same day for `record --backend coredevice` without `--audio`** (`RecordingRecovery`, wired into `NativeRecording.execute`), unit-tested against the scenarios below and not run on a device. Two departures from the design as first written: silence alone does not start a restart (see the table), and a recording with `--audio` or a `frames` capture fails on a loss as before, because the sound stream's restart needs a device with something audible to check and `frames` was left for later.
+
 ## The problem
 
 `record --backend coredevice` and `frames` read one media session from start to end (`NativeRecording.execute` in `NativeVideoEncoder.swift`, `NativeFrameCapture.execute`). Three things end a recording today, and each loses all of it:
@@ -31,7 +33,7 @@ The requested duration counts wall-clock time from the first picture, gaps inclu
 | --- | --- | --- |
 | `requireActive()` fails | At once | The device has ended the stream |
 | `nextPacket()` throws a transport error | At once | The socket is gone |
-| No packet at all | 3 s | A still screen still delivers packets: `frames` saved pictures from a still screen on the phone and the Apple TV, so silence is a loss and not a quiet screen. Not measured how long a still Apple TV can go between packets: check with `MANZANERO_KEEP_STREAM=1` before trusting the value there |
+| No packet at all | Not a trigger as built | The design proposed 3 s, on the grounds that `frames` saved pictures from still screens. How long a still screen can go between packets has not been measured, and a restart a healthy quiet session did not need would cost a gap, so silence alone only holds the picture, as before; a session that has really ended is caught by the liveness check above. Measure with `MANZANERO_KEEP_STREAM=1` before making silence a trigger |
 | Packets arrive and no picture is decoded | 3 s | The assembler discards everything after a gap until a random-access picture; three seconds without one is a picture that will not come |
 
 Never restarted, failed as now: cancellation (SIGINT, SIGTERM, MCP cancel), the 1 GiB transport budget, an encoder error, a change of picture size (a rotation, which the encoder refuses today), and anything before the first picture. A start that never delivers a picture is left alone on purpose: its diagnosis, the [firewall](recording.md#the-macos-firewall-can-drop-the-video) hint among them, depends on the zero-packet count it has now.
@@ -67,7 +69,7 @@ With `--audio`, the sound stream belongs to the session and ends with it. A rest
 
 ## How it is tested before a device
 
-The loop reads a media session through a small protocol (packets, liveness, close, the negotiated profile) that `NativeMediaFrames` implements; a test stream implements it too, with a script of packets, silences, an ended stream and a thrown error. Tests then cover: a stream that ends after the first picture and comes back (one gap, the movie continues); one that never comes back (three restarts, then the failure); a stall with restarts used up (the picture held, `lastPictureHeldFrom`); cancellation during a restart (no restart, cancellation as now); a change of size after a restart (failure as now); and a loss before the first picture (failure as now, no restart).
+As built, the decisions live in `RecordingRecovery`, which the loop feeds with packet, picture and failure times; `RecordingRecoveryTests` drives it through the scenarios below with made-up times. The loop's own wiring (closing the lost session, opening the next on the same endpoint, refusing a changed picture size) has no test stream yet and is checked only by building. The test stream first designed, a small protocol that `NativeMediaFrames` and a script would both implement, would cover that wiring. Scenarios: a stream that ends after the first picture and comes back (one gap, the movie continues); one that never comes back (three restarts, then the failure); a stall with restarts used up (the picture held, `lastPictureHeldFrom`); cancellation during a restart (no restart, cancellation as now); a change of size after a restart (failure as now); and a loss before the first picture (failure as now, no restart).
 
 ## Live checks owed
 
