@@ -62,15 +62,16 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **`launch` with arguments, and `terminate` by bundle identifier**: done, on a simulator and the iPhone, 2026-11-21.
-2. **The new `press` order on the Apple TV**: built and unit-tested, not yet run there.
-3. **Selectors that are not exact**: built as `--match contains|regex` and run on a simulator on 2026-11-21.
-4. **Small checks on the iPhone**: `open-url` from another app, an action in flight when the cable is pulled, an agent session over the network.
-5. **Sound in a recording, the rest**: picture and sound in step, a long recording, and the Apple TV with something playing.
-6. **Recording recovery**: a restart of the stream after a loss; [built](recording-recovery.md) on 2026-11-21 for recordings without sound, not yet run on a device.
+1. **The Apple TV session**, when it is free: the new `press` order, `logs`, and removing the dead `manzanero` host.
+2. **Recording recovery on the iPhone**: built for recordings without sound; needs the human owner at the phone.
+3. **A release** of the work of 2026-11-21, which is in no beta yet.
+4. **Small checks on the iPhone**: `open-url` from another app, an action in flight when the cable is pulled, an agent session over the network, landscape `scroll` and touch.
+5. **Simulator findings**: the Watch Ultra's `scroll --search`, the Duo's lost first URL, iPadOS cancelling four-finger drags.
+6. **Sound in a recording, the rest**, on a device: picture and sound in step, a long recording.
 7. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only.
-8. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, `logs` there, a recording of several minutes.
-9. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
+8. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a recording of several minutes.
+9. **Watch typing, B2**: accents, the symbols page, other keyboards, a real watch.
+10. **Hardware never used**: an iPad, an Apple Watch, an iPhone Duo.
 
 ## Done later on 2026-11-21 (not released)
 
