@@ -225,7 +225,7 @@ The human owner asked for the pending tasks in order, then for a completeness ru
 
 The order is laia-LLM's suggestion, not one the human owner set.
 
-1. **The Apple TV 4K session** (item 16), when the human owner says it is free: the new press order (the tool's own tunnel turned off for the test, so nothing changes on the device), `logs` on the paired tunnel, and removing the dead `manzanero` host in its settings.
+1. **Apple TV, why the connection went stale after the Inspector's press** (item 16): the press order, `logs` and the removal of the dead pairing were done on 2026-11-21 ([record](verification.md#the-press-order-on-the-apple-tv-4k-and-a-stale-connection)), and Apple's tunnel is no longer used for an Apple TV; whether the Inspector's cursor can leave the connection stale is open.
 2. **Recording recovery: what is left** (item 22): a stream taken away by another client (Device Hub's screen view), a still screen's packet rate, `--audio` and `frames`.
 3. **A release of the work of 2026-11-21** (item 30): none of it is in a beta yet; the pre-release checks first, then the human owner's tag.
 4. **Small checks on the iPhone: what is left**: an action in flight when the cable is pulled, which should fail once and not repeat, and a `batch` across a change of link; both need the human owner at the phone.
@@ -270,8 +270,8 @@ What was decided is in the [decision tables](#owner-decisions-2026-11-17) below.
 
 16. **The Apple TV 4K: what is left.** Every command family works there, and the three large items of 2026-11-20 are done: accessibility on a tunnel of the tool's own by `manzanero pair`, sleep and wake, and sound in a recording ([status](status.md), [guide](other-families.md#a-physical-apple-tv)). Left are checks and loose ends, in the order suggested:
     - **The press order: done.** The tool's own tunnel and the Inspector's cursor each pressed the tvOS probe on 2026-11-21; Apple's tunnel was then taken out of an Apple TV's routes by the human owner's decision, after the connection went stale ([record](verification.md#the-press-order-on-the-apple-tv-4k-and-a-stale-connection)). Left: why the connection went stale right after the Inspector's press, which was recorded as harmless on 2026-11-20.
-    - **`logs`.** Never run on an Apple TV; on the paired tunnel it should work as on the phone.
-    - **The pairing over time.** The paired tunnel after a restart of the Apple TV and after days; a long session on it; what a command does when the host was removed in the device's own settings (pair-verify should be refused and the command fall back to Apple's tunnel, saying why). The device lists the host `manzanero` twice, once for each pairing made on 2026-11-20; the first is dead and can be removed there.
+    - **`logs`: done.** Ran on the paired tunnel on 2026-11-21, on the tvOS probe's process.
+    - **The pairing over time.** The paired tunnel after a restart of the Apple TV and after days; a long session on it; what a command does when the host was removed in the device's own settings (pair-verify should be refused and the command refused with the reason, since Apple's tunnel is no longer an Apple TV's fallback). The dead second `manzanero` host was removed on 2026-11-21.
     - **The pairing's edges.** `pair` from an MCP host, which has no way to give the PIN; `devices` saying which devices the tool is paired with; the comparison that would show the gain in the Mac's log, a directory read on Apple's tunnel beside one on the tool's ([record](verification.md#a-pairing-of-the-tools-own-and-the-apple-tv-on-the-tools-tunnel)).
     - **Sleep and wake.** `remote sleep` from a screen saver, and on a device in another language, where it should work unchanged; why a `remote wake` sent seconds after a sleep was ignored once.
     - **Recording.** Several minutes, with and without sound; sound with something playing, which needs the human owner's word each time.
@@ -402,7 +402,7 @@ Two betas are out: v0.1.0-beta.1 on 2026-11-18 ([record](verification.md#first-b
 | The pending tasks | In order, without hardware runs or sound work, with a completeness run on the iPad, Apple Watch and iPhone Duo simulators; laia-LLM's recommended options where a choice was open | Done ([achieved](#added-later-on-2026-11-21-new-commands-a-phone-session-and-recording-recovery)) |
 | Runs on the iPhone 13 mini and the Apple TV 4K (3rd generation) | Go ahead; the Apple TV once it is free | iPhone done ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)); Apple TV waiting |
 | Changing the phone's settings to check `settings` | Allowed | Read, changed and put back exactly |
-| The dead `manzanero` host on the Apple TV | laia-LLM removes it | Waiting for the Apple TV |
+| The dead `manzanero` host on the Apple TV | laia-LLM removes it | Removed; the live pairing still verified afterwards |
 | Text entry on a watch | B1: `type` taps the on-screen keyboard's keys; B2 (accents, symbols, more keyboards) later | B1 built; an external-keyboard route was looked for and not found ([other families](other-families.md#digital-crown-and-side-button-apple-watch)) |
 | Sound in simulator recordings | Out of scope while Apple's tools give none: simulator recordings stay silent; no capture of the Mac's own audio | Unchanged: `simctl recordVideo` records no sound |
 | Recording recovery after a pulled cable failed to recover | A: wait for the device and stop the tool's own lost stream by its identifier; B: keep what was captured as a partial movie | Both built; B and then a full recovery seen on the iPhone 13 mini ([design](recording-recovery.md#changed-after-that-check-waiting-for-the-device-and-keeping-what-was-captured)) |

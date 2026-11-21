@@ -36,7 +36,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
 | **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | works; `status-bar` refused (a device does not support it) | works (iPhone, 2026-11-21) | not run | not run | not run | not run |
 | **Build and run**: `build-run` | works | works | works | not run | not run | not run |
-| **App output**: `console`, `last-crash`, `logs` | works | works | `console` and `last-crash` work; `logs` not run | not run | works | works |
+| **App output**: `console`, `last-crash`, `logs` | works | works | works (`logs` on the paired tunnel) | not run | works | works |
 | **A person's step**: `handoff` | works | works | works | works | works (`--until`) | works (`--until`) |
 | **Several commands at once**: `batch` | works | works | works | works | works | works |
 | **From an AI agent**: `mcp` | works | works | works | works | not run | works |
@@ -50,7 +50,7 @@ A route is the way a command reaches the device. Most commands have one. Accessi
 | Apps, files, reports, details, screenshots | Apple's own tools, `devicectl` for devices and `simctl` for simulators | Every platform | Settled |
 | Touch, buttons, keys, the remote | Apple's input services, called in process | Devices and simulators | Settled |
 | Video | Apple's media stream, decoded in process | Devices | Works on the phone and, since 2026-11-20, on the Apple TV |
-| Logs | The device's log relay, on the tool's own tunnel or Apple's | `logs` on a device | Works on the phone since 2026-11-20, on both tunnels; not run on the Apple TV |
+| Logs | The device's log relay, on the tool's own tunnel or Apple's | `logs` on a device | Works on the phone since 2026-11-20, on both tunnels, and on the Apple TV on its paired tunnel since 2026-11-21 |
 | Accessibility, route 1: **the tool's own tunnel** | A tunnel the tool opens itself, through the Mac's `usbmuxd` | A device `manzanero devices` shows as `ownTunnel: cable` or `network`, the iPhone and iPads; and an Apple TV after `manzanero pair`, which pairs the tool itself with it (PIN on the television) | The default since 2026-11-19. Works on the iPhone and, since 2026-11-20, on the Apple TV, with no side effect on the Mac |
 | Accessibility, route 2: **Apple's tunnel** | The tunnel macOS keeps, plus a second connection of the tool's own to the device's list of services | The fallback on an iPhone or iPad; never for an Apple TV since 2026-11-21, by the human owner's decision (an Apple TV's accessibility needs `manzanero pair`) | Works. Side effect: the device resets the Mac's own connection to it, and now and then that connection does not come back until it is replaced |
 | Accessibility, route 3: **the Inspector's way** | Through the Mac's `remoted`, as Apple's Accessibility Inspector does | `press` on the Apple TV, after the tool's own tunnel and before Apple's | Works with no side effect and without moving the focus. Rows inside lists, a full tree, `scroll` and `set-value` have no way there and use route 2 |
@@ -62,7 +62,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **The Apple TV session**, when it is free: the new `press` order, `logs`, and removing the dead `manzanero` host.
+1. **Apple TV**: the press order, `logs` and removing the dead pairing were done on 2026-11-21; open is why the connection went stale right after a press by the Inspector's cursor.
 2. **Recording recovery, the rest**: the stream taken by another client, a still screen's packet rate, `--audio`, `frames`.
 3. **A release** of the work of 2026-11-21, which is in no beta yet.
 4. **Small checks on the iPhone**: an action in flight when the cable is pulled, and a `batch` across a change of link (both need the human owner).
