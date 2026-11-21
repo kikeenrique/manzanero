@@ -136,6 +136,19 @@ extension NativeVideoEncoder: NativeRecordingSink {}
     /// The lost session's stream identifier, kept across restart attempts.
     private var lostIdentifier: UInt32?
     private var stoppedByIdentifier = false
+    /// Whether a restart found the device running a media session that is
+    /// not this capture's: another viewer, such as Device Hub's screen view,
+    /// has the screen. The capture ends there with that reason; it does not
+    /// wait for the viewer to leave (the human owner's decision of 2026-11-22).
+    private(set) var anotherViewer = false
+
+    /// The failure for a screen another viewer holds, once it is known.
+    private func anotherViewerFailure(_ detail: String) -> CommandFailure {
+        anotherViewer = true
+        return CommandFailure(.deviceBusy,
+            "Another viewer took the device's screen (such as Device Hub's screen view): \(detail) The capture ends here; it does not take the screen back or wait for the viewer to leave.",
+            inputSent: .none)
+    }
 
     init(link: NativeRecordingLink, displayID: Int64) {
         self.link = link
@@ -206,7 +219,11 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                 }
                 let stopped = link.stop(identifier)
                 guard stopped.ownedStreamAbsent else {
-                    throw CommandFailure(.preconditionChanged, "Native capture stopped its lost session by identifier (acknowledged: \(stopped.stopAcknowledged)) but the device still runs a media session, so no new one was opened. \(stopped.diagnostic ?? "")", inputSent: .none)
+                    // Seen twice on the iPhone 13 mini on 2026-11-21: Device
+                    // Hub's screen view ended this stream, the stop by
+                    // identifier was not acknowledged (the device had ended
+                    // it) and Device Hub's session was the one running.
+                    throw anotherViewerFailure("this capture's lost session was stopped by identifier (acknowledged: \(stopped.stopAcknowledged)) and the device still runs a media session, so no new one was opened. \(stopped.diagnostic ?? "")")
                 }
                 stoppedByIdentifier = true
             }
@@ -217,6 +234,10 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                     : "The lost session's absence was read from the device's media session count (0).")
             // The link may have come back on another address.
             try link.relink()
+        } else if let count = try? link.sessionCount(), count != 0 {
+            // The lost session's end was confirmed, so a session still
+            // running is another client's.
+            throw anotherViewerFailure("this capture's lost session ended and the device runs \(count) other media session(s), so no new one was opened.")
         }
         capture = try link.open()
         try capture?.start(displayID: displayID)
@@ -247,7 +268,8 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                     if error is CancellationError || Task.isCancelled { throw CancellationError() }
                     // A changed stream, a session still running or a device
                     // that never came back: another attempt would meet the same.
-                    if let failure = error as? CommandFailure, [.preconditionChanged, .timeout].contains(failure.code) { throw failure }
+                    // Another viewer's screen is not taken back either.
+                    if let failure = error as? CommandFailure, [.preconditionChanged, .timeout, .deviceBusy].contains(failure.code) { throw failure }
                     lastError = error
                 }
             }
@@ -417,16 +439,21 @@ extension NativeVideoEncoder: NativeRecordingSink {}
             sound?.reports(sent: media.capture?.audioReceiverReportsSent ?? 0, note: media.capture?.audioFeedbackNote)
             let cleanup = media.close() ?? media.closedCleanup
             let release = link.release()
-            // A failure after pictures were captured keeps them: the movie ends
-            // after its last picture and the result says it is partial. An
-            // interrupt still discards it.
-            if !(error is CancellationError), !Task.isCancelled, decodedCount > 0,
-               let frames = try? await encoder.finish(partial: true) {
+            // A failure or an interrupt after pictures were captured keeps
+            // them: the movie ends after its last picture and the result says
+            // it is partial, as `frames` keeps the frames it wrote (the human
+            // owner's decision of 2026-11-22). The movie is finished in a task
+            // of its own, so an interrupt does not cancel the writing.
+            let interrupted = error is CancellationError || Task.isCancelled
+            if decodedCount > 0, let frames = try? await Task(operation: { try await encoder.finish(partial: true) }).value {
                 return NativeRecordingReceipt(frames: frames,
                     media: cleanup ?? NativeMediaFrames.Cleanup(startAttempted: true, stopAcknowledged: false, ownedStreamAbsent: false, diagnostic: nil),
                     assertionRelease: release.status, receiverReportsSent: media.closedReports.sent, senderReportsObserved: media.closedReports.observed,
                     negotiatedFeedback: "unknown", audio: sound?.receipt, recovery: recovery,
-                    partial: "\(error) Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount).")
+                    partial: interrupted
+                        ? "Interrupted. Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount)."
+                        : "\(error) Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount).",
+                    stopCause: interrupted ? "interrupted" : (media.anotherViewer ? "another-viewer" : "failure"))
             }
             await encoder.cancel()
             var detail = "\(error) Capture: packets=\(packetCount), access units=\(unitCount), pixel frames=\(decodedCount). Cleanup: owned stop=\(cleanup?.stopAcknowledged ?? false), stream absent=\(cleanup?.ownedStreamAbsent ?? false), tunnel release=\(release.status). \(cleanup?.diagnostic ?? "")"

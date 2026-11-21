@@ -158,6 +158,8 @@ import Testing
         var openError: [Int: any Error] = [:]
         var counts: [UInt64?] = []
         private(set) var stopped: [UInt32] = []
+        /// What a stop by identifier returns.
+        var stopResult = NativeRecordingLoopTests.confirmed
         private(set) var relinks = 0
         private(set) var pauses = 0
 
@@ -181,7 +183,7 @@ import Testing
                 },
                 stop: { [self] identifier in
                     stopped.append(identifier)
-                    return NativeRecordingLoopTests.confirmed
+                    return stopResult
                 },
                 relink: { [self] in relinks += 1 },
                 release: { NativeTunnelAssertion.Release(confirmed: true, status: "released", diagnostic: nil) },
@@ -310,15 +312,65 @@ import Testing
         #expect(receipt.frames > 50, "\(receipt.frames)")
     }
 
-    @Test func cancellationDuringARestartDiscardsTheMovie() async throws {
+    /// The human owner's decision of 2026-11-22: an interrupted recording
+    /// keeps what it captured, as `frames` keeps its frames.
+    @Test func cancellationDuringARestartKeepsTheMovieAsInterrupted() async throws {
         let device = Device()
         device.plans = [{ $0.endsAfter = 3 * Self.second }]
         device.openError = [1: CancellationError()]
         let sink = Sink()
-        await #expect(throws: CancellationError.self) { try await device.record(seconds: 10, sink: sink) }
+        let receipt = try await device.record(seconds: 10, sink: sink)
         #expect(device.sessions.count == 1 && device.sessions[0].closed)
+        #expect(receipt.interrupted && receipt.stopCause == "interrupted")
+        #expect(receipt.partial?.hasPrefix("Interrupted.") == true)
+        #expect(receipt.frames > 30)
+        #expect(await sink.finished == true)
+        #expect(await !sink.cancelled)
+    }
+
+    /// Nothing captured, nothing to keep: the interrupt goes through.
+    @Test func cancellationBeforeTheFirstPictureDiscardsTheMovie() async throws {
+        let device = Device()
+        device.plans = [{ $0.startError = CancellationError() }]
+        let sink = Sink()
+        await #expect(throws: CancellationError.self) { try await device.record(seconds: 10, sink: sink) }
         #expect(await sink.cancelled)
         #expect(await sink.finished == nil)
+    }
+
+    /// The lost session's end was confirmed and a session still runs: it is
+    /// another client's. The recording ends with that reason and opens
+    /// nothing (the human owner's decision of 2026-11-22: no wait).
+    @Test func anotherViewerAfterAConfirmedStopEndsTheRecordingWithItsCause() async throws {
+        let device = Device()
+        device.plans = [{ $0.endsAfter = 3 * Self.second }]
+        device.counts = [1]
+        let sink = Sink()
+        let receipt = try await device.record(seconds: 10, sink: sink)
+        #expect(device.sessions.count == 1 && device.stopped.isEmpty)
+        #expect(receipt.stopCause == "another-viewer" && !receipt.interrupted)
+        #expect(receipt.partial?.contains("Another viewer took the device's screen") == true)
+        #expect(receipt.recovery?.restarts == 1)
+        #expect(await sink.finished == true)
+    }
+
+    /// As seen twice on the iPhone 13 mini on 2026-11-21 with Device Hub:
+    /// the stop could not be confirmed, the stop by identifier is not
+    /// acknowledged and a session still runs. One attempt, no retry.
+    @Test func anotherViewerAfterAnUnconfirmedStopEndsTheRecordingWithoutARetry() async throws {
+        let device = Device()
+        device.plans = [{
+            $0.endsAfter = 3 * Self.second
+            $0.ownedIdentifier = 7
+            $0.cleanup = NativeMediaFrames.Cleanup(startAttempted: true, stopAcknowledged: false, ownedStreamAbsent: false, diagnostic: "ended")
+        }]
+        device.counts = [1]
+        device.stopResult = NativeMediaFrames.Cleanup(startAttempted: true, stopAcknowledged: false, ownedStreamAbsent: false, diagnostic: "not acknowledged")
+        let sink = Sink()
+        let receipt = try await device.record(seconds: 10, sink: sink)
+        #expect(device.sessions.count == 1 && device.stopped == [7])
+        #expect(receipt.stopCause == "another-viewer")
+        #expect(receipt.recovery?.restarts == 1)
     }
 
     @Test func aChangedPictureSizeAfterARestartEndsTheRecording() async throws {

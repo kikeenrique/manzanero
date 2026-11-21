@@ -78,6 +78,18 @@ struct RecordingCommand: Sendable, Equatable {
             var nativeReceipt: NativeRecordingReceipt?
             if native {
                 nativeReceipt = try await NativeRecording.execute(self, staging: staging, runner: runner)
+                if let kept = nativeReceipt, kept.interrupted {
+                    // An interrupted recording keeps its movie, as `frames`
+                    // keeps its frames; the command still ends as interrupted
+                    // (exit 130/143) and says where the movie is on stderr.
+                    // The checks run in a task of their own: this one is cancelled.
+                    let destination = destination
+                    let video = try await Task { try await VideoArtifact.inspect(staging) }.value
+                    try FileManager.default.moveItem(at: staging, to: destination)
+                    FileHandle.standardError.write(Data(
+                        "Recording interrupted: \(String(format: "%.1f", video.duration)) s movie of \(kept.frames) source pictures kept at \(destination.path) (partial).\n".utf8))
+                    throw CancellationError()
+                }
             } else if physical {
                 let plan = try command(staging: staging)
                 let response = try runner.run(plan.arguments)
@@ -112,6 +124,7 @@ struct RecordingCommand: Sendable, Equatable {
                     // What was captured before a failure, kept; the command exits 1.
                     result["status"] = "partial"
                     result["stopReason"] = partial
+                    if let cause = nativeReceipt.stopCause { result["stopCause"] = cause }
                 }
                 result["rtcp"] = ["receiverReportsSent": nativeReceipt.receiverReportsSent,
                     "senderReportsObserved": nativeReceipt.senderReportsObserved,

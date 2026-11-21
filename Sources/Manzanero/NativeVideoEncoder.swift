@@ -174,6 +174,11 @@ struct NativeRecordingReceipt: Sendable {
     var recovery: RecordingRecovery? = nil
     /// Why the recording ended early, when what was captured was kept.
     var partial: String? = nil
+    /// What ended a kept partial recording: `interrupted` (SIGINT, SIGTERM
+    /// or MCP cancellation), `another-viewer` (another client took the
+    /// screen) or `failure`.
+    var stopCause: String? = nil
+    var interrupted: Bool { stopCause == "interrupted" }
 }
 
 extension CommandFailure {

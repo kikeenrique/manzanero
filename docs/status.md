@@ -65,11 +65,16 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 1. **A release** of the work of 2026-11-21, which is in no beta yet.
 2. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a quiet recording of several minutes with sound (the sound fixes ran on the phone only).
 3. **Sound in recording recovery**: a recording with `--audio` still fails on a loss instead of restarting.
-4. **Two choices for the human owner**: keep an interrupted recording's movie; wait for another viewer (Device Hub) to leave before restarting. Also open: signing and notarization.
-5. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only; a tester needs Xcode 27, launched once.
-6. **Web pages, the rest**: an app's own web view that does not start at the screen's corner, and `scroll` on a page.
-7. **Watch typing**: other keyboard languages and a real watch; accents will not be built (the human owner's decision).
-8. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
+4. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only; a tester needs Xcode 27, launched once.
+5. **Web pages, the rest**: an app's own web view that does not start at the screen's corner, and `scroll` on a page.
+6. **Watch typing**: other keyboard languages and a real watch; accents will not be built (the human owner's decision).
+7. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
+
+Still the human owner's to decide: signing and notarization.
+
+## Done on 2026-11-22 (not released)
+
+- **Recording, the two choices**: an interrupted recording keeps its movie as partial (exit 130/143, the path on stderr); another viewer taking the screen ends a recording with `stopCause: another-viewer`, with no wait.
 
 ## Done on the night of 2026-11-21 (not released)
 
