@@ -58,8 +58,8 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 ## What is open, in order
 
-1. **Push** the local commits, some fifty: three days of work, none of it in a release.
-2. **The next beta**: the first release with the tool's own tunnel, the Apple TV, `pair`, sleep and wake, sound, and `logs` for devices.
+1. **The tap for beta.2**: v0.1.0-beta.2 is published since 2026-11-21; its formula still has to go into the Homebrew tap.
+2. **`launch` with arguments, and `terminate` by bundle identifier**: needed by hand four times this week.
 3. **The new `press` order on the Apple TV**: built and unit-tested, not yet run there.
 4. **`logs` for devices, the rest**: streams near ten minutes, the Apple TV.
 5. **Sound in a recording, the rest**: picture and sound in step, a long recording, and the Apple TV with something playing.

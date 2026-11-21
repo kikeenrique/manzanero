@@ -19,7 +19,7 @@ brew install kikeenrique/tap/manzanero
 manzanero doctor
 ```
 
-The first beta, [v0.1.0-beta.1](https://github.com/kikeenrique/manzanero/releases/tag/v0.1.0-beta.1), was published on 2026-11-18. Install it through the tap: the archive is ad hoc signed and not notarized, which Homebrew runs at once and a hand-downloaded copy is expected not to. That first beta still ships a universal binary and says macOS 15; the requirements below are the real ones, and the next beta states them. See [beta installation](docs/beta-testing.md), [release preparation](docs/releasing.md) and the [public-readiness review](docs/public-readiness.md).
+The current beta, [v0.1.0-beta.2](https://github.com/kikeenrique/manzanero/releases/tag/v0.1.0-beta.2), was published on 2026-11-21: one Apple silicon archive that states the requirements below. Install it through the tap: the archive is ad hoc signed and not notarized, which Homebrew runs at once and a hand-downloaded copy is expected not to. The first beta, v0.1.0-beta.1 of 2026-11-18, shipped a universal binary that cannot work on Intel and claimed macOS 15. See [beta installation](docs/beta-testing.md), [release preparation](docs/releasing.md) and the [public-readiness review](docs/public-readiness.md).
 
 ## Build and start
 

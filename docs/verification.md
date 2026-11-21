@@ -1971,6 +1971,19 @@ The checksums of the CI archives differ from the Mac's local ones, as expected o
 
 The formula attached to this release fails `brew style` as shipped, with 5 `FormulaAudit/ComponentsOrder` offenses found when it was added to the tap: `url` and `sha256` inside a top-level `on_arm`/`on_intel`, and `depends_on` after them. The tap's copy wraps the two blocks in `on_macos` and puts `depends_on` first, with URLs and checksums unchanged. `release:formula` now generates that shape for later releases; `brew style` would not inspect the generated file outside a tap, so the new shape is checked only by `ruby -c` here and by the tap's own run on the same layout. Later: the generator's shape changed again to Apple silicon only, and that one passed `brew style` in the tap ([record](#the-taps-formula-apple-silicon-only)). The asset on the published release stays as it is, since releases are immutable.
 
+### Second beta published
+
+**2026-11-21, 00:22 UTC.** The human owner pushed `main`, CI passed on it, two manual runs of the release workflow built the archive without publishing (the first with 30 warnings from a Swift file prefix map, dropped before the second, which had none), and the human owner pushed the tag `v0.1.0-beta.2` from a terminal.
+
+| Step | Observed |
+| --- | --- |
+| The tag's workflow run (44842753884) | Built, 805 tests passed, packaged and published |
+| The release | `v0.1.0-beta.2`, a prerelease, not a draft, with three assets: one Apple silicon archive (3,675,533 bytes), `SHA256SUMS` and `manzanero.rb` |
+| The assets, downloaded | The archive has the SHA-256 that `SHA256SUMS` and the formula give; unpacked, the binary reports `manzanero 0.1.0-beta.2`, holds `arm64` only with a deployment target of macOS 26.6, passes `codesign --verify --strict`, and carries no `/Users/` path |
+| The formula | `url` for this tag's archive, `version "0.1.0-beta.2"`, `depends_on arch: :arm64`, `macos: :tahoe` and `xcode: ["27.0", :run]` |
+
+The tap is not updated yet: per the tap's own session, the formula goes in unchanged as `Formula/manzanero.rb`, checked with `brew style`, `brew audit --strict --online`, an upgrade from beta.1 and `brew test`, in a commit the human owner pushes.
+
 ### Homebrew install from the tap
 
 **2026-11-18, morning**, on the development Mac (Apple silicon, Homebrew 7.0.x), reported by the session working in the tap repository; the owner ran the install himself.
