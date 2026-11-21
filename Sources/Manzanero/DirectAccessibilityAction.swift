@@ -38,6 +38,8 @@ struct DirectAccessibilityAction {
     /// frontmost application (`AppleTVPower`). `--pid` stays as narrow as
     /// `actionProcess` says.
     var overlayProcess: Int32? = nil
+    /// The wait between two reads while a scrolled tree settles; tests make it free.
+    var settlePause: () -> Void = { Thread.sleep(forTimeInterval: 0.15) }
     static let towardOption = "--toward"
 
     /// The edge of the tree a search step scrolls from.
@@ -346,7 +348,18 @@ struct DirectAccessibilityAction {
                 result["before"] = before.json
                 stage = "post-action-observation"
                 do {
-                    let afterTarget = try resolve(session.snapshot(root), root: root)
+                    // A web page scrolls with an animation: read at once, the
+                    // probe's web view gave the target hidden in the snapshot
+                    // and shown by its live attributes (iOS 27.2 simulator,
+                    // 2026-11-22). Read until the target's frame stops moving,
+                    // at most six reads, then check.
+                    var afterTarget = try resolve(session.snapshot(root), root: root)
+                    for _ in 0..<5 {
+                        settlePause()
+                        let next = try resolve(session.snapshot(root), root: root)
+                        defer { afterTarget = next }
+                        if next.frame == afterTarget.frame && next.visible == afterTarget.visible { break }
+                    }
                     guard sameIdentity(afterTarget.token, target.token) else { throw failure("target identity changed after scroll", .preconditionChanged) }
                     let after = try liveState(afterTarget, session: session, requireVisible: true)
                     try verifyHit(afterTarget, frame: after.frame, geometry: geometry, session: session, root: root)

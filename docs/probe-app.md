@@ -372,6 +372,24 @@ manzanero wait --id probe.list.last --until value --value row-55 --simulator <si
 
 The touch, log and permission probes are not on this screen. Run on one iPhone simulator ([record](verification.md#a-search-on-an-iphone-simulator-and-a-table-rows-two-objects)); not on a phone, where the app would have to be launched with the argument by other means than `manzanero launch`.
 
+## Web probe
+
+Launched with `-ProbeWeb YES`, the iOS probe shows an app's own `WKWebView` in place of the touch surface (`App/ProbeWebViewController.swift`), inset 40 points from the safe area on every side and below a native label, so it does not start at the screen's corner. The page is local HTML that does not zoom: a "Top button", a field labelled "Web field" (its HTML label and the input share that label, so a selector needs `--index 2` for the input), a 1400-point spacer and a "Bottom button" below the web view's height, for `scroll`.
+
+| Identifier | Element | Notes |
+| --- | --- | --- |
+| `probe.web.last` | A native label, "Last: none" at launch | Its value is what the page last sent: `web-top`, `web-bottom` or `web-field:<text>` |
+| `probe.web.view` | The `WKWebView` | The page is a process of its own: on a phone the display-centre process, on a simulator the PID its `AXRemoteElement` names |
+
+```sh
+manzanero launch com.lemambo.manzanero.probeapp --relaunch (--device <UDID> | --simulator <UUID>) -- -ProbeWeb YES
+manzanero scroll --label "Bottom button" --device <UDID>               # add --pid <page> on a simulator
+manzanero press --label "Web field" --index 2 --device <UDID> && manzanero type hola --device <UDID>
+manzanero wait --id probe.web.last --until value --value web-field:hola --device <UDID>
+```
+
+The touch, log and permission probes are not on this screen. Run on the iPhone 13 mini and an iPhone simulator on 2026-11-22 ([record](verification.md#web-content-in-an-apps-own-inset-web-view)).
+
 ## tvOS probe
 
 A second, separate app in the same Tuist project: target and scheme `ProbeTV`, sources in `Fixtures/ProbeApp/TV/`, bundle identifier `com.lemambo.manzanero.probetv` (`Config/ProbeTV.xcconfig`; `PROBE_TV_BUNDLE_ID` in the untracked signing file replaces it), tvOS 18.0 or later. It shares nothing with the iOS probe and does not use ProbeCore. It answers one question: which Siri Remote command did the app receive?

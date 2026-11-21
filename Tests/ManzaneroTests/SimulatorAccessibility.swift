@@ -85,6 +85,13 @@ final class SimulatorAXFixture: @unchecked Sendable {
     var displayInfo = SimulatorInputTests.displayJSON()
     /// The application root's frame: the window, in the window's own points.
     var rootFrame = NSRect(x: 0, y: 0, width: 390, height: 844)
+    /// With a host PID, snapshots are a page's: rooted at that host's remote element.
+    var hostPID: Int32?
+    /// Where the host's web view starts on the screen: the first page
+    /// snapshot has its frames relative to it, later ones on the screen, as a
+    /// simulator answers (2026-11-22).
+    var hostOffset = NSPoint.zero
+    private var hostedReads = 0
     /// Hit points as sent (after the interface-to-native mapping).
     private(set) var hitPoints: [NSPoint] = []
     /// The client type of each hit test as archived (the bridge keeps it).
@@ -122,8 +129,16 @@ final class SimulatorAXFixture: @unchecked Sendable {
             snapshotDepths.append(depth)
             var empty = emptySnapshot || (emptyAtFullDepth && depth == 48)
             if depth < 48, emptyShallowAnswers > 0 { emptyShallowAnswers -= 1; empty = true }
+            let shift = hostPID != nil && hostedReads > 0 ? hostOffset : .zero
+            if hostPID != nil { hostedReads += 1 }
             var children = elements.map { record(Token($0.id, pid: pid), label: $0.label, identifier: $0.identifier,
-                                                 value: $0.value, visible: $0.visible, frame: $0.frame) }
+                                                 value: $0.value, visible: $0.visible, frame: $0.frame.offsetBy(dx: shift.x, dy: shift.y)) }
+            if let hostPID {
+                // A page: rooted at the host's remote element.
+                response = Response(kind: 2, translation: root, result: record(Token(77, pid: hostPID), label: nil, identifier: nil, visible: true,
+                    frame: rootFrame, children: children, remote: true))
+                break
+            }
             // A depth-limited snapshot cuts records: their count stays, their children go.
             if depth < 48 {
                 children.append(record(Token(99, pid: pid), label: "Cut", identifier: nil, visible: true,
@@ -204,8 +219,9 @@ final class SimulatorAXFixture: @unchecked Sendable {
     }
 
     private func record(_ token: Token, label: String?, identifier: String?, value: String? = nil, visible: Bool?,
-                        frame: NSRect, children: [NSDictionary] = [], reportedChildren: Int? = nil) -> NSDictionary {
+                        frame: NSRect, children: [NSDictionary] = [], reportedChildren: Int? = nil, remote: Bool = false) -> NSDictionary {
         var attributes: [Int: Any] = [3003: "com.example.fixture"]
+        if remote { attributes[5003] = "AXRemoteElement" }
         attributes[2001] = label
         attributes[5019] = identifier
         attributes[2006] = value
@@ -438,6 +454,22 @@ struct SimulatorAccessibilityTests {
         let normal = SimulatorAXFixture()
         let plain = try Self.json(await Self.service(normal).run(["tree", "--simulator", Self.uuid]))
         #expect(normal.snapshotDepths == [48] && plain["shallowSnapshot"] == nil && normal.clock.slept == .zero)
+    }
+
+    /// The probe's inset web view on an iOS 27.2 simulator, 2026-11-22: the
+    /// first snapshot of a page has frames relative to its web view, the
+    /// next on the screen. The first one of a page in a session is read again.
+    @Test func aPagesFirstSnapshotIsReadAgainForScreenFrames() async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.hostPID = 7
+        fixture.hostOffset = NSPoint(x: 40, y: 154)
+        fixture.elements = [.init(identifier: nil, label: "Top button", frame: NSRect(x: 12, y: 95, width: 298, height: 49))]
+        let tree = try Self.json(await Self.service(fixture).run(["tree", "--pid", "42", "--simulator", Self.uuid]))
+        #expect(fixture.snapshotDepths == [48, 48])
+        let nodes = try #require(tree["nodes"] as? [[String: Any]])
+        let button = try #require(nodes.first { $0["label"] as? String == "Top button" })
+        let frame = try #require(button["frame"] as? [String: Any])
+        #expect(frame["x"] as? Double == 52 && frame["y"] as? Double == 249)
     }
 
     @Test func truncatedRecordsAreClosedAndCounted() {

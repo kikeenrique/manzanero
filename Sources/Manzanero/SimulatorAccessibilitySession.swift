@@ -122,7 +122,28 @@ final class SimulatorAccessibilitySession: AccessibilityValueSetting {
     /// Seconds spent waiting for the shallow retry, in total.
     private(set) var shallowWait: Duration = .zero
 
+    /// Processes whose hosted snapshot this session has already read twice.
+    private(set) var placedPIDs: Set<Int32> = []
+
+    /// A process shown inside another's view, a web page in an app's
+    /// `WKWebView`, answers its snapshot rooted at the host's remote element.
+    /// The first snapshot any client reads of such a process has frames
+    /// relative to the web view, not to the screen; from the next read on they
+    /// are in screen points, however long after the page appeared the first
+    /// read came (the probe's inset web view on an iOS 27.2 simulator,
+    /// 2026-11-22: "Top button" at (12, 95), then (52, 249)). Safari's web
+    /// view starts at the screen's corner, where both reads agree. So the
+    /// first hosted snapshot of a process in a session is read again and the
+    /// second one is used.
     func snapshot(_ token: AccessibilityRequest.Token) throws -> AccessibilityArchiveValue {
+        let first = try rawSnapshot(token)
+        guard !placedPIDs.contains(token.pid) else { return first }
+        placedPIDs.insert(token.pid)
+        guard (try? AccessibilitySnapshot.normalize(first, root: token).first?.externalProcessReference) == true else { return first }
+        return try rawSnapshot(token)
+    }
+
+    private func rawSnapshot(_ token: AccessibilityRequest.Token) throws -> AccessibilityArchiveValue {
         if !shallowPIDs.contains(token.pid) {
             do {
                 return try exchange(AccessibilityRequest.snapshot(token), expected: .snapshot(token), keepOpenOnEmptySnapshot: true)

@@ -28,7 +28,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Watch crown**: `crown` | — | — | — | — | works | — |
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
 | **Accessibility, read**: `tree`, `wait` | works, portrait and landscape | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
-| **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait and landscape; web pages in Chrome and Safari (`set-value` does not change a web input) | works; a Safari page by `--pid <page>` since 2026-11-21 | works, see the routes below | works | works | works, a letterboxed app too since 2026-11-21 |
+| **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait and landscape; web pages in Chrome, Safari and an app's own web view, `scroll` included (`set-value` does not change a web input) | works; a Safari page or an app's web view by `--pid <page>` | works, see the routes below | works | works | works, a letterboxed app too since 2026-11-21 |
 | **Accessibility, search a long list**: `scroll --search` | works in four directions; downward in landscape too. Upward takes four times the steps of downward through a table | works in four directions (iPhone, iPad) | works in four directions | works in four directions | works, up and down (Series 12 and Ultra) | works in four directions |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | works | works, with `--display` |
 | **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`, in step and to the end since 2026-11-21; both recover across a pulled cable (`record` without `--audio`); an interrupt stops the device's stream; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` (the sound fixes of 2026-11-21 not yet run here); a still screen sends no picture after five seconds, and since 2026-11-21 that no longer restarts a recording | `record` works | `record` works | works, with `--display` |
@@ -66,15 +66,15 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 2. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a quiet recording of several minutes with sound (the sound fixes ran on the phone only).
 3. **Sound in recording recovery**: a recording with `--audio` still fails on a loss instead of restarting.
 4. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only; a tester needs Xcode 27, launched once.
-5. **Web pages, the rest**: an app's own web view that does not start at the screen's corner, and `scroll` on a page.
-6. **Watch typing**: other keyboard languages and a real watch; accents will not be built (the human owner's decision).
-7. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
+5. **Watch typing**: other keyboard languages and a real watch; accents will not be built (the human owner's decision).
+6. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
 
 Still the human owner's to decide: signing and notarization.
 
 ## Done on 2026-11-22 (not released)
 
 - **Recording, the two choices**: an interrupted recording keeps its movie as partial (exit 130/143, the path on stderr); another viewer taking the screen ends a recording with `stopCause: another-viewer`, with no wait.
+- **Web pages**: an app's own web view inset from the screen's corner, and `scroll` on a page, work on the phone and a simulator (the iOS probe's new web screen), after two fixes.
 
 ## Done on the night of 2026-11-21 (not released)
 

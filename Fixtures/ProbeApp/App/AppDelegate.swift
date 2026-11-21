@@ -35,9 +35,11 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = scene as? UIWindowScene, let model else { return }
         let window = UIWindow(windowScene: windowScene)
-        // `-ProbeList YES` shows the list probe in place of the touch surface.
-        let lists = ProbeListViewController.isRequested
-        window.rootViewController = lists ? ProbeListViewController() : ProbeViewController(model: model)
+        // `-ProbeList YES` shows the list probe in place of the touch surface,
+        // `-ProbeWeb YES` the web probe.
+        let lists = ProbeListViewController.isRequested || ProbeWebViewController.isRequested
+        window.rootViewController = ProbeListViewController.isRequested ? ProbeListViewController()
+            : ProbeWebViewController.isRequested ? ProbeWebViewController() : ProbeViewController(model: model)
         window.makeKeyAndVisible()
         self.window = window
         (UIApplication.shared.delegate as? AppDelegate)?.toneProbe.attach(to: window)
