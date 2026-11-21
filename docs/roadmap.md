@@ -222,7 +222,7 @@ The human owner asked for the pending tasks in order, leaving out hardware runs 
 The order is laia-LLM's suggestion, not one the human owner set.
 
 1. **The Apple TV 4K session** (item 16), when the human owner says it is free: the new press order (the tool's own tunnel turned off for the test, so nothing changes on the device), `logs` on the paired tunnel, and removing the dead `manzanero` host in its settings.
-2. **Recording recovery on the iPhone 13 mini** (item 21): a recording during which the stream is taken away or the cable pulled, with the human owner at the phone.
+2. **Recording recovery: what is left** (item 21): it recovered across a pulled cable on the iPhone 13 mini on 2026-11-21; left are a stream taken away by another client (Device Hub's screen view), a still screen's packet rate, `--audio` and `frames`.
 3. **A release of the work of 2026-11-21**: none of it is in a beta yet; the pre-release checks first, then the human owner's tag.
 4. **Small checks on the iPhone: what is left**: an action in flight when the cable is pulled, which should fail once and not repeat, and a `batch` across a change of link; both need the human owner at the phone. `open-url` from another app, a `batch` and an MCP session over the network, and landscape `scroll`, touch and captures ran on 2026-11-21.
 5. **Simulator findings: what is left**: iPadOS cancelling a four-path `multi-drag`, probably its own four-finger gesture, unconfirmed. The Watch Ultra's search was fixed and the Duo's "lost" URL had arrived, on 2026-11-21.

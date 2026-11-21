@@ -63,7 +63,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **The Apple TV session**, when it is free: the new `press` order, `logs`, and removing the dead `manzanero` host.
-2. **Recording recovery on the iPhone**: built for recordings without sound; needs the human owner at the phone.
+2. **Recording recovery**: works on the iPhone across a pulled cable (one movie, the gap listed); left: the stream taken by another client, and `--audio`.
 3. **A release** of the work of 2026-11-21, which is in no beta yet.
 4. **Small checks on the iPhone**: an action in flight when the cable is pulled (needs the human owner); the rest ran on 2026-11-21.
 5. **Simulator findings**: iPadOS cancelling four-finger drags, unconfirmed; the rest settled on 2026-11-21.
