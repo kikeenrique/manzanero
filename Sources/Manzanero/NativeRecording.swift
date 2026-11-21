@@ -9,6 +9,8 @@ import Foundation
     var receiverReportsSent: UInt64 { get }
     var senderReportsObserved: UInt64 { get }
     var negotiatedFeedback: String { get }
+    var audioReceiverReportsSent: UInt64 { get }
+    var audioFeedbackNote: String? { get }
     func startAudio() throws
     func start(displayID: Int64) throws
     func packetProfile() -> [String: UInt64]?
@@ -394,6 +396,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
             if recovery?.heldFrom == nil { try media.capture?.requireActive() }
             let reportsSent = media.receiverReportsSent, reportsObserved = media.senderReportsObserved
             let feedback = media.capture?.negotiatedFeedback ?? "unknown"
+            sound?.reports(sent: media.capture?.audioReceiverReportsSent ?? 0, note: media.capture?.audioFeedbackNote)
             guard let cleanup = media.close() ?? (recovery?.heldFrom != nil ? media.closedCleanup : nil) else {
                 throw CommandFailure(.internal, "Native recording lost its media owner.", inputSent: .none)
             }
@@ -411,6 +414,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                 senderReportsObserved: reportsObserved,
                 negotiatedFeedback: feedback, audio: sound?.receipt, recovery: recovery)
         } catch {
+            sound?.reports(sent: media.capture?.audioReceiverReportsSent ?? 0, note: media.capture?.audioFeedbackNote)
             let cleanup = media.close() ?? media.closedCleanup
             let release = link.release()
             // A failure after pictures were captured keeps them: the movie ends

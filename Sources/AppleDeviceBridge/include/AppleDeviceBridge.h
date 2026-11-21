@@ -139,6 +139,15 @@ int ADCStartAudioSession(void *owner, int (^cancelled)(void), char *error, size_
 /// One datagram of the audio stream: 1 delivered, 0 pending, -1 failure.
 int ADCCopyNextAudioPacket(void *owner, void (^sink)(const uint8_t *, size_t), char *error, size_t errorCapacity);
 int ADCReadAudioPacketProfile(void *owner, ADCAudioPacketProfile *profile);
+/// The audio stream's RTCP sender and receiver, as its start reply named them
+/// (the same check as the video's). Returns 1 when the reply named none: the
+/// audio stream then gets no receiver reports, as before 2026-11-21, when it
+/// ended about 30 s after it started (the start asks for a 30 s timeout).
+int ADCReadAudioRTCPProfile(void *owner, ADCVideoRTCPProfile *profile);
+/// Sends one bounded compound receiver report for the audio stream on the
+/// audio socket. Returns 1 sent, 0 transient drop, -1 failure.
+int ADCSendAudioReceiverReport(void *owner, const uint8_t *packet, size_t length,
+                               int (^cancelled)(void), char *error, size_t errorCapacity);
 /// Consumes owner, closes its socket and requests a stop of only its
 /// reply-derived RemoteSSRC with stopAll=false. No stop-all fallback.
 int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size_t errorCapacity);

@@ -20,6 +20,13 @@ final class NativeMediaFrames {
     private(set) var receiverReportsSent: UInt64 = 0
     private(set) var senderReportsObserved: UInt64 = 0
     private(set) var negotiatedFeedback = "unknown"
+    /// Receiver reports for the audio stream too: without them the device
+    /// ended it about 30 s in (the iPhone 13 mini, 2026-11-21). Best effort:
+    /// a failure stops the audio reports and never the recording.
+    private var audioFeedback: MediaRTCPReceiver?
+    private(set) var audioReceiverReportsSent: UInt64 = 0
+    /// Why the audio stream gets no receiver reports, when it gets none.
+    private(set) var audioFeedbackNote: String?
 
     /// `plainOffer` takes VideoToolbox's resolution adaptation out of the
     /// offer. An Apple TV uses it when it is offered, and its pictures then
@@ -68,6 +75,29 @@ final class NativeMediaFrames {
         }
         audioProfile = AudioProfile(payloadType: payload, streamIdentifier: identifier, codecType: raw.codecType,
                                     sampleRate: Int(raw.sampleRate), channels: Int(raw.channels), packetMilliseconds: Int(raw.packetMilliseconds))
+        var rtcp = ADCVideoRTCPProfile()
+        if ADCReadAudioRTCPProfile(owner, &rtcp) == 0 {
+            do {
+                audioFeedback = try MediaRTCPReceiver(sender: rtcp.senderSSRC, receiver: rtcp.receiverSSRC, payloadType: payload,
+                    cname: UUID().uuidString.lowercased() + "@manzanero", intervalSeconds: rtcp.reportIntervalSeconds,
+                    now: DispatchTime.now().uptimeNanoseconds)
+            } catch { audioFeedbackNote = "audio RTCP profile refused: \(error)" }
+        } else {
+            audioFeedbackNote = "the audio start reply named no RTCP sender and receiver"
+        }
+    }
+
+    /// Sends the audio stream's receiver report when one is due; on any
+    /// failure the audio reports stop and the recording goes on.
+    private func flushAudioReceiverReport() {
+        guard let report = audioFeedback?.reportIfDue(now: DispatchTime.now().uptimeNanoseconds) else { return }
+        var error = [CChar](repeating: 0, count: 512)
+        let sent = report.withUnsafeBytes {
+            ADCSendAudioReceiverReport(owner, $0.bindMemory(to: UInt8.self).baseAddress, $0.count,
+                { Task.isCancelled ? 1 : 0 }, &error, error.count)
+        }
+        if sent < 0 { audioFeedback = nil; audioFeedbackNote = "audio RTCP send failed: \(Self.text(error))" }
+        if sent == 1 { audioReceiverReportsSent += 1 }
     }
 
     /// One datagram of the audio stream, or nil when none is pending.
@@ -78,6 +108,10 @@ final class NativeMediaFrames {
             if let bytes { packet = Data(bytes: bytes, count: count) }
         }, &error, error.count)
         guard result >= 0 else { throw CommandFailure(.transportFailed, Self.text(error), inputSent: .none) }
+        if let packet, audioFeedback != nil {
+            do { try audioFeedback?.observe(packet, now: DispatchTime.now().uptimeNanoseconds) }
+            catch { audioFeedback = nil; audioFeedbackNote = "audio RTCP stopped: \(error)" }
+        }
         return packet
     }
 
@@ -98,6 +132,7 @@ final class NativeMediaFrames {
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
                 guard let self, self.owner != nil else { return }
+                self.flushAudioReceiverReport()
                 do { try self.flushReceiverReport() }
                 catch { self.feedbackFailure = String(describing: error); return }
             }

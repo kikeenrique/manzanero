@@ -50,6 +50,8 @@ import Testing
         let receiverReportsSent: UInt64 = 2
         let senderReportsObserved: UInt64 = 1
         let negotiatedFeedback = "disabled"
+        let audioReceiverReportsSent: UInt64 = 0
+        let audioFeedbackNote: String? = nil
 
         init(clock: Clock) {
             self.clock = clock

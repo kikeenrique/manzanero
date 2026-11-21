@@ -13,6 +13,15 @@ struct NativeAudioTrack {
         var lost = 0
         var refused = 0
         var seconds = 0.0
+        /// RTCP receiver reports sent for the stream, and why none were, if none.
+        var receiverReportsSent: UInt64 = 0
+        var reportsNote: String?
+    }
+
+    /// The stream's receiver reports, which the media session sends.
+    mutating func reports(sent: UInt64, note: String?) {
+        receipt.receiverReportsSent = sent
+        receipt.reportsNote = note
     }
 
     /// Samples and where they begin on the movie's timeline.

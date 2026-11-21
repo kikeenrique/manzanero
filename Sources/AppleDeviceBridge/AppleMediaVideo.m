@@ -183,6 +183,8 @@ int ADCValidateVideoEndpoints(const void *reply, const char *hostAddress, const 
 @property(nonatomic) BOOL audioStartAttempted;
 @property(nonatomic) BOOL audioConfigured;
 @property(nonatomic) ADCAudioPacketProfile audioProfile;
+@property(nonatomic) ADCVideoRTCPProfile audioRTCPProfile;
+@property(nonatomic) BOOL hasAudioRTCP;
 @end
 @implementation ADCVideoOwner
 - (instancetype)init {
@@ -511,6 +513,17 @@ int ADCStartAudioSession(void *owner, int (^cancelled)(void), char *error, size_
     size_t answerLength = 0;
     const void *answer = xpc_dictionary_get_data(output, "negotiatorAnswer", &answerLength);
     if (!answer || !answerLength || answerLength > 1048576) return VideoFail(error, capacity, @"Audio start reply has no bounded negotiator answer.");
+    // The stream's RTCP sender and receiver, for receiver reports: without
+    // them the device ended the audio stream about 30 s in (2026-11-21).
+    // Optional: a reply that names none starts the stream as before.
+    ADCVideoRTCPProfile audioFeedback;
+    char ignored[256] = {0};
+    AVCMediaStreamNegotiatorSettings *audioSettings = state.audioNegotiator.negotiatorSettings;
+    if ([audioSettings respondsToSelector:@selector(localSSRC)] &&
+        !ADCValidateVideoRTCPProfile((__bridge const void *)reply, audioSettings.localSSRC,
+                                     state.audioReceiverPort, &audioFeedback, ignored, sizeof(ignored))) {
+        state.audioRTCPProfile = audioFeedback; state.hasAudioRTCP = YES;
+    }
     if (![state.audioNegotiator setAnswer:[NSData dataWithBytes:answer length:answerLength] withError:&failure])
         return VideoFail(error, capacity, @"Apple media negotiator refused the audio answer.");
     // What was agreed is in the negotiator, not in the reply: the codec by
@@ -562,6 +575,26 @@ int ADCReadAudioPacketProfile(void *owner, ADCAudioPacketProfile *profile) {
     if (!state || !profile || !state.audioConfigured || state.closing || ![NSThread isMainThread]) return 1;
     *profile = state.audioProfile;
     return 0;
+}
+
+int ADCReadAudioRTCPProfile(void *owner, ADCVideoRTCPProfile *profile) {
+    if (profile) memset(profile, 0, sizeof(*profile));
+    ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
+    if (!state || !profile || !state.audioConfigured || !state.hasAudioRTCP || state.closing || ![NSThread isMainThread]) return 1;
+    *profile = state.audioRTCPProfile;
+    return 0;
+}
+
+int ADCSendAudioReceiverReport(void *owner, const uint8_t *packet, size_t length, int (^cancelled)(void), char *error, size_t capacity) {
+    ADCVideoOwner *state = owner ? (__bridge ADCVideoOwner *)owner : nil;
+    if (!state || !state.audioConfigured || !state.hasAudioRTCP || state.closing || ![NSThread isMainThread] || (cancelled && cancelled())) {
+        VideoFail(error, capacity, @"Native audio RTCP report send is unavailable or cancelled."); return -1;
+    }
+    if (ADCValidateVideoReceiverReport(packet, length, state.audioRTCPProfile.senderSSRC, state.audioRTCPProfile.receiverSSRC, error, capacity)) return -1;
+    ssize_t count = send(state.audioSocket, packet, length, MSG_DONTWAIT);
+    if (count < 0 && (errno == EAGAIN || errno == EINTR || errno == ENOBUFS)) return 0;
+    if (count != (ssize_t)length) { VideoFail(error, capacity, @"Native audio RTCP receiver report send failed."); return -1; }
+    return 1;
 }
 
 int ADCCopyNextVideoPacket(void *owner, int (^cancelled)(void), void (^sink)(const uint8_t *, size_t), char *error, size_t capacity) {
