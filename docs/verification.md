@@ -1982,7 +1982,15 @@ The formula attached to this release fails `brew style` as shipped, with 5 `Form
 | The assets, downloaded | The archive has the SHA-256 that `SHA256SUMS` and the formula give; unpacked, the binary reports `manzanero 0.1.0-beta.2`, holds `arm64` only with a deployment target of macOS 26.6, passes `codesign --verify --strict`, and carries no `/Users/` path |
 | The formula | `url` for this tag's archive, `version "0.1.0-beta.2"`, `depends_on arch: :arm64`, `macos: :tahoe` and `xcode: ["27.0", :run]` |
 
-The tap is not updated yet: per the tap's own session, the formula goes in unchanged as `Formula/manzanero.rb`, checked with `brew style`, `brew audit --strict --online`, an upgrade from beta.1 and `brew test`, in a commit the human owner pushes.
+The tap, the same night, done by the tap's own session and the human owner:
+
+| Step | Observed |
+| --- | --- |
+| The formula in `kikeenrique/homebrew-tap` | Copied from the release unchanged: four lines differ from beta.1's (the URL's tag, `version`, `sha256`, the version in the test). `ruby -c` and `brew style` clean; committed as "Update manzanero to 0.1.0-beta.2" and pushed by the human owner |
+| `brew update`, `brew upgrade kikeenrique/tap/manzanero` | Homebrew's clone of the tap at that commit; the Cellar holds only 0.1.0-beta.2, and the install receipt names that tap commit |
+| `brew audit --strict --online kikeenrique/tap/manzanero` | No findings |
+| `brew test`, and `manzanero --version` through the `bin` link | Both pass; `manzanero 0.1.0-beta.2` |
+| The installed binary | Thin arm64, ad hoc signed, no team identifier; `com.apple.provenance` and no `com.apple.quarantine`. It ran at once, with no Gatekeeper block, as beta.1 did |
 
 ### Homebrew install from the tap
 
