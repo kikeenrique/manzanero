@@ -512,8 +512,8 @@ extension ManzaneroCLI {
     }
 
     struct Settings: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "settings", abstract: "Set appearance, text size, contrast or reduced motion.",
-            discussion: "\(settingsCaveat) Give at least one option. An accessibility text size also turns Larger Accessibility Sizes on.")
+        static let configuration = CommandConfiguration(commandName: "settings", abstract: "Read, or set, appearance, text size, contrast or reduced motion.",
+            discussion: "Without options it reads the current values (devicectl device info appearance: userInterfaceStyle, textSize, increaseContrast, reduceMotion and others), read-only, so a change can be put back as it was. With options it changes them: \(settingsCaveat) An accessibility text size also turns Larger Accessibility Sizes on.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Option(help: ArgumentHelp("light or dark.", valueName: "style")) var appearance: String?
@@ -523,7 +523,8 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("on or off.", valueName: "state")) var reduceMotion: String?
         func request(_ target: Target) throws -> CommandRequest {
             let pairs = [("--appearance", appearance), ("--text-size", textSize), ("--increase-contrast", increaseContrast), ("--reduce-motion", reduceMotion)]
-            return .tool(try DeviceOperation(target, "settings", pairs.flatMap { name, value in value.map { [name, $0] } ?? [] }))
+                .flatMap { name, value in value.map { [name, $0] } ?? [] }
+            return .tool(try DeviceOperation(target, pairs.isEmpty ? DeviceSettings.readOperation : "settings", pairs))
         }
     }
 

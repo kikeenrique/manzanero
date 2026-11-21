@@ -35,12 +35,22 @@ struct DeviceSettingsTests {
         #expect(refused.description.contains("status-bar is for simulators"))
     }
 
-    @Test(arguments: [["rotate", "sideways"], ["settings"], ["settings", "--appearance", "blue"], ["settings", "--text-size", "huge"],
+    @Test(arguments: [["rotate", "sideways"], ["settings", "--appearance", "blue"], ["settings", "--text-size", "huge"],
                       ["location", "91,0"], ["location", "1"], ["location", "a,b"], ["location"], ["location", "1,2", "--clear"],
                       ["status-bar"], ["status-bar", "--wifi-bars", "4"], ["status-bar", "--battery-level", "101"],
                       ["status-bar", "--time", "9:41", "--clear"], ["status-bar", "--data-network", "6G"]])
     func invalidSettingsAreUsageErrorsBeforeAnyDevice(_ cli: [String]) {
         #expect(throws: (any Error).self) { try request(cli + ["--simulator", simulator]) }
+    }
+
+    @Test func settingsWithoutOptionsIsAReadOnlyRead() throws {
+        for (target, id) in [("--device", device), ("--simulator", simulator)] {
+            #expect(try arguments(["settings", target, id]) == ["devicectl", "device", "info", "appearance", "--device", id, "--timeout", "30", "--json-output", "-"])
+            #expect(try request(["settings", target, id]).isReadOnly)
+        }
+        let tool = try #require(MCPTools.definitions.first { $0.name == "read_settings" })
+        #expect(tool.readOnly)
+        #expect(try tool.command(["platform": "physical", "device": .string(device)]) == ["settings", "--device=\(device)"])
     }
 
     @Test func clipboardIsReadOnlyAndTheOthersAreNot() throws {

@@ -268,6 +268,9 @@ enum MCPTools {
                     ("cellular_bars", "--cellular-bars")], numeric: true))
             }
         },
+        .init(name: "read_settings", description: "Read a device's or booted simulator's current interface settings through devicectl device info appearance; read-only: userInterfaceStyle, textSize, increaseContrast, reduceMotion, reduceTransparency, largerAccessibilitySizesEnabled and others. Read before device_settings operation settings, to put the values back afterwards.", fields: [platform, device], readOnly: true) {
+            $0.command(["settings"])
+        },
         .init(name: "read_clipboard", description: "Read the text on a device's or booted simulator's clipboard through devicectl; read-only. Returns text (the first item, at most 1 MiB), contentType and bytes, or empty true.", fields: [platform, device], readOnly: true) {
             $0.command(["clipboard"])
         },

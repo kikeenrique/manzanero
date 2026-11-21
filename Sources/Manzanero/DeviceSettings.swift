@@ -6,7 +6,10 @@ import Foundation
 /// on an iPhone simulator for each of these on 2026-11-21). Each changes the
 /// target's state except `clipboard`, which reads it.
 enum DeviceSettings {
-    static let operations = ["rotate", "settings", "location", "status-bar", "clipboard"]
+    static let operations = ["rotate", "settings", "settings-read", "location", "status-bar", "clipboard"]
+    /// `settings` without options: the current values, read-only
+    /// (`devicectl device info appearance`).
+    static let readOperation = "settings-read"
 
     /// `rotate` operand → devicectl orientation.
     static let orientations: [(name: String, devicectl: String)] = [
@@ -40,6 +43,9 @@ enum DeviceSettings {
                 throw CommandFailure.usage("rotate takes one of \(orientations.map(\.name).joined(separator: ", ")).")
             }
             return json(["orientation", "set", orientation.devicectl])
+        case readOperation:
+            guard operands.isEmpty else { throw CommandFailure.usage("Reading the settings takes no operands.") }
+            return json(["info", "appearance"])
         case "settings":
             let pairs = try Self.pairs(operands, allowed: [
                 "--appearance": ["light", "dark"], "--text-size": textSizes,
