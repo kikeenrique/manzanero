@@ -123,7 +123,7 @@ enum MCPTools {
     private static let optionalPlatform = MCPField(name: "platform", description: "physical (default) or simulator (a booted simulator, addressed by UUID).", required: false, choices: ["physical", "simulator"])
 
     static let definitions: [MCPToolDefinition] = [
-        .init(name: "list_devices", description: "List CoreDevice or available simulator inventory. Physical inventory may also include simulators. Each physical device carries ownTunnel (cable, network or unavailable): whether a tunnel of the tool's own can be opened to it now, read from the Mac's usbmuxd; the top-level ownTunnel lists those devices.", fields: [platform], readOnly: true) {
+        .init(name: "list_devices", description: "List CoreDevice or available simulator inventory. Physical inventory may also include simulators. Each physical device carries ownTunnel (cable, network, paired or unavailable): whether a tunnel of the tool's own can be opened to it now, read from the Mac's usbmuxd, or by a pairing of the tool's own (paired, an Apple TV after manzanero pair); the top-level ownTunnel lists those devices.", fields: [platform], readOnly: true) {
             $0.text("platform") == "physical" ? ["devices"] : ["devices", "--simulators"]
         },
         .init(name: "doctor", description: "Check Xcode and discovery services, report host macOS/Xcode/CoreDevice versions, and check on the host only (no device contact) whether each capability's private Apple frameworks, symbols, classes and selectors are present, naming any missing. Private-interface gaps do not set isError; only unavailable Xcode/CoreDevice/CoreSimulator tools do. Does not verify input delivery or device behavior.", fields: [], readOnly: true) { _ in ["doctor"] },

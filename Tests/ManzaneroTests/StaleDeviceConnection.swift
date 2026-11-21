@@ -207,6 +207,22 @@ struct StaleDeviceConnectionTests {
         let none = try DeviceTunnelLinks.annotate(inventory, links: [:])
         #expect(none.summary.contains("  none"))
     }
+
+    /// A device the tool paired with itself, which usbmuxd never lists,
+    /// reads `paired`; usbmuxd's link wins for a device that has both.
+    @Test func aDeviceTheToolPairedWithReadsPaired() throws {
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/pairings-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for name in ["00008110-000B11112222801E.json", "00008110-000A11112222801E.json", "notes.txt"] {
+            try Data("{}".utf8).write(to: root.appendingPathComponent(name))
+        }
+        let paired = DeviceTunnelLinks.paired(directory: root)
+        #expect(paired == ["00008110-000A11112222801E", "00008110-000B11112222801E"])
+        let links = DeviceTunnelLinks.merging(["00008110-000A11112222801E": "cable"], paired: paired)
+        #expect(links == ["00008110-000A11112222801E": "cable", "00008110-000B11112222801E": "paired"])
+        #expect(DeviceTunnelLinks.paired(directory: root.appendingPathComponent("absent")).isEmpty)
+    }
 }
 
 @Suite struct RemoteIdentifierTests {

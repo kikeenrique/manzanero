@@ -751,7 +751,7 @@ extension ManzaneroCLI {
 
     struct Devices: CLICommand {
         static let configuration = CommandConfiguration(commandName: "devices", abstract: "List physical devices, or simulators, as JSON.",
-                                                        discussion: "Each physical device carries ownTunnel: cable, network or unavailable, which says whether a tunnel of the tool's own can be opened to it now. It is read from the Mac's usbmuxd, which lists a device on its cable, or on the network once it has been trusted over a cable and network access is on; no device is contacted. The same list is printed on stderr after the JSON. A device that is not listed, such as an Apple TV, is reached over Apple's tunnel.")
+                                                        discussion: "Each physical device carries ownTunnel: cable, network, paired or unavailable, which says whether a tunnel of the tool's own can be opened to it now. cable and network are read from the Mac's usbmuxd, which lists a device on its cable, or on the network once it has been trusted over a cable and network access is on; paired is a device usbmuxd does not list that the tool holds a pairing of its own with (manzanero pair, an Apple TV), whose tunnel opens while the device is reachable. No device is contacted. The same list is printed on stderr after the JSON. An iPhone or iPad that is not listed is reached over Apple's tunnel; an Apple TV that is not listed needs manzanero pair for its accessibility commands.")
         @OptionGroup var common: CommonOptions
         @Flag(help: "List available simulators instead of physical devices.") var simulators = false
         func request(environment: [String: String]) throws -> CommandRequest { .devices(simulators: simulators) }
