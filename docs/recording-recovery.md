@@ -2,7 +2,7 @@
 
 A design for what is item 22 of the [roadmap](roadmap.md#not-built), written on 2026-11-21 by laia-LLM at the human owner's request to work through the pending tasks that need no hardware. The choice it rests on (one movie with its gaps marked, rather than a file per segment) is the option laia-LLM recommended that day; the human owner can still change it.
 
-**Built the same day for `record --backend coredevice` without `--audio`** (`RecordingRecovery`, wired into the loop `NativeRecording.record`), unit-tested against the scenarios below, then changed after a first live check and seen to recover across a pulled cable on the iPhone 13 mini ([below](#changed-after-that-check-waiting-for-the-device-and-keeping-what-was-captured)). Two departures from the design as first written: silence alone does not start a restart (see the table), and a recording with `--audio` or a `frames` capture fails on a loss as before, because the sound stream's restart needs a device with something audible to check and `frames` was left for later.
+**Built the same day for `record --backend coredevice` without `--audio`** (`RecordingRecovery`, wired into the loop `NativeRecording.record`), unit-tested against the scenarios below, then changed after a first live check and seen to recover across a pulled cable on the iPhone 13 mini ([below](#changed-after-that-check-waiting-for-the-device-and-keeping-what-was-captured)). `frames` has the same recovery since that evening ([below](#frames)). Two departures from the design as first written: silence alone does not start a restart (see the table), and a recording with `--audio` fails on a loss as before (and so did a `frames` capture until that evening), because the sound stream's restart needs a device with something audible to check and `frames` was left for later.
 
 ## The problem
 
@@ -66,6 +66,14 @@ With `--audio`, the sound stream belongs to the session and ends with it. A rest
 ## `frames`
 
 `frames` gets the same restart and bounds. Its index already holds each frame's time from the first, so a gap shows as a jump in those times; the index gains the same `recovery` object.
+
+**Built on the evening of 2026-11-21.** The restart moved out of the recording loop into `NativeStreamSessions` (the session, decoder and assembler in use; the restart; the wait for a device that stopped answering; the stop by identifier; the new-video-packet rule), which `NativeRecording.record` and `NativeFrameCapture.capture` share, with the same `NativeRecordingLink` and `NativeRecordingLink.device` setup. Three things differ for `frames`:
+
+- For recovery, a picture is an access unit the assembler completes, not a decoded JPEG: `frames` decodes to JPEG only the frames it saves, so with a long `--interval` a decoded picture would come too seldom and look like a stall.
+- A run without `--seconds` counts as the longest one (300 s) for the rule that no restart begins near the end.
+- When restarts are used up during a stall, the run ends with `stopReason: stream-stalled` and its frames kept; before recovery a count the stream could no longer reach kept it open.
+
+`NativeRecordingLoopTests` drives `frames` on the scripted stream too: a stream that ends and comes back (one restart, `recovery` in `frames.json`), a stalled run that ends as `stream-stalled` after three restarts, and a loss before the first picture. On the devices that evening, with no loss to recover from: 12 s of `frames` on the Apple TV 4K and 20 frames on the iPhone 13 mini, each without a restart and with a confirmed stop, and a 5-second recording on the phone after the restart code moved.
 
 ## How it is tested before a device
 

@@ -413,10 +413,14 @@ extension ManzaneroCLI {
             first frame, or when \(FramesCommand.byteLimit / (1024 * 1024)) MiB have been written, whichever comes first. \
             --interval saves the first frame that arrives at or after each multiple of that many milliseconds from \
             the first frame, so a late frame does not delay the rest; saved frames are never closer than \
-            \(FramesCommand.minimumSpacingMilliseconds) ms, and a still screen still delivers frames. The directory is created if missing (its parent must exist); \
-            a non-empty one is refused unless --overwrite. The first frame must arrive within \
-            \(FramesCommand.firstFrameBudgetSeconds) s. SIGINT or SIGTERM stops the stream, keeps the frames saved so far \
-            and writes the index. Frames are in the display's native orientation. Simulators: use screenshot.
+            \(FramesCommand.minimumSpacingMilliseconds) ms. A phone's still screen still delivers frames; an Apple TV's \
+            stops sending pictures after about five seconds until something moves. The directory is created if missing \
+            (its parent must exist); a non-empty one is refused unless --overwrite. The first frame must arrive within \
+            \(FramesCommand.firstFrameBudgetSeconds) s. A stream lost after the first frame is restarted, at most three \
+            times, as a recording's is; the index's recovery object lists restarts and gaps, and a run whose pictures \
+            stop with no restart left ends with stopReason stream-stalled. SIGINT or SIGTERM stops the stream, keeps \
+            the frames saved so far and writes the index. Frames are in the display's native orientation. Simulators: \
+            use screenshot.
             """)
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions

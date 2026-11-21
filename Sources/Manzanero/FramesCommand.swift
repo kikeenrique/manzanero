@@ -134,6 +134,8 @@ struct FrameRun: Sendable {
         case count, duration
         case byteLimit = "byte-limit"
         case interrupted
+        /// Pictures stopped and no restart was left (docs/recording-recovery.md).
+        case streamStalled = "stream-stalled"
     }
 
     let command: FramesCommand
@@ -203,7 +205,7 @@ struct FrameRun: Sendable {
     }
 
     /// The index file's content and the receipt's common fields.
-    func summary(status: String, stopReason: StopReason?) -> [String: Any] {
+    func summary(status: String, stopReason: StopReason?, recovery: RecordingRecovery? = nil) -> [String: Any] {
         var value: [String: Any] = ["status": status, "directory": command.directory.path, "index": command.directory.appendingPathComponent(FramesCommand.indexName).path,
             "frameCount": entries.count, "totalBytes": totalBytes, "stopReason": stopReason?.rawValue ?? NSNull(),
             "requested": ["count": command.count, "seconds": command.seconds.map { $0 as Any } ?? NSNull(),
@@ -212,6 +214,8 @@ struct FrameRun: Sendable {
         if let delay = firstFrameDelayMilliseconds { value["firstFrameDelayMilliseconds"] = Self.decimal(delay) }
         if let spacing = meanSpacingMilliseconds { value["meanSpacingMilliseconds"] = Self.decimal(spacing) }
         if let last = entries.last { value["lastFrame"] = command.directory.appendingPathComponent(last.file).path }
+        // Restarts and gaps: a gap shows in the frames' offsets as a jump.
+        if let recovery { value["recovery"] = recovery.json }
         return value
     }
 
@@ -221,8 +225,8 @@ struct FrameRun: Sendable {
     }
 
     /// Writes `frames.json`; best effort when the run is being abandoned.
-    func writeIndex(status: String, stopReason: StopReason?) throws {
-        let data = try JSONSerialization.data(withJSONObject: summary(status: status, stopReason: stopReason), options: [.prettyPrinted, .sortedKeys])
+    func writeIndex(status: String, stopReason: StopReason?, recovery: RecordingRecovery? = nil) throws {
+        let data = try JSONSerialization.data(withJSONObject: summary(status: status, stopReason: stopReason, recovery: recovery), options: [.prettyPrinted, .sortedKeys])
         try data.write(to: command.directory.appendingPathComponent(FramesCommand.indexName))
     }
 }

@@ -1,5 +1,6 @@
 import CoreVideo
 import Foundation
+import ImageIO
 import Testing
 @testable import Manzanero
 
@@ -10,6 +11,16 @@ import Testing
 @MainActor struct NativeRecordingLoopTests {
     static let second: UInt64 = 1_000_000_000
     static let confirmed = NativeMediaFrames.Cleanup(startAttempted: true, stopAcknowledged: true, ownedStreamAbsent: true, diagnostic: nil)
+    /// A real 4 × 2 JPEG: `frames` reads each saved frame's size back.
+    static let jpeg: Data = {
+        let context = CGContext(data: nil, width: 4, height: 2, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        let data = NSMutableData()
+        let destination = CGImageDestinationCreateWithData(data, "public.jpeg" as CFString, 1, nil)!
+        CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+        CGImageDestinationFinalize(destination)
+        return data as Data
+    }()
 
     @MainActor final class Clock {
         var now: UInt64 = 0
@@ -112,6 +123,9 @@ import Testing
         func decodePixels(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int)?) throws -> CVReadOnlyPixelBuffer? {
             emit ? picture : nil
         }
+        func decodeFrameJPEG(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int), quality: Double) throws -> Data? {
+            emit ? NativeRecordingLoopTests.jpeg : nil
+        }
         func close() {}
     }
 
@@ -179,6 +193,50 @@ import Testing
             try await NativeRecording.record(seconds: seconds, audio: false, displayID: 1, crop: { _, _ in nil },
                                              encoder: sink, link: link())
         }
+
+        /// `frames` into a fresh directory under ./tmp; returns the receipt
+        /// and the index file as written.
+        func frames(count: Int, seconds: Double?) async throws -> (receipt: [String: Any], index: [String: Any]) {
+            let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/frames-loop-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let command = FramesCommand(device: "00008110-000A11112222801E", directory: directory, count: count, seconds: seconds,
+                                        intervalMilliseconds: 0, overwrite: false)
+            let result = try await NativeFrameCapture.capture(command, displayID: 1, link: link()) { _, _ in (4, 2) }
+            let index = try JSONSerialization.jsonObject(with: Data(contentsOf: directory.appendingPathComponent(FramesCommand.indexName))) as? [String: Any]
+            return (result.json, index ?? [:])
+        }
+    }
+
+    @Test func framesRestartsAStreamThatEndsAndRecordsTheGapInItsIndex() async throws {
+        let device = Device()
+        device.plans = [{ $0.endsAfter = 4 * Self.second }]
+        let (receipt, index) = try await device.frames(count: 1000, seconds: 10)
+        #expect(device.sessions.count == 2 && device.sessions.allSatisfy(\.closed))
+        #expect(receipt["status"] as? String == "captured" && receipt["stopReason"] as? String == "duration")
+        let recovery = try #require(index["recovery"] as? [String: Any])
+        #expect(recovery["restarts"] as? Int == 1)
+        #expect((recovery["gaps"] as? [[String: Any]])?.first?["reason"] as? String == "stream-ended")
+        #expect((receipt["frameCount"] as? Int ?? 0) > 100)
+    }
+
+    /// A count the stream can no longer reach: three restarts that deliver
+    /// no picture, then the run ends instead of waiting for ever.
+    @Test func framesEndsAStalledRunOnceNoRestartIsLeft() async throws {
+        let device = Device()
+        device.plans = [{ $0.script = { $0 < NativeRecordingLoopTests.second ? .picture : .junk } }]
+            + Array(repeating: { $0.script = { _ in .junk } }, count: 3)
+        let (receipt, index) = try await device.frames(count: 1000, seconds: nil)
+        #expect(device.sessions.count == 4)
+        #expect(receipt["status"] as? String == "captured" && receipt["stopReason"] as? String == "stream-stalled")
+        #expect((index["recovery"] as? [String: Any])?["restarts"] as? Int == 3)
+    }
+
+    @Test func framesStopsAtTheFirstFailureBeforeAnyPictureWithoutARestart() async throws {
+        let device = Device()
+        device.plans = [{ $0.script = { _ in .silence }; $0.endsAfter = Self.second / 2 }]
+        await #expect(throws: CommandFailure.self) { _ = try await device.frames(count: 10, seconds: nil) }
+        #expect(device.sessions.count == 1 && device.sessions[0].closed)
     }
 
     @Test func aStreamThatEndsAndComesBackLeavesOneGapInOneMovie() async throws {
