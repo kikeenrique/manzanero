@@ -1,6 +1,6 @@
 # Status at a glance
 
-One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on the night of 2026-11-21; the work of that day after v0.1.0-beta.2 is in no release yet.
+One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-22; the work since v0.1.0-beta.2 (2026-11-21) is in no release yet.
 
 ## How to read it
 
@@ -31,7 +31,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait and landscape; web pages in Chrome, Safari and an app's own web view, `scroll` included (`set-value` does not change a web input) | works; a Safari page or an app's web view by `--pid <page>` | works, see the routes below | works | works | works, a letterboxed app too since 2026-11-21 |
 | **Accessibility, search a long list**: `scroll --search` | works in four directions; downward in landscape too. Upward takes four times the steps of downward through a table | works in four directions (iPhone, iPad) | works in four directions | works in four directions | works, up and down (Series 12 and Ultra) | works in four directions |
 | **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | works | works, with `--display` |
-| **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`, in step and to the end since 2026-11-21; both recover across a pulled cable (`record` without `--audio`); an interrupt stops the device's stream; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` (the sound fixes of 2026-11-21 not yet run here); a still screen sends no picture after five seconds, and since 2026-11-21 that no longer restarts a recording | `record` works | `record` works | works, with `--display` |
+| **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`, in step and to the end since 2026-11-21; both recover across a pulled cable, `record` with its sound too since 2026-11-22; landscape gives sideways portrait pictures; an interrupt stops the device's stream and keeps the movie so far; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, up to a minute, with sound by `--audio` (the sound fixes of 2026-11-21 not yet run here); a still screen sends no picture after five seconds, and since 2026-11-21 that no longer restarts a recording | `record` works | `record` works | works, with `--display` |
 | **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | works (Ultra) | works |
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
 | **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | works; `status-bar` refused (a device does not support it) | works (iPhone, 2026-11-21) | not run | not run | not run | not run |
@@ -62,9 +62,9 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **A release** of the work of 2026-11-21, which is in no beta yet.
-2. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a quiet recording of several minutes with sound (the sound fixes ran on the phone only).
-3. **Sound in recording recovery**: a recording with `--audio` still fails on a loss instead of restarting.
+1. **A release** of the work of 2026-11-21 and 2026-11-22, which is in no beta yet.
+2. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a quiet recording of several minutes with sound (the sound fixes and the sound restart ran on the phone only).
+3. **Recording, checks owed on the phone**: an interrupted recording keeping its movie and another viewer's `stopCause` on a device (unit-tested only), and sound in step after a restart, measured with the probe's flashes.
 4. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only; a tester needs Xcode 27, launched once.
 5. **Watch typing**: other keyboard languages and a real watch; accents will not be built (the human owner's decision).
 6. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
@@ -74,7 +74,9 @@ Still the human owner's to decide: signing and notarization.
 ## Done on 2026-11-22 (not released)
 
 - **Recording, the two choices**: an interrupted recording keeps its movie as partial (exit 130/143, the path on stderr); another viewer taking the screen ends a recording with `stopCause: another-viewer`, with no wait.
-- **Web pages**: an app's own web view inset from the screen's corner, and `scroll` on a page, work on the phone and a simulator (the iOS probe's new web screen), after two fixes.
+- **Web pages**: an app's own web view inset from the screen's corner, and `scroll` on a page, work on the phone and a simulator (the iOS probe's new web screen), after two fixes; a field zoomed past the display's edge is pressed on the phone.
+- **Sound in recording recovery**: a recording with `--audio` restarts after a lost stream, its sound stream started again; seen once on the phone across a pulled cable.
+- **The phone checks owed**: keys, several contacts, `frames` and recording in both landscapes; `--with-value` on the Settings search field; a secure field's masked receipt; a cable pulled and a Wi‑Fi path lost during input, both ending in quarantine (the phone released a held contact at the screen's corner, `[0,0]`).
 
 ## Done on the night of 2026-11-21 (not released)
 
