@@ -16,6 +16,15 @@ The project uses the [MIT license](../license), and its public source repository
 
 History cleanup changes commit IDs. `tmp/` is untracked working space: never publish that directory or include it in a source archive. Required attribution remains in [dependencies](dependencies.md) and `ThirdParty/`.
 
+## Review of the unpushed work, 2026-11-22
+
+Done at the human owner's request on the 82 local commits after the last pushed one (`78ea03c`), before any of them was pushed: the added lines of every file and every commit message.
+
+- **Device identifiers.** Every UDID, CoreDevice identifier and name of the development Mac's paired devices and simulators, the account name, the human owner's name and address domain, and the network name seen on the phone's screen: none found. The hits were product names, OS build numbers and this project's own simulator names (`manzanero-research-phone` and the like). The UUIDs and UDIDs in the range are test fixtures from 2026-11-11 to 2026-11-19, none of them a device or simulator of that Mac.
+- **Other personal data.** Nothing that the phone's screen showed during the day's runs (a song title, the account card in Settings) is in a file or message. The only hits for the owner's name are the public repository handle in release links.
+- **Secrets.** Gitleaks 8.30.1 over the 82 commits: no leaks found. No home-directory path, email address, IP address or key block in the added lines.
+- **Tracked files.** No new binary file; the only images are the three in `docs/assets/`.
+
 ## Audit before the second beta, 2026-11-21
 
 Done on the pushed history before `v0.1.0-beta.2` was tagged, by the steps of the first audit below.
