@@ -706,6 +706,17 @@ struct SimulatorAccessibilityTests {
         #expect(refusal.code == .inputOutcomeUnknown && refusal.description.contains("state=refused"))
     }
 
+    /// A simulator search gets the search's allowance, as a physical one does:
+    /// with the standard 30 s a staggered list's search of 40 steps ran out.
+    @Test func searchSessionLifetimeScalesWithItsSteps() async throws {
+        let sessions = SessionCounter()
+        _ = try await Self.service(Self.pressable(), leases: Self.usableLeases(), sessions: sessions)
+            .run(["scroll", "--label", "Reset probe", "--search", "40", "--simulator", Self.uuid])
+        _ = try await Self.service(Self.pressable(), leases: Self.usableLeases(), sessions: sessions)
+            .run(["scroll", "--label", "Reset probe", "--simulator", Self.uuid])
+        #expect(sessions.lifetimes == [.seconds(30 + 3 * 40), .seconds(30)])
+    }
+
     @Test func scrollReportsItsPostcondition() async throws {
         let fixture = Self.pressable()
         let receipt = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).run(["scroll", "--label", "Reset probe", "--simulator", Self.uuid]))

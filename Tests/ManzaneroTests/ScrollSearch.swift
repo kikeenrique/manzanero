@@ -22,6 +22,9 @@ struct ScrollSearchTests {
         /// A watch's list: each row holds its text as a hidden child that
         /// starts at another x, and only the row itself moves the list.
         var watchRows = false
+        /// Every scroll moves the list back one row, as a staggered list's
+        /// stale anchor did on a simulator.
+        var movesBack = false
         var platform: AccessibilityPlatform { .simulator }
 
         init(count: Int) { self.count = count }
@@ -70,6 +73,7 @@ struct ScrollSearchTests {
         func performAction(_ token: AccessibilityRequest.Token, action: AccessibilityRequest.Action, onSubmission: () -> Void) throws -> Bool {
             onSubmission()
             scrolled.append(token.objectID)
+            if movesBack { first = max(1, first - 1); return true }
             // Only the hidden row below the screen moves the list.
             if token.objectID == UInt64(100 + first + 4), first + 4 < count { first += 1 }
             return true
@@ -121,6 +125,17 @@ struct ScrollSearchTests {
         session.watchRows = true
         #expect(try search(9, steps: 30, in: session) == 4)
         #expect(session.scrolled.filter { $0 >= 100 && $0 < 200 } == [105, 106, 107, 108])
+    }
+
+    /// A step that moves the list back is no progress: the search stops
+    /// instead of walking the list back to its top.
+    @Test func aListThatMovesBackIsNotProgress() throws {
+        let session = ListSession(count: 20)
+        session.first = 8
+        session.movesBack = true
+        let stop = #expect(throws: CommandFailure.self) { try search(19, steps: 30, in: session) }
+        #expect(stop?.description.contains("stopped moving after 1 search step(s)") == true)
+        #expect(session.scrolled.count == 1 && session.first == 7)
     }
 
     @Test func itStopsAtTheStepLimitAndAtTheEndOfTheList() throws {

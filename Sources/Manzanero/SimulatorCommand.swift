@@ -279,7 +279,11 @@ enum DirectSimulatorAccessibility {
         let setValue = DirectAccessibilitySetValue.operations.contains(input.operation) ? try DirectAccessibilitySetValue(input.coreDeviceInput) : nil
         let wait = AccessibilityWait.operations.contains(input.operation) ? try AccessibilityWait(input.coreDeviceInput) : nil
         let session: any AccessibilityExchange
-        do { session = try environment.accessibility(input.device, wait?.sessionLimits.lifetime ?? AccessibilitySession.Limits.standard.lifetime) }
+        // The same limits as the physical session: a wait's or a search's own
+        // allowance. Without the search's, a simulator search stopped at the
+        // standard 30 s whatever its steps.
+        let lifetime = (wait?.sessionLimits ?? action?.sessionLimits ?? .standard).lifetime
+        do { session = try environment.accessibility(input.device, lifetime) }
         catch let failure as CommandFailure { throw failure.noInputSent() }
         (session as? SimulatorAccessibilitySession)?.hitMapping = mapping
         let bytes: Data

@@ -364,6 +364,8 @@ Launched with `-ProbeList YES`, the iOS probe shows two lists in place of the to
 | `probe.list.col.1` … `probe.list.col.40` | The strip's columns, labelled "Col 1" … "Col 40" | Collection view cells with the button trait. Selecting one records `col-<n>` |
 | `probe.list.last` | A label, "Last: none" at launch | Its value is the last row or column selected |
 
+With `-ProbeListStagger YES` as well, the rows are staggered: a row's element is its label, sized to its text and placed at its own leading inset (16 plus 37 × n modulo 160 points), and the cell is not an element. No two neighbouring rows share an edge, and the table then keeps no row below or above the screen in the tree, as in an app whose cells hold accessible views instead of being elements themselves. Identifiers and selection are unchanged.
+
 ```sh
 xcrun simctl launch <simulator-UUID> com.lemambo.manzanero.probeapp -ProbeList YES
 manzanero scroll --id probe.list.row.55 --search 80 --simulator <simulator-UUID>

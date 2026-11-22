@@ -1925,6 +1925,16 @@ Items left open on the roadmap that need no hardware, run by laia-LLM on simulat
 
 **`fold` straight after boot, nothing else booted** (`manzanero-research-duo`, iOS 27.2, the phone simulator shut down first, so the Duo was the only simulator booted on the Mac). Right after `bootstatus` returns, the display information reads `backlightState: unknown`, then both `LCD` and `LCD-1` `activeOn` for about six seconds, then the folded state on its own, with the hinge at 0 throughout. With the 10 s bound (40 reads), in three boots of `fold`, `unfold`, `fold`, `unfold`: three of six folds were not observed, the first of a boot and twice the second, about 25 s after boot; one was observed at read 38. One missed fold was followed with `displays`: it had settled 14 s after it was sent. Once settled (a minute after boot), six folds of six were observed after 13 or 14 reads, 3 to 5 s. So it was neither load nor other simulators: a Duo that has just booted folds slowly, up to 14 s. The bound became 20 s (80 reads). With it, in seven boots: every first fold was observed, five of them after 41 to 46 reads (11 to 13 s), which the old bound would have missed. One fold, 13 s after a boot, was not observed: the hinge read 0 and both displays stayed `activeOn` for over 40 s more, so the simulator itself stayed between states; the receipt said `displayObserved: false` and the next `unfold` was observed after two reads. One `unfold` 15 s after a boot was not observed within 20 s either, and the next fold was. The receipt is right in both cases; nothing is resent, as designed.
 
+**`scroll --search` on a list whose rows share no edge** (`manzanero-research-phone`, the iOS probe with `-ProbeList YES -ProbeListStagger YES`: each row's label at its own x, about 13 rows in the tree, none below or above the screen). Three faults, fixed that evening:
+
+| Run | Before | After |
+| --- | --- | --- |
+| `--search 40` to row 55 | Failed after 30 s with "no reply within 0.1 seconds": on a simulator the session had the standard 30 s whatever the search's steps, where a physical one has 30 s plus 3 s a step. It now has the search's allowance | Ran out its 40 steps, then (below) reached row 55 in 18 s, `postcondition-verified` |
+| Four searches of four steps down | The list went to rows 11–23, then back up to rows 1–13: a step that moved the list back counted as progress | A backward move is a failed try; row 55 in 18 s and row 60 in 20 s |
+| `--search 40 --toward up` from row 60 | Stopped after 4 steps: with every row a line of its own, the highest candidates were the `Last` label and the strip's columns, which move nothing upward | Leaving out elements that form a list the other way, from rows 48–60 to row 1 in 50 steps over two runs (48 s) |
+
+Row 1 and row 60 were then pressed and `probe.list.last` read `row-1` and `row-60`. A staggered step moves about one row upward and four downward, because the table holds no rows beyond the screen. With the final code the plain list and strip still searched in four directions (row 55 in 6 s, row 1 in 19 s, columns 38 and 2 in about 20 s), and so did the tvOS probe on `manzanero-research-tv` (row 35 in 9 s, row 1 in 21 s, columns 28 and 2 in 13 and 14 s).
+
 ### iPhone Duo displays
 
 **2026-11-16**, `manzanero-research-duo` freshly booted, Home Screen and then Settings in front.

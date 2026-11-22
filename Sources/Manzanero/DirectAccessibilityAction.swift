@@ -168,13 +168,23 @@ struct DirectAccessibilityAction {
         func position(_ node: AccessibilitySnapshot.Node) -> Double? {
             node.frame.map { toward == .down || toward == .up ? $0.y : $0.x }
         }
-        /// Whether the tree moved along the search's axis. A strip that moves
-        /// sideways during a search downward is another list, not progress.
+        /// Whether the tree moved along the search's axis, the search's way:
+        /// content moves up in a search downward. A strip that moves sideways
+        /// during a search downward is another list, not progress; nor is a
+        /// list that moved back, which a staggered list did on 2026-11-22
+        /// (an anchor above the screen), and which counted as progress and
+        /// walked the search back to the top.
         func progressed(_ before: [AccessibilitySnapshot.Node], _ after: [AccessibilitySnapshot.Node]) -> Bool {
             let positions = Dictionary(before.map { ($0.token.objectID, position($0)) }, uniquingKeysWith: { first, _ in first })
             let common = after.filter { positions[$0.token.objectID] != nil }
             guard !common.isEmpty else { return layout(after) != layout(before) }
-            return common.contains { positions[$0.token.objectID] != .some(position($0)) }
+            let forward = toward == .down || toward == .right ? -1.0 : 1.0
+            var ahead = 0, back = 0
+            for node in common {
+                guard let old = positions[node.token.objectID] ?? nil, let new = position(node), new != old else { continue }
+                if (new - old) * forward > 0 { ahead += 1 } else { back += 1 }
+            }
+            return ahead > back
         }
         /// The tree once it has stopped changing. A scroll is animated, and a
         /// list loads its next rows after it: read at once, the probe's list
@@ -236,7 +246,16 @@ struct DirectAccessibilityAction {
             var candidates: [AccessibilitySnapshot.Node] = []
             let groups = Dictionary(grouping: leaves.isEmpty ? Array(placed) : leaves, by: { line($0) ?? .nan }).values
             let along = groups.filter { Set($0.compactMap(position)).count > 1 }
-            for group in along.isEmpty ? Array(groups) : along {
+            // When no line holds a list along the axis (a staggered list,
+            // whose rows each start at their own x), every element is a line
+            // of its own. Then leave out the ones that form a list the other
+            // way, sharing a position along the axis with others, such as the
+            // probe's strip of columns in a search upward.
+            func across(_ node: AccessibilitySnapshot.Node) -> Double { position(node)?.rounded() ?? .nan }
+            let crosswise = Set(Dictionary(grouping: leaves.isEmpty ? Array(placed) : leaves, by: across).values
+                .filter { $0.count > 1 && Set($0.compactMap(line)).count > 1 }.joined().map(\.token.objectID))
+            let lone = Array(groups).filter { $0.contains { !crosswise.contains($0.token.objectID) } }
+            for group in along.isEmpty ? (lone.isEmpty ? Array(groups) : lone) : along {
                 if let furthest = group.max(by: { reach($0) < reach($1) }) { candidates.append(furthest) }
             }
             candidates.sort { first, second in
