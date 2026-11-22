@@ -24,8 +24,11 @@ final class AccessibilitySession {
     /// standard values serve single observations and actions; a bounded wait
     /// scales them to its own maximum poll count. Cleanup keeps its separate
     /// three-second/32-frame allowance either way.
+    /// The lifetime was 30 s until 2026-11-22, when a press in Control Centre
+    /// on the iPhone 13 mini ran out of it: each snapshot of SpringBoard took
+    /// 8 to 15 s there, and a press reads several.
     struct Limits: Sendable, Equatable {
-        var lifetime: Duration = .seconds(30)
+        var lifetime: Duration = .seconds(120)
         var frames = 256
         var callbackBytes = 40 * 1024 * 1024
         static let standard = Limits()
@@ -110,7 +113,7 @@ final class AccessibilitySession {
     }
 
     func snapshot(_ token: AccessibilityRequest.Token) throws -> AccessibilityArchiveValue {
-        try exchange(AccessibilityRequest.snapshot(token), expected: .snapshot(token))
+        try exchange(AccessibilityRequest.snapshot(token), expected: .snapshot(token), answerWithin: Self.snapshotAnswer)
     }
 
     func attributes(_ attributes: [Int], of token: AccessibilityRequest.Token) throws -> AccessibilityArchiveValue {
@@ -163,7 +166,14 @@ final class AccessibilitySession {
         return cleanup ?? .unconfirmed("missing cleanup outcome")
     }
 
-    private func exchange(_ archive: Data, expected: AccessibilityResponse.Expected, onSubmission: () -> Void = {}) throws -> AccessibilityArchiveValue {
+    /// How long a snapshot's answer may take. Other answers have four
+    /// seconds; a snapshot of a system process can take longer: with Control
+    /// Centre open over an app, every tree on the iPhone 13 mini failed at
+    /// four seconds (2026-11-22).
+    static let snapshotAnswer: Duration = .seconds(40)
+
+    private func exchange(_ archive: Data, expected: AccessibilityResponse.Expected, answerWithin: Duration = .seconds(4),
+                          onSubmission: () -> Void = {}) throws -> AccessibilityArchiveValue {
         guard state == .active, !busy else { throw invalid("session unavailable or request already active") }
         busy = true
         self.expected = expected
@@ -171,7 +181,7 @@ final class AccessibilitySession {
         defer { busy = false; self.expected = nil; results.removeAll() }
         do {
             _ = try invoke("processDataFromHost:", argument: archive as NSData, until: phase(), beforeWrite: onSubmission)
-            let responseDeadline = phase()
+            let responseDeadline = min(deadline, now().advanced(by: answerWithin))
             while results.isEmpty { _ = try receive(until: responseDeadline) }
             try check(responseDeadline)
             guard results.count == 1 else { throw invalid("multiple matching semantic callbacks") }

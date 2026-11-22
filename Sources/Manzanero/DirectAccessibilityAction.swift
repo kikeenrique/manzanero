@@ -22,7 +22,7 @@ struct DirectAccessibilityAction {
     /// it until the tree settles, so each step adds to every limit.
     var sessionLimits: AccessibilitySession.Limits {
         guard let search else { return .standard }
-        return .init(lifetime: .seconds(30 + 3 * search), frames: 256 + 32 * search,
+        return .init(lifetime: .seconds(120 + 3 * search), frames: 256 + 32 * search,
                      callbackBytes: 40 * 1024 * 1024 + 2 * 1024 * 1024 * search)
     }
     static let searchOption = "--search"

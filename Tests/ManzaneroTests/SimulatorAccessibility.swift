@@ -728,7 +728,7 @@ struct SimulatorAccessibilityTests {
             .run(["scroll", "--label", "Reset probe", "--search", "40", "--simulator", Self.uuid])
         _ = try await Self.service(Self.pressable(), leases: Self.usableLeases(), sessions: sessions)
             .run(["scroll", "--label", "Reset probe", "--simulator", Self.uuid])
-        #expect(sessions.lifetimes == [.seconds(30 + 3 * 40), .seconds(30)])
+        #expect(sessions.lifetimes == [.seconds(120 + 3 * 40), .seconds(120)])
     }
 
     @Test func scrollReportsItsPostcondition() async throws {

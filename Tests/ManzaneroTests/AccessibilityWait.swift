@@ -511,7 +511,7 @@ struct AccessibilityWaitTests {
     }
 
     @Test func sessionBudgetsScaleWithThePollBoundAndDefaultsAreUnchanged() throws {
-        #expect(AccessibilitySession.Limits.standard == .init(lifetime: .seconds(30), frames: 256, callbackBytes: 40 * 1024 * 1024))
+        #expect(AccessibilitySession.Limits.standard == .init(lifetime: .seconds(120), frames: 256, callbackBytes: 40 * 1024 * 1024))
         let limits = try Self.wait(["x", "--timeout", "60", "--interval", "0.25"]).sessionLimits
         #expect(limits.lifetime == .seconds(90) && limits.frames == 64 + 16 * 242 && limits.callbackBytes == 242 * 4 * 1024 * 1024)
         #expect(try Self.wait(["x", "--timeout", "0"]).sessionLimits.callbackBytes == 40 * 1024 * 1024)
