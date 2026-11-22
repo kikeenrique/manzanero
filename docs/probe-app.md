@@ -301,11 +301,13 @@ The log probe writes known lines so that [`logs`, `console` and `last-crash`](ap
 - Every launch writes one set. The token is the value after the launch argument `-probeLogToken` (1...64 ASCII letters, digits, `.`, `_`, `-`), else `launch`.
 - Activating the accessibility element `probe.log.emit` writes another set with the token `emit`: `manzanero press --id probe.log.emit (--device <UDID> | --simulator <UUID>)`. The element is a button-trait `UIAccessibilityElement` (label `Emit probe logs`, value `{"sets":N}`), added to the touch surface's accessibility elements at x 16, y 400, 180×52 points, clear of the touch probe's elements. It is not a view, so it never receives touches. A custom URL scheme was tried first and dropped: iOS asks "Open in “Probe”?" before delivering it, which needs a touch.
 - `-probeCrash abort|trap` crashes deliberately one second after the launch set, after logging `probe.log <token> about to crash mode=<mode>` at error and printing it to stdout with a flush (which also flushes the unflushed line). `abort` calls `abort()` (SIGABRT); `trap` calls `fatalError` (SIGTRAP). Only that launch argument crashes the app; nothing in the measurement runner or the UI passes it.
+- `-probeBulk <KiB>` (1...4096) writes that many KiB of numbered lines to stdout and as many to stderr after the launch set, straight to the file descriptors: lines of exactly 64 bytes with the newline, `<stdout|stderr> bulk <token> 000001 xxx…`, sixteen to the KiB, then `<stream> bulk <token> end lines=<n>`. It is for `console`'s byte bounds; a kept tail is right when it ends with the end line and starts inside the numbered lines.
 
 ```sh
 manzanero console com.lemambo.manzanero.probeapp --seconds 5 --os-log --simulator <UUID> -- -probeLogToken T1
 manzanero logs --seconds 10 --bundle com.lemambo.manzanero.probeapp --level debug --simulator <UUID>   # press --id probe.log.emit meanwhile
 manzanero console com.lemambo.manzanero.probeapp --seconds 6 --simulator <UUID> -- -probeLogToken K1 -probeCrash abort
+manzanero console com.lemambo.manzanero.probeapp --seconds 5 --terminate --simulator <UUID> -- -probeLogToken B1 -probeBulk 128
 manzanero last-crash --bundle com.lemambo.manzanero.probeapp --since <ISO-8601 before the launch> --simulator <UUID>
 ```
 

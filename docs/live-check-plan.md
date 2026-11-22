@@ -33,7 +33,7 @@ If every query to a connected device times out, read the state of Apple's device
   - Record whether the layout chosen there changes the result without relaunching the app.
 - An iPad, and anything on a second device. The simulator side of rotation and iPad is measured. On 2026-11-17 the Mac listed other iPhones, iPads and Apple TVs as paired and available; none has been used, and none is to be until the owner names it.
 - The 200 ms input drain on another device and with the Mac under load (on the iPhone 13 mini, 50 ms lost short gestures and 100 ms did not).
-- An output above 64 KiB through `console` (a 1 KiB bound on 4.6 kB was kept correctly; the probe has no bulk trigger).
+- An output above 64 KiB through `console` (a 1 KiB bound on 4.6 kB was kept correctly): `console <probe> --seconds 10 --device <UDID> -- -probeLogToken B1 -probeBulk 128`, which on a simulator gave exact 64 KiB tails ([record](verification.md#app-logs-console-and-crashes)).
 
 ## Not yet run on Apple TV, Apple Watch or iPhone Duo hardware
 

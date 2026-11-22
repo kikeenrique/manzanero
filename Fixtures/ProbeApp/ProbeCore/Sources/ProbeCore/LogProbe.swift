@@ -9,7 +9,9 @@ import Foundation
 /// - activating the accessibility element `probe.log.emit` (Manzanero
 ///   `press --id probe.log.emit`) emits another set with the token `emit`;
 /// - `-probeCrash abort|trap` crashes deliberately after one set and an
-///   `about to crash` line. Only that launch argument crashes the app.
+///   `about to crash` line. Only that launch argument crashes the app;
+/// - `-probeBulk <KiB>` writes that much numbered output to stdout and to
+///   stderr after the launch set (`bulkLine`), for `console`'s byte bounds.
 ///
 /// A custom URL scheme was tried as the trigger and rejected: iOS asks
 /// "Open in …?" before delivering it, which needs a touch.
@@ -81,6 +83,36 @@ public enum LogProbe {
         lines.append(Emission(channel: .stdoutUnflushed, text: "stdout \(token) #\(sequence) unflushed", privateValue: nil))
         lines.append(Emission(channel: .stderr, text: "stderr \(token) #\(sequence)", privateValue: nil))
         return lines
+    }
+
+    /// `-probeBulk <KiB>`: after the launch set, this many KiB of numbered
+    /// lines on stdout (flushed) and the same on stderr, so `console` can be
+    /// checked above its 64 KiB default bound. Absent, invalid or out of
+    /// 1...maximumBulkKiB: no bulk output.
+    public static let bulkArgument = "-probeBulk"
+    public static let maximumBulkKiB = 4096
+    public static let bulkLineBytes = 64
+
+    public static func bulkKiB(arguments: [String]) -> Int? {
+        guard let index = arguments.firstIndex(of: bulkArgument), index + 1 < arguments.count,
+              let value = Int(arguments[index + 1]), (1...maximumBulkKiB).contains(value) else { return nil }
+        return value
+    }
+
+    /// Line `n` of a stream's bulk output, exactly `bulkLineBytes` bytes with
+    /// its newline: `<stream> bulk <token> 000001 xxx…`. Sixteen lines make one KiB.
+    public static func bulkLine(stream: String, token: String, number: Int) -> String {
+        let head = "\(stream) bulk \(token) \(String(format: "%06d", number)) "
+        let fill = max(0, bulkLineBytes - 1 - head.utf8.count)
+        return head + String(repeating: "x", count: fill)
+    }
+
+    /// The number of lines for `kib` KiB of one stream.
+    public static func bulkLineCount(kib: Int) -> Int { kib * 1024 / bulkLineBytes }
+
+    /// The last line of each stream's bulk output, after the numbered lines.
+    public static func bulkEndLine(stream: String, token: String, lines: Int) -> String {
+        "\(stream) bulk \(token) end lines=\(lines)"
     }
 
     public static func crashLine(token: String, mode: CrashMode) -> String {

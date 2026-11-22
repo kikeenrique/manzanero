@@ -43,4 +43,22 @@ struct LogProbeTests {
         #expect(LogProbe.Level.notice.logName == "default")
         #expect(LogProbe.crashLine(token: "T", mode: .abort) == "probe.log T about to crash mode=abort")
     }
+
+    @Test func bulkNeedsAnInRangeSize() {
+        #expect(LogProbe.bulkKiB(arguments: ["ProbeApp"]) == nil)
+        #expect(LogProbe.bulkKiB(arguments: ["ProbeApp", "-probeBulk"]) == nil)
+        #expect(LogProbe.bulkKiB(arguments: ["ProbeApp", "-probeBulk", "0"]) == nil)
+        #expect(LogProbe.bulkKiB(arguments: ["ProbeApp", "-probeBulk", "4097"]) == nil)
+        #expect(LogProbe.bulkKiB(arguments: ["ProbeApp", "-probeBulk", "big"]) == nil)
+        #expect(LogProbe.bulkKiB(arguments: ["ProbeApp", "-probeBulk", "128"]) == 128)
+    }
+
+    @Test func bulkLinesMakeExactKibibytes() {
+        let line = LogProbe.bulkLine(stream: "stdout", token: "B1", number: 7)
+        #expect(line.hasPrefix("stdout bulk B1 000007 x"))
+        #expect(line.utf8.count + 1 == LogProbe.bulkLineBytes)
+        #expect(LogProbe.bulkLine(stream: "stderr", token: "B1", number: 999_999).utf8.count + 1 == LogProbe.bulkLineBytes)
+        #expect(LogProbe.bulkLineCount(kib: 128) * LogProbe.bulkLineBytes == 128 * 1024)
+        #expect(LogProbe.bulkEndLine(stream: "stdout", token: "B1", lines: 2048) == "stdout bulk B1 end lines=2048")
+    }
 }

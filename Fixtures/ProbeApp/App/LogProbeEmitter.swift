@@ -36,6 +36,9 @@ final class LogProbeEmitter {
     func launched(arguments: [String] = ProcessInfo.processInfo.arguments) {
         let token = LogProbe.token(arguments: arguments)
         emit(token: token)
+        if let kib = LogProbe.bulkKiB(arguments: arguments) {
+            writeBulk(token: token, kib: kib)
+        }
         guard let mode = LogProbe.crashMode(arguments: arguments) else { return }
         // A short delay lets the launch finish and the lines reach the log store.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [logger] in
@@ -47,6 +50,25 @@ final class LogProbeEmitter {
             case .abort: abort()
             case .trap: fatalError(line)
             }
+        }
+    }
+
+    /// `-probeBulk`: numbered lines on stdout and stderr, written straight to
+    /// the file descriptors so nothing waits in a buffer.
+    private func writeBulk(token: String, kib: Int) {
+        let count = LogProbe.bulkLineCount(kib: kib)
+        for (stream, handle) in [("stdout", FileHandle.standardOutput), ("stderr", FileHandle.standardError)] {
+            fflush(stdout)
+            var chunk = ""
+            for number in 1...count {
+                chunk += LogProbe.bulkLine(stream: stream, token: token, number: number) + "\n"
+                if chunk.utf8.count >= 16_384 {
+                    handle.write(Data(chunk.utf8))
+                    chunk = ""
+                }
+            }
+            chunk += LogProbe.bulkEndLine(stream: stream, token: token, lines: count) + "\n"
+            handle.write(Data(chunk.utf8))
         }
     }
 

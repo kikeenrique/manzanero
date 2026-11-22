@@ -300,7 +300,7 @@ What was decided is in the [decision tables](#owner-decisions-2026-11-17) below.
 12. **Keyboard layouts on a phone.** Only Spanish – ISO, the layout the test phone uses on its own, has been typed and detected on hardware. A phone's layout cannot be read; `detect-layout` is the substitute. Whether a phone applies the ISO or ANSI table to the 13 layouts where they differ is unchecked. Blocked on hardware: the phone's Settings › General › Teclado has no hardware keyboard section without a physical keyboard attached (looked at on 2026-11-21), so another layout cannot be set there to type against.
 13. **`frames` beyond one portrait phone.** It runs on the Apple TV 4K too, recovers across a pulled cable on the phone since 2026-11-21, and ran in both landscapes on 2026-11-22 (portrait-sized pictures with the interface sideways). Left: long runs toward the 1000-frame and 1 GiB limits, and a second process competing for the stream.
 14. **What apps' recognizers make of three to five contacts.** Delivery is measured; recognition in real apps is not.
-15. **`console` above its default bound.** An output above 64 KiB has not been produced: the probe app has no bulk trigger.
+15. **`console` above its default bound: done on a simulator.** The probe's `-probeBulk <KiB>` produced 128 KiB, 2 MiB and 4 MiB per stream on 2026-11-22; the tails were exactly 64 KiB and 1 MiB and the 8 MiB stop was `byteLimit` ([record](verification.md#app-logs-console-and-crashes)). A device keeps its tails in memory by other code (`ConsoleTail`); run the same argument there when the phone is next connected.
 
 ### Other families
 

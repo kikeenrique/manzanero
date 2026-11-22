@@ -1847,6 +1847,14 @@ First run of [`logs`, `console` and `last-crash`](app-logs.md), 2026-11-16: macO
 
 **Process hygiene.** After a normal end, after an entry or byte limit, after SIGINT (exit 130) and after SIGTERM (exit 143) to `manzanero logs`, no `simctl spawn` process and no in-simulator `log stream` process was left (during the capture both were visible, the latter as a child of the simulator's launchd). An unrelated host `log stream` belonging to other work was present before and after and was not touched.
 
+**Above the default bound, 2026-11-22.** The probe's `-probeBulk <KiB>` ([log probe](probe-app.md#log-probe)) on the `manzanero-research-phone` simulator (iOS 27.2), Xcode 27.2, three runs with `--terminate`:
+
+| Run | Result |
+| --- | --- |
+| `-probeBulk 128`, default `--max-bytes` | `stdoutBytes` 131,146, `stderrBytes` 131,868; each tail exactly 65,536 bytes, starting inside line 1026 and ending with `end lines=2048`; `truncated: true`, `stopReason: duration` |
+| `-probeBulk 2048`, `--max-bytes 1048576` | About 2 MiB per stream; each tail exactly 1,048,576 bytes; `truncated: true`, `stopReason: duration` |
+| `-probeBulk 4096`, 10 s | `stopReason: byteLimit` once the two files passed 8 MiB together (4,194,379 and 4,194,348 bytes), `truncated: true`, the app terminated by the tool; the stdout tail ended with `end lines=65536` |
+
 **Probe trigger.** A `manzanero-probe://` URL opened with `open-url` showed "Open in “Probe”?" and needed a touch, so the trigger became the accessibility element `probe.log.emit`, which `press-id` activated (`status: accepted`).
 
 Not established: anything on a physical device (physical `console` and `last-crash` have only unit tests and dry runs), `log show` over long windows, extensions, other runtimes or Xcode versions, and MCP calls against a live simulator (the tools' routing and schemas are unit-tested).
