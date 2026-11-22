@@ -245,13 +245,13 @@ Not shown: a web view in a third-party app, a page that zooms, a horizontal scro
 
 ### The phone in landscape: keys, several contacts, frames and a recording
 
-2026-11-22, the iPhone 13 mini (iOS 27.2.1), the probe launched with `-ProbeAllowRotation YES` and the phone turned with `rotate landscape-left` (`tree`: `rot270`, 812 × 375), on the tool's own tunnel over the cable.
+2026-11-22, the iPhone 13 mini (iOS 27.2.1), the probe launched with `-ProbeAllowRotation YES` and the phone turned with `rotate landscape-left` (`tree`: `rot270`, 812 × 375), on the tool's own tunnel over the cable; landscape-right at the end.
 
 - **Keys.** `press --id probe.text.field`, `type "ab cd"` (`probe.text.value` read "ab cd"), then `key backspace`, `key left` twice and `key space`: the field read "ab  c", which is what those keys do. `key return` closed the keyboard.
 - **Several contacts.** `multi-tap` with three points at y 0.45 arrived as three contacts at (0.30008, 0.44978), (0.5, 0.44978) and (0.69992, 0.44978); with five points from x 0.2 to 0.8 at y 0.4, as five contacts within 0.0002 of each. `pinch 0.5 0.45 0.2 0.5 0.5` arrived as two contacts moving from 0.39984 and 0.60016 to 0.25 and 0.74507, 21 moves each, in 0.504 s. All in the probe's landscape interface coordinates.
 - **`frames` and `record --backend coredevice`.** Three frames and an 8-second movie (129 source pictures), both whole and both in the display's native portrait size: frames 1125 × 2436, the movie 1136 × 2464, with the landscape interface sideways in them. The tool does not turn them; a viewer must.
 
-The phone was turned back to portrait afterwards (`rot0`). Not shown: landscape-right for these four, a held key, a recording across a rotation.
+The phone was turned back to portrait afterwards (`rot0`). Later the same day all four were repeated in landscape-right (`rot90`, 812 × 375) with the same results: the field read "ab  c"; three and five contacts arrived within 0.0002 of their points; the pinch went from 0.39984 and 0.60016 to 0.25 and 0.74507 in 23 moves; three 1125 × 2436 frames and an 8-second 1136 × 2464 movie (126 source pictures), the interface sideways the other way. Not shown: a held key, a recording across a rotation.
 
 ### A cable pulled during a long press
 
