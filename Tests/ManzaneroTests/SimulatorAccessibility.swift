@@ -394,6 +394,20 @@ struct SimulatorAccessibilityTests {
         #expect(abs(hit.x - 220) < 1e-9 && abs(hit.y - 432) < 1e-9)
     }
 
+    /// A full-screen app whose root reports its frame unrotated (Settings on
+    /// the Duo's inner display) is not letterboxed: the hit is not moved.
+    @Test func anUnrotatedFullScreenRootDoesNotMoveTheHit() async throws {
+        let fixture = SimulatorAXFixture()
+        fixture.displayInfo = SimulatorInputTests.displayJSON(current: "rot90", sensor: "landscapeRight")
+        fixture.rootFrame = NSRect(x: 0, y: 0, width: 390, height: 844)
+        fixture.elements = [.init(identifier: "fixture.target", label: "Target", frame: NSRect(x: 100, y: 200, width: 80, height: 40))]
+        let press = try Self.json(await Self.service(fixture, leases: Self.usableLeases()).run(["press", "--id", "fixture.target", "--simulator", Self.uuid]))
+        #expect(press["status"] as? String == "accepted")
+        // Interface (140, 220) unmoved; rot90 maps (x, y) to native (y, 844 - x).
+        let hit = try #require(fixture.hitPoints.last)
+        #expect(abs(hit.x - 220) < 1e-9 && abs(hit.y - 704) < 1e-9)
+    }
+
     @Test func treeWithAPIDSkipsForegroundSelection() async throws {
         let fixture = SimulatorAXFixture()
         let tree = try Self.json(await Self.service(fixture).run(["tree", "--pid", "42", "--simulator", Self.uuid]))

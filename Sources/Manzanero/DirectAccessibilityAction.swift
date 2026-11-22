@@ -459,11 +459,16 @@ struct DirectAccessibilityAction {
         // So in a landscape-shaped interface, the only place a portrait-only
         // window is letterboxed, the application's root is read first, and a
         // root smaller than the display moves the hit to the window's centred
-        // offset. The identity rule after it is unchanged.
+        // offset. The identity rule after it is unchanged. A letterboxed
+        // window fits inside the interface; a full-screen app's root can
+        // report its frame unrotated instead (Settings on the Duo's inner
+        // display: 669 x 951 in a 951 x 669 interface, 2026-11-22), which is
+        // no letterbox, and moving the hit for it made every press fail.
         var offset = (dx: 0.0, dy: 0.0)
         if bounds.width > bounds.height, let root,
            let window = try AccessibilitySnapshot.normalize(session.snapshot(root), root: root).first?.frame,
            window.x == 0, window.y == 0, window.width > 0, window.height > 0,
+           window.width <= bounds.width + 0.5, window.height <= bounds.height + 0.5,
            window.width < bounds.width - 0.5 || window.height < bounds.height - 0.5 {
             offset = ((bounds.width - window.width) / 2, (bounds.height - window.height) / 2)
         }
