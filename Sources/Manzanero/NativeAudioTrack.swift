@@ -75,6 +75,12 @@ struct NativeAudioTrack {
         frames * 1_000_000_000 / UInt64(NativeAudioDecoder.sampleRate)
     }
 
+    /// Whole samples at 48 kHz in `nanoseconds`, rounded down: the length of
+    /// silence that fills a gap without passing the next piece's start.
+    static func frames(nanoseconds: UInt64) -> Int {
+        Int(nanoseconds * UInt64(NativeAudioDecoder.sampleRate) / 1_000_000_000)
+    }
+
     /// One datagram of the stream, arrived `nanoseconds` after the movie's
     /// first picture. Sender reports and anything that is not this stream's
     /// payload give nothing.

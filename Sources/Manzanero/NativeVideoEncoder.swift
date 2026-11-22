@@ -35,9 +35,28 @@ actor NativeVideoEncoder {
     /// Sound that arrives before the first picture has no movie to go into
     /// and is dropped; so is sound that would start before what is written.
     func consumeAudio(_ samples: [Int16], nanoseconds: UInt64) async throws {
-        guard let audioReceiver, let audioFormat, !samples.isEmpty, nanoseconds >= audioEnd,
+        guard audioReceiver != nil, audioFormat != nil, !samples.isEmpty, nanoseconds >= audioEnd,
               nanoseconds < UInt64(seconds * 1_000_000_000) else { return }
         try Task.checkCancellation()
+        // A piece that starts after the last one ended (a recording's restart,
+        // docs/recording-recovery.md) leaves a gap. The AAC writer encodes the
+        // samples it is given back to back whatever their times, so a gap left
+        // empty disappeared from the movie and all the sound after a restart
+        // played seven seconds early (iPhone 13 mini, 2026-11-22). The gap is
+        // written as silence, in pieces of at most a second.
+        if audioEnd > 0 {
+            var gap = NativeAudioTrack.frames(nanoseconds: nanoseconds - audioEnd)
+            while gap > 0 {
+                let chunk = min(gap, Int(NativeAudioDecoder.sampleRate))
+                try await appendAudio([Int16](repeating: 0, count: chunk * NativeAudioDecoder.channels), nanoseconds: audioEnd)
+                gap -= chunk
+            }
+        }
+        try await appendAudio(samples, nanoseconds: max(nanoseconds, audioEnd))
+    }
+
+    private func appendAudio(_ samples: [Int16], nanoseconds: UInt64) async throws {
+        guard let audioReceiver, let audioFormat else { return }
         let frames = samples.count / NativeAudioDecoder.channels, bytes = samples.count * 2
         var block: CMBlockBuffer?
         guard CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil, blockLength: bytes,
