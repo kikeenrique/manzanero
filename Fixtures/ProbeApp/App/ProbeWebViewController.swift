@@ -10,7 +10,11 @@ import WebKit
 /// a second button far below the web view's height, for `scroll`. What the
 /// page receives is recorded in `probe.web.last`.
 final class ProbeWebViewController: UIViewController, WKScriptMessageHandler {
-    static var isRequested: Bool { UserDefaults.standard.bool(forKey: "ProbeWeb") }
+    static var isRequested: Bool { UserDefaults.standard.bool(forKey: "ProbeWeb") || zooms }
+    /// `-ProbeWebZoom YES`: the same page, but it may zoom and its field's
+    /// text is 12 points, so focusing the field makes iOS zoom in on it and
+    /// the field becomes wider than the display.
+    static var zooms: Bool { UserDefaults.standard.bool(forKey: "ProbeWebZoom") }
     static let lastIdentifier = "probe.web.last"
     static let webIdentifier = "probe.web.view"
     /// The web view's distance from the safe area's leading, trailing and
@@ -47,7 +51,7 @@ final class ProbeWebViewController: UIViewController, WKScriptMessageHandler {
             web.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -Self.inset),
             web.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -Self.inset),
         ])
-        web.loadHTMLString(Self.page, baseURL: nil)
+        web.loadHTMLString(Self.zooms ? Self.zoomingPage : Self.page, baseURL: nil)
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -78,4 +82,10 @@ final class ProbeWebViewController: UIViewController, WKScriptMessageHandler {
     <script>function say(what) { window.webkit.messageHandlers.probe.postMessage(what); }</script>
     </body></html>
     """
+
+    /// The page for `-ProbeWebZoom YES`: zoom allowed, and 12-point text in
+    /// the field, which iOS zooms to when the field takes focus.
+    static let zoomingPage = page
+        .replacingOccurrences(of: ", maximum-scale=1, user-scalable=no", with: "")
+        .replacingOccurrences(of: "button, input { font: 17px -apple-system;", with: "button { font: 17px -apple-system; } input { font: 12px -apple-system; } button, input {")
 }

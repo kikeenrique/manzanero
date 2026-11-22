@@ -385,8 +385,10 @@ Launched with `-ProbeWeb YES`, the iOS probe shows an app's own `WKWebView` in p
 manzanero launch com.lemambo.manzanero.probeapp --relaunch (--device <UDID> | --simulator <UUID>) -- -ProbeWeb YES
 manzanero scroll --label "Bottom button" --device <UDID>               # add --pid <page> on a simulator
 manzanero press --label "Web field" --index 2 --device <UDID> && manzanero type hola --device <UDID>
-manzanero wait --id probe.web.last --until value --value web-field:hola --device <UDID>
+manzanero wait --id probe.web.last --until value --value web-field:hola --simulator <UUID>
 ```
+
+On a phone the page holds the display centre, so a plain `tree` or `wait` reads the page, not the native label: read `probe.web.last` with `tree --pid <the probe's pid>` or from a screenshot. `-ProbeWebZoom YES` loads the same page with zoom allowed and 12-point text in the field, so focusing the field makes iOS zoom in: on the iPhone 13 mini it grew from 271 to 361 points wide and reached past the display's right edge.
 
 The touch, log and permission probes are not on this screen. Run on the iPhone 13 mini and an iPhone simulator on 2026-11-22 ([record](verification.md#web-content-in-an-apps-own-inset-web-view)).
 
