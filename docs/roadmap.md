@@ -256,6 +256,7 @@ At the human owner's word ("go ahead with 5, 6", then "something with iphone?"),
 | `--with-value` and a secure field | The Settings search field pressed and focused by its placeholder; `set-value` in a password field gave `readBack: masked`; the sheet cancelled | [Record](verification.md#selector-by-value-detect-layout-index-masked-read-back-and-the-display-note) |
 | Release after failure | A cable pulled and a Wi‑Fi path lost during input both failed as `input-outcome-unknown` and quarantined the device; after the cable pull the phone ended the contact at `[0,0]`. A held key or button cannot be produced on a phone from the CLI | [Record](verification.md#a-cable-pulled-during-a-long-press) |
 | Sound in recording recovery | A recording with `--audio` restarts its sound stream with the session; the track goes on after a gap; after a lost link both streams are stopped by identifier. Recovered once on the phone across a pulled cable with the probe beeping | [Record](verification.md#sound-across-a-pulled-cable) |
+| A contact held across batch steps | `batch` steps `hold <x> <y>` and `release`: one live Universal HID stream keeps contact 0 down while the steps between run, and touch steps there join it as extra contacts. Physical only; unit-tested only, not run on a device | [Gesture sequences](gesture-sequences.md#holding-a-contact-across-steps) |
 
 ## Pending
 

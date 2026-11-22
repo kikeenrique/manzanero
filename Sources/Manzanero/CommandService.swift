@@ -33,8 +33,9 @@ actor CommandService {
         try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 15)
     }, handoffWatchPause: Duration = .seconds(2), connectionState: @escaping @Sendable () throws -> Data = StaleDeviceConnection.liveDump,
        tunnelLinks: @escaping @Sendable () -> [String: String] = DeviceTunnelLinks.live,
-       inspector: @escaping InspectorRoute.Open = InspectorRoute.live) {
+       inspector: @escaping InspectorRoute.Open = InspectorRoute.live, holdTransport: HoldTransport = .live) {
         self.inspector = inspector
+        self.holdTransport = holdTransport
         self.connectionState = connectionState
         self.tunnelLinks = tunnelLinks
         self.leases = leases
@@ -53,6 +54,8 @@ actor CommandService {
     private let inspector: InspectorRoute.Open
     /// The devices usbmuxd lists, for `devices`.
     private let tunnelLinks: @Sendable () -> [String: String]
+    /// Runs a `hold` step's live digitizer stream.
+    private let holdTransport: HoldTransport
 
     private nonisolated func staleConnection(_ failure: CommandFailure) -> CommandFailure {
         StaleDeviceConnection.annotate(failure, dump: connectionState)
@@ -169,32 +172,14 @@ actor CommandService {
             guard !dryRun else { throw CommandFailure.usage(CLI.noPlanMessage) }
             return try Doctor.run { try runner.run($0) }
         case .batch(let batch):
-            // Each step runs as it would alone: its own lease, pause check and
-            // quarantine. The batch stops at the first failure or non-zero
-            // exit code, and repeats nothing.
-            var results: [[String: Any]] = []
-            var failedStep: Int?
-            for (index, step) in batch.requests.enumerated() {
-                try Task.checkCancellation()
-                var result: [String: Any] = ["step": index + 1, "command": batch.steps[index]]
-                do {
-                    let output = try await execute(step, dryRun: dryRun)
-                    result["exitCode"] = Int(output.exitCode)
-                    result["output"] = BatchCommand.output(output.data)
-                    if output.exitCode != 0 { failedStep = index + 1 }
-                } catch {
-                    if error is CancellationError || Task.isCancelled { throw CancellationError() }
-                    let failure = CommandFailure.classify(error)
-                    result["exitCode"] = Int(CommandFailure.exitCode(for: error))
-                    result["error"] = failure.fields.compactMapValues { $0 }
-                    failedStep = index + 1
-                }
-                results.append(result)
-                if failedStep != nil { break }
+            let active = ActiveHold()
+            return try await withTaskCancellationHandler {
+                try await runBatch(batch, dryRun: dryRun, active: active)
+            } onCancel: {
+                active.stop()
             }
-            let receipt = BatchCommand.receipt(batch, results: results, failedStep: failedStep, dryRun: dryRun)
-            return CommandOutput(data: try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys]),
-                                 exitCode: failedStep == nil ? 0 : 1)
+        case .hold, .release:
+            throw CommandFailure.usage(HoldStep.batchOnly)
         case .keyboardLayouts:
             guard !dryRun else { throw CommandFailure.usage(CLI.noPlanMessage) }
             return try json(KeyboardLayout.available().map {
@@ -274,6 +259,198 @@ actor CommandService {
             try checkHandoffPause(request)
             return CommandOutput(data: try display.execute(environment: simulator, run: { try runner.run($0.arguments, executable: $0.executable) }))
         }
+    }
+
+    /// `batch`: each step runs as it would alone (its own lease, pause check
+    /// and quarantine), except inside a hold, where touch steps join the held
+    /// contact's stream. The batch stops at the first failure or non-zero exit
+    /// code and repeats nothing. A hold still down when the batch ends, fails
+    /// or is cancelled is released then.
+    private func runBatch(_ batch: BatchCommand, dryRun: Bool, active: ActiveHold) async throws -> CommandOutput {
+        var results: [[String: Any]] = []
+        var failedStep: Int?
+        var holdSummaries: [[String: Any]] = dryRun ? batch.holds.map(\.plan) : []
+        var holdFailed = false
+        var session: HoldSession?
+        // Ends the hold, quarantines the device when the end is unknown, and
+        // keeps its summary for the receipt.
+        func endHold(by reason: String, releaseStep: Int?, stop: Bool = false) -> (HoldSession, HoldStream.Outcome)? {
+            guard let current = session else { return nil }
+            session = nil
+            active.set(nil)
+            let outcome = current.finish(stop: stop)
+            if let failure = outcome.failure {
+                DeviceQuarantine.note(failure, device: current.uuid, operation: HoldStep.operation, leases: leases)
+            }
+            holdSummaries.append(current.summary(releasedBy: reason, releaseStep: releaseStep, outcome: outcome))
+            return (current, outcome)
+        }
+        do {
+            for (index, step) in batch.requests.enumerated() {
+                try Task.checkCancellation()
+                let number = index + 1
+                var result: [String: Any] = ["step": number, "command": batch.steps[index]]
+                if let session, !batch.holds.contains(where: { $0.releaseStep == number }) { session.stepsWhileHeld.append(number) }
+                do {
+                    let output: CommandOutput
+                    switch step {
+                    case .hold(let hold):
+                        guard let span = batch.holds.first(where: { $0.step == number }) else {
+                            throw CommandFailure(.internal, "The batch lost its hold plan; nothing was sent.", inputSent: .none)
+                        }
+                        if dryRun {
+                            output = try json(holdPlan(hold, span: span))
+                        } else {
+                            let started = try startHold(hold, span: span, active: active)
+                            session = started
+                            output = try json(started.holdReceipt())
+                        }
+                    case .release:
+                        if dryRun {
+                            output = try json(["backend": "coredevice-direct", "operation": HoldStep.releaseOperation,
+                                "holdStep": batch.holds.first { $0.releaseStep == number }?.step ?? NSNull(),
+                                "execution": "End the hold's live stream: every active contact released in one report, then the service barrier and the drain, as for other touch input. Nothing is queried by this dry run."])
+                        } else {
+                            guard let (ended, outcome) = endHold(by: "release-step", releaseStep: number) else {
+                                throw CommandFailure(.internal, "release found no hold; nothing was sent.", inputSent: .none)
+                            }
+                            if let failure = outcome.failure { throw failure }
+                            var receipt = ended.summary(releasedBy: "release-step", releaseStep: number, outcome: outcome)
+                            receipt.merge(["backend": "coredevice-direct", "operation": HoldStep.releaseOperation, "status": "released",
+                                           "releaseVerified": false, "device": batch.target.identifier, "holdStep": ended.span.step]) { _, new in new }
+                            let data = try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
+                            output = CommandOutput(data: DeviceUIReadiness.annotateInput(data, uuid: ended.uuid, query: uiReadinessQuery))
+                        }
+                    case .physicalInput(let input) where HoldSegment.handles(input) && batch.hold(containing: number) != nil:
+                        if dryRun {
+                            output = try json(mergedPlan(input, span: batch.hold(containing: number)!))
+                        } else {
+                            guard let session else {
+                                throw CommandFailure(.internal, "The hold of this step is not down; nothing was sent.", inputSent: .none)
+                            }
+                            output = try mergeIntoHold(input, session: session, step: number)
+                        }
+                    default:
+                        output = try await execute(step, dryRun: dryRun)
+                    }
+                    result["exitCode"] = Int(output.exitCode)
+                    result["output"] = BatchCommand.output(output.data)
+                    if output.exitCode != 0 { failedStep = number }
+                } catch {
+                    if error is CancellationError || Task.isCancelled { throw CancellationError() }
+                    let failure = CommandFailure.classify(error)
+                    result["exitCode"] = Int(CommandFailure.exitCode(for: error))
+                    result["error"] = failure.fields.compactMapValues { $0 }
+                    failedStep = number
+                }
+                results.append(result)
+                if failedStep != nil { break }
+            }
+        } catch {
+            // Cancelled: the handler has already stopped the stream; wait
+            // for its release before the cancellation goes on.
+            _ = endHold(by: "cancelled", releaseStep: nil, stop: true)
+            throw error
+        }
+        if session != nil {
+            let reason = failedStep.map { "failed-step \($0)" } ?? "end-of-batch"
+            if let (_, outcome) = endHold(by: reason, releaseStep: nil), outcome.failure != nil, failedStep == nil {
+                holdFailed = true
+            }
+        }
+        let receipt = BatchCommand.receipt(batch, results: results, failedStep: failedStep, dryRun: dryRun,
+                                           holds: holdSummaries, holdFailed: holdFailed)
+        return CommandOutput(data: try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys]),
+                             exitCode: failedStep == nil && !holdFailed ? 0 : 1)
+    }
+
+    private func holdPlan(_ hold: HoldStep, span: HoldSpan) throws -> [String: Any] {
+        let identity = try CoreDeviceInput(device: hold.device, operation: HoldStep.operation, operands: []).identityPlan()
+        var plan = span.plan
+        plan.merge(["backend": "coredevice-direct", "operation": HoldStep.operation, "identityArguments": identity.arguments,
+                    "displayArguments": Self.displayPlan("<resolved CoreDevice UUID>").arguments, "liveVerified": false,
+                    "execution": "Handoff pause, readiness and identity, the device lease for the whole hold, two display reads that must agree, then ADCPerformLiveDigitizerReports on a thread of its own; the step returns once contact 0's first report was sent. Nothing is queried by this dry run."]) { _, new in new }
+        return plan
+    }
+
+    private func mergedPlan(_ input: CoreDeviceInput, span: HoldSpan) throws -> [String: Any] {
+        let segment = try HoldSegment(input)
+        return ["backend": "coredevice-direct", "operation": input.operation, "operands": input.operands, "mergedIntoHold": true,
+                "holdStep": span.step, "contactIDs": Array(1...segment.contactCount), "contactSlots": span.contactSlots,
+                "frameCount": segment.frames.count, "durationMilliseconds": Int(segment.durationNanoseconds / 1_000_000),
+                "execution": "A fresh display read that must match the hold's, then the step's frames sent in the hold's live stream beside contact 0, as contact ids \(Array(1...segment.contactCount).map(String.init).joined(separator: ", ")); no connection of its own. Nothing is queried by this dry run."]
+    }
+
+    private static func displayPlan(_ uuid: String) -> DeviceCommand {
+        DeviceCommand(arguments: ["devicectl", "device", "info", "displays", "--device", uuid,
+            "--timeout", "15", "--json-output", "-", "--quiet"], jsonOutput: true)
+    }
+
+    /// One read-only display query; its failures sent nothing.
+    private func holdDisplay(_ uuid: String) throws -> DirectTouchDisplay {
+        do { return try DirectTouchDisplay(uiReadinessQuery(Self.displayPlan(uuid))) }
+        catch let failure as CommandFailure { throw failure.noInputSent() }
+    }
+
+    /// `hold`: the pause check, identity, the lease (kept until the hold
+    /// ends), fresh display checks, then the stream on its own thread. Returns
+    /// once contact 0's first report was sent.
+    private func startHold(_ hold: HoldStep, span: HoldSpan, active: ActiveHold) throws -> HoldSession {
+        try checkHandoffPause(.hold(hold))
+        let input = CoreDeviceInput(device: hold.device, operation: HoldStep.operation, operands: [])
+        let identity: (uuid: String, version: String)
+        let lease: DeviceLease
+        let display: DirectTouchDisplay
+        do {
+            let details = try readinessQuery(hold.device)
+            identity = try DirectPhysicalInput.identity(input, query: { _ in details })
+            lease = try leases.acquire(device: identity.uuid, operation: HoldStep.operation)
+        } catch let failure as CommandFailure {
+            throw failure.noInputSent()
+        }
+        do {
+            display = try holdDisplay(identity.uuid)
+            guard try holdDisplay(identity.uuid) == display else {
+                throw CommandFailure(.preconditionChanged, "Display changed before the hold; no input sent.", inputSent: .none)
+            }
+            try Task.checkCancellation()
+        } catch {
+            lease.release()
+            throw error
+        }
+        let point = display.portrait(hold.x, hold.y)
+        let stream = HoldStream(slots: span.contactSlots, held: [point.0, point.1].map { Int((min(max($0, 0), 1) * 65535).rounded()) })
+        let session = HoldSession(span: span, stream: stream, device: hold.device, uuid: identity.uuid, display: display, lease: lease)
+        active.set(session)
+        holdTransport.start(stream, uuid: identity.uuid, version: identity.version)
+        guard let early = stream.waitUntilHolding() else { return session }
+        // The stream ended before the contact was down: nothing is held.
+        active.set(nil)
+        let outcome = session.finish()
+        let failure = early.failure ?? outcome.failure
+            ?? CommandFailure(.internal, "The hold's stream ended before its first report; nothing is held.", inputSent: .none)
+        DeviceQuarantine.note(failure, device: identity.uuid, operation: HoldStep.operation, leases: leases)
+        throw failure
+    }
+
+    /// A touch step inside a hold: its frames go into the hold's stream as
+    /// contacts after the held one; it opens no connection of its own.
+    private func mergeIntoHold(_ input: CoreDeviceInput, session: HoldSession, step: Int) throws -> CommandOutput {
+        try checkHandoffPause(.physicalInput(input))
+        guard try holdDisplay(session.uuid) == session.display else {
+            throw CommandFailure(.preconditionChanged, "Display changed during the hold; this step sent nothing, and the hold is released when the batch stops.", inputSent: .none)
+        }
+        let segment = try HoldSegment(input, display: session.display)
+        try Task.checkCancellation()
+        session.mergedSteps.append(step)
+        if let ended = session.stream.perform(segment) {
+            throw ended.failure ?? CommandFailure(.inputOutcomeUnknown, "The hold's stream ended while this step was sent; its effect is unknown.", inputSent: .possible)
+        }
+        return try json(["backend": "coredevice-direct", "operation": input.operation, "status": "dispatched", "verified": false,
+            "releaseVerified": false, "device": input.device, "resolvedCoreDeviceUUID": session.uuid, "mergedIntoHold": true,
+            "holdStep": session.span.step, "contactIDs": Array(1...segment.contactCount), "frameCount": segment.frames.count,
+            "durationMilliseconds": Int(segment.durationNanoseconds / 1_000_000),
+            "coordinateSpace": "normalized-current-interface", "displayRotationDegrees": session.display.rotation])
     }
 
     /// The simulator display a capture uses (`SimulatorDisplays.select`); nil

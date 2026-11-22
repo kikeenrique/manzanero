@@ -186,6 +186,36 @@ int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version,
                               ADCInputShouldStop shouldCancel, uint64_t *surface,
                               char *error, size_t errorCapacity);
 
+/// What a live digitizer provider returns: a report to send, nothing yet
+/// (ask again after the delay), or the end of the stream.
+#define ADCLiveDigitizerSend 1
+#define ADCLiveDigitizerIdle 0
+#define ADCLiveDigitizerEnd (-1)
+/// The longest delay a provider may ask for at once, and the longest a live
+/// stream may last; past it the stream stops and releases, as if cancelled.
+#define ADCLiveDigitizerMaximumDelayNanoseconds 1000000000ULL
+#define ADCLiveDigitizerMaximumNanoseconds 600000000000ULL
+/// Asked for the next report of a live stream on the calling thread. For
+/// ADCLiveDigitizerSend it fills the 58 bytes of report and the time to wait
+/// from now before sending it; for ADCLiveDigitizerIdle only the wait.
+typedef int (^ADCDigitizerProvider)(uint8_t *report, uint64_t *delayNanoseconds);
+/// The live scheduler, also exercised with a local sink. Each report is
+/// checked as a schedule's are (the contact count stays that of the first
+/// report, which must have an active contact; an inactive contact may not
+/// move). Whenever the stream ends (the provider ends it, shouldStop, an
+/// invalid report or the time limit) every active contact of the last report
+/// sent is released, once. Returns 0 ended by the provider, 1 stopped,
+/// 2 invalid before anything was sent (nothing sent), 3 invalid after.
+int ADCRunLiveDigitizer(ADCDigitizerProvider next, ADCInputShouldStop shouldStop, ADCDigitizerSink sendReport);
+/// The live scheduler on the same connection, touchscreen discovery, barriers
+/// and drain as ADCPerformCancellableDigitizerReports, for one connection that
+/// lasts as long as the provider keeps the stream going (a `hold` batch step).
+/// Same status contract: zero, ADCInputOutcomeUnknown once input was
+/// attempted and the end is not confirmed, any other value when nothing was sent.
+int ADCPerformLiveDigitizerReports(const char *uuid, const char *version, ADCDigitizerProvider next,
+                                   ADCInputShouldStop shouldCancel, uint64_t *surface,
+                                   char *error, size_t errorCapacity);
+
 /// Returns zero only after sending one down/up pair and a service barrier.
 /// This is transport dispatch, never verification of device UI or key release.
 int ADCPressButton(const char *uuid, const char *version, uint64_t usage,

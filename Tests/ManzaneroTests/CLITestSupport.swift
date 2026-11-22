@@ -113,6 +113,10 @@ func summary(_ request: CommandRequest) -> [String] {
         return ["doctor"]
     case .keyboardLayouts:
         return ["keyboard-layouts"]
+    case .hold(let hold):
+        return ["physical", hold.device, HoldStep.operation, String(hold.x), String(hold.y)]
+    case .release(let target):
+        return [target.platform.rawValue, target.identifier, HoldStep.releaseOperation]
     }
 }
 

@@ -12,6 +12,9 @@ struct BatchCommand: Sendable, Equatable {
     let steps: [[String]]
     /// The same steps parsed for `target`, in the same order.
     let requests: [CommandRequest]
+    /// The batch's holds (`hold` ... `release`), in order; at most one is
+    /// down at a time.
+    let holds: [HoldSpan]
 
     static let maximumSteps = 30
     static let usage = "batch takes a JSON array of 1...\(maximumSteps) steps, each an array of the words of one command without its target, for example '[[\"tap\",\"0.5\",\"0.5\"],[\"wait\",\"--id\",\"done\"]]'."
@@ -58,17 +61,72 @@ struct BatchCommand: Sendable, Equatable {
         self.target = target
         self.steps = steps
         self.requests = requests
+        holds = try Self.holds(steps: steps, requests: requests)
+    }
+
+    /// Checks the batch's holds and touch steps inside them before anything
+    /// runs: one hold at a time, a release only after a hold, and at most
+    /// four contacts for a touch step merged beside the held one.
+    private static func holds(steps: [[String]], requests: [CommandRequest]) throws -> [HoldSpan] {
+        var holds: [HoldSpan] = []
+        var open: Int?
+        for (index, request) in requests.enumerated() {
+            let number = index + 1
+            switch request {
+            case .hold(let hold):
+                if let open {
+                    throw CommandFailure.usage("batch step \(number): hold while the hold of step \(holds[open].step) is still down. One hold at a time: release it first. Nothing was run.")
+                }
+                holds.append(HoldSpan(step: number, x: hold.x, y: hold.y))
+                open = holds.count - 1
+            case .release:
+                guard let current = open else {
+                    throw CommandFailure.usage("batch step \(number): release without a hold before it. Nothing was run.")
+                }
+                holds[current].releaseStep = number
+                open = nil
+            default:
+                guard let current = open else { continue }
+                holds[current].stepsWhileHeld.append(number)
+                guard case .physicalInput(let input) = request, HoldSegment.handles(input) else { continue }
+                let segment = try HoldSegment(input)
+                guard segment.contactCount <= HoldStep.maximumExtraContacts else {
+                    throw CommandFailure.usage("batch step \(number) (\(steps[index][0])) uses \(segment.contactCount) contacts while the contact of step \(holds[current].step) is held; the digitizer takes five, so at most \(HoldStep.maximumExtraContacts) beside a hold. Nothing was run.")
+                }
+                holds[current].mergedSteps.append(number)
+                holds[current].contactSlots = max(holds[current].contactSlots, segment.contactCount + 1)
+            }
+        }
+        return holds
+    }
+
+    /// The hold a step runs inside, if any (1-based step numbers).
+    func hold(containing step: Int) -> HoldSpan? {
+        holds.first { $0.stepsWhileHeld.contains(step) }
     }
 
     /// The batch's own receipt. `results` holds one entry per step that ran.
-    static func receipt(_ batch: BatchCommand, results: [[String: Any]], failedStep: Int?, dryRun: Bool) -> [String: Any] {
+    /// With holds, `holds` describes each one (the plan in a dry run), and
+    /// `holdFailed` says that a release at the end of the batch was not
+    /// confirmed although every step succeeded.
+    static func receipt(_ batch: BatchCommand, results: [[String: Any]], failedStep: Int?, dryRun: Bool,
+                        holds: [[String: Any]] = [], holdFailed: Bool = false) -> [String: Any] {
         var receipt: [String: Any] = ["operation": "batch", "platform": batch.target.platform.rawValue, "device": batch.target.identifier,
             "stepCount": batch.steps.count, "completedSteps": failedStep.map { $0 - 1 } ?? results.count,
-            "status": failedStep == nil ? (dryRun ? "planned" : "completed") : "failed",
+            "status": failedStep == nil && !holdFailed ? (dryRun ? "planned" : "completed") : "failed",
             "failedStep": failedStep.map { $0 as Any } ?? NSNull(), "steps": results,
             "notRun": batch.steps.dropFirst(results.count).map { $0 as Any }]
         if failedStep != nil {
             receipt["note"] = "The batch stopped at the failed step. Earlier steps took effect and are not undone; no step is repeated. Inspect the device before continuing."
+        }
+        if !batch.holds.isEmpty {
+            receipt["holds"] = holds
+            if batch.holds.contains(where: { $0.releaseStep == nil }) {
+                receipt["holdNote"] = "A hold without a release step is released when the batch ends."
+            }
+        }
+        if holdFailed {
+            receipt["note"] = "Every step ran, but the release of a hold at the end of the batch was not confirmed: a contact may still be down. Inspect the device before continuing."
         }
         return receipt
     }

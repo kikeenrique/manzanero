@@ -30,4 +30,8 @@ xpc_object_t ADCRemoteTouchCreateRequest(void);
 BOOL ADCRemoteTouchCreated(xpc_object_t reply);
 int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
                                  size_t count, char *error, size_t capacity);
+/// One 58-byte report, as each report of a schedule is checked; previous is
+/// the report sent before it, or NULL for the first.
+int ADCValidateDigitizerReport(const uint8_t *bytes, const uint8_t *previous, char *error, size_t capacity);
+BOOL ADCDigitizerReportActive(const uint8_t *bytes);
 #endif

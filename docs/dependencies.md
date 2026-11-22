@@ -80,7 +80,7 @@ Shared groups:
 | Capability (doctor `name`) | Commands | Requires | Optional |
 | --- | --- | --- | --- |
 | `physical-input` | `button`, `wake`, `key`, `type`, `detect-layout` (with `rsd-accessibility`), `paste`, `tap`, `long-press`, `drag`, `swipe`, `pinch`, two-contact `multi-drag` (Indigo HID) | CoreDevice preparation, descriptor control, `xpc_remote_connection_send_message`, `xpc_remote_connection_send_message_with_reply` | — |
-| `multi-contact-input` | `gesture`, `multi-tap`, three-to-five-path `multi-drag`, and `remote swipe-*` on a physical Apple TV (Universal HID) | Same as `physical-input` | — |
+| `multi-contact-input` | `gesture`, `multi-tap`, three-to-five-path `multi-drag`, a batch's `hold` with the touch steps inside it (one live stream, `ADCPerformLiveDigitizerReports`), and `remote swipe-*` on a physical Apple TV (Universal HID) | Same as `physical-input` | — |
 | `tunnel-assertion` | Native AX, native recording and `frames` | Nothing dynamic: public XPC to the pairing daemon, which doctor does not contact | — |
 | `rsd-accessibility` | `tree`, `press`, `scroll`, `wait`, `set-value` | CoreDevice preparation, `xpc_remote_connection_create_with_nw_connection`, `_setup_nw_parameters`, `_get_failsafe_version_flags`, `_cancel`, `_set_event_handler`, `_activate`, `_send_message` | — |
 | `rsd-log-relay` | physical `logs` | The same as `rsd-accessibility` | — |

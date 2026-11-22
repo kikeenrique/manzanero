@@ -78,7 +78,8 @@ static const ADCRequirementSpec ADCPhysicalInput[] = {
     ADC_SYMBOL("xpc_remote_connection_send_message"),
     ADC_SYMBOL("xpc_remote_connection_send_message_with_reply"),
 };
-// ADCPerformCancellableDigitizerReports: Universal HID touchscreen reports.
+// ADCPerformCancellableDigitizerReports and ADCPerformLiveDigitizerReports
+// (a batch hold): Universal HID touchscreen reports on one connection.
 static const ADCRequirementSpec ADCMultiContactInput[] = {
     ADC_COREDEVICE_PREPARE, ADC_REMOTE_XPC_DESCRIPTOR_CONTROL,
     ADC_SYMBOL("xpc_remote_connection_send_message"),
@@ -223,7 +224,7 @@ static const ADCRequirementSpec ADCDeviceTunnel[] = {
 static const ADCCapabilitySpec ADCCapabilities[] = {
     { "physical-input", "button, key, type, paste, tap, long-press, drag, swipe, pinch and two-contact multi-drag through CoreDevice Indigo HID", 0, 1,
       ADCPhysicalInput, ADC_COUNT(ADCPhysicalInput) },
-    { "multi-contact-input", "gesture, multi-tap, multi-contact multi-drag and an Apple TV remote's swipes through CoreDevice Universal HID digitizer reports", 0, 1,
+    { "multi-contact-input", "gesture, multi-tap, multi-contact multi-drag, a batch's hold (with the touch steps inside it) and an Apple TV remote's swipes through CoreDevice Universal HID digitizer reports", 0, 1,
       ADCMultiContactInput, ADC_COUNT(ADCMultiContactInput) },
     { "tunnel-assertion", "Exact-UDID tunnel assertion through the public XPC pairing-daemon service; nothing is resolved dynamically", 0, 1,
       NULL, 0 },

@@ -125,11 +125,29 @@ extension ManzaneroCLI {
 
     struct Batch: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "batch", abstract: "Run several commands for one device in one call, in order.",
-            discussion: "The steps are a JSON array; each step is the words of one command without --device or --simulator, which the batch supplies, for example '[[\"press\",\"--id\",\"login\"],[\"wait\",\"--label\",\"Welcome\"]]'. At most 30 steps. Every step is checked before any runs. Each then runs as it would alone; the batch stops at the first step that fails or exits non-zero (a wait that times out), reports what ran and what did not, and exits 1. Earlier steps are not undone and nothing is repeated. handoff and batch cannot be steps. With --dry-run every step prints its plan.")
+            discussion: "The steps are a JSON array; each step is the words of one command without --device or --simulator, which the batch supplies, for example '[[\"press\",\"--id\",\"login\"],[\"wait\",\"--label\",\"Welcome\"]]'. At most 30 steps. Every step is checked before any runs. Each then runs as it would alone; the batch stops at the first step that fails or exits non-zero (a wait that times out), reports what ran and what did not, and exits 1. Earlier steps are not undone and nothing is repeated. handoff and batch cannot be steps. With --dry-run every step prints its plan. On a physical device [\"hold\",\"x\",\"y\"] keeps one contact down while the following steps run and [\"release\"] lifts it; the end of the batch, a failed step or an interrupt also release it. Touch steps between them join the held contact's stream as extra contacts, so they cannot lift it; other steps run as usual. One hold at a time; hold while holding, release without a hold, a touch step of five contacts inside a hold, and hold on a simulator are refused before anything runs. See docs/gesture-sequences.md.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: "The JSON array of steps.") var steps: String
         func request(_ target: Target) throws -> CommandRequest { .batch(try BatchCommand(target: target, json: steps)) }
+    }
+
+    struct Hold: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "hold", abstract: "Batch step only: keep one contact down until release.",
+            discussion: "Physical devices only, and only as a step of batch. Puts contact 0 down at x, y and keeps it down while the following steps run; release lifts it, and so does the end of the batch, a failed step or an interrupt. Touch steps in between join the same live stream as contacts 1...4 (at most four contacts each); accessibility steps, screenshots, buttons and keys run as usual. One hold at a time. See docs/gesture-sequences.md. \(coordinateNote) \(receiptCaveat)")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Argument(help: "Normalized x, 0...1.") var x: String
+        @Argument(help: "Normalized y, 0...1.") var y: String
+        func request(_ target: Target) throws -> CommandRequest { .hold(try HoldStep(target, x: x, y: y)) }
+    }
+
+    struct Release: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "release", abstract: "Batch step only: lift the contact of the hold before it.",
+            discussion: "Only as a step of batch, after a hold. The release is confirmed by the input service's barrier, not by the device's screen.")
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        func request(_ target: Target) throws -> CommandRequest { .release(target) }
     }
 
     struct Remote: TargetedCommand {

@@ -38,6 +38,10 @@ enum CommandRequest: Sendable, Equatable {
     case keyboardLayouts
     /// `batch`: several commands for one device, in order.
     case batch(BatchCommand)
+    /// `hold <x> <y>`: a batch step that keeps one contact down (`HoldStep`).
+    case hold(HoldStep)
+    /// `release`: the batch step that lifts the hold before it.
+    case release(Target)
 }
 
 /// A wrapped Apple tool invocation and the operation it implements.
@@ -105,6 +109,8 @@ extension CommandRequest {
         case .tool(let tool): (tool.platform.rawValue, tool.device, tool.operation)
         case .simulatorDisplay(let display): ("simulator", display.device, display.operation)
         case .batch(let batch): (batch.target.platform.rawValue, batch.target.identifier, "batch")
+        case .hold(let hold): ("physical", hold.device, HoldStep.operation)
+        case .release(let target): (target.platform.rawValue, target.identifier, HoldStep.releaseOperation)
         case .decodeArchive, .ocr, .devices, .createSimulator, .doctor, .keyboardLayouts: nil
         }
     }
@@ -127,7 +133,7 @@ extension CommandRequest {
         switch self {
         case .diagnostics(.logs), .diagnostics(.console): "app output capture"
         case .simulatorInput: "simulator input"
-        case .physicalInput: "physical input"
+        case .physicalInput, .hold, .release: "physical input"
         case .frames: "frame capture"
         // The in-process recording owns a stream on the device. Outside the
         // scope an interrupt ended the process at once and left the stream
