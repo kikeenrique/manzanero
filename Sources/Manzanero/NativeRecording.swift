@@ -6,6 +6,7 @@ import Foundation
 @MainActor protocol NativeRecordingSession: AnyObject {
     var audioProfile: NativeMediaFrames.AudioProfile? { get }
     var ownedIdentifier: UInt32? { get }
+    var ownedAudioIdentifier: UInt32? { get }
     var receiverReportsSent: UInt64 { get }
     var senderReportsObserved: UInt64 { get }
     var negotiatedFeedback: String { get }
@@ -52,8 +53,9 @@ extension NativeVideoEncoder: NativeRecordingSink {}
     var decoder: (_ width: Int, _ height: Int) throws -> any NativeRecordingDecoder
     /// How many media sessions the device runs (read-only, a fresh connection).
     var sessionCount: () throws -> UInt64
-    /// Stops a lost session by the identifier it was given at its start.
-    var stop: (_ identifier: UInt32) -> NativeMediaFrames.Cleanup
+    /// Stops a lost session's streams by the identifiers they were given at
+    /// their start: its video, and its sound if it had one.
+    var stop: (_ identifiers: [UInt32]) -> NativeMediaFrames.Cleanup
     /// Fresh device details, tunnel assertion and endpoint after a lost link:
     /// the device's address can change when its cable comes back.
     var relink: () throws -> Void
@@ -89,7 +91,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                 open: { try NativeMediaFrames(endpoint: endpoint, version: identity.version, plainOffer: display.external) },
                 decoder: { try NativeHEVCDecoder(width: $0, height: $1) },
                 sessionCount: { try NativeMediaInspection.sessionCount(uuid: identity.uuid, version: identity.version) },
-                stop: { NativeMediaFrames.stop(identifier: $0, uuid: identity.uuid, version: identity.version) },
+                stop: { NativeMediaFrames.stop(identifiers: $0, uuid: identity.uuid, version: identity.version) },
                 relink: {
                     let fresh = try runner.run(input.identityPlan().arguments, timeout: 20)
                     assertion.close()
@@ -133,9 +135,19 @@ extension NativeVideoEncoder: NativeRecordingSink {}
     /// A lost session's absence read from the device's session count after
     /// its stop could not be confirmed (an unreachable device).
     private(set) var absenceByCount = false
-    /// The lost session's stream identifier, kept across restart attempts.
-    private var lostIdentifier: UInt32?
+    /// The lost session's stream identifiers, video and then sound, kept
+    /// across restart attempts.
+    private var lostIdentifiers: [UInt32] = []
     private var stoppedByIdentifier = false
+    /// With sound, each session starts its sound stream before its video, as
+    /// the first one does, and a restart must agree on the same sound
+    /// (its stream identifier aside, which is new each time).
+    let audio: Bool
+    private var audioProfile: NativeMediaFrames.AudioProfile?
+    private var earlierAudioReportsSent: UInt64 = 0
+    /// Sessions opened after the first; the sound track starts a new
+    /// timeline for each (`NativeAudioTrack.restart`).
+    private(set) var generation = 0
     /// Whether a restart found the device running a media session that is
     /// not this capture's: another viewer, such as Device Hub's screen view,
     /// has the screen. The capture ends there with that reason; it does not
@@ -150,9 +162,21 @@ extension NativeVideoEncoder: NativeRecordingSink {}
             inputSent: .none)
     }
 
-    init(link: NativeRecordingLink, displayID: Int64) {
+    init(link: NativeRecordingLink, displayID: Int64, audio: Bool = false) {
         self.link = link
         self.displayID = displayID
+        self.audio = audio
+    }
+
+    /// Receiver reports sent for the sound streams of every session so far.
+    var audioReceiverReportsSent: UInt64 { earlierAudioReportsSent + (capture?.audioReceiverReportsSent ?? 0) }
+
+    /// The sound profile the first session agreed on; restarts must match it.
+    func rememberAudio(_ profile: NativeMediaFrames.AudioProfile) { audioProfile = profile }
+
+    private static func sameSound(_ a: NativeMediaFrames.AudioProfile, _ b: NativeMediaFrames.AudioProfile) -> Bool {
+        a.payloadType == b.payloadType && a.codecType == b.codecType && a.sampleRate == b.sampleRate
+            && a.channels == b.channels && a.packetMilliseconds == b.packetMilliseconds
     }
 
     /// Opens the first session; the caller starts it (sound first, if any).
@@ -188,8 +212,11 @@ extension NativeVideoEncoder: NativeRecordingSink {}
     func restart() throws {
         earlierReportsSent += capture?.receiverReportsSent ?? 0
         earlierReportsObserved += capture?.senderReportsObserved ?? 0
+        earlierAudioReportsSent += capture?.audioReceiverReportsSent ?? 0
         decoder?.close(); decoder = nil
-        if let identifier = capture?.ownedIdentifier { lostIdentifier = identifier }
+        if let identifier = capture?.ownedIdentifier {
+            lostIdentifiers = [identifier] + (capture?.ownedAudioIdentifier.map { [$0] } ?? [])
+        }
         let cleanup = capture?.close() ?? closedCleanup; capture = nil
         closedCleanup = cleanup
         if cleanup?.stopAcknowledged != true || cleanup?.ownedStreamAbsent != true {
@@ -211,13 +238,13 @@ extension NativeVideoEncoder: NativeRecordingSink {}
             }
             if count != 0 {
                 // Seen on the iPhone 13 mini after a pulled cable: the lost
-                // session was still running. Stop it by its own identifier,
-                // the stop that could not be sent before, and require that
-                // no session remains.
-                guard let identifier = lostIdentifier else {
+                // session was still running. Stop it by its own identifiers
+                // (video, and sound if it had any), the stop that could not
+                // be sent before, and require that no session remains.
+                guard !lostIdentifiers.isEmpty else {
                     throw CommandFailure(.preconditionChanged, "Native capture's lost session ended unconfirmed and the device still runs \(count!) media session(s) it cannot identify as its own, so no new one was opened; nothing was stopped.", inputSent: .none)
                 }
-                let stopped = link.stop(identifier)
+                let stopped = link.stop(lostIdentifiers)
                 guard stopped.ownedStreamAbsent else {
                     // Seen twice on the iPhone 13 mini on 2026-11-21: Device
                     // Hub's screen view ended this stream, the stop by
@@ -240,12 +267,20 @@ extension NativeVideoEncoder: NativeRecordingSink {}
             throw anotherViewerFailure("this capture's lost session ended and the device runs \(count) other media session(s), so no new one was opened.")
         }
         capture = try link.open()
+        if audio {
+            // Sound first, as the first session and Device Hub start it.
+            try capture?.startAudio()
+            guard let first = audioProfile, let again = capture?.audioProfile, Self.sameSound(first, again) else {
+                throw CommandFailure(.preconditionChanged, "A restarted native session negotiated other sound or none; the capture stops.", inputSent: .none)
+            }
+        }
         try capture?.start(displayID: displayID)
         guard let again = capture?.packetProfile(), again["width"] == width, again["height"] == height, again["payloadType"] == payload else {
             throw CommandFailure(.preconditionChanged, "A restarted native session negotiated another picture size or payload; the capture stops.", inputSent: .none)
         }
         decoder = try link.decoder(Int(width), Int(height))
         assembler = MediaHEVCAssembler()
+        generation += 1
     }
 
     /// Restarts after a loss when the bounds allow; false when the picture
@@ -323,15 +358,17 @@ extension NativeVideoEncoder: NativeRecordingSink {}
     /// the clock goes through `link`.
     static func record(seconds: Double, audio: Bool, displayID: Int64, crop: (Int, Int) -> (width: Int, height: Int)?,
                        encoder: any NativeRecordingSink, link: NativeRecordingLink) async throws -> NativeRecordingReceipt {
-        let media = NativeStreamSessions(link: link, displayID: displayID)
+        let media = NativeStreamSessions(link: link, displayID: displayID, audio: audio)
         var packetCount = 0
         var unitCount = 0
         var decodedCount = 0
         let duration = UInt64(seconds * 1_000_000_000)
         // A lost session after the first picture is restarted on the same
-        // endpoint (docs/recording-recovery.md). With --audio there is no
-        // restart: the sound stream's restart has not been checked.
-        var recovery = audio ? nil : RecordingRecovery(durationNanoseconds: duration)
+        // endpoint (docs/recording-recovery.md), with its sound stream too
+        // since 2026-11-22.
+        var recovery: RecordingRecovery? = RecordingRecovery(durationNanoseconds: duration)
+        /// The session the sound track's timeline belongs to.
+        var soundGeneration = 0
         /// The sound track, with --audio; its receipt goes with a kept movie too.
         var sound: NativeAudioTrack?
         do {
@@ -345,6 +382,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                     throw CommandFailure(.transportFailed, "Native recording has no negotiated audio profile.", inputSent: .none)
                 }
                 sound = try NativeAudioTrack(profile: agreed)
+                media.rememberAudio(agreed)
             }
             try first.start(displayID: displayID)
             let payloadType = try media.negotiate()
@@ -377,13 +415,28 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                     }
                     checked = link.now()
                 }
+                // A restarted session's sound has timestamps of its own: its
+                // first packet starts a new timeline where it arrives.
+                if sound != nil, media.generation != soundGeneration {
+                    try sound?.restart()
+                    soundGeneration = media.generation
+                }
                 // Sound from before the first picture is dropped: the movie
-                // starts there.
-                while sound != nil, let datagram = try media.capture?.nextAudioPacket() {
+                // starts there. A failed read of the sound is a lost stream.
+                var soundLost: (any Error)?
+                while sound != nil, recovery?.heldFrom == nil {
+                    let datagram: Data?
+                    do { datagram = try media.capture?.nextAudioPacket() }
+                    catch where recoverable(error) { soundLost = error; break }
+                    guard let datagram else { break }
                     guard let firstPicture else { continue }
                     for piece in sound?.accept(datagram, nanoseconds: now - firstPicture) ?? [] where piece.nanoseconds < duration {
                         try await encoder.consumeAudio(piece.samples, nanoseconds: piece.nanoseconds)
                     }
+                }
+                if let soundLost {
+                    _ = try media.recover(.transportFailed, soundLost, &recovery)
+                    continue
                 }
                 let next: Data?
                 do { next = recovery?.heldFrom == nil ? try media.capture?.nextPacket() : nil }
@@ -418,7 +471,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
             if recovery?.heldFrom == nil { try media.capture?.requireActive() }
             let reportsSent = media.receiverReportsSent, reportsObserved = media.senderReportsObserved
             let feedback = media.capture?.negotiatedFeedback ?? "unknown"
-            sound?.reports(sent: media.capture?.audioReceiverReportsSent ?? 0, note: media.capture?.audioFeedbackNote)
+            sound?.reports(sent: media.audioReceiverReportsSent, note: media.capture?.audioFeedbackNote)
             guard let cleanup = media.close() ?? (recovery?.heldFrom != nil ? media.closedCleanup : nil) else {
                 throw CommandFailure(.internal, "Native recording lost its media owner.", inputSent: .none)
             }
@@ -436,7 +489,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                 senderReportsObserved: reportsObserved,
                 negotiatedFeedback: feedback, audio: sound?.receipt, recovery: recovery)
         } catch {
-            sound?.reports(sent: media.capture?.audioReceiverReportsSent ?? 0, note: media.capture?.audioFeedbackNote)
+            sound?.reports(sent: media.audioReceiverReportsSent, note: media.capture?.audioFeedbackNote)
             let cleanup = media.close() ?? media.closedCleanup
             let release = link.release()
             // A failure or an interrupt after pictures were captured keeps

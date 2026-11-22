@@ -37,6 +37,26 @@ struct NativeAudioTests {
         #expect(track.receipt.packets == 3 && track.receipt.lost == 0 && abs(track.receipt.seconds - 0.03) < 0.0001)
     }
 
+    /// A recording's restart (2026-11-22): the new sound stream's timestamps
+    /// have nothing to do with the old ones, so its first packet starts a new
+    /// timeline where it arrives, with the time between left as a gap and
+    /// nothing counted lost; a packet that arrives before the last piece
+    /// ended starts at that end instead, so nothing overlaps.
+    @Test func aRestartStartsANewTimelineAtTheNextArrivalNeverBeforeTheLastEnd() throws {
+        var track = try NativeAudioTrack(profile: Self.profile)
+        _ = track.accept(Self.packet(sequence: 1, timestamp: 1000), nanoseconds: 0)
+        _ = track.accept(Self.packet(sequence: 2, timestamp: 1480), nanoseconds: 10_000_000)
+        try track.restart()
+        let later = track.accept(Self.packet(sequence: 900, timestamp: 4_000_000_000), nanoseconds: 1_500_000_000)
+        let next = track.accept(Self.packet(sequence: 901, timestamp: 4_000_000_480), nanoseconds: 1_512_000_000)
+        #expect(later.map(\.nanoseconds) == [1_500_000_000] && next.map(\.nanoseconds) == [1_510_000_000])
+        #expect(track.receipt.lost == 0 && track.receipt.restarts == 1 && track.receipt.packets == 4)
+        // A restart whose first packet arrives "before" the last end.
+        try track.restart()
+        let early = track.accept(Self.packet(sequence: 5, timestamp: 77), nanoseconds: 1_505_000_000)
+        #expect(early.map(\.nanoseconds) == [1_520_000_000] && track.receipt.restarts == 2)
+    }
+
     /// A minute of packets: each piece starts exactly where the one before
     /// ends. In floating point about one in 58 started a nanosecond early,
     /// the movie writer skipped it, and the sound ran 1.7% ahead of the

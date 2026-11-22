@@ -116,7 +116,7 @@ struct RecordingCommand: Sendable, Equatable {
                     result["audioTrack"] = ["received": "AAC-ELD", "written": "AAC", "sampleRate": Int(NativeAudioDecoder.sampleRate),
                         "channels": NativeAudioDecoder.channels, "packets": sound.packets, "packetsLost": sound.lost,
                         "packetsRefused": sound.refused, "secondsWritten": sound.seconds,
-                        "receiverReportsSent": sound.receiverReportsSent] as [String: Any]
+                        "receiverReportsSent": sound.receiverReportsSent, "restarts": sound.restarts] as [String: Any]
                     if let note = sound.reportsNote { (result["audioTrack"] as? [String: Any]).map { var track = $0; track["reportsNote"] = note; result["audioTrack"] = track } }
                 }
                 if let recovery = nativeReceipt.recovery { result["recovery"] = recovery.json }

@@ -153,11 +153,16 @@ int ADCSendAudioReceiverReport(void *owner, const uint8_t *packet, size_t length
 int ADCCloseVideoSession(void *owner, ADCVideoCleanup *result, char *error, size_t errorCapacity);
 /// The device's identifier of an open session's owned video stream; 0 when known.
 int ADCReadVideoOwnedIdentifier(void *owner, uint32_t *identifier);
-/// Stops one owned video stream by its identifier over a fresh control
-/// connection (never stop-all) and reads whether any session remains: for a
-/// session whose stop could not be sent because the device was unreachable.
-int ADCStopVideoStreamByIdentifier(const char *uuid, const char *version, uint32_t identifier, int (^cancelled)(void),
-                                   ADCVideoCleanup *result, char *error, size_t errorCapacity);
+/// The device's identifier of an open session's owned sound stream, once
+/// it was started; non-zero status when there is none.
+int ADCReadAudioOwnedIdentifier(void *owner, uint32_t *identifier);
+/// Stops one or two owned streams (a session's video, and its sound if it
+/// was started) by their identifiers over a fresh control connection (never
+/// stop-all), acknowledged only when every one is reported stopped, and
+/// reads whether any session remains: for a session whose stop could not be
+/// sent because the device was unreachable.
+int ADCStopMediaStreamsByIdentifier(const char *uuid, const char *version, const uint32_t *identifiers, size_t count,
+                                    int (^cancelled)(void), ADCVideoCleanup *result, char *error, size_t errorCapacity);
 
 typedef int (^ADCInputShouldStop)(void);
 /// Non-zero status of the input functions below (digitizer reports, button,

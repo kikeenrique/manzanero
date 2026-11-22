@@ -60,7 +60,7 @@ Receipts report:
 - actual artifact duration, decoded dimensions and codec;
 - separate stream/tunnel cleanup fields;
 - RTCP report counters and negotiated-feedback observation;
-- without `--audio`, `recovery`: restarts, gaps and `lastPictureHeldFrom` ([recovery](recording-recovery.md), since 2026-11-21);
+- `recovery`: restarts, gaps and `lastPictureHeldFrom` ([recovery](recording-recovery.md), since 2026-11-21, and with `--audio` since 2026-11-22, when `audioTrack.restarts` counts the sound stream's restarts);
 - `status: partial`, `stopReason` and `stopCause` when a failure after the first picture ended the recording early: what was captured is kept and the command exits 1 (seen on the iPhone 13 mini with a pulled cable). `stopCause` is `another-viewer` when a restart found the device running a media session that is not the recording's, as when Device Hub's screen view takes the screen: the recording ends there with a reason that says so (code `device-busy`), with no retry and no wait for the viewer to leave, by the human owner's decision of 2026-11-22. Otherwise it is `failure`.
 
 `deviceStopConfirmed` means owned stop acknowledgement plus fresh server absence; it does not prove destruction of every native resource. Cancellation/failure publishes no successful movie receipt; a movie kept after either is partial. Failed/staged artifacts may remain privately for investigation.
@@ -79,7 +79,7 @@ The media owner sends bounded compound Receiver Reports plus a random per-sessio
 
 A phone in landscape streams in its display's native portrait size: on the iPhone 13 mini on 2026-11-22 `frames` gave 1125 × 2436 pictures and a recording a 1136 × 2464 movie, with the landscape interface sideways in them ([record](verification.md#the-phone-in-landscape-keys-several-contacts-frames-and-a-recording)). The tool does not turn them.
 
-Keyframe requests over negotiated feedback are therefore not planned: that phone declines them. Recovery from loss, a crash or a disconnect is a restart of the stream ([design](recording-recovery.md)): built on 2026-11-21 for recordings without sound, and on the iPhone 13 mini the same day a recording with the cable pulled 27 s in recovered after one restart, a 240-second movie with a 7.2-second gap ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)). Startup failures with zero packets on the test Mac were traced to the firewall (above); whether every earlier startup failure had that cause was not checked.
+Keyframe requests over negotiated feedback are therefore not planned: that phone declines them. Recovery from loss, a crash or a disconnect is a restart of the stream ([design](recording-recovery.md)): built on 2026-11-21 for recordings without sound and on 2026-11-22 for sound too ([sound](recording-recovery.md#sound)), and on the iPhone 13 mini on 2026-11-21 a recording with the cable pulled 27 s in recovered after one restart, a 240-second movie with a 7.2-second gap ([record](verification.md#phone-session-of-2026-11-21-the-days-new-commands-landscape-and-a-recording)). Startup failures with zero packets on the test Mac were traced to the firewall (above); whether every earlier startup failure had that cause was not checked.
 
 ## Sound
 
@@ -97,8 +97,9 @@ What to know before using it:
 - **Sound starts with the first picture**; what arrived before it is dropped, so the track is a fraction of a second shorter than the movie.
 - **No fallback.** If the audio stream cannot start, or the device agrees on another rate than 48 kHz, the recording fails; it is not made without sound.
 - **Another capture in progress refuses it**, as it refuses any recording: with Device Hub's screen view of the device open, the recording fails with "Another media session is active".
+- **A lost stream restarts with its sound** since 2026-11-22: the sound stream is started again before the video, the track goes on after a gap with no samples, and `audioTrack.restarts` counts it ([recovery](recording-recovery.md#sound)). A restart that agrees on other sound ends the recording as `partial`.
 
-Run on 2026-11-20 ([record](verification.md#sound-in-a-recording)): on the iPhone 13 mini with the probe's [tone](probe-app.md#tone-probe) playing, and on the Apple TV 4K with nothing playing. Not shown: picture and sound in step, a recording of minutes, another iPhone or an iPad.
+Run on 2026-11-20 ([record](verification.md#sound-in-a-recording)): on the iPhone 13 mini with the probe's [tone](probe-app.md#tone-probe) playing, and on the Apple TV 4K with nothing playing; in step to the end of a 75-second recording on the phone on 2026-11-21; and restarted across a pulled cable on the phone on 2026-11-22 ([record](verification.md#sound-across-a-pulled-cable)). Not shown: a recording of minutes with sound, sound in step after a restart, another iPhone or an iPad.
 
 ## Frames: repeated screenshots from one stream
 

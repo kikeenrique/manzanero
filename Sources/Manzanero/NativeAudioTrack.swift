@@ -16,6 +16,8 @@ struct NativeAudioTrack {
         /// RTCP receiver reports sent for the stream, and why none were, if none.
         var receiverReportsSent: UInt64 = 0
         var reportsNote: String?
+        /// Sound streams started again after a recording's restart.
+        var restarts = 0
     }
 
     /// The stream's receiver reports, which the media session sends.
@@ -35,10 +37,22 @@ struct NativeAudioTrack {
     static let longestFilledGap = 2 * Int(NativeAudioDecoder.sampleRate)
 
     private let payloadType: UInt8
-    private let decoder: NativeAudioDecoder
+    private var decoder: NativeAudioDecoder
     private var anchor: (timestamp: UInt32, nanoseconds: UInt64)?
     private var next: UInt32 = 0
+    /// Where the last piece ended on the movie's timeline.
+    private var end: UInt64 = 0
     private(set) var receipt = Receipt()
+
+    /// A recording restarted its session (docs/recording-recovery.md): the
+    /// new sound stream has timestamps of its own, so its first packet
+    /// starts a new timeline where it arrives, never before the last piece
+    /// ended, and decoding starts afresh. The time between is a gap.
+    mutating func restart() throws {
+        anchor = nil
+        decoder = try NativeAudioDecoder()
+        receipt.restarts += 1
+    }
 
     init(profile: NativeMediaFrames.AudioProfile) throws {
         guard profile.sampleRate == Int(NativeAudioDecoder.sampleRate) else {
@@ -67,7 +81,7 @@ struct NativeAudioTrack {
     mutating func accept(_ datagram: Data, nanoseconds: UInt64) -> [Piece] {
         guard let packet = MediaRTPPacket(datagram, payloadType: payloadType) else { return [] }
         var pieces: [Piece] = []
-        var start = anchor ?? (packet.timestamp, nanoseconds)
+        var start = anchor ?? (packet.timestamp, max(nanoseconds, end))
         if anchor == nil { next = packet.timestamp }
         let ahead = packet.timestamp &- next
         // A packet from before the one expected: late or repeated.
@@ -77,7 +91,7 @@ struct NativeAudioTrack {
                 receipt.lost += Int(ahead) / NativeAudioDecoder.framesPerPacket
                 pieces.append(Piece(samples: [Int16](repeating: 0, count: Int(ahead) * NativeAudioDecoder.channels), nanoseconds: time(next, from: start)))
             } else {
-                start = (packet.timestamp, nanoseconds)
+                start = (packet.timestamp, max(nanoseconds, end))
             }
         }
         anchor = start
@@ -85,7 +99,9 @@ struct NativeAudioTrack {
         var samples = silence
         do { samples = try decoder.decode(Array(packet.payload)) } catch { receipt.refused += 1 }
         if samples.isEmpty { samples = silence }
-        pieces.append(Piece(samples: samples, nanoseconds: time(packet.timestamp, from: start)))
+        let at = time(packet.timestamp, from: start)
+        pieces.append(Piece(samples: samples, nanoseconds: at))
+        end = at + Self.nanoseconds(frames: UInt64(samples.count / NativeAudioDecoder.channels))
         next = packet.timestamp &+ UInt32(samples.count / NativeAudioDecoder.channels)
         receipt.packets += 1
         receipt.seconds += Double(samples.count / NativeAudioDecoder.channels) / NativeAudioDecoder.sampleRate

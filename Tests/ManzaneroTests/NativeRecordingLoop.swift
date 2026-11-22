@@ -11,6 +11,9 @@ import Testing
 @MainActor struct NativeRecordingLoopTests {
     static let second: UInt64 = 1_000_000_000
     static let confirmed = NativeMediaFrames.Cleanup(startAttempted: true, stopAcknowledged: true, ownedStreamAbsent: true, diagnostic: nil)
+    /// The sound an iPhone 13 mini agrees on: AAC-ELD, 48 kHz stereo, 10 ms packets.
+    static let sound = NativeMediaFrames.AudioProfile(payloadType: 101, streamIdentifier: 501, codecType: 0, sampleRate: 48_000,
+                                                      channels: 2, packetMilliseconds: 10)
     /// A real 4 × 2 JPEG: `frames` reads each saved frame's size back.
     static let jpeg: Data = {
         let context = CGContext(data: nil, width: 4, height: 2, bitsPerComponent: 8, bytesPerRow: 0,
@@ -45,20 +48,28 @@ import Testing
         private(set) var closed = false
         private var sequence: UInt16 = 1
         private var timestamp: UInt32 = 1
-        let audioProfile: NativeMediaFrames.AudioProfile? = nil
+        private(set) var audioProfile: NativeMediaFrames.AudioProfile?
+        /// The sound this session agrees on once its sound is started.
+        var soundProfile = NativeRecordingLoopTests.sound
         var ownedIdentifier: UInt32?
+        var ownedAudioIdentifier: UInt32?
         let receiverReportsSent: UInt64 = 2
         let senderReportsObserved: UInt64 = 1
         let negotiatedFeedback = "disabled"
-        let audioReceiverReportsSent: UInt64 = 0
+        var audioReceiverReportsSent: UInt64 { audioProfile == nil ? 0 : 3 }
         let audioFeedbackNote: String? = nil
+        private(set) var audioStarted = false
+        /// The RTP timestamp of this session's first sound packet: a new
+        /// session's sound has timestamps of its own.
+        var soundBase: UInt32 = 7_000_000
+        private var soundSent: UInt64 = 0
 
         init(clock: Clock) {
             self.clock = clock
             opened = clock.now
         }
 
-        func startAudio() throws {}
+        func startAudio() throws { audioStarted = true; audioProfile = soundProfile }
         func start(displayID: Int64) throws { if let startError { throw startError } }
         func packetProfile() -> [String: UInt64]? { profile }
         func requireActive() throws {
@@ -66,7 +77,21 @@ import Testing
                 throw CommandFailure(.transportFailed, "The scripted stream ended.", inputSent: .none)
             }
         }
-        func nextAudioPacket() throws -> Data? { nil }
+        /// One 10 ms packet of sound (payload type 101) for every 10 ms of the
+        /// session's clock, until the stream ends. Its payload is not AAC, so
+        /// each decodes to silence of its length: enough for the timeline.
+        func nextAudioPacket() throws -> Data? {
+            guard audioStarted else { return nil }
+            let elapsed = clock.now - opened
+            if let endsAfter, elapsed >= endsAfter { return nil }
+            guard soundSent * 10_000_000 <= elapsed else { return nil }
+            let stamp = soundBase &+ UInt32(soundSent * 480)
+            soundSent += 1
+            var bytes = Data([0x80, 101, UInt8(soundSent >> 8 & 255), UInt8(soundSent & 255)])
+            for word in [stamp, 2] { for shift in [24, 16, 8, 0] { bytes.append(UInt8(truncatingIfNeeded: word >> shift)) } }
+            bytes.append(contentsOf: [0, 1, 2, 3])
+            return bytes
+        }
         func nextPacket() throws -> Data? {
             if let endsAfter, clock.now - opened >= endsAfter { return nil }
             switch script(clock.now - opened) {
@@ -142,7 +167,11 @@ import Testing
             }
             times.append(frame.nanoseconds)
         }
-        func consumeAudio(_ samples: [Int16], nanoseconds: UInt64) async throws {}
+        /// Each sound piece's start and end, as the encoder would write them.
+        private(set) var sound: [(start: UInt64, end: UInt64)] = []
+        func consumeAudio(_ samples: [Int16], nanoseconds: UInt64) async throws {
+            sound.append((nanoseconds, nanoseconds + NativeAudioTrack.nanoseconds(frames: UInt64(samples.count / 2))))
+        }
         func finish(partial: Bool) async throws -> Int {
             finished = partial
             return times.count
@@ -157,6 +186,7 @@ import Testing
         private(set) var sessions: [ScriptedSession] = []
         var openError: [Int: any Error] = [:]
         var counts: [UInt64?] = []
+        /// Every identifier a stop by identifier named, in order.
         private(set) var stopped: [UInt32] = []
         /// What a stop by identifier returns.
         var stopResult = NativeRecordingLoopTests.confirmed
@@ -181,8 +211,8 @@ import Testing
                     }
                     return count
                 },
-                stop: { [self] identifier in
-                    stopped.append(identifier)
+                stop: { [self] identifiers in
+                    stopped += identifiers
                     return stopResult
                 },
                 relink: { [self] in relinks += 1 },
@@ -193,8 +223,8 @@ import Testing
                 firewallHint: { nil })
         }
 
-        func record(seconds: Double, sink: Sink) async throws -> NativeRecordingReceipt {
-            try await NativeRecording.record(seconds: seconds, audio: false, displayID: 1, crop: { _, _ in nil },
+        func record(seconds: Double, audio: Bool = false, sink: Sink) async throws -> NativeRecordingReceipt {
+            try await NativeRecording.record(seconds: seconds, audio: audio, displayID: 1, crop: { _, _ in nil },
                                              encoder: sink, link: link())
         }
 
@@ -422,5 +452,58 @@ import Testing
         #expect(device.pauses == 30 && device.stopped.isEmpty && device.relinks == 0)
         #expect(device.sessions.count == 1)
         #expect(receipt.partial?.contains("did not answer again") == true)
+    }
+
+    /// Since 2026-11-22 a recording with sound restarts too: the new session
+    /// starts its sound before its video, and the sound track starts a new
+    /// timeline at the new stream's first packet, after a gap and never
+    /// overlapping what was written.
+    @Test func aStreamWithSoundThatEndsAndComesBackRestartsItsSound() async throws {
+        let device = Device()
+        device.plans = [{ $0.endsAfter = 3 * Self.second }, { $0.soundBase = 900_000_000 }]
+        let sink = Sink()
+        let receipt = try await device.record(seconds: 10, audio: true, sink: sink)
+        #expect(device.sessions.count == 2 && device.sessions.allSatisfy { $0.closed && $0.audioStarted })
+        #expect(receipt.partial == nil && receipt.recovery?.restarts == 1)
+        let audio = try #require(receipt.audio)
+        #expect(audio.restarts == 1 && audio.receiverReportsSent == 6)
+        let pieces = await sink.sound
+        #expect(pieces.count > 500)
+        // In order and never overlapping across the restart (the scripted
+        // loss is seen within milliseconds, so the new timeline starts where
+        // the old one ended), and sound from both sessions to the end.
+        #expect(zip(pieces, pieces.dropFirst()).allSatisfy { $0.end <= $1.start })
+        #expect(pieces.contains { $0.start > 4 * Self.second } && pieces.contains { $0.start < 2 * Self.second })
+        #expect((pieces.last?.end ?? 0) > 9 * Self.second)
+    }
+
+    @Test func aRestartWithOtherSoundEndsTheRecording() async throws {
+        let device = Device()
+        let other = NativeMediaFrames.AudioProfile(payloadType: 101, streamIdentifier: 502, codecType: 0, sampleRate: 44_100,
+                                                   channels: 2, packetMilliseconds: 10)
+        device.plans = [{ $0.endsAfter = 3 * Self.second }, { $0.soundProfile = other }]
+        let sink = Sink()
+        let receipt = try await device.record(seconds: 10, audio: true, sink: sink)
+        #expect(device.sessions.count == 2)
+        #expect(receipt.partial?.contains("other sound") == true)
+        #expect(await sink.finished == true)
+    }
+
+    /// A lost link with sound: once the device answers again, the lost
+    /// session's video and sound are stopped by their identifiers together.
+    @Test func aLostLinkWithSoundStopsBothStreamsByIdentifier() async throws {
+        let device = Device()
+        device.plans = [{
+            $0.endsAfter = 3 * Self.second
+            $0.ownedIdentifier = 7
+            $0.ownedAudioIdentifier = 8
+            $0.cleanup = NativeMediaFrames.Cleanup(startAttempted: true, stopAcknowledged: false, ownedStreamAbsent: false, diagnostic: "unreachable")
+        }]
+        device.counts = [nil, 2]
+        let sink = Sink()
+        let receipt = try await device.record(seconds: 12, audio: true, sink: sink)
+        #expect(device.stopped == [7, 8] && device.relinks == 1)
+        #expect(device.sessions.count == 2 && receipt.recovery?.restarts == 1 && receipt.partial == nil)
+        #expect(receipt.audio?.restarts == 1)
     }
 }
