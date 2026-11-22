@@ -1935,6 +1935,8 @@ Items left open on the roadmap that need no hardware, run by laia-LLM on simulat
 
 Row 1 and row 60 were then pressed and `probe.list.last` read `row-1` and `row-60`. A staggered step moves about one row upward and four downward, because the table holds no rows beyond the screen. With the final code the plain list and strip still searched in four directions (row 55 in 6 s, row 1 in 19 s, columns 38 and 2 in about 20 s), and so did the tvOS probe on `manzanero-research-tv` (row 35 in 9 s, row 1 in 21 s, columns 28 and 2 in 13 and 14 s).
 
+**`set-value` on a SwiftUI field** (`manzanero-research-phone`, the iOS probe's new [SwiftUI form](probe-app.md#swiftui-form-probe), a `TextField` with a label and an identifier). `set-value --id probe.swiftui.field 'Año café'`: `acknowledged`, `valueMatches: true`, and the app's bound value read `Año café` with one change. `set-value --label 'Probe name' second`: the same, bound value `second`, two changes. So on iOS the request reaches a SwiftUI field's binding, unlike on watchOS, where it changes the field's text without the bound value ([other families](other-families.md#digital-crown-and-side-button-apple-watch)).
+
 ### iPhone Duo displays
 
 **2026-11-16**, `manzanero-research-duo` freshly booted, Home Screen and then Settings in front.

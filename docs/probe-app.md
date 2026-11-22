@@ -376,6 +376,22 @@ manzanero wait --id probe.list.last --until value --value row-55 --simulator <si
 
 The touch, log and permission probes are not on this screen. Run on one iPhone simulator ([record](verification.md#a-search-on-an-iphone-simulator-and-a-table-rows-two-objects)); not on a phone, where the app would have to be launched with the argument by other means than `manzanero launch`.
 
+## SwiftUI form probe
+
+Launched with `-ProbeSwiftUI YES`, the iOS probe shows a SwiftUI form in place of the touch surface (`App/ProbeSwiftUIForm.swift`), to check text entry against the value a SwiftUI app's own state receives:
+
+| Identifier | Element | Notes |
+| --- | --- | --- |
+| `probe.swiftui.field` | A `TextField` labelled "Probe name", placeholder "Name" | Autocorrection and capitalisation off |
+| `probe.swiftui.bound` | `Bound: "<text>"` | Its value is the text bound to the field, as the app holds it |
+| `probe.swiftui.changes` | `Changes: <n>` | How many times the bound text changed |
+
+```sh
+xcrun simctl launch <simulator-UUID> com.lemambo.manzanero.probeapp -ProbeSwiftUI YES
+manzanero set-value --id probe.swiftui.field 'Año café' --simulator <simulator-UUID>
+manzanero wait --id probe.swiftui.bound --until value --value 'Año café' --simulator <simulator-UUID>
+```
+
 ## Web probe
 
 Launched with `-ProbeWeb YES`, the iOS probe shows an app's own `WKWebView` in place of the touch surface (`App/ProbeWebViewController.swift`), inset 40 points from the safe area on every side and below a native label, so it does not start at the screen's corner. The page is local HTML that does not zoom: a "Top button", a field labelled "Web field" (its HTML label and the input share that label, so a selector needs `--index 2` for the input), a 1400-point spacer and a "Bottom button" below the web view's height, for `scroll`.
