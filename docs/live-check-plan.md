@@ -60,7 +60,6 @@ These need no hardware and no owner decision; they were left out of the simulato
 
 - On the Duo's inner display: the centre-hit fallback when no frontmost application is reported; only the `rot90` orientation was seen. Four- and five-path `multi-drag` are [recorded](verification.md#the-duos-inner-display).
 - A portrait-only app letterboxed on the Duo's inner display is pressed since 2026-11-21 by moving the hit check by the window's centred offset ([guide](other-families.md#the-inner-display-unfolded)). Still to see: an app whose letterbox is not centred, if one exists ([record](verification.md#simulator-completeness-run-ipad-iphone-duo-and-apple-watch)).
-- On an Apple TV simulator, whether anything other than a restart wakes it after Power Off: every button and key the tool sends, a swipe and a System Wake Up usage were tried, and none did.
 - On an Apple TV simulator, a click of the remote's touch surface; the four swipes ran, and so did swipes of chosen lengths and durations ([record](verification.md#a-swipe-of-a-chosen-length-and-duration)), once each and downward only.
 
 ## Questions still open
