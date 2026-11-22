@@ -268,7 +268,7 @@ The order is laia-LLM's suggestion, not one the human owner set.
 3. **Recording, checks owed on the phone** (item 22): the two decisions of 2026-11-22 on a device (an interrupted recording's kept movie, another viewer's `stopCause`), and sound in step after a restart, measured with the probe's flashes and beeps (the human owner's word each time the probe beeps).
 4. **Where a released contact lands** (item 5): repeat a lost network path over the probe, which records where the phone releases a held contact; after a pulled cable and a killed owner it was `[0,0]`.
 5. **An install on a tester's Mac** (item 31): Xcode 27 on that Mac, launched once.
-6. **Text entry on a watch** (item 18): other keyboard languages and a physical watch.
+6. **Text entry on a watch** (item 18): a physical watch; other keyboard languages work since 2026-11-22.
 7. **Hardware never used** (item 9): a second iPhone, an iPad, an Apple Watch, an iPhone Duo, each only once the human owner names it.
 
 Done since the last list: the two recording decisions, an app's own web view and `scroll` on a page, sound in recording recovery, and the phone runs owed (landscape, `--with-value`, the secure field, the zoomed field, a pulled cable and a lost Wi‑Fi path during input) ([achieved](#added-on-2026-11-22-two-recording-decisions-web-views-sound-recovery-and-the-phone-checks-owed)).
