@@ -253,6 +253,10 @@ Not shown: a web view in a third-party app, a page that zooms, a horizontal scro
 
 The phone was turned back to portrait afterwards (`rot0`). Not shown: landscape-right for these four, a held key, a recording across a rotation.
 
+### A cable pulled during a long press
+
+2026-11-22, the iPhone 13 mini (iOS 27.2.1), the probe's touch surface, the tool's own tunnel over the cable, the human owner at the phone. A run of `long-press 0.5 0.4 10` was started and the human owner pulled the cable a few seconds later. The first press failed 8 s in (exit 1): `input-outcome-unknown`, `inputSent: possible`, `retry: after-inspection`, "Input stopped after cancellation or transport failure; release was attempted for active contacts or keys". Nothing was repeated. Six seconds later, with the cable back, `readiness` answered and a `tap` was refused before sending: `device-quarantined`, naming the `long-press` and the moment of its failure. A `tree` (own tunnel, cable) read the probe: one gesture, one contact, `began` 1, `ended` 1, `cancelled` 0, `active` 0, the contact `ended` after 6.662753 s from (0.50044, 0.39984), with its end position `[0,0]`. `clear-quarantine` cleared the mark, and a `tap 0.5 0.4` then arrived and ended at its own point, (0.50044, 0.39984). The `[0,0]` end matches the killed owner of 2026-11-17. Not shown: a lost network path, a pull during other kinds of input.
+
 ### Phone session of 2026-11-21: the day's new commands, landscape and a recording
 
 On the iPhone 13 mini (iOS 27.2.1), the evening of 2026-11-21, at the human owner's word, with the probe app. The tool's own tunnel was not available ("Apple's MobileDevice framework does not list the device"), so accessibility ran over Apple's tunnel (`serviceDirectory: reused-saved-port`).
