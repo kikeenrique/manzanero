@@ -26,7 +26,7 @@ final class AccessibilitySession {
     /// three-second/32-frame allowance either way.
     /// The lifetime was 30 s until 2026-11-22, when a press in Control Centre
     /// on the iPhone 13 mini ran out of it: each snapshot of SpringBoard took
-    /// 8 to 15 s there, and a press reads several.
+    /// 8 to 20 s there, and a press reads several.
     struct Limits: Sendable, Equatable {
         var lifetime: Duration = .seconds(120)
         var frames = 256
