@@ -68,10 +68,10 @@ A `gesture` is computed before it is sent. When a later touch depends on what th
 
 ```sh
 # Hold in the probe, open Control Centre, wait for Wi-Fi, press it, then lift.
-manzanero batch --device <UDID> '[["hold","0.5","0.6"],["swipe","0.9","0.0","0.9","0.15","0.25"],["wait","--label","Wi-Fi","--until","visible"],["press","--label","Wi-Fi"],["release"]]'
+manzanero batch --device <UDID> '[["hold","0.3","0.6"],["swipe","0.9","0.0","0.9","0.15","0.25"],["wait","--id","wifi-button","--until","visible","--timeout","60"],["press","--id","wifi-button"],["release"]]'
 ```
 
-Pressing in Control Centre by accessibility may also need the tool to act in that system process, which `press` does not do today (its `--pid` rules are unchanged); until then the `press` step there may be refused.
+With Control Centre open, SpringBoard is the display-centre process, so `tree`, `wait` and `press` act in it with no `--pid`. Its controls carry identifiers that do not depend on the language (`wifi-button`, `airplane-button`, `flashlight`, `cc-volume-slider`, `orientation-lock`); values do (`Activado`, `Brillante`, `No`). Each read of it takes 8 to 20 s on the iPhone 13 mini, which is why a snapshot's answer may take 40 s and a session 120 s. A swipe to 0.15 of the height opens its first page; a longer one moves on to the second.
 
 How it runs:
 
@@ -84,7 +84,7 @@ How it runs:
 
 Refused when the batch is built, before anything runs: `hold` while a hold is down, `release` without a hold, a touch step of five contacts inside a hold, `hold` on a simulator (`unsupported-operation`: the simulator's digitizer path has no live stream in this tool yet), and `hold` or `release` on their own outside a batch. MCP has no tool of their own; `run_batch` takes them as steps. `--dry-run` prints every step's plan and, under `holds`, each hold's stream: its contacts per report, the steps inside it and the steps merged into it.
 
-Built and covered by unit tests (the live scheduler with a local sink, merged contacts, refreshes, release on end, stop and transport failure); not yet run on a device ([live checks](live-check-plan.md)).
+On the iPhone 13 mini on 2026-11-22: a hold with a tap merged into it, a 147-second hold through which Control Centre's flashlight was found, switched on and off and checked by its value, and a hold through which `wifi-button` was pressed, after which the link dropped, the release was unknown and the device quarantined, as designed ([record](verification.md#hold-and-act-on-the-phone-and-the-apple-tv-without-a-person)). Opening Control Centre cancels the app's own contacts, the held one too: the probe records it `cancelled` at its place.
 
 ## Related commands and history
 

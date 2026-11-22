@@ -243,6 +243,29 @@ So the relay works over Apple's native tunnel on this phone, a PID filter holds 
 
 Not shown: a web view in a third-party app, a page that zooms, a horizontal scroll on a page.
 
+### Hold and act on the phone, and the Apple TV without a person
+
+2026-11-22, late afternoon. The iPhone 13 mini on Wi‑Fi, the probe launched with `-ProbeSystemEdges YES`; the Apple TV 4K (tvOS 27.2) on its paired tunnel.
+
+**`hold` and `release` on the phone** ([design](gesture-sequences.md#holding-a-contact-across-steps)):
+
+| Batch | Result |
+| --- | --- |
+| `hold 0.3 0.6`, `tap 0.7 0.6`, `tree`, `release`, `tree` | `completed`; during the hold the probe read one contact down (`active: 1`) after the tap had lifted; afterwards one gesture of two contacts, the held one 2.92 s at (0.300, 0.600), the tap 82 ms at (0.700, 0.600); `release: confirmed-by-barrier`, 17 reports, 10 of them refreshes |
+| `hold`, `tap` and no release | `releasedBy: end-of-batch`, confirmed; both contacts ended in the probe |
+| `hold`, a 40-second `wait` for an element that does not exist, SIGINT after 6 s | Exit 130, the device quarantined, the held contact ended normally in the probe after 3.9 s |
+| `hold`, a short swipe opening Control Centre, `wait --id flashlight`, `press --id flashlight`, `wait … --value Brillante`, `press`, `wait … --value No`, `button home`, `release` | `completed` in 151 s: the contact held 147 s through 617 reports while the flashlight was switched on and off and each state read back; the release confirmed. Two earlier tries failed at the press's second snapshot, with the hold released and confirmed (`releasedBy: failed-step 4`) |
+| The same with `press --id wifi-button` | The press `accepted`; the next step found no device, the release `unknown`, the device quarantined; the human owner switched Wi‑Fi on again. The probe had the held contact `cancelled` 0.9 s in, when Control Centre opened |
+
+Control Centre's tree could not be read at first: every request had four seconds to be answered, and with Control Centre open each read of SpringBoard (the display-centre process then) took longer. A snapshot's answer may now take 40 s and a session 120 s (it was 30 s); then a `tree` took 21 s and a `press` in Control Centre 37 s. Its controls carry identifiers that do not depend on the language: `wifi-button`, `airplane-button`, `airdrop-button`, `flashlight`, `orientation-lock`, `cc-volume-slider`, `cc-brightness-slider`.
+
+**The Apple TV 4K, no person needed:**
+
+- The pairing two days after it was made: `tree` over `own-tunnel`, `ownTunnelLink: paired`.
+- `record … 180 --backend coredevice --audio` on the tvOS probe's still screen, nothing playing: `recorded`, 180 s of video (49 pictures: a still screen sends almost none) and 179.97 s of sound, 18,011 packets with none lost or refused, 174 receiver reports, no restart.
+- Swipe durations, sideways between the probe's text field and its rows, counting only swipes that could move the focus: 0.04 to 0.15 s, 0 of 20; 0.2 s (then the default), 3 of 9; 0.3 s, 9 of 11; 0.4 and 0.5 s, 16 of 16. The default became 0.4 s, and four default swipes between two buttons then moved the focus four times.
+- `remote sleep` from the screen saver could not run: with the probe in front and no input for 20 minutes, checked every two minutes by screenshot, no screen saver started. Later the Home Screen was in front instead of the probe, for a reason not seen.
+
 ### Phone session of 2026-11-22, afternoon: with the human owner at the phone
 
 The same phone, after the morning's runs, with the human owner's hands for the three checks that need them. No Apple TV command was sent.

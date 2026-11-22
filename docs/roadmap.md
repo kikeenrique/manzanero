@@ -256,7 +256,7 @@ At the human owner's word ("go ahead with 5, 6", then "something with iphone?"),
 | `--with-value` and a secure field | The Settings search field pressed and focused by its placeholder; `set-value` in a password field gave `readBack: masked`; the sheet cancelled | [Record](verification.md#selector-by-value-detect-layout-index-masked-read-back-and-the-display-note) |
 | Release after failure | A cable pulled and a Wi‑Fi path lost during input both failed as `input-outcome-unknown` and quarantined the device; after the cable pull the phone ended the contact at `[0,0]`. A held key or button cannot be produced on a phone from the CLI | [Record](verification.md#a-cable-pulled-during-a-long-press) |
 | Sound in recording recovery | A recording with `--audio` restarts its sound stream with the session; the track goes on after a gap; after a lost link both streams are stopped by identifier. Recovered once on the phone across a pulled cable with the probe beeping | [Record](verification.md#sound-across-a-pulled-cable) |
-| A contact held across batch steps | `batch` steps `hold <x> <y>` and `release`: one live Universal HID stream keeps contact 0 down while the steps between run, and touch steps there join it as extra contacts. Physical only; unit-tested only, not run on a device | [Gesture sequences](gesture-sequences.md#holding-a-contact-across-steps) |
+| A contact held across batch steps | `batch` steps `hold <x> <y>` and `release`: one live Universal HID stream keeps contact 0 down while the steps between run, and touch steps there join it as extra contacts. Physical only; run on the iPhone 13 mini on 2026-11-22 [record](verification.md#hold-and-act-on-the-phone-and-the-apple-tv-without-a-person) | [Gesture sequences](gesture-sequences.md#holding-a-contact-across-steps) |
 
 ## Pending
 
@@ -265,7 +265,7 @@ At the human owner's word ("go ahead with 5, 6", then "something with iphone?"),
 The order is laia-LLM's suggestion, not one the human owner set.
 
 1. **A release of the work of 2026-11-21 and 2026-11-22** (item 30): none of it is in a beta yet; the pre-release checks first, then the human owner's tag.
-2. **The Apple TV's loose ends** (item 16): the pairing after a restart and over days; `remote sleep` from a screen saver; a recording of several minutes, with sound and quiet (nothing played: the sound fixes of 2026-11-21 and the sound restart of 2026-11-22 ran on the phone only); and, if it recurs, the cause of the stale connection of 2026-11-21.
+2. **The Apple TV's loose ends** (item 16): the pairing after a restart (two days on it held, 2026-11-22); `remote sleep` from a screen saver, which did not start in 20 idle minutes; a recording with sound across a loss (three quiet minutes with sound ran on 2026-11-22); and, if it recurs, the cause of the stale connection of 2026-11-21.
 3. **An install on a tester's Mac** (item 31): Xcode 27 on that Mac, launched once.
 4. **Text entry on a watch** (item 18): a physical watch; other keyboard languages work since 2026-11-22.
 5. **Hardware never used** (item 9): a second iPhone, an iPad, an Apple Watch, an iPhone Duo, each only once the human owner names it.
@@ -310,7 +310,7 @@ What was decided is in the [decision tables](#owner-decisions-2026-11-17) below.
     - **The pairing's edges.** `pair` from an MCP host, which has no way to give the PIN; the comparison that would show the gain in the Mac's log, a directory read on Apple's tunnel beside one on the tool's ([record](verification.md#a-pairing-of-the-tools-own-and-the-apple-tv-on-the-tools-tunnel)).
     - **Sleep and wake.** `remote sleep` from a screen saver, and on a device in another language, where it should work unchanged; why a `remote wake` sent seconds after a sleep was ignored once.
     - **Recording.** Several minutes, with and without sound; sound with something playing, which needs the human owner's word each time. On 2026-11-21 a still screen was measured (no video after five seconds, which had made a recording restart for nothing, fixed), and a five-minute recording was stopped after three at the human owner's request, which left the device streaming until a one-frame `frames` run ended it; an interrupt stops the stream properly since.
-    - **The remote.** Why a swipe of a tenth of a second or less often moves nothing on the device; a click of the touch surface (item 17).
+    - **The remote.** Short swipes measured on 2026-11-22: 0.2 s or less seldom moves the focus on the device, 0.4 s always, so the default is 0.4 s [record](verification.md#hold-and-act-on-the-phone-and-the-apple-tv-without-a-person). Left: a click of the touch surface (item 17).
     - **Never seen.** The error for a stale connection, built and only run in unit tests; with the paired tunnel it should come up less still.
     - **Closed.** A held Home, and with it Control Centre by a hold: the device's button service failed during the hold, and Apple's Device Hub sends the press and the release together however long its button is held ([record](verification.md#held-remote-buttons-on-the-apple-tv-4k)); `button lock` opens Control Centre.
     - The Apple TV HD paired with the same Mac is out of scope: it runs tvOS 26.6 and cannot take 27, and the human owner discarded it for this tool on 2026-11-18.

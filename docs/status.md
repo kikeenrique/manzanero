@@ -63,7 +63,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **A release** of the work of 2026-11-21 and 2026-11-22, which is in no beta yet.
-2. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a quiet recording of several minutes with sound (the sound fixes and the sound restart ran on the phone only).
+2. **Apple TV, loose ends**: the pairing after a restart, and `remote sleep` from a screen saver (no screen saver started in 20 idle minutes on 2026-11-22). The pairing two days on and three quiet minutes with sound ran that day.
 3. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only; a tester needs Xcode 27, launched once.
 4. **Watch typing**: a real watch; other keyboard languages work since 2026-11-22 (simulator), and accents will not be built (the human owner's decision).
 5. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
