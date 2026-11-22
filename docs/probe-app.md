@@ -410,6 +410,8 @@ manzanero wait --id probe.web.last --until value --value web-field:hola --simula
 
 On a phone the page holds the display centre, so a plain `tree` or `wait` reads the page, not the native label: read `probe.web.last` with `tree --pid <the probe's pid>` or from a screenshot. `-ProbeWebZoom YES` loads the same page with zoom allowed and 12-point text in the field, so focusing the field makes iOS zoom in: on the iPhone 13 mini it grew from 271 to 361 points wide and reached past the display's right edge.
 
+`-ProbeWebFrame YES` loads a page with frames instead: a "Page button" (`web-outer`) and below it an iframe titled "Inner frame" (same origin, `srcdoc`) holding a "Frame button" (`web-frame-button`) and a "Frame field" with the placeholder "Frame input" (`web-frame-field:<text>`). The frame's elements are in the page's tree like the page's own ([record](verification.md#phone-session-of-2026-11-22-morning-the-owed-runs-that-need-no-person)).
+
 The touch, log and permission probes are not on this screen. Run on the iPhone 13 mini and an iPhone simulator on 2026-11-22 ([record](verification.md#web-content-in-an-apps-own-inset-web-view)).
 
 ## tvOS probe

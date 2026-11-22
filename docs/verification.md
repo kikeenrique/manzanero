@@ -243,6 +243,25 @@ So the relay works over Apple's native tunnel on this phone, a PID filter holds 
 
 Not shown: a web view in a third-party app, a page that zooms, a horizontal scroll on a page.
 
+### Phone session of 2026-11-22, morning: the owed runs that need no person
+
+iPhone 13 mini (iOS 27.2.1), unlocked, on the network (`ownTunnelUnavailable`: Apple's MobileDevice framework did not list it, so accessibility went over Apple's tunnel, `serviceDirectory: opened` or `reused-saved-port`), the probe built at that morning's commits and installed with `build-run`. No Apple TV command was sent.
+
+| Check | Result |
+| --- | --- |
+| `console <probe> --seconds 10 -- -probeLogToken B1 -probeBulk 128` | The first attempt failed in `devicectl` ("process identifier of the launched application could not be determined"); the next ran. 133,349 and 133,165 bytes; each tail exactly 65,536 bytes, the stderr tail ending `end lines=2048`, the stdout tail with devicectl's `App terminated due to signal 2.`; lines end in `\r\n` (devicectl's terminal). `-probeBulk 4096`: `stopReason: byteLimit` |
+| `set-value` on the [SwiftUI form](probe-app.md#swiftui-form-probe) by identifier (`Año café`) and by label (`second`) | `acknowledged`, `valueMatches: true`; the bound value followed, one change each, as on a simulator |
+| `record … 60 --backend coredevice`, SIGINT after 12 s | Exit 130; "8.8 s movie of 153 source pictures kept … (partial)" on stderr; the file plays: H.264, 1136 × 2464, 154 frames, 8.84 s |
+| `frames --count 1000 --seconds 120` on the still SwiftUI form | `stopReason: count`, 1000 frames in 87.4 s, 173 MB, 1125 × 2436, no restart. Meanwhile, from a second process, `record`, `frames` and `tap` were each refused: "Device is controlled by another manzanero process (pid …, frames) … no input sent" |
+| `logs --seconds 590` for a group (bundle and process) at debug, filtered to the probe's subsystem | `stopReason: byteLimit` in under seven minutes: a group streams every process, and 256 MiB (750,900 records) arrived; 12 probe entries kept |
+| `logs --seconds 590 --pid <probe>` at debug, unfiltered | `stopReason: entryLimit` (2000) after about five minutes of typing and gestures in the probe, whose frameworks log at debug |
+| MCP `capture_logs`, `platform: physical`, `pid`, 20 s, with `press --id probe.log.emit` during it | `stopReason: duration`, the emit set at every level with the private value redacted, `processWatch: devicectl` |
+| MCP `press_element`, `by: label`, `text: ^Row 1`, `match: regex`, `index: 2`, on the list probe | Row 10 pressed (rows 1 and 10–19 match; 10 is the second), `probe.list.last` read `row-10` |
+| The staggered list (`-ProbeListStagger YES`) | Row 55 in 11 steps down (24 s), row 1 in 45 steps up (60 s), both pressed and recorded |
+| The probe's framed page (`-ProbeWebFrame YES`) | The page is the display-centre process, so no `--pid`. `press --label 'Frame button'`, `press --with-value 'Frame input'` then `type hola`, and `press --label 'Page button'`, read back from `Last:` by text recognition (`probe.web.last` is in the app's process, not the page's, so a `wait` there timed out): `web-frame-button`, `web-frame-field:hola`, `web-outer`. A first Page button press with the keyboard up was refused at the live-attribute guard |
+| System gestures as edge swipes | Up from the bottom edge (from y 0.999 and 1.0, 0.3 and 0.5 s) over Settings: Settings stayed, as on a simulator. Down from the top-right corner: Control Centre opened. Down from the top-left: Notification Centre opened. From the left edge in Settings › General: back to Settings (the app's own gesture). `button home` closed both centres |
+| Three contacts in a real recognizer | In the probe's text field after typing `uno dos`, a three-path `multi-drag` to the left undid ` dos` (`uno`), and one to the right redid it: iOS's text editing took three contacts as undo and redo |
+
 ### The phone in landscape: keys, several contacts, frames and a recording
 
 2026-11-22, the iPhone 13 mini (iOS 27.2.1), the probe launched with `-ProbeAllowRotation YES` and the phone turned with `rotate landscape-left` (`tree`: `rot270`, 812 × 375), on the tool's own tunnel over the cable; landscape-right at the end.

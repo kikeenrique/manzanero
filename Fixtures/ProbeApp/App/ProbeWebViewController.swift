@@ -10,7 +10,10 @@ import WebKit
 /// a second button far below the web view's height, for `scroll`. What the
 /// page receives is recorded in `probe.web.last`.
 final class ProbeWebViewController: UIViewController, WKScriptMessageHandler {
-    static var isRequested: Bool { UserDefaults.standard.bool(forKey: "ProbeWeb") || zooms }
+    static var isRequested: Bool { UserDefaults.standard.bool(forKey: "ProbeWeb") || zooms || framed }
+    /// `-ProbeWebFrame YES`: a page whose button and field are inside an
+    /// iframe, below a button of the page itself, for pages with frames.
+    static var framed: Bool { UserDefaults.standard.bool(forKey: "ProbeWebFrame") }
     /// `-ProbeWebZoom YES`: the same page, but it may zoom and its field's
     /// text is 12 points, so focusing the field makes iOS zoom in on it and
     /// the field becomes wider than the display.
@@ -51,7 +54,7 @@ final class ProbeWebViewController: UIViewController, WKScriptMessageHandler {
             web.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -Self.inset),
             web.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -Self.inset),
         ])
-        web.loadHTMLString(Self.zooms ? Self.zoomingPage : Self.page, baseURL: nil)
+        web.loadHTMLString(Self.framed ? Self.framedPage : Self.zooms ? Self.zoomingPage : Self.page, baseURL: nil)
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -88,4 +91,28 @@ final class ProbeWebViewController: UIViewController, WKScriptMessageHandler {
     static let zoomingPage = page
         .replacingOccurrences(of: ", maximum-scale=1, user-scalable=no", with: "")
         .replacingOccurrences(of: "button, input { font: 17px -apple-system;", with: "button { font: 17px -apple-system; } input { font: 12px -apple-system; } button, input {")
+
+    /// The page for `-ProbeWebFrame YES`: a button of the page, then an
+    /// iframe (same origin, `srcdoc`) holding its own button and field.
+    static let framedPage = """
+    <!doctype html>
+    <html><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <style>
+    * { box-sizing: border-box; }
+    body { font: 17px -apple-system; margin: 12px; background: #efe; }
+    button { font: 17px -apple-system; width: 100%; height: 48px; margin: 8px 0; }
+    iframe { width: 100%; height: 260px; border: 2px solid #393; }
+    </style></head>
+    <body>
+    <h1>Frame probe</h1>
+    <button id="outer" onclick="window.webkit.messageHandlers.probe.postMessage('web-outer')">Page button</button>
+    <iframe title="Inner frame" srcdoc="
+    <style>body{font:17px -apple-system;margin:8px;background:#ffe} button,input{font:17px -apple-system;width:100%;height:48px;margin:8px 0;box-sizing:border-box}</style>
+    <button id='inner' onclick='window.webkit.messageHandlers.probe.postMessage(&quot;web-frame-button&quot;)'>Frame button</button>
+    <label for='innerField'>Frame field</label>
+    <input id='innerField' placeholder='Frame input' oninput='window.webkit.messageHandlers.probe.postMessage(&quot;web-frame-field:&quot; + this.value)'>
+    "></iframe>
+    </body></html>
+    """
 }
