@@ -85,6 +85,34 @@ struct WatchKeyboardTests {
         #expect(failure.inputSent == .possible && failure.description.contains("inspect the field"))
     }
 
+    /// A German keyboard as watchOS 27.2's simulator drew it: function keys
+    /// labelled in German, named by identifier and page; `&` by its being
+    /// the one worded key without an identifier; Done the rightmost bar button.
+    @Test func aKeyboardInAnotherLanguageIsReadByIdentifierAndClass() throws {
+        typealias Session = HostedProcessActionTests.Session
+        func node(_ id: UInt64, _ label: String, identifier: String? = nil, cls: String = WatchKeyboard.keyClass, x: Int, y: Int) -> AccessibilityArchiveValue {
+            var attributes: [String: AccessibilityArchiveValue] = [
+                "2001": .string(label), "2025": .boolean(true), "5003": .string(cls),
+                "2003": .object(className: "NSValue", fields: ["NS.rectval": .string("{{\(x), \(y)}, {20, 20}}")])]
+            if let identifier { attributes["5019"] = .string(identifier) }
+            return Session.record(id, pid: 9, attributes: attributes)
+        }
+        let bounds = AccessibilityDisplay.Bounds(x: 0, y: 0, width: 200, height: 200)
+        let root = try AccessibilityResponse.token(Session.token(1, pid: 9))
+        func keys(_ children: [AccessibilityArchiveValue]) throws -> [String: WatchKeyboard.Key] {
+            let bar = [node(90, "Abbr.", cls: WatchKeyboard.barButtonClass, x: 10, y: 0), node(91, "Fertig", cls: WatchKeyboard.barButtonClass, x: 140, y: 0)]
+            return WatchKeyboard.keys(try AccessibilitySnapshot.normalize(Session.record(1, pid: 9, children: bar + children), root: root), bounds: bounds)
+        }
+        let letters = try keys([node(2, "Q", x: 0, y: 100), node(3, "Umschalt", identifier: "shift", x: 0, y: 160),
+                                node(4, "Zahlen", identifier: "more", x: 170, y: 160), node(5, "Leerzeichen", identifier: "space", x: 60, y: 190)])
+        #expect(letters["shift"]?.x == 0.05 && letters["numbers"]?.x == 0.9 && letters["space"] != nil)
+        #expect(letters["Done"]?.x == 0.75 && letters["ampersand"] == nil)
+        let numbers = try keys([node(2, "1", x: 0, y: 100), node(6, "kaufmännisches Und", x: 140, y: 130),
+                                node(3, "Symbole", identifier: "shift", x: 0, y: 160), node(4, "Buchstaben", identifier: "more", x: 170, y: 160)])
+        #expect(numbers["symbols"]?.x == 0.05 && numbers["letters"]?.x == 0.9 && numbers["ampersand"]?.x == 0.75)
+        #expect(numbers["shift"] == nil && numbers["numbers"] == nil)
+    }
+
     @Test func labelsAndSwitchKeys() {
         #expect(WatchKeyboard.label(for: " ") == "space" && WatchKeyboard.label(for: "&") == "ampersand" && WatchKeyboard.label(for: "x") == "x")
         #expect(WatchKeyboard.switchKey(for: "a", showing: ["A", "shift", "numbers"]) == "shift")

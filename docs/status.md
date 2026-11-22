@@ -66,7 +66,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 2. **Apple TV, loose ends**: the pairing after a restart and over days, `remote sleep` from a screen saver, a quiet recording of several minutes with sound (the sound fixes and the sound restart ran on the phone only).
 3. **Recording, checks owed on the phone**: an interrupted recording keeping its movie and another viewer's `stopCause` on a device (unit-tested only), and sound in step after a restart, measured with the probe's flashes.
 4. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only; a tester needs Xcode 27, launched once.
-5. **Watch typing**: other keyboard languages and a real watch; accents will not be built (the human owner's decision).
+5. **Watch typing**: a real watch; other keyboard languages work since 2026-11-22 (simulator), and accents will not be built (the human owner's decision).
 6. **Hardware never used**: a second iPhone, an iPad, an Apple Watch, an iPhone Duo.
 
 Still the human owner's to decide: signing and notarization.

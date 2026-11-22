@@ -24,6 +24,10 @@ enum WatchKeyboard {
     static let numbersPage = Set("1234567890-/:;()$&@\".,?!'")
     static let symbolsPage = Set("[]{}#%^*+=_\\|~<>€£¥•")
     static let switchKeys = ["shift", "numbers", "symbols", "letters"]
+    /// How long `type` looks for a keyboard that is still opening: twelve
+    /// reads a quarter of a second apart, after the first.
+    static let openingReads = 12
+    static let openingInterval: Duration = .milliseconds(250)
 
     /// Refuses, before anything is sent, a text this keyboard cannot type.
     static func validate(_ text: String) throws {
@@ -61,13 +65,65 @@ enum WatchKeyboard {
         nodes.first { $0.externalProcessReference == true && $0.visible == true && $0.processIdentifier != nil }?.processIdentifier
     }
 
-    /// The visible keys and buttons of the keyboard's tree by label.
+    /// The class watchOS gives a keyboard key, and the one it gives the
+    /// Cancel and Done buttons above the keyboard (attribute 5003).
+    static let keyClass = "UIAccessibilityElementKBKey"
+    static let barButtonClass = "PUICBarButtonItemView"
+
+    /// The language-independent name of a function key, from its identifier
+    /// and the page showing. The labels are the keyboard language's (in
+    /// German `Umschalt`, `Zahlen`, `Leerzeichen`, `Fertig`), the identifiers
+    /// are not: `shift` is shift on the letters page and the symbols key on
+    /// the numbers page, `more` the numbers key and then the letters key
+    /// (watchOS 27.2 simulator in German, 2026-11-22).
+    static func functionKey(identifier: String, page: Page) -> String? {
+        switch (identifier, page) {
+        case ("space", _): "space"
+        case ("delete", _): "delete"
+        case ("shift", .letters): "shift"
+        case ("shift", .numbers): "symbols"
+        case ("shift", .symbols): "numbers"
+        case ("more", .letters): "numbers"
+        case ("more", _): "letters"
+        default: nil
+        }
+    }
+
+    enum Page { case letters, numbers, symbols }
+
+    /// The page showing: symbols when `[` is a key, numbers when `1` is.
+    static func page(labels: Set<String>) -> Page {
+        labels.contains("[") ? .symbols : labels.contains("1") ? .numbers : .letters
+    }
+
+    /// The visible keys and buttons of the keyboard's tree, by the names
+    /// `type` uses: a character key by its character, a function key by
+    /// `functionKey`, the one key with neither a one-character label nor an
+    /// identifier as `ampersand` (its label is the language's word for it),
+    /// and the rightmost bar button as `Done`. Labels fill in what those
+    /// leave out, so an English keyboard's own words still name its keys.
     static func keys(_ nodes: [AccessibilitySnapshot.Node], bounds: AccessibilityDisplay.Bounds) -> [String: Key] {
+        func centre(_ frame: AccessibilitySnapshot.Frame, _ name: String) -> Key {
+            Key(label: name, x: (frame.x + frame.width / 2 - bounds.x) / bounds.width, y: (frame.y + frame.height / 2 - bounds.y) / bounds.height)
+        }
+        let shown = nodes.filter { $0.visible == true && ($0.frame?.width ?? 0) > 0 && ($0.frame?.height ?? 0) > 0 }
+        func text(_ scalar: AccessibilitySnapshot.Scalar?) -> String? { if case .string(let value)? = scalar { value } else { nil } }
+        let page = page(labels: Set(shown.compactMap { text($0.label) }))
         var keys: [String: Key] = [:]
-        for node in nodes where node.visible == true {
-            guard case .string(let label)? = node.label, let frame = node.frame, frame.width > 0, frame.height > 0, keys[label] == nil else { continue }
-            keys[label] = Key(label: label, x: (frame.x + frame.width / 2 - bounds.x) / bounds.width,
-                              y: (frame.y + frame.height / 2 - bounds.y) / bounds.height)
+        for node in shown {
+            guard let frame = node.frame, let identifier = text(node.identifier),
+                  let name = functionKey(identifier: identifier, page: page), keys[name] == nil else { continue }
+            keys[name] = centre(frame, name)
+        }
+        let worded = shown.filter { $0.nativeAttributes?["5003"] == keyClass && text($0.identifier) == nil && (text($0.label)?.count ?? 0) > 1 }
+        if worded.count == 1, let frame = worded[0].frame, keys["ampersand"] == nil { keys["ampersand"] = centre(frame, "ampersand") }
+        if let done = shown.filter({ $0.nativeAttributes?["5003"] == barButtonClass }).max(by: { ($0.frame?.x ?? 0) < ($1.frame?.x ?? 0) }),
+           let frame = done.frame, keys["Done"] == nil {
+            keys["Done"] = centre(frame, "Done")
+        }
+        for node in shown {
+            guard let label = text(node.label), let frame = node.frame, keys[label] == nil else { continue }
+            keys[label] = centre(frame, label)
         }
         return keys
     }

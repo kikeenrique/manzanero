@@ -145,7 +145,15 @@ enum DirectSimulatorInput {
             let display = try SimulatorDisplay.read(input.device, environment: environment)
             let bounds = display.accessibility(info).bounds
             let app = try session.foregroundProcess(display.accessibility(info))
-            guard let process = WatchKeyboard.keyboardProcess(try AccessibilitySnapshot.normalize(session.snapshot(app), root: app)) else {
+            // The keyboard takes a moment to open after the field is pressed:
+            // a type sent two seconds after the press found none on
+            // 2026-11-22. Look for up to three seconds before refusing.
+            var process = WatchKeyboard.keyboardProcess(try AccessibilitySnapshot.normalize(session.snapshot(app), root: app))
+            for _ in 0..<WatchKeyboard.openingReads where process == nil {
+                try environment.pause(WatchKeyboard.openingInterval)
+                process = WatchKeyboard.keyboardProcess(try AccessibilitySnapshot.normalize(session.snapshot(app), root: app))
+            }
+            guard let process else {
                 throw CommandFailure(.targetUnresolved, "No watch keyboard is open: press the text field first, so watchOS shows its keyboard, then type. No input sent.", inputSent: .none)
             }
             let keyboard = try session.application(pid: process)
