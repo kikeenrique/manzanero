@@ -1917,6 +1917,12 @@ So iPadOS cancels four moving contacts whatever their direction, with both of it
 
 Three simulators created for this work, headless (Simulator.app not opened): `manzanero-research-tv` (Apple TV 4K (4th generation) at 1080p, tvOS 27.2, 24K150), `manzanero-research-watch` (Apple Watch Series 12 (46mm), watchOS 27.2, 24S118) and `manzanero-research-duo` (iPhone Duo, iOS 27.2, 24B91016s). Host macOS 27.2.1 (26B131), Xcode 27.2 (27B52). No physical device was contacted. Background and the first pass are in [the research](other-families-research.md); the commands are described in [other simulator families](other-families.md).
 
+### Simulator closing runs of 2026-11-22
+
+Items left open on the roadmap that need no hardware, run by laia-LLM on simulators only (host macOS 27.2.1, Xcode 27.2). No physical device was contacted.
+
+**`batch` with touch steps on an iPhone simulator** (`manzanero-research-phone`, iOS 27.2, the iOS probe in front). One batch of seven steps: `press --id probe.touch.reset`, `tap`, `double-tap`, `swipe` (0.3 s), `multi-tap` with two points, `long-press` (0.6 s), `wait --until visible`. `status: completed`, seven of seven, each step's receipt from `coresimulator-dtuhid`. The probe then read five gestures, six contacts began and six ended, none cancelled, `maxActive` 2, the swipe with 14 moves, each at its point to within 0.0002. The long press was not among them: it was aimed at y 0.75, which is inside the probe's text field (y 642 to 682 of 874 points), which takes the touch itself; a plain `tap` there was not counted either, and a long press at y 0.6 was. A step with a missing operand (`swipe` without its seconds, `wait --until exists`) was refused before anything ran, as designed.
+
 ### iPhone Duo displays
 
 **2026-11-16**, `manzanero-research-duo` freshly booted, Home Screen and then Settings in front.
