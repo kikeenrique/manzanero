@@ -159,7 +159,7 @@ extension ManzaneroCLI {
                   completion: .list(AppleTVRemote.names)) var name: String
         @Option(help: ArgumentHelp("Hold the button this long, 0.08...3 seconds. On a simulator a 1.5 s hold on home opens Control Centre; on a device home cannot be held.", valueName: "seconds")) var hold: String?
         @Option(help: ArgumentHelp("A swipe's length as a share of the touch surface, 0.05...0.9 (default 0.5).", valueName: "share")) var travel: String?
-        @Option(help: ArgumentHelp("A swipe's duration, 0.04...2 seconds (default 0.2).", valueName: "seconds")) var seconds: String?
+        @Option(help: ArgumentHelp("A swipe's duration, 0.04...2 seconds (default 0.4; on an Apple TV 4K a swipe of 0.2 s or less often moves nothing).", valueName: "seconds")) var seconds: String?
         func request(_ target: Target) throws -> CommandRequest {
             try .input(target, "remote", [name] + (hold.map { [AppleTVRemote.holdOption, $0] } ?? [])
                 + (travel.map { [AppleTVRemote.travelOption, $0] } ?? []) + (seconds.map { [AppleTVRemote.secondsOption, $0] } ?? []))

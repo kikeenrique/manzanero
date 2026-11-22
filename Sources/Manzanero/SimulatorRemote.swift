@@ -36,9 +36,12 @@ enum AppleTVRemote {
 
     /// A swipe's travel as a share of the surface, its duration and its
     /// frame interval. The finger starts that far before the centre and ends
-    /// that far past it.
+    /// that far past it. The duration was 200 ms until 2026-11-22: on the
+    /// Apple TV 4K a sideways swipe of 0.2 s moved the focus 3 times in 9,
+    /// of 0.15 s or less never (0 of 20), and of 0.4 s or more every time
+    /// (16 of 16).
     static let swipeTravel = 0.5
-    static let swipeMilliseconds: UInt64 = 200
+    static let swipeMilliseconds: UInt64 = 400
     static let swipeFrameMilliseconds: UInt64 = 20
 
     /// The reports of one swipe: a contact that goes down, moves in a

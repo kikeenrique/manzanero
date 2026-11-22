@@ -142,8 +142,8 @@ struct SimulatorRemoteTests {
         let route = try #require(receipt["route"] as? [String: Any])
         #expect(route["service"] as? String == "com.apple.coredevice.feature.remote.universalhidservice" && route["usagePage"] as? Int == 13)
         let swipe = try #require(pressed.swipes.first)
-        // Eleven frames down and one release, 20 ms apart, 58 bytes each.
-        #expect(swipe.times.count == 12 && swipe.reports.count == 12 * 58 && receipt["frameCount"] as? Int == 12)
+        // Twenty-one frames down and one release, 20 ms apart, 58 bytes each (0.4 s by default).
+        #expect(swipe.times.count == 22 && swipe.reports.count == 22 * 58 && receipt["frameCount"] as? Int == 22)
         #expect(swipe.times[1] == 20_000_000 && swipe.times == swipe.times.sorted())
         func point(_ frame: Int) -> (active: Bool, x: Int, y: Int) {
             let bytes = Array(swipe.reports[frame * 58..<(frame + 1) * 58])
@@ -151,7 +151,7 @@ struct SimulatorRemoteTests {
         }
         // x stays at the centre; y runs from a quarter to three quarters; the last frame lifts where it stopped.
         #expect(point(0).active && point(0).x == 32768 && point(0).y == 16384)
-        #expect(point(10).active && point(10).y == 49151 && !point(11).active && point(11).y == 49151)
+        #expect(point(20).active && point(20).y == 49151 && !point(21).active && point(21).y == 49151)
         let left = AppleTVRemote.swipeFrames(dx: -1, dy: 0)
         #expect(left.reports.first?[4...5] == [0xff, 0xbf] && left.reports.last?[4...5] == [0x00, 0x40])
         // No hold and no touch-screen input.
@@ -181,8 +181,8 @@ struct RemoteSwipeShapeTests {
         // Twenty moves 20 ms apart, from 0.1 to 0.9 of the width, then the lift.
         #expect(frames.times.count == 22 && frames.times.last == 420_000_000)
         #expect(abs(x(0) - 6554) <= 1 && abs(x(20) - 58982) <= 1 && x(21) == x(20))
-        // The defaults are unchanged, and either option may come alone.
-        #expect(AppleTVRemote.swipeFrames(dx: 1, dy: 0).times.count == 12)
+        // The default is 0.4 s, and either option may come alone.
+        #expect(AppleTVRemote.swipeFrames(dx: 1, dy: 0).times.count == 22)
         guard case .swipe(_, _, let short) = try AppleTVRemote.parse(["swipe-up", "--travel", "0.1"]).route else { Issue.record("not a swipe"); return }
         #expect(short == .init(travel: 0.1, milliseconds: AppleTVRemote.swipeMilliseconds))
         // The plan and the physical route carry the shape too.
