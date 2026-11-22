@@ -20,7 +20,7 @@ The app is a test fixture. It is not part of the `manzanero` product and has no 
 | `Fixtures/ProbeApp/App/` | UIKit app: scene setup, touch surface, accessibility elements, drawing, log probe emitter, text probe, permission probe |
 | `Fixtures/ProbeApp/UITests/` | XCUITest checks of the recording path in the simulator |
 
-Requirements: iOS 18.0 or later, iPhone or iPad (full screen through `UIRequiresFullScreen`; Xcode 27.2's test runs warn that the key "will soon be ignored", so a later iPadOS may window the probe). Portrait only, unless launched with the argument `-ProbeAllowRotation YES` (for example `xcrun simctl launch <UUID> <bundle-id> -ProbeAllowRotation YES`), which lets the interface follow the device into landscape for rotation measurements; positions stay normalized to the current interface. Swift 6 language mode with complete strict concurrency. Built and tested with Xcode 27.2 and Tuist 4.214.0.
+Requirements: iOS 18.0 or later, iPhone or iPad (full screen through `UIRequiresFullScreen`; Xcode 27.2's test runs warn that the key "will soon be ignored", so a later iPadOS may window the probe). Portrait only, unless launched with the argument `-ProbeAllowRotation YES` (for example `xcrun simctl launch <UUID> <bundle-id> -ProbeAllowRotation YES`), which lets the interface follow the device into landscape for rotation measurements; positions stay normalized to the current interface. `-ProbeSystemEdges YES` gives the touch surface's screen edges back to the system: without it the probe keeps them (a system edge gesture then needs a second swipe), with it one swipe from the top-right corner opens Control Centre over the probe while a contact the probe records stays down; opening Control Centre cancels the probe's contacts (iPhone 13 mini, 2026-11-22, [record](verification.md#phone-session-of-2026-11-22-afternoon-with-the-human-owner-at-the-phone)). The other launch options choose a screen or a probe: `-ProbeList YES` and `-ProbeListStagger YES` ([list](#list-probe)), `-ProbeSwiftUI YES` ([SwiftUI form](#swiftui-form-probe)), `-ProbeWeb YES`, `-ProbeWebZoom YES` and `-ProbeWebFrame YES` ([web](#web-probe)), `-ProbeTone YES` ([tone](#tone-probe)), and `-probeLogToken`, `-probeCrash` and `-probeBulk` ([log](#log-probe)). Swift 6 language mode with complete strict concurrency. Built and tested with Xcode 27.2 and Tuist 4.214.0.
 
 ## Generate, test and build
 
@@ -311,7 +311,7 @@ manzanero console com.lemambo.manzanero.probeapp --seconds 5 --terminate --simul
 manzanero last-crash --bundle com.lemambo.manzanero.probeapp --since <ISO-8601 before the launch> --simulator <UUID>
 ```
 
-Results on one iPhone Air simulator are in [verification](verification.md#app-logs-console-and-crashes).
+Results on one iPhone Air simulator are in [verification](verification.md#app-logs-console-and-crashes). `-probeBulk` ran on `manzanero-research-phone` and on the iPhone 13 mini on 2026-11-22 ([simulator](verification.md#app-logs-console-and-crashes), [phone](verification.md#phone-session-of-2026-11-22-morning-the-owed-runs-that-need-no-person)).
 
 ## Permission probe
 
@@ -339,11 +339,9 @@ manzanero open-url 'manzanero-probe://hello?n=1' --simulator <simulator-UUID>
 manzanero open-url 'manzanero-probe-tv://hello?n=1' --device <UDID>
 ```
 
-Each URL is also logged at info level with the category `url`. A URL that launches the app is counted like one that reaches it running. On iOS the system asks "Open in “Probe”?" the first time, before the app sees anything: the tree reads that prompt and `press --label Open` answers it, and the next URL arrived without a prompt. tvOS asks nothing. Run on one iPhone simulator and on the Apple TV 4K on 2026-11-20 ([record](verification.md#an-accessibility-tag-for-power-off-a-url-for-the-probes-and-a-recording-with-music)); not on a phone.
+Each URL is also logged at info level with the category `url`. A URL that launches the app is counted like one that reaches it running. On iOS the system asks "Open in “Probe”?" the first time, before the app sees anything: the tree reads that prompt and `press --label Open` answers it, and the next URL arrived without a prompt. tvOS asks nothing. Run on one iPhone simulator and on the Apple TV 4K on 2026-11-20 ([record](verification.md#an-accessibility-tag-for-power-off-a-url-for-the-probes-and-a-recording-with-music)), and on the iPhone 13 mini that evening, with the probe in front and no prompt ([record](verification.md#phone-session-of-2026-11-20-a-table-row-a-moving-stream-open-url-and-logs)).
 
 ## Tone probe
-
-`-ProbeSystemEdges YES` gives the touch surface's screen edges back to the system: without it the probe keeps them (a system edge gesture then needs a second swipe), with it one swipe from the top-right corner opens Control Centre over the probe while a contact the probe records stays down. Opening Control Centre cancels the probe's contacts.
 
 Launched with `-ProbeTone YES`, the iOS probe plays four rising beeps (A, C sharp, E and the A above, a fifth of a second each) over and over while it is in front, so that a recording with sound has something known in it. It plays through the silent switch, at half level, and only with that argument; without it the probe makes no sound. It prints `probe.tone playing` with the device's output volume, which `console` shows:
 
@@ -376,7 +374,7 @@ manzanero press --id probe.list.row.55 --simulator <simulator-UUID>
 manzanero wait --id probe.list.last --until value --value row-55 --simulator <simulator-UUID>
 ```
 
-The touch, log and permission probes are not on this screen. Run on one iPhone simulator ([record](verification.md#a-search-on-an-iphone-simulator-and-a-table-rows-two-objects)); not on a phone, where the app would have to be launched with the argument by other means than `manzanero launch`.
+The touch, log and permission probes are not on this screen. Run on one iPhone simulator ([record](verification.md#a-search-on-an-iphone-simulator-and-a-table-rows-two-objects)), the staggered rows there on 2026-11-22 ([record](verification.md#simulator-closing-runs-of-2026-11-22)); and on the iPhone 13 mini since 2026-11-20, launched with the argument after `--` ([record](verification.md#phone-session-of-2026-11-20-a-table-row-a-moving-stream-open-url-and-logs)), the staggered rows on 2026-11-22 ([record](verification.md#phone-session-of-2026-11-22-morning-the-owed-runs-that-need-no-person)).
 
 ## SwiftUI form probe
 
@@ -393,6 +391,8 @@ xcrun simctl launch <simulator-UUID> com.lemambo.manzanero.probeapp -ProbeSwiftU
 manzanero set-value --id probe.swiftui.field 'Año café' --simulator <simulator-UUID>
 manzanero wait --id probe.swiftui.bound --until value --value 'Año café' --simulator <simulator-UUID>
 ```
+
+Run on `manzanero-research-phone` and on the iPhone 13 mini on 2026-11-22: `set-value` by identifier and by label changed the bound value, one change each ([simulator](verification.md#simulator-closing-runs-of-2026-11-22), [phone](verification.md#phone-session-of-2026-11-22-morning-the-owed-runs-that-need-no-person)).
 
 ## Web probe
 
@@ -414,7 +414,7 @@ On a phone the page holds the display centre, so a plain `tree` or `wait` reads 
 
 `-ProbeWebFrame YES` loads a page with frames instead: a "Page button" (`web-outer`) and below it an iframe titled "Inner frame" (same origin, `srcdoc`) holding a "Frame button" (`web-frame-button`) and a "Frame field" with the placeholder "Frame input" (`web-frame-field:<text>`). The frame's elements are in the page's tree like the page's own ([record](verification.md#phone-session-of-2026-11-22-morning-the-owed-runs-that-need-no-person)).
 
-The touch, log and permission probes are not on this screen. Run on the iPhone 13 mini and an iPhone simulator on 2026-11-22 ([record](verification.md#web-content-in-an-apps-own-inset-web-view)).
+The touch, log and permission probes are not on this screen. Run on the iPhone 13 mini and an iPhone simulator on 2026-11-22 ([record](verification.md#web-content-in-an-apps-own-inset-web-view)); the framed page on the phone only.
 
 ## tvOS probe
 
