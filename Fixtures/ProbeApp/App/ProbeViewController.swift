@@ -20,8 +20,12 @@ final class ProbeViewController: UIViewController {
 
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
-    // System edge gestures then need a second swipe; the first reaches the probe.
-    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
+    // System edge gestures then need a second swipe; the first reaches the
+    // probe. `-ProbeSystemEdges YES` gives the edges back, so one swipe from
+    // the top-right opens Control Centre over the probe while a contact the
+    // probe records stays down (a network cut during input, 2026-11-22).
+    static var systemEdges: Bool { UserDefaults.standard.bool(forKey: "ProbeSystemEdges") }
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { Self.systemEdges ? [] : .all }
     /// Portrait unless launched with `-ProbeAllowRotation YES`, which lets the
     /// interface follow the device into landscape for rotation measurements.
     static var allowsRotation: Bool { UserDefaults.standard.bool(forKey: "ProbeAllowRotation") }

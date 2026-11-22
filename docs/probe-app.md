@@ -343,6 +343,8 @@ Each URL is also logged at info level with the category `url`. A URL that launch
 
 ## Tone probe
 
+`-ProbeSystemEdges YES` gives the touch surface's screen edges back to the system: without it the probe keeps them (a system edge gesture then needs a second swipe), with it one swipe from the top-right corner opens Control Centre over the probe while a contact the probe records stays down. Opening Control Centre cancels the probe's contacts.
+
 Launched with `-ProbeTone YES`, the iOS probe plays four rising beeps (A, C sharp, E and the A above, a fifth of a second each) over and over while it is in front, so that a recording with sound has something known in it. It plays through the silent switch, at half level, and only with that argument; without it the probe makes no sound. It prints `probe.tone playing` with the device's output volume, which `console` shows:
 
 ```sh

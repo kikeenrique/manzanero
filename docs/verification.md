@@ -243,6 +243,22 @@ So the relay works over Apple's native tunnel on this phone, a PID filter holds 
 
 Not shown: a web view in a third-party app, a page that zooms, a horizontal scroll on a page.
 
+### Phone session of 2026-11-22, afternoon: with the human owner at the phone
+
+The same phone, after the morning's runs, with the human owner's hands for the three checks that need them. No Apple TV command was sent.
+
+**Another viewer.** `record … 90 --backend coredevice`; when the human owner opened Device Hub's screen view of the phone, the recording ended at once as `status: partial`, `stopCause: another-viewer`, a 6.7-second movie that plays (111 frames). Device Hub's view left open then refused the next recording ("Another media session is active; no recording started").
+
+**Sound across a pulled cable, a fault and its fix.** The probe with `-ProbeTone YES` (its flash with each round's first beep), the phone on its cable (`ownTunnel: cable`) at about half volume, `record … 60 --backend coredevice --audio`, the human owner pulling the cable some 20 s in and plugging it back 10 s later. The recording recovered (`status: recorded`, one restart, a 7.0-second gap at 17.8 s), but its sound track was one unbroken 53.3 s run while the picture had the gap: after the restart every beep came about seven seconds before its flash, and the beep spacing broke once (1.24 s instead of 1.6 s) where the sound was spliced. `NativeAudioTrack` placed the restarted sound at its arrival, after the gap, but the movie's AAC writer encodes the samples it is given back to back whatever their times, so the gap vanished. The writer now fills a gap with silence (`NativeVideoEncoder.consumeAudio`). The same run with the fix (an 8.5-second gap at 17.4 s): a sound track of 59.97 s; measured from the movie (each flash's rise in brightness against the onset of each round's first beep), the sound trailed the picture by 48 ms at the median before the restart (11 pairs, 43 to 93 ms) and by −2 ms after it (21 pairs, −90 to +52 ms).
+
+**A full ten minutes of logs.** `logs --seconds 590 --pid <probe> --subsystem <probe's> --level debug` ran its whole time (`stopReason: duration`), 119 records received, the probe's emit set kept.
+
+**A lost network path during input, over the probe.** For the probe to record where a held contact ends, the tool itself cut the phone's Wi‑Fi in one `gesture` while contact 0 stayed down in the probe: the probe's new `-ProbeSystemEdges YES` gives the screen edges back, so a second contact can open Control Centre over it. Three lessons came first:
+- Control Centre scrolls between its pages with the same drag that opens it: a swipe from the top edge to half the screen opened it and moved on to its second page. A swipe to 0.15 of the height opens page 1, twice of twice. laia-LLM took the page for unpredictable until the human owner pointed this out.
+- With the long swipe, the first tap meant for Wi‑Fi landed on the media tile and opened Music, and the second on the second page's layout; that run ended "Input stopped after cancellation or transport failure", with no network loss, and Wi‑Fi stayed on although laia-LLM first read the failure as the cut.
+- `tree` times out with Control Centre in front (`code: timeout`, "Accessibility socket deadline exceeded", in 6 s, on a newly opened connection too): each request has four seconds to be answered. Close Control Centre before reading the app.
+With a button for Wi‑Fi that the human owner added to page 1, the short swipe and a tap there switched Wi‑Fi off: the gesture failed after 16 s as `input-outcome-unknown` ("the Apple service barrier was not confirmed"), a `tap` afterwards was refused as `device-quarantined` since that moment, and the human owner turned Wi‑Fi on again. The probe then showed why the release point cannot be seen this way: both contacts ended `cancelled` 0.52 s into the gesture, contact 0 at its own place (0.500, 0.600), when Control Centre took the swipe. iOS cancels an app's touches when Control Centre opens over it, so a Wi‑Fi cut made through Control Centre ends the held contact long before the network goes.
+
 ### Phone session of 2026-11-22, morning: the owed runs that need no person
 
 iPhone 13 mini (iOS 27.2.1), unlocked, on the network (`ownTunnelUnavailable`: Apple's MobileDevice framework did not list it, so accessibility went over Apple's tunnel, `serviceDirectory: opened` or `reused-saved-port`), the probe built at that morning's commits and installed with `build-run`. No Apple TV command was sent.
