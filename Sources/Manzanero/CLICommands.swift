@@ -335,7 +335,7 @@ extension ManzaneroCLI {
 
     struct Fold: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "fold", abstract: "Close a foldable simulator (iPhone Duo) to the outer display.",
-            discussion: "Sets the hinge to 0 degrees with the event Device Hub's hinge control sends, then reads the display information until the outer (primary) display is awake and the inner one is off, for at most 10 s. The receipt names the active display and whether that was observed. Refused on simulators without two integrated displays and on physical devices.")
+            discussion: "Sets the hinge to 0 degrees with the event Device Hub's hinge control sends, then reads the display information until the outer (primary) display is awake and the inner one is off, for at most 20 s. The receipt names the active display and whether that was observed. Refused on simulators without two integrated displays and on physical devices.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         func request(_ target: Target) throws -> CommandRequest { try SimulatorHinge.request(target, "fold") }
@@ -343,7 +343,7 @@ extension ManzaneroCLI {
 
     struct Unfold: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "unfold", abstract: "Open a foldable simulator (iPhone Duo) to the inner display.",
-            discussion: "Sets the hinge to 180 degrees, then reads the display information until the inner display is awake and the outer one is off, for at most 10 s. Unfolded, the interface is on the inner display in landscape. The receipt names the active display and whether that was observed.")
+            discussion: "Sets the hinge to 180 degrees, then reads the display information until the inner display is awake and the outer one is off, for at most 20 s. Unfolded, the interface is on the inner display in landscape. The receipt names the active display and whether that was observed.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         func request(_ target: Target) throws -> CommandRequest { try SimulatorHinge.request(target, "unfold") }

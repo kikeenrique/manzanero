@@ -23,10 +23,12 @@ enum SimulatorHinge {
     /// The display check after fold and unfold: every `pollInterval`, at most
     /// `pollLimit` reads and no longer than `waitLimit`.
     static let pollInterval: Duration = .milliseconds(250)
-    /// Folding took 11 reads (about 2.7 s) on the iOS 27.2 runtime, both
-    /// displays reading awake in between; unfolding took 3.
-    static let pollLimit = 40
-    static let waitLimit: Duration = .seconds(10)
+    /// Folding took 11 to 14 reads (about 3 s) on the iOS 27.2 runtime, both
+    /// displays reading awake in between; unfolding took 3. In the first
+    /// half minute after boot a fold took up to 14 s, with nothing else
+    /// booted, so the bound is 20 s.
+    static let pollLimit = 80
+    static let waitLimit: Duration = .seconds(20)
 
     /// The request: refused on a physical device before any contact.
     static func request(_ target: Target, _ operation: String, _ operands: [String] = []) throws -> CommandRequest {
