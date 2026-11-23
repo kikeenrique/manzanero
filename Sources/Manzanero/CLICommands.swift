@@ -781,8 +781,9 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("Process name of the app.", valueName: "name")) var process: String?
         @Option(help: ArgumentHelp("Ignore reports older than this ISO-8601 date.", valueName: "date")) var since: String?
         @Option(help: ArgumentHelp("Copy the report into this existing directory.", valueName: "dir"), completion: .directory) var download: String?
+        @Option(help: ArgumentHelp("Resolve the frames of the images whose UUID this .dSYM, .app or binary has, with atos (symbol, file and line).", valueName: "path"), completion: .file()) var symbols: String?
         func request(_ target: Target) throws -> CommandRequest {
-            let options = DiagnosticOptions(values: ["--bundle": bundle, "--process": process, "--since": since, "--download": download])
+            let options = DiagnosticOptions(values: ["--bundle": bundle, "--process": process, "--since": since, "--download": download, "--symbols": symbols])
             return .diagnostics(try .make(physical: target.platform == .physical, device: target.identifier, operation: "last-crash", options: options))
         }
     }

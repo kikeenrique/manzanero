@@ -906,13 +906,21 @@ actor CommandService {
             return CommandOutput(data: try await AppConsole.executeSimulator(capture, directory: target, environment: environment))
         case .lastCrash(let query):
             if dryRun { return try json(query.plan()) }
+            let data: Data
             if query.physical {
                 try preflight(query.device, operation: "last-crash")
-                return CommandOutput(data: try CrashReportSelection.executePhysical(query,
+                data = try CrashReportSelection.executePhysical(query,
                     directory: directory.appendingPathComponent("tmp/crash-\(UUID().uuidString)"),
-                    run: { try self.runner.run($0.arguments, executable: $0.executable, timeout: 90) }))
+                    run: { try self.runner.run($0.arguments, executable: $0.executable, timeout: 90) })
+            } else {
+                data = try CrashReportSelection.executeSimulator(query, environment: simulator)
             }
-            return CommandOutput(data: try CrashReportSelection.executeSimulator(query, environment: simulator))
+            guard let symbols = query.symbols, let summary = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  summary["found"] as? Bool == true, let path = summary["path"] as? String else { return CommandOutput(data: data) }
+            let report = try IPSReport(Data(contentsOf: URL(fileURLWithPath: path)))
+            return CommandOutput(data: try CrashReportSelection.encode(CrashSymbolication.apply(summary, report: report, symbols: symbols) {
+                try self.runner.run($0.arguments, executable: $0.executable, timeout: 120)
+            }))
         }
     }
 

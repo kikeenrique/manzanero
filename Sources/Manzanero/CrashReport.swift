@@ -26,24 +26,31 @@ struct LastCrashQuery: Sendable, Equatable {
     let process: String?
     let since: Date?
     let download: String?
+    /// `--symbols`: a `.dSYM`, `.app` or Mach-O file whose matching images'
+    /// frames are resolved with `atos` (`CrashSymbolication`).
+    var symbols: String?
 
-    init(physical: Bool, device: String, bundle: String? = nil, process: String? = nil, since: Date? = nil, download: String? = nil) {
+    init(physical: Bool, device: String, bundle: String? = nil, process: String? = nil, since: Date? = nil, download: String? = nil,
+         symbols: String? = nil) {
         self.physical = physical; self.device = device; self.bundle = bundle; self.process = process
-        self.since = since; self.download = download
+        self.since = since; self.download = download; self.symbols = symbols
     }
 
     init(physical: Bool, device: String, options: DiagnosticOptions) throws {
         guard options.positional.isEmpty,
               [options.values["--bundle"], options.values["--process"]].compactMap({ $0 }).count == 1 else {
-            throw CommandFailure.usage("Usage: last-crash (--bundle <id> | --process <name>) [--since <ISO-8601>] [--download <existing-dir>]")
+            throw CommandFailure.usage("Usage: last-crash (--bundle <id> | --process <name>) [--since <ISO-8601>] [--download <existing-dir>] [--symbols <dSYM|app|binary>]")
         }
         if let download = options.values["--download"], download.hasPrefix("-") {
             throw CommandFailure.usage("--download needs an existing host directory.")
         }
+        if let symbols = options.values["--symbols"], symbols.hasPrefix("-") || !FileManager.default.fileExists(atPath: symbols) {
+            throw CommandFailure.usage("--symbols needs an existing .dSYM, .app or binary on this Mac: \(symbols).")
+        }
         self.init(physical: physical, device: device,
                   bundle: try options.values["--bundle"].map(DiagnosticNames.bundleIdentifier),
                   process: try options.values["--process"].map(DiagnosticNames.processName),
-                  since: try options.date("--since"), download: options.values["--download"])
+                  since: try options.date("--since"), download: options.values["--download"], symbols: options.values["--symbols"])
     }
 
     var listingPlan: DeviceCommand? { try? DeviceCommand.plan(physical: true, device: device, operation: "reports", operands: ["."]) }
@@ -57,6 +64,9 @@ struct LastCrashQuery: Sendable, Equatable {
             "maxFrames": Self.maxFrames, "symbolicated": false,
         ]
         if let download { plan["download"] = download }
+        if let symbols {
+            plan["symbols"] = ["path": symbols, "execution": "After a report is found: xcrun dwarfdump --uuid on the given Mach-O files; for each report image with the same UUID and architecture, one xcrun atos -o <file> -arch <arch> -l <base> <addresses> for the frames shown. On the Mac only."]
+        }
         if physical {
             plan["backend"] = "devicectl"
             plan["listing"] = ["executable": "/usr/bin/xcrun", "arguments": listingPlan?.arguments ?? []]
