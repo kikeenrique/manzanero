@@ -2090,6 +2090,17 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote left --report-focus` | `focus.label` Settings |
 | `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
 
+### Element handles on a simulator
+
+**2026-11-23**, `manzanero-research-phone` (iOS 27.2), the iOS probe in front.
+
+| Step | Observed |
+| --- | --- |
+| Two `tree` reads in separate sessions | Every node's `handle` the same in both (14 nodes; the reset button `ax:86455:d5af…`) |
+| `press --handle <reset button's handle>` | `status: accepted`, selector `by: handle`; the probe's session changed from `acf05f88288e1c67` to `916a636351de2cea`, as a press of the reset button does |
+| `launch --relaunch` of the probe, then `press --handle` with the old handle | Refused before sending (`ambiguous-or-missing-target`, `inputSent: none`, stage `first-snapshot`): the new process has new handles |
+| `wait --handle <current handle> --until visible` and `wait --handle <old handle> --until gone` | `condition-met`, reasons `visible` and `absent` |
+
 ### Hold on a simulator
 
 **2026-11-23**, `manzanero-research-phone` (iOS 27.2), the iOS touch probe in front, `batch --simulator` with the new simulator stream (`ADCSimulatorPerformLiveDigitizerReports`). The probe's own readouts, read from screenshots, are the ground truth.

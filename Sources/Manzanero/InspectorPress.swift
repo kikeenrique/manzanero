@@ -122,6 +122,7 @@ struct InspectorPress {
     /// Refusals that need no connection.
     func checkSelector() throws {
         if selector.by == "value" { throw Unavailable(description: "the Inspector's cursor gives no way to select by value") }
+        if selector.by == "handle" { throw Unavailable(description: "the Inspector's cursor reads other elements than the tree's, so a tree's handle names nothing there") }
         if selector.index != nil { throw Unavailable(description: "the Inspector's cursor does not walk in the tree's order, so \(AccessibilitySelector.indexOption) is not used on it") }
     }
 

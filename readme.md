@@ -133,7 +133,7 @@ Host configuration formats vary. Set a suitable working directory: relative file
 - A recording carries the device's sound only with `--audio`, and an app may mute its own player while the screen is captured ([sound](docs/recording.md#sound)). Since 2026-11-21 the sound stays in step with the picture and lasts the whole recording; checked on the test phone, and for three quiet minutes on the Apple TV.
 - `manzanero pair` leaves a pairing identity for the device under `~/Library/Application Support/manzanero/pairings/`. It is a private key: whoever can read it can open a tunnel to that device.
 - A web page is read and pressed as a tree of its own, apart from the browser around it, and has been checked in Chrome, Safari and an app's own web view on the test phone ([web content](docs/direct-accessibility.md#web-content)). `set-value` does not change a web input; press it and `type`.
-- Live screen mirroring, stable reusable element handles, broad Apple-family coverage and several simulator/diagnostic paths remain incomplete.
+- Live screen mirroring, broad Apple-family coverage and several simulator/diagnostic paths remain incomplete.
 - Screenshots, app lists, logs, clipboard data and artifacts under `tmp/` can contain private information. Do not commit or share them without review.
 
 ## For contributors

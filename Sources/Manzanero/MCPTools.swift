@@ -104,7 +104,7 @@ private extension Dictionary where Key == String, Value == MCP.Value {
 
     /// `--id=<text>`, `--label=<text>` or `--with-value=<text>`, then `--pid=<n>` and `--index=<n>` when given.
     var selector: [String] {
-        ["\(text("by") == "identifier" ? "--id" : text("by") == "value" ? "--with-value" : "--label")=\(text("text"))"]
+        ["\(["identifier": "--id", "value": "--with-value", "handle": "--handle"][text("by")] ?? "--label")=\(text("text"))"]
             + options([("match", "--match")]) + options([("pid", "--pid"), ("index", "--index")], numeric: true)
     }
 
@@ -117,7 +117,7 @@ enum MCPTools {
     private static let x = MCPField(name: "x", kind: .number)
     private static let y = MCPField(name: "y", kind: .number)
     /// For tools that predate simulator support: omitted means physical.
-    private static let selectorBy = MCPField(name: "by", description: "The field text is compared with: identifier, label, or value (the element's exact current value) for an element that has neither, such as a search field that only shows its placeholder.", choices: ["identifier", "label", "value"])
+    private static let selectorBy = MCPField(name: "by", description: "The field text is compared with: identifier, label, or value (the element's exact current value) for an element that has neither, such as a search field that only shows its placeholder; or handle, a node's handle from an earlier get_ui_tree (ax:<pid>:<hex>), which names that same live element and is refused when it is gone (no match or index with it).", choices: ["identifier", "label", "value", "handle"])
     private static let selectorIndex = MCPField(name: "index", kind: .integer, description: "Optional position, counted from 1, among several elements that match the selector, in the tree's node order (the order an ambiguous-selector failure lists them). Without it the selector must settle on one element. Positional, so read the tree first.", required: false)
     private static let selectorMatch = MCPField(name: "match", description: "How text is compared: exact (default; the whole field, case-sensitive), contains (anywhere in the field, ignoring case and accents) or regex (an ICU regular expression found anywhere in it; anchor with ^...$, (?i) ignores case). With contains or regex several elements often match: add index, or narrow the text.", required: false, choices: AccessibilitySelector.MatchMode.allCases.map(\.rawValue))
     private static let optionalPlatform = MCPField(name: "platform", description: "physical (default) or simulator (a booted simulator, addressed by UUID).", required: false, choices: ["physical", "simulator"])
@@ -144,6 +144,7 @@ enum MCPTools {
         .init(name: "request_handoff", description: "Ask a person to complete a step on the device (for example an unlock, a pairing or a permission). Prefer until: the device is then watched, read-only, and the call ends by itself when it shows the condition or at timeout_seconds, with no form and nothing for the person to answer. Without until it requires an MCP host supporting form elicitation.The form has no fields and asks one question, whether the step is finished, answered with the host's own Accept (yes, finished, whatever was chosen on the device) and Decline (not done). Accept acknowledges the request and does not verify device success; decline and cancel do not acknowledge. Write the message as the step alone, an instruction such as 'Answer the notification prompt', without yes/no wording of its own. The result adds formAnswer, what the host's form returned. Do not put secrets in the message. Device mutation calls are paused in this server while the response is pending.", fields: [platform, device, .init(name: "message"),
             .init(name: "until", description: "Optional. Watch the device and end by itself when it shows this, so nobody has to answer a form: unlocked (display on, no passcode required) or paired (connected and paired), physical devices only; or visible, gone, enabled, disabled, value, focused for the element that by and text name, for example until gone, by label, text Allow for a permission prompt. A step already done returns at once. Returns status observed (verified true for that condition) or timedOut.", required: false, choices: HandoffCondition.names),
             .init(name: "by", description: "With an element condition: identifier, label, or value for an element that has neither (its exact current value).", required: false, choices: ["identifier", "label", "value"]),
+
             .init(name: "text", description: "With an element condition: the exact selector, 1...4096 UTF-8 bytes.", required: false),
             selectorIndex,
             .init(name: "value", description: "Exact expected value, for until value.", required: false),

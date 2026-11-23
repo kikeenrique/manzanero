@@ -180,6 +180,9 @@ struct LayoutDetectionCommand: Sendable, Equatable {
         guard selector.withValue == nil else {
             throw CommandFailure.usage("detect-layout does not take --with-value: the probe changes the field's value, so the selector would stop matching. Use --id or --label, with --index among several.")
         }
+        guard selector.handle == nil else {
+            throw CommandFailure.usage("detect-layout does not take --handle: it reads its field by identifier or label across several steps. Use --id or --label, with --index among several.")
+        }
         let text = selector.text
         guard (1...4096).contains(text.utf8.count), !text.contains("\0") else {
             throw CommandFailure.usage("detect-layout requires an exact selector of 1...4096 UTF-8 bytes without NUL.")

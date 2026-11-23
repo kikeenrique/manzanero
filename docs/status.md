@@ -66,7 +66,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 2. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
 3. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
 4. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
-5. **Not built**: a press at a point of the first-generation remote's touch surface (the clickpad ring's presses are the arrows, already sent), the rest of the agent features (durable sessions, element handles, `.xcappdata` export); symbolication on request (`last-crash --symbols`) and a build deadline with progress were built on 2026-11-23.
+5. **Not built**: a press at a point of the first-generation remote's touch surface (the clickpad ring's presses are the arrows, already sent), the rest of the agent features (durable sessions, `.xcappdata` export); element handles (`--handle`), symbolication on request (`last-crash --symbols`) and a build deadline with progress were built on 2026-11-23.
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 

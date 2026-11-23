@@ -137,6 +137,9 @@ struct SelectorOptions: ParsableArguments {
     @Option(parsing: .unconditional, help: ArgumentHelp("Accessibility label.", valueName: "label"))
     var label: String?
 
+    @Option(help: ArgumentHelp("A node's handle from an earlier tree (ax:<pid>:<hex>): that same element, or a refusal when it is gone. Not with --match or --index.", valueName: "handle"))
+    var handle: String?
+
     @Option(help: ArgumentHelp("How the text is compared: exact (default; the whole field, case-sensitive), contains (anywhere in it, ignoring case and accents) or regex (an ICU regular expression found anywhere in it; anchor with ^…$, (?i) ignores case).", valueName: "mode"),
             completion: .list(AccessibilitySelector.MatchMode.allCases.map(\.rawValue)))
     var match: String?
@@ -148,15 +151,21 @@ struct SelectorOptions: ParsableArguments {
     var index: String?
 
     func validate() throws {
-        guard [id, label, withValue].compactMap({ $0 }).count == 1 else {
-            throw ValidationError("Give exactly one of --id, --label or --with-value.")
+        guard [id, label, withValue, handle].compactMap({ $0 }).count == 1 else {
+            throw ValidationError("Give exactly one of --id, --label, --with-value or --handle.")
+        }
+        if let handle {
+            _ = try ElementHandle(handle)
+            guard match == nil, index == nil else {
+                throw ValidationError("--handle names one element exactly: it takes no --match or --index.")
+            }
         }
     }
 
-    /// The node field the selector compares: identifier, label or value.
-    var by: String { id != nil ? "identifier" : withValue != nil ? "value" : "label" }
+    /// The node field the selector compares: identifier, label, value or handle.
+    var by: String { id != nil ? "identifier" : withValue != nil ? "value" : handle != nil ? "handle" : "label" }
     /// The selector's text, whichever option gave it.
-    var text: String { id ?? label ?? withValue ?? "" }
+    var text: String { id ?? label ?? withValue ?? handle ?? "" }
 }
 
 /// A parsed operation.

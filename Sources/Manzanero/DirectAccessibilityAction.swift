@@ -124,7 +124,11 @@ struct DirectAccessibilityAction {
                 }
             } else { distinct.append(match) }
         }
-        guard let first = distinct.first else { throw failure("selector has no match in the fresh bounded snapshot", .targetUnresolved) }
+        guard let first = distinct.first else {
+            throw failure(selector.by == "handle"
+                ? "the handle's element is not in the fresh bounded snapshot: it is gone, was replaced, or belongs to another process than the one acted in (read a fresh tree for current handles)"
+                : "selector has no match in the fresh bounded snapshot", .targetUnresolved)
+        }
         // The caller chose by position: the nth distinct element in node
         // order, whatever its visibility. The guards that follow (a second
         // snapshot with the same identity, live state, frame and hit) still
@@ -629,7 +633,9 @@ struct AccessibilitySelector: Sendable, Equatable {
     /// operation name (`press-id`, `wait-label`, `set-value-value`). `value`
     /// is for elements with neither label nor identifier, such as a search
     /// field that only carries its placeholder.
-    static let kinds: [(suffix: String, by: String)] = [("id", "identifier"), ("label", "label"), ("value", "value")]
+    /// `handle` is a tree node's `handle` (`ElementHandle`): the same live
+    /// element, matched exactly, in the fresh snapshot.
+    static let kinds: [(suffix: String, by: String)] = [("id", "identifier"), ("label", "label"), ("value", "value"), ("handle", "handle")]
 
     /// `press` gives `press-id`, `press-label` and `press-value`.
     static func operations(_ base: String) -> [String] { kinds.map { "\(base)-\($0.suffix)" } }
@@ -686,6 +692,10 @@ struct AccessibilitySelector: Sendable, Equatable {
             guard case .dictionary(let record) = records[index], case .array(let children) = record["UIAccessibilitySnapshotKeyChildren"],
                   let attributes = record["UIAccessibilitySnapshotKeyAttributes"] else { throw failure("invalid snapshot record") }
             records.append(contentsOf: children)
+            if by == "handle" {
+                if node.handle == text { found.append(Match(node: node, attributes: attributes)) }
+                continue
+            }
             let value = by == "identifier" ? node.identifier : by == "value" ? node.value : node.label
             if accepts(value) { found.append(Match(node: node, attributes: attributes)) }
         }

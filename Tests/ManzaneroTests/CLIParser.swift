@@ -181,7 +181,7 @@ struct CLIParserTests {
         for arguments in [[command, "--device", Self.device], [command, "--id", "a", "--label", "b", "--device", Self.device],
                           [command, "--label", "b", "--with-value", "c", "--device", Self.device]] {
             let failure = try usageFailure(arguments)
-            #expect(failure.description == "Give exactly one of --id, --label or --with-value.")
+            #expect(failure.description == "Give exactly one of --id, --label, --with-value or --handle.")
             #expect(failure.code == .usage && failure.inputSent == .none && failure.retry == .no)
         }
     }

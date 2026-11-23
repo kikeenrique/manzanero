@@ -62,7 +62,12 @@ enum AccessibilitySnapshot {
         enum CodingKeys: String, CodingKey {
             case id, parentId, depth, children, attributeSource, label, hint, identifier, value
             case frame, frameUnavailable, traits, visible, nativeAttributes, processIdentifier, externalProcessReference, focused
+            case handle
         }
+
+        /// The live element this node was read from: its process and the
+        /// object identifier accessibility gives it (`ElementHandle`).
+        var handle: String { ElementHandle(pid: token.pid, objectID: token.objectID).description }
 
         func encode(to encoder: any Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
@@ -83,6 +88,7 @@ enum AccessibilitySnapshot {
             try container.encodeIfPresent(processIdentifier, forKey: .processIdentifier)
             try container.encodeIfPresent(externalProcessReference, forKey: .externalProcessReference)
             try container.encodeIfPresent(focused, forKey: .focused)
+            try container.encode(handle, forKey: .handle)
         }
     }
 
