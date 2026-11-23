@@ -88,7 +88,7 @@ struct BatchCommand: Sendable, Equatable {
             default:
                 guard let current = open else { continue }
                 holds[current].stepsWhileHeld.append(number)
-                guard case .physicalInput(let input) = request, HoldSegment.handles(input) else { continue }
+                guard let input = request.holdTouch else { continue }
                 let segment = try HoldSegment(input)
                 guard segment.contactCount <= HoldStep.maximumExtraContacts else {
                     throw CommandFailure.usage("batch step \(number) (\(steps[index][0])) uses \(segment.contactCount) contacts while the contact of step \(holds[current].step) is held; the digitizer takes five, so at most \(HoldStep.maximumExtraContacts) beside a hold. Nothing was run.")

@@ -38,7 +38,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Build and run**: `build-run` | works | works | works | not run | not run | not run |
 | **App output**: `console`, `last-crash`, `logs` | works | works | works (`logs` on the paired tunnel) | not run | works | works |
 | **A person's step**: `handoff` | works | works | works | works | works (`--until`) | works (`--until`) |
-| **Several commands at once**: `batch` | works, `hold` and `release` too | works, touch steps too; `hold` refused | works | works | works | works |
+| **Several commands at once**: `batch` | works, `hold` and `release` too | works, touch steps too, `hold` and `release` too (iPhone, 2026-11-23) | works | works | works | works |
 | **From an AI agent**: `mcp` | works | works | works | works | not run | works |
 
 ## The routes
@@ -66,7 +66,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 2. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
 3. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
 4. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
-5. **Not built**: `hold` on a simulator, a click of the remote's touch surface, the rest of the agent features (durable sessions, element handles, `.xcappdata` export); symbolication on request (`last-crash --symbols`) and a build deadline with progress were built on 2026-11-23.
+5. **Not built**: a click of the remote's touch surface, the rest of the agent features (durable sessions, element handles, `.xcappdata` export); symbolication on request (`last-crash --symbols`) and a build deadline with progress were built on 2026-11-23.
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 

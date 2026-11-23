@@ -33,9 +33,11 @@ actor CommandService {
         try ToolRunner().run(plan.arguments, executable: plan.executable, timeout: 15)
     }, handoffWatchPause: Duration = .seconds(2), connectionState: @escaping @Sendable () throws -> Data = StaleDeviceConnection.liveDump,
        tunnelLinks: @escaping @Sendable () -> [String: String] = DeviceTunnelLinks.live,
-       inspector: @escaping InspectorRoute.Open = InspectorRoute.live, holdTransport: HoldTransport = .live) {
+       inspector: @escaping InspectorRoute.Open = InspectorRoute.live, holdTransport: HoldTransport = .live,
+       simulatorHoldTransport: HoldTransport = .simulator) {
         self.inspector = inspector
         self.holdTransport = holdTransport
+        self.simulatorHoldTransport = simulatorHoldTransport
         self.connectionState = connectionState
         self.tunnelLinks = tunnelLinks
         self.leases = leases
@@ -54,8 +56,9 @@ actor CommandService {
     private let inspector: InspectorRoute.Open
     /// The devices usbmuxd lists, for `devices`.
     private let tunnelLinks: @Sendable () -> [String: String]
-    /// Runs a `hold` step's live digitizer stream.
+    /// Runs a `hold` step's live digitizer stream, on a device or a simulator.
     private let holdTransport: HoldTransport
+    private let simulatorHoldTransport: HoldTransport
 
     private nonisolated func staleConnection(_ failure: CommandFailure) -> CommandFailure {
         StaleDeviceConnection.annotate(failure, dump: connectionState)
@@ -335,19 +338,22 @@ actor CommandService {
                             }
                             if let failure = outcome.failure { throw failure }
                             var receipt = ended.summary(releasedBy: "release-step", releaseStep: number, outcome: outcome)
-                            receipt.merge(["backend": "coredevice-direct", "operation": HoldStep.releaseOperation, "status": "released",
+                            receipt.merge(["backend": ended.backend, "operation": HoldStep.releaseOperation, "status": "released",
                                            "releaseVerified": false, "device": batch.target.identifier, "holdStep": ended.span.step]) { _, new in new }
                             let data = try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
-                            output = CommandOutput(data: DeviceUIReadiness.annotateInput(data, uuid: ended.uuid, query: uiReadinessQuery))
+                            // A simulator has no passcode state to report.
+                            output = CommandOutput(data: ended.simulatorDisplay != nil ? data
+                                : DeviceUIReadiness.annotateInput(data, uuid: ended.uuid, query: uiReadinessQuery))
                         }
-                    case .physicalInput(let input) where HoldSegment.handles(input) && batch.hold(containing: number) != nil:
+                    case _ where step.holdTouch != nil && batch.hold(containing: number) != nil:
+                        let input = step.holdTouch!
                         if dryRun {
                             output = try json(mergedPlan(input, span: batch.hold(containing: number)!))
                         } else {
                             guard let session else {
                                 throw CommandFailure(.internal, "The hold of this step is not down; nothing was sent.", inputSent: .none)
                             }
-                            output = try mergeIntoHold(input, session: session, step: number)
+                            output = try mergeIntoHold(input, request: step, session: session, step: number)
                         }
                     default:
                         output = try await execute(step, dryRun: dryRun)
@@ -384,8 +390,13 @@ actor CommandService {
     }
 
     private func holdPlan(_ hold: HoldStep, span: HoldSpan) throws -> [String: Any] {
-        let identity = try CoreDeviceInput(device: hold.device, operation: HoldStep.operation, operands: []).identityPlan()
         var plan = span.plan
+        if hold.simulator {
+            plan.merge(["backend": DirectSimulatorInput.backend, "operation": HoldStep.operation, "liveVerified": false,
+                        "execution": "Handoff pause, the booted simulator, its lease for the whole hold, two reads of its display information that must agree, then ADCSimulatorPerformLiveDigitizerReports on the interface display's touchscreen, on a thread of its own; the step returns once contact 0's first report was sent. Nothing is queried by this dry run."]) { _, new in new }
+            return plan
+        }
+        let identity = try CoreDeviceInput(device: hold.device, operation: HoldStep.operation, operands: []).identityPlan()
         plan.merge(["backend": "coredevice-direct", "operation": HoldStep.operation, "identityArguments": identity.arguments,
                     "displayArguments": Self.displayPlan("<resolved CoreDevice UUID>").arguments, "liveVerified": false,
                     "execution": "Handoff pause, readiness and identity, the device lease for the whole hold, two display reads that must agree, then ADCPerformLiveDigitizerReports on a thread of its own; the step returns once contact 0's first report was sent. Nothing is queried by this dry run."]) { _, new in new }
@@ -416,6 +427,7 @@ actor CommandService {
     /// once contact 0's first report was sent.
     private func startHold(_ hold: HoldStep, span: HoldSpan, active: ActiveHold) throws -> HoldSession {
         try checkHandoffPause(.hold(hold))
+        if hold.simulator { return try startSimulatorHold(hold, span: span, active: active) }
         let input = CoreDeviceInput(device: hold.device, operation: HoldStep.operation, operands: [])
         let identity: (uuid: String, version: String)
         let lease: DeviceLease
@@ -452,12 +464,61 @@ actor CommandService {
         throw failure
     }
 
+    /// `hold` on a simulator: the booted simulator, its lease (kept until
+    /// the hold ends), two display reads that must agree, then the stream on
+    /// the interface display's touchscreen. Returns once contact 0's first
+    /// report was sent.
+    private func startSimulatorHold(_ hold: HoldStep, span: HoldSpan, active: ActiveHold) throws -> HoldSession {
+        let lease: DeviceLease
+        let display: SimulatorDisplay
+        let touch: DirectTouchDisplay
+        do {
+            _ = try SimulatorDevice.requireBooted(hold.device, operation: HoldStep.operation, lookup: simulator.lookup)
+            lease = try leases.acquire(device: hold.device, operation: HoldStep.operation)
+        } catch let failure as CommandFailure {
+            throw failure.noInputSent()
+        }
+        do {
+            display = try SimulatorDisplay.read(hold.device, environment: simulator)
+            touch = try display.touch()
+            let again = try SimulatorDisplay.read(hold.device, environment: simulator)
+            guard again == display, try again.touch() == touch else {
+                throw CommandFailure(.preconditionChanged, "Simulator display changed before the hold; no input sent.", inputSent: .none)
+            }
+            try Task.checkCancellation()
+        } catch {
+            lease.release()
+            if let failure = error as? CommandFailure { throw failure.noInputSent() }
+            throw error
+        }
+        let point = touch.portrait(hold.x, hold.y)
+        let stream = HoldStream(slots: span.contactSlots, held: [point.0, point.1].map { Int((min(max($0, 0), 1) * 65535).rounded()) })
+        let session = HoldSession(span: span, stream: stream, device: hold.device, uuid: hold.device, display: touch, lease: lease,
+                                  simulatorDisplay: display)
+        active.set(session)
+        simulatorHoldTransport.start(stream, uuid: hold.device, version: display.displayUUID)
+        guard let early = stream.waitUntilHolding() else { return session }
+        active.set(nil)
+        let outcome = session.finish()
+        let failure = early.failure ?? outcome.failure
+            ?? CommandFailure(.internal, "The hold's stream ended before its first report; nothing is held.", inputSent: .none)
+        DeviceQuarantine.note(failure, device: hold.device, operation: HoldStep.operation, leases: leases)
+        throw failure
+    }
+
     /// A touch step inside a hold: its frames go into the hold's stream as
     /// contacts after the held one; it opens no connection of its own.
-    private func mergeIntoHold(_ input: CoreDeviceInput, session: HoldSession, step: Int) throws -> CommandOutput {
-        try checkHandoffPause(.physicalInput(input))
-        guard try holdDisplay(session.uuid) == session.display else {
-            throw CommandFailure(.preconditionChanged, "Display changed during the hold; this step sent nothing, and the hold is released when the batch stops.", inputSent: .none)
+    private func mergeIntoHold(_ input: CoreDeviceInput, request: CommandRequest, session: HoldSession, step: Int) throws -> CommandOutput {
+        try checkHandoffPause(request)
+        if let held = session.simulatorDisplay {
+            let now = try SimulatorDisplay.read(input.device, environment: simulator)
+            guard now == held, try now.touch() == session.display else {
+                throw CommandFailure(.preconditionChanged, "Simulator display changed during the hold; this step sent nothing, and the hold is released when the batch stops.", inputSent: .none)
+            }
+        } else {
+            guard try holdDisplay(session.uuid) == session.display else {
+                throw CommandFailure(.preconditionChanged, "Display changed during the hold; this step sent nothing, and the hold is released when the batch stops.", inputSent: .none)
+            }
         }
         let segment = try HoldSegment(input, display: session.display)
         try Task.checkCancellation()
@@ -465,8 +526,9 @@ actor CommandService {
         if let ended = session.stream.perform(segment) {
             throw ended.failure ?? CommandFailure(.inputOutcomeUnknown, "The hold's stream ended while this step was sent; its effect is unknown.", inputSent: .possible)
         }
-        return try json(["backend": "coredevice-direct", "operation": input.operation, "status": "dispatched", "verified": false,
-            "releaseVerified": false, "device": input.device, "resolvedCoreDeviceUUID": session.uuid, "mergedIntoHold": true,
+        return try json(["backend": session.backend, "operation": input.operation, "status": "dispatched", "verified": false,
+            "releaseVerified": false, "device": input.device,
+            session.simulatorDisplay == nil ? "resolvedCoreDeviceUUID" : "resolvedSimulatorUUID": session.uuid, "mergedIntoHold": true,
             "holdStep": session.span.step, "contactIDs": Array(1...segment.contactCount), "frameCount": segment.frames.count,
             "durationMilliseconds": Int(segment.durationNanoseconds / 1_000_000),
             "coordinateSpace": "normalized-current-interface", "displayRotationDegrees": session.display.rotation])

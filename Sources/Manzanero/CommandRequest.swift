@@ -112,7 +112,7 @@ extension CommandRequest {
         case .tool(let tool): (tool.platform.rawValue, tool.device, tool.operation)
         case .simulatorDisplay(let display): ("simulator", display.device, display.operation)
         case .batch(let batch): (batch.target.platform.rawValue, batch.target.identifier, "batch")
-        case .hold(let hold): ("physical", hold.device, HoldStep.operation)
+        case .hold(let hold): (hold.simulator ? "simulator" : "physical", hold.device, HoldStep.operation)
         case .release(let target): (target.platform.rawValue, target.identifier, HoldStep.releaseOperation)
         case .reportingFocus(let press, _): press.addressed
         case .decodeArchive, .ocr, .devices, .createSimulator, .doctor, .keyboardLayouts: nil
@@ -137,6 +137,7 @@ extension CommandRequest {
         switch self {
         case .diagnostics(.logs), .diagnostics(.console): "app output capture"
         case .simulatorInput: "simulator input"
+        case .hold(let hold) where hold.simulator: "simulator input"
         case .physicalInput, .hold, .release: "physical input"
         case .frames: "frame capture"
         // The in-process recording owns a stream on the device. Outside the
@@ -147,6 +148,16 @@ extension CommandRequest {
         case .detectLayout: "layout detection"
         case .batch(let batch): batch.requests.contains { $0.signalContext != nil } ? "batch" : nil
         case .reportingFocus(let press, _): press.signalContext
+        default: nil
+        }
+    }
+
+    /// A touch step's input, on either platform, which a hold takes into its
+    /// stream (`HoldSegment.handles`); nil for any other step.
+    var holdTouch: CoreDeviceInput? {
+        switch self {
+        case .physicalInput(let input) where HoldSegment.handles(input): input
+        case .simulatorInput(let input) where HoldSegment.handles(input.coreDeviceInput): input.coreDeviceInput
         default: nil
         }
     }

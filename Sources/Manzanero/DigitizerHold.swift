@@ -23,17 +23,18 @@ struct HoldStep: Sendable, Equatable {
     static let batchOnly = "hold and release are batch steps: they keep a contact down while the steps between them run, and run only inside batch (see manzanero batch --help). Nothing was run."
 
     let device: String
+    /// A simulator's hold: the same stream on the touchscreen of the
+    /// display the interface is on (`ADCSimulatorPerformLiveDigitizerReports`).
+    let simulator: Bool
     let x: Double
     let y: Double
 
     init(_ target: Target, x: String, y: String) throws {
-        guard target.platform == .physical else {
-            throw CommandFailure.unsupported("hold runs on a physical device only: the simulator's digitizer has no live stream in this tool yet (docs/gesture-sequences.md#holding-a-contact-across-steps). Nothing was run.")
-        }
         guard let x = Double(x), let y = Double(y), x.isFinite, y.isFinite, (0...1).contains(x), (0...1).contains(y) else {
             throw CommandFailure.usage("hold takes normalized x and y in 0...1 of the current interface.")
         }
         device = target.identifier
+        simulator = target.platform == .simulator
         self.x = x
         self.y = y
     }
@@ -339,6 +340,20 @@ struct HoldTransport: Sendable {
                                   message: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
     }
 
+    /// A simulator's stream: `uuid` is the simulator's and `version` the
+    /// unique identifier of the display whose touchscreen takes the reports.
+    static let simulator = HoldTransport { uuid, display, next, shouldStop in
+        var error = [CChar](repeating: 0, count: 1024), surface: UInt64 = 0
+        let owner: SimulatorBridgeOwner
+        do {
+            owner = try SimulatorBridgeOwner(uuid: uuid, developerDirectory: SimulatorDevice.developerDirectory(), accessibility: false)
+        } catch {
+            return HoldStream.Outcome(status: 1, surface: 0, message: "\(CommandFailure.classify(error).description) No input sent.")
+        }
+        let status = ADCSimulatorPerformLiveDigitizerReports(owner.pointer, display, next, shouldStop, &surface, &error, error.count)
+        return HoldStream.Outcome(status: status, surface: surface, message: DirectSimulatorInput.message(error))
+    }
+
     /// The C live scheduler with a local sink instead of a device, mapped
     /// onto the device function's status contract.
     static func local(_ sink: @escaping @Sendable ([UInt8]) -> Void) -> HoldTransport {
@@ -376,6 +391,9 @@ final class HoldSession: @unchecked Sendable {
     let device: String
     let uuid: String
     let display: DirectTouchDisplay
+    /// A simulator's display as it was read when the hold started, which
+    /// every merged step reads again and compares; nil on a device.
+    let simulatorDisplay: SimulatorDisplay?
     private let lease: DeviceLease?
     /// Steps that ran while the contact was down; touched by the batch only.
     var stepsWhileHeld: [Int] = []
@@ -383,14 +401,18 @@ final class HoldSession: @unchecked Sendable {
     private let ended = NSLock()
     private var outcome: HoldStream.Outcome?
 
-    init(span: HoldSpan, stream: HoldStream, device: String, uuid: String, display: DirectTouchDisplay, lease: DeviceLease?) {
+    init(span: HoldSpan, stream: HoldStream, device: String, uuid: String, display: DirectTouchDisplay, lease: DeviceLease?,
+         simulatorDisplay: SimulatorDisplay? = nil) {
         self.span = span
         self.device = device
         self.stream = stream
         self.uuid = uuid
         self.display = display
         self.lease = lease
+        self.simulatorDisplay = simulatorDisplay
     }
+
+    var backend: String { simulatorDisplay == nil ? "coredevice-direct" : DirectSimulatorInput.backend }
 
     /// Ends the stream (or, with `stop`, stops it) and releases the lease;
     /// the outcome of the first call is kept.
@@ -407,9 +429,10 @@ final class HoldSession: @unchecked Sendable {
     }
 
     func holdReceipt() -> [String: Any] {
-        ["backend": "coredevice-direct", "operation": HoldStep.operation, "status": "holding", "verified": false,
+        [simulatorDisplay == nil ? "resolvedCoreDeviceUUID" : "resolvedSimulatorUUID": uuid,
+         "backend": backend, "operation": HoldStep.operation, "status": "holding", "verified": false,
          "device": device, "step": span.step, "contact": 0, "x": span.x, "y": span.y, "contactSlots": span.contactSlots,
-         "refreshMilliseconds": HoldStep.refreshMilliseconds, "resolvedCoreDeviceUUID": uuid,
+         "refreshMilliseconds": HoldStep.refreshMilliseconds,
          "coordinateSpace": "normalized-current-interface", "displayRotationDegrees": display.rotation,
          "releasedBy": span.releaseStep.map { "step \($0)" } ?? "the end of the batch"]
     }

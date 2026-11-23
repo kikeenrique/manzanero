@@ -324,6 +324,14 @@ int ADCSimulatorPerformDigitizerReports(void *owner, const char *displayUUID, co
 /// page 13, usage 5) for this connection, sends it the same complete-state
 /// reports as ADCSimulatorPerformDigitizerReports, and lets the daemon cancel
 /// the service when the connection closes. Same status contract.
+/// The live scheduler (ADCRunLiveDigitizer) on the touchscreen of one simulator
+/// display, as ADCSimulatorPerformDigitizerReports chooses it, for one
+/// connection that lasts as long as the provider keeps the stream going (a
+/// `hold` batch step on a simulator). Same status contract as
+/// ADCPerformLiveDigitizerReports.
+int ADCSimulatorPerformLiveDigitizerReports(void *owner, const char *displayUUID, ADCDigitizerProvider next,
+                                            ADCInputShouldStop shouldCancel, uint64_t *surface,
+                                            char *error, size_t errorCapacity);
 int ADCSimulatorPerformRemoteTouch(void *owner, const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
                                    ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 /// One read-only CoreDevice display-information request to the simulator's

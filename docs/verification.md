@@ -2090,6 +2090,17 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote left --report-focus` | `focus.label` Settings |
 | `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
 
+### Hold on a simulator
+
+**2026-11-23**, `manzanero-research-phone` (iOS 27.2), the iOS touch probe in front, `batch --simulator` with the new simulator stream (`ADCSimulatorPerformLiveDigitizerReports`). The probe's own readouts, read from screenshots, are the ground truth.
+
+| Batch | Observed |
+| --- | --- |
+| `hold 0.5 0.5`, `tap 0.2 0.3`, `release`, sent at once after a `launch --relaunch` of the probe | Receipt: 7 reports, release confirmed by the barrier. The probe recorded nothing: it was not yet taking touches |
+| The same, a minute later | One gesture of two contacts: c0 (0.500, 0.500) for 0.106 s and c1 (0.200, 0.300) for 0.081 s, both ended |
+| `hold 0.5 0.6`, `wait --id probe.touch.reset --until visible`, `tap 0.3 0.7`, `release` | The wait failed after 12 s: the simulator returned no accessibility snapshot of the probe. The hold had sent 49 reports (48 refreshes) and was released by the failed step, confirmed; the probe recorded one contact at (0.500, 0.600) for 12.107 s, ended. A plain `tree` with nothing held failed the same way, so the hold was not the cause; VoiceOver had been switched on and off on that simulator earlier the same evening (`settings --voiceover`), and after `simctl shutdown` and `boot` the tree read 14 nodes |
+| The same after the restart | The wait was met (`visible`) while the contact was down; the probe recorded one gesture: c0 (0.500, 0.600) for 0.165 s and c1 (0.300, 0.700) for 0.081 s, both ended; release confirmed |
+
 ### Seeking in Apple's player on a simulator
 
 **2026-11-23**, `manzanero-research-tv-4k` (tvOS 27.2), the tvOS probe's [silent video](probe-app.md#a-silent-video) in `AVPlayerViewController`. The position was read from the probe's readout, the transport bar's `Media Controls` value and screenshots.

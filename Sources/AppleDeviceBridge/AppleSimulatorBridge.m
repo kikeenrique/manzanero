@@ -574,6 +574,51 @@ int ADCSimulatorPerformDigitizerReports(void *owner, const char *displayUUID, co
     return status;
 }
 
+int ADCSimulatorPerformLiveDigitizerReports(void *owner, const char *displayUUID, ADCDigitizerProvider next,
+                                            ADCInputShouldStop shouldCancel, uint64_t *surface, char *error, size_t capacity) {
+    if (surface) *surface = 0;
+    if (!next) return ADCSimulatorFail(error, capacity, @"A live digitizer stream needs a report provider; no input sent.");
+    if (!displayUUID || ![[NSUUID alloc] initWithUUIDString:[NSString stringWithUTF8String:displayUUID]])
+        return ADCSimulatorFail(error, capacity, @"Invalid simulator display identifier; no input sent.");
+    // The same touchscreen choice as ADCSimulatorPerformDigitizerReports: the
+    // one of the display the interface is on.
+    NSString *product = [NSString stringWithFormat:@"CoreDevice touchscreen(%s)", displayUUID];
+    __block uint64_t selected = 0;
+    __block int live = 0;
+    int status = ADCSimulatorPerformInput(owner, @"com.apple.coredevice.feature.remote.universalhidservice", shouldCancel,
+        ^int(xpc_connection_t connection, dispatch_queue_t queue, ADCSimulatorReply *state) {
+            xpc_object_t reply = ADCSimulatorRequest(connection, queue, ADCUniversalRequest("connectedServices", xpc_dictionary_create_empty()));
+            xpc_object_t services = reply && xpc_get_type(reply) == XPC_TYPE_DICTIONARY && !xpc_dictionary_get_value(reply, "error") &&
+                !xpc_dictionary_get_value(reply, "CoreDevice.error") ? xpc_dictionary_get_array(reply, "connectedServices") : NULL;
+            size_t matches = 0;
+            if (!state.arrived && services && xpc_array_get_count(services) <= 128) {
+                for (size_t i = 0; i < xpc_array_get_count(services); i++) {
+                    xpc_object_t descriptor = xpc_array_get_value(services, i);
+                    if (xpc_get_type(descriptor) != XPC_TYPE_DICTIONARY) continue;
+                    const char *name = xpc_dictionary_get_string(descriptor, "Product");
+                    xpc_object_t identifier = xpc_dictionary_get_value(descriptor, "_ServiceID");
+                    uint64_t value = identifier && xpc_get_type(identifier) == XPC_TYPE_UINT64 ? xpc_uint64_get_value(identifier) : 0;
+                    if (name && strcmp(name, product.UTF8String) == 0 && value) { selected = value; matches++; }
+                }
+            }
+            if (matches == 1) return 0;
+            ADCSimulatorFail(error, capacity, @"The simulator's Universal HID service did not list exactly one touchscreen for the display; no report sent.");
+            return 1;
+        },
+        ^int(xpc_connection_t connection, ADCInputShouldStop stop) {
+            // The live scheduler releases every active contact whenever the
+            // stream ends, as on a device.
+            live = ADCRunLiveDigitizer(next, stop, ^(const uint8_t *bytes) {
+                xpc_connection_send_message(connection, ADCUniversalReport(bytes, selected));
+            });
+            return live;
+        }, error, capacity);
+    // An invalid first report sent nothing; the shared runner cannot tell.
+    if (live == 2) return ADCSimulatorFail(error, capacity, @"The live stream's first report was invalid; no input sent.");
+    if (status == 0 && surface) *surface = selected;
+    return status;
+}
+
 int ADCSimulatorPerformRemoteTouch(void *owner, const uint64_t *times, const uint8_t *reports, size_t count,
                                    ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     if (ADCValidateDigitizerSchedule(times, reports, count, error, capacity)) return 1;

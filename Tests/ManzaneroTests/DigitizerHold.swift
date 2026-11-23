@@ -52,10 +52,23 @@ struct HoldBatchBuildTests {
         #expect(failure?.description.contains(message) == true && failure?.description.contains("Nothing was run") == true)
     }
 
-    @Test func holdIsRefusedOnASimulator() {
+    /// A simulator's batch holds as a device's does: its touch steps join
+    /// the stream, and the dry run plans the simulator's own stream.
+    @Test func aSimulatorsHoldMergesItsTouchStepsAndPlansItsOwnStream() async throws {
         let simulator = Target(platform: .simulator, identifier: SimulatorDeviceTests.uuid)
-        let failure = #expect(throws: CommandFailure.self) { try BatchCommand(target: simulator, steps: [["hold", "0.5", "0.5"], ["release"]]) }
-        #expect(failure?.code == .unsupportedOperation && failure?.description.contains("physical device only") == true)
+        let batch = try BatchCommand(target: simulator, steps: [["hold", "0.5", "0.5"], ["tap", "0.2", "0.3"],
+                                                               ["wait", "--label", "Done", "--until", "visible"], ["release"]])
+        #expect(batch.holds.first?.mergedSteps == [2] && batch.holds.first?.stepsWhileHeld == [2, 3] && batch.holds.first?.contactSlots == 2)
+        #expect(batch.requests[0].signalContext == "simulator input" && batch.requests[0].addressed?.platform == "simulator")
+        #expect(batch.requests[1].holdTouch?.operation == "tap")
+        let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried a device"); return Data() })
+        let output = try await service.execute(.batch(batch), dryRun: true)
+        let receipt = try #require(JSONSerialization.jsonObject(with: output.data) as? [String: Any])
+        let steps = try #require(receipt["steps"] as? [[String: Any]])
+        let hold = try #require(steps.first?["output"] as? [String: Any])
+        #expect(hold["backend"] as? String == DirectSimulatorInput.backend)
+        #expect((hold["execution"] as? String)?.contains("ADCSimulatorPerformLiveDigitizerReports") == true)
+        #expect((steps[1]["output"] as? [String: Any])?["mergedIntoHold"] as? Bool == true)
     }
 
     @Test(arguments: [["hold", "0.5", "0.5"], ["release"]])
@@ -77,6 +90,7 @@ struct HoldBatchBuildTests {
         let batch = try BatchCommand(target: Self.target, steps: [["hold", "0.5", "0.5"], ["wait", "--id", "x"], ["release"]])
         #expect(CommandRequest.batch(batch).signalContext == "batch" && !CommandRequest.batch(batch).isReadOnly)
         #expect(batch.requests[0].signalContext == "physical input" && batch.requests[2].signalContext == "physical input")
+        #expect(batch.requests[0].addressed?.platform == "physical")
     }
 
     @Test func mcpRunBatchCarriesHoldAndReleaseAsSteps() throws {
