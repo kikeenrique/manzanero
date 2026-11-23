@@ -20,10 +20,22 @@ struct BuildRunCommand: Sendable, Equatable {
     /// shown in Xcode's Devices window (the hardware UDID for a physical device); a CoreDevice
     /// UUID is resolved to it before building. devicectl accepts either and keeps `device`.
     var destinationID: String
+    /// `--build-timeout`: xcodebuild is stopped after this many seconds,
+    /// before anything reaches the device. Nil: no deadline.
+    var buildTimeoutSeconds: Int?
+    static let buildTimeoutRange = 30...7200
+    static let buildTimeoutOption = "--build-timeout"
+    /// How often a progress line goes to stderr while xcodebuild runs.
+    static let progressSeconds = 10.0
 
     /// Checks the target, paths and options before anything is built.
     init(physical: Bool, device: String, project: String, scheme: String, configuration: String?, appTarget: String?,
-         allowProvisioningUpdates: Bool = false, allowDeviceRegistration: Bool = false) throws {
+         allowProvisioningUpdates: Bool = false, allowDeviceRegistration: Bool = false, buildTimeout: String? = nil) throws {
+        if let buildTimeout {
+            guard let seconds = Int(buildTimeout), Self.buildTimeoutRange.contains(seconds) else {
+                throw CommandFailure.usage("\(Self.buildTimeoutOption) takes whole seconds in \(Self.buildTimeoutRange.lowerBound)...\(Self.buildTimeoutRange.upperBound).")
+            }
+        }
         guard UUID(uuidString: device) != nil || (physical && Self.isHardwareUDID(device)) else {
             throw CommandFailure.usage("Build & Run requires an explicit device UDID or CoreDevice UUID, not a name or 'booted'.")
         }
@@ -48,6 +60,29 @@ struct BuildRunCommand: Sendable, Equatable {
                   configuration: configuration ?? "Debug", appTarget: appTarget,
                   allowProvisioningUpdates: allowProvisioningUpdates, allowDeviceRegistration: allowDeviceRegistration,
                   destinationID: device)
+        buildTimeoutSeconds = buildTimeout.flatMap(Int.init)
+    }
+
+    /// Steps xcodebuild names at the start of a line, in its own words.
+    static let buildSteps = ["SwiftCompile", "CompileSwift", "SwiftEmitModule", "SwiftDriver", "CompileC", "CompileAssetCatalog",
+                             "CompileStoryboard", "CompileXIB", "Ld", "CodeSign", "PhaseScriptExecution", "ProcessInfoPlistFile",
+                             "CopySwiftLibs", "ProcessProductPackaging", "GenerateDSYMFile", "Touch", "Validate", "RegisterWithLaunchServices"]
+
+    /// One line for stderr while the build runs: the time so far, how many
+    /// steps the log names, and the latest one with its file's name, such as
+    /// `build-run: 40 s, 12 steps, now SwiftCompile ProbeTVVideo.swift`.
+    static func progressLine(log: Data, elapsed: Double) -> String {
+        var steps = 0, latest: String?
+        for line in String(decoding: log, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: true) {
+            guard let first = line.split(separator: " ", maxSplits: 1).first, buildSteps.contains(String(first)) else { continue }
+            steps += 1
+            // The last path in the line names the file; a target name is
+            // in parentheses after it.
+            let words = line.split(separator: " ").map(String.init)
+            let file = words.last { $0.contains("/") }.map { URL(fileURLWithPath: $0).lastPathComponent }
+            latest = [String(first), file].compactMap { $0 }.joined(separator: " ")
+        }
+        return "build-run: \(Int(elapsed)) s, \(steps) steps" + (latest.map { ", now \($0)" } ?? ", xcodebuild preparing")
     }
 
     init(physical: Bool, device: String, project: String, scheme: String, configuration: String, appTarget: String?,

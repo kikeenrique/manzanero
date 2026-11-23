@@ -32,9 +32,21 @@ struct ToolRunner: Sendable {
     }
 
     /// Both Xcode output streams go through xcsift; retain the raw log on failure too.
-    func build(_ arguments: [String], log: URL, executable: String = "/usr/bin/xcrun") throws {
+    /// `timeout` stops the build at its deadline, keeping the log so far;
+    /// `progress` is handed the log so far every `progressInterval` seconds.
+    func build(_ arguments: [String], log: URL, executable: String = "/usr/bin/xcrun", timeout: Double? = nil,
+               progressInterval: Double = 10, progress: ((Data, Double) -> Void)? = nil) throws {
         _ = try run(["xcsift", "--version"], executable: "/usr/bin/env")
-        let result = try capture(arguments, executable: executable, merged: true)
+        let result: (status: Int32, output: Data, errors: Data)
+        do {
+            result = try capture(arguments, executable: executable, merged: true, timeout: timeout,
+                                 watch: progress.map { report in (progressInterval, { stdout, elapsed in
+                                     if let data = try? Data(contentsOf: stdout) { report(data, elapsed) }
+                                 }) }, keepOutput: log)
+        } catch let failure as CommandFailure where failure.code == .timeout {
+            // A build runs on the Mac; the device is untouched until install.
+            throw CommandFailure(.timeout, "Xcode build did not finish within \(Int(timeout ?? 0)) s and was stopped; raw build log so far: \(log.path)", inputSent: .none)
+        }
         try result.output.write(to: log)
         let formatted = try capture(["xcsift", "-f", "toon"], executable: "/usr/bin/env", input: log)
         FileHandle.standardError.write(formatted.output)
@@ -51,7 +63,9 @@ struct ToolRunner: Sendable {
     private func capture(_ arguments: [String], executable: String,
                          merged: Bool = false, input: URL? = nil, inputData: Data? = nil,
                          recording: RecordingTiming? = nil, timeout: Double? = nil,
-                         environment: [String: String] = [:]) throws -> (status: Int32, output: Data, errors: Data) {
+                         environment: [String: String] = [:],
+                         watch: (interval: Double, report: (URL, Double) -> Void)? = nil,
+                         keepOutput: URL? = nil) throws -> (status: Int32, output: Data, errors: Data) {
         try DeviceExecutablePolicy.validate(executable, arguments: arguments)
         let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("tmp/process-\(UUID().uuidString)")
@@ -97,17 +111,26 @@ struct ToolRunner: Sendable {
                 process.waitUntilExit()
                 throw error
             }
-        } else if let timeout {
-            let deadline = ContinuousClock.now + .seconds(timeout)
+        } else if timeout != nil || watch != nil {
+            let start = ContinuousClock.now
+            let deadline = timeout.map { start + .seconds($0) }
+            var nextReport = watch.map { start + .seconds($0.interval) }
             while process.isRunning {
-                if Task.isCancelled || ContinuousClock.now >= deadline {
+                if Task.isCancelled || deadline.map({ ContinuousClock.now >= $0 }) == true {
                     process.terminate()
                     let grace = ContinuousClock.now + .seconds(1)
                     while process.isRunning, ContinuousClock.now < grace { usleep(10_000) }
                     if process.isRunning { _ = Darwin.kill(process.processIdentifier, SIGKILL) }
                     process.waitUntilExit()
+                    // What the process wrote so far, for a caller that keeps it.
+                    if let keepOutput, let data = try? Data(contentsOf: stdout) { try? data.write(to: keepOutput) }
                     if Task.isCancelled { throw CancellationError() }
                     throw CommandFailure(.timeout, "\(URL(fileURLWithPath: executable).lastPathComponent) timed out; inspect device state before retrying an action.", inputSent: .unknown)
+                }
+                if let watch, let due = nextReport, ContinuousClock.now >= due {
+                    let elapsed = start.duration(to: .now)
+                    watch.report(stdout, Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18)
+                    nextReport = due + .seconds(watch.interval)
                 }
                 usleep(10_000)
             }

@@ -686,7 +686,9 @@ extension ManzaneroCLI {
             Runs the project's build scripts and requires xcsift on PATH. Physical builds use the signing assets \
             already on the Mac. --allow-provisioning-updates lets Xcode use the account in its settings to create \
             or change certificates, app IDs and profiles on Apple's developer services; \
-            --allow-device-registration also registers the device with the team. Both are physical-only and off by default.
+            --allow-device-registration also registers the device with the team. Both are physical-only and off by default. \
+            While xcodebuild runs, a progress line goes to stderr every 10 seconds (the time so far, the steps the \
+            log names and the latest one); stdout stays the JSON result.
             """)
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
@@ -696,10 +698,12 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("The application target, when the scheme builds several.", valueName: "name")) var appTarget: String?
         @Flag(help: "Let Xcode create or update signing assets on Apple's developer services (physical).") var allowProvisioningUpdates = false
         @Flag(help: "Also let Xcode register this device with the team; needs --allow-provisioning-updates.") var allowDeviceRegistration = false
+        @Option(help: ArgumentHelp("Stop xcodebuild after this many seconds, 30...7200, before anything reaches the device; the log so far is kept.", valueName: "seconds")) var buildTimeout: String?
         func request(_ target: Target) throws -> CommandRequest {
             .buildRun(try BuildRunCommand(physical: target.platform == .physical, device: target.identifier, project: project, scheme: scheme,
                                           configuration: configuration, appTarget: appTarget,
-                                          allowProvisioningUpdates: allowProvisioningUpdates, allowDeviceRegistration: allowDeviceRegistration))
+                                          allowProvisioningUpdates: allowProvisioningUpdates, allowDeviceRegistration: allowDeviceRegistration,
+                                          buildTimeout: buildTimeout))
         }
     }
 

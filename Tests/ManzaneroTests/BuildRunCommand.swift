@@ -1,4 +1,6 @@
 import Foundation
+import MCP
+import Synchronization
 import Testing
 @testable import Manzanero
 
@@ -324,5 +326,60 @@ struct BuildRunCommandTests {
             #expect(operations.last == ["devicectl", "device", "process", "launch", "--terminate-existing",
                 "--device", "00000000-0000000000000000", "--timeout", "60", "--json-output", "-", "org.example.build-run"])
         }
+    }
+}
+
+/// `--build-timeout` and the progress lines on stderr.
+struct BuildRunDeadlineTests {
+    let device = "11111111-2222-3333-4444-555555555555"
+
+    @Test func theProgressLineNamesTheTimeTheStepsAndTheLatest() {
+        let log = Data("""
+        Prepare packages
+        ComputeTargetDependencyGraph
+        SwiftDriver ProbeTV normal arm64 com.apple.xcode.tools.swift.compiler (in target 'ProbeTV' from project 'ProbeApp')
+            cd /work/Fixtures
+        SwiftCompile normal arm64 /work/Fixtures/ProbeApp/TV/ProbeTVVideo.swift (in target 'ProbeTV' from project 'ProbeApp')
+        note: a note that is not a step
+        """.utf8)
+        #expect(BuildRunCommand.progressLine(log: log, elapsed: 40.7) == "build-run: 40 s, 2 steps, now SwiftCompile ProbeTVVideo.swift")
+        #expect(BuildRunCommand.progressLine(log: Data("Prepare packages\n".utf8), elapsed: 10) == "build-run: 10 s, 0 steps, xcodebuild preparing")
+    }
+
+    @Test func theDeadlineIsCheckedBeforeAnyBuildAndReachesMCP() throws {
+        let built = try BuildRunCommand(physical: false, device: device, project: "A.xcodeproj", scheme: "A", configuration: nil, appTarget: nil, buildTimeout: "600")
+        #expect(built.buildTimeoutSeconds == 600)
+        for value in ["29", "7201", "ten", "1.5"] {
+            let failure = #expect(throws: CommandFailure.self) {
+                try BuildRunCommand(physical: false, device: device, project: "A.xcodeproj", scheme: "A", configuration: nil, appTarget: nil, buildTimeout: value)
+            }
+            #expect(failure?.code == .usage)
+        }
+        let tool = try #require(MCPTools.definitions.first { $0.name == "build_run" })
+        let args = try tool.command(["device": .string(device), "platform": "simulator", "project": "A.xcodeproj", "scheme": "A", "build_timeout_seconds": 600])
+        guard case .buildRun(let request) = try CLI.invocation(args).request else {
+            Issue.record("Not a build-run request: \(args)"); return
+        }
+        #expect(request.buildTimeoutSeconds == 600)
+    }
+
+    /// A build past its deadline is stopped, the log so far is kept, and
+    /// the progress reports saw it while it ran. Nothing reached a device.
+    @Test(.dedicatedThread, .timeLimit(.minutes(1))) func aBuildPastItsDeadlineIsStoppedWithItsLogKept() throws {
+        let directory = URL(fileURLWithPath: "tmp/build-deadline-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let log = directory.appendingPathComponent("build.log")
+        let reports = Mutex<[String]>([])
+        let failure = #expect(throws: CommandFailure.self) {
+            try ToolRunner().build(["-c", "echo 'SwiftCompile normal arm64 /work/A.swift'; sleep 20"], log: log, executable: "/bin/sh",
+                                   timeout: 1, progressInterval: 0.2) { data, elapsed in
+                reports.withLock { $0.append(BuildRunCommand.progressLine(log: data, elapsed: elapsed)) }
+            }
+        }
+        #expect(failure?.code == .timeout && failure?.inputSent == CommandFailure.InputSent.none)
+        #expect(failure?.description.contains(log.path) == true)
+        #expect((try? String(contentsOf: log, encoding: .utf8))?.contains("SwiftCompile") == true)
+        #expect(reports.withLock { $0.contains { $0.hasSuffix("now SwiftCompile A.swift") } })
     }
 }

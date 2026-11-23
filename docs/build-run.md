@@ -46,7 +46,9 @@ The options apply only to the build, not to the build-settings query, and change
 
 Build directories retain derived data, source-package state and raw `build.log`. Project scripts may write elsewhere according to their own configuration.
 
-Every invocation uses an argument array. The merged Xcode log is passed to xcsift after build completion; diagnostics go to stderr. Xcode's exit status remains authoritative. Devicectl options precede the app operand so they are not forwarded as app arguments.
+Every invocation uses an argument array. The merged Xcode log is passed to xcsift after build completion; diagnostics go to stderr. Xcode's exit status remains authoritative.
+
+While xcodebuild runs, a progress line goes to stderr every 10 seconds, read from the log so far: the time, how many steps the log names (`SwiftCompile`, `CompileC`, `Ld`, `CodeSign`, `PhaseScriptExecution` and the others xcodebuild writes at the start of a line), and the latest with its file, such as `build-run: 40 s, 12 steps, now SwiftCompile ProbeTVVideo.swift`. A build shorter than 10 seconds prints none. `--build-timeout <seconds>` (30…7200; MCP `build_timeout_seconds`) stops xcodebuild at that deadline, before anything reaches the device, and fails as `timeout` naming the raw log so far; without it there is no deadline. Both since 2026-11-23; the deadline and the progress are unit-tested against a real process, and a `build-run` of the iOS probe on a simulator with `--build-timeout 900` built, installed and launched it in about 10 seconds, too quickly for a progress line. Devicectl options precede the app operand so they are not forwarded as app arguments.
 
 ## Results and failures
 
@@ -68,4 +70,4 @@ Simulator project/Debug and workspace/Release flows were checked. On the iPhone 
 
 `--allow-device-registration` and CoreDevice UUID resolution have not been run on hardware; they were checked against `xcodebuild -help`, `man xcodebuild` and `devicectl help`, dry runs and unit tests. See [verification](verification.md#touch-delivery-measured-with-the-probe-app).
 
-Streaming progress, general cancellation coordination, a build deadline, reuse of earlier build directories, automatic symbolication and crash monitoring are unfinished. MCP `build_run` shares these limits. See [verification](verification.md) and the [roadmap](roadmap.md).
+Progress beyond the stderr line (MCP has no progress notifications for it), general cancellation coordination, reuse of earlier build directories, automatic symbolication and crash monitoring are unfinished. MCP `build_run` shares these limits. See [verification](verification.md) and the [roadmap](roadmap.md).

@@ -833,7 +833,12 @@ actor CommandService {
             }
             return CommandOutput(data: try command.execute(directory: directory, run: {
                 try runner.run($0.arguments, executable: $0.executable)
-            }, build: { try runner.build($0, log: $1) }))
+            }, build: { arguments, log in
+                try runner.build(arguments, log: log, timeout: command.buildTimeoutSeconds.map(Double.init),
+                                 progressInterval: BuildRunCommand.progressSeconds) { data, elapsed in
+                    FileHandle.standardError.write(Data((BuildRunCommand.progressLine(log: data, elapsed: elapsed) + "\n").utf8))
+                }
+            }))
     }
 
     /// Simulator input and accessibility. The order mirrors the physical path:
