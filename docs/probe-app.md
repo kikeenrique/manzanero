@@ -443,6 +443,10 @@ manzanero install tmp/probe-app/DerivedData/Build/Products/Debug-appletvsimulato
 manzanero launch com.lemambo.manzanero.probetv --simulator <UUID>
 ```
 
+### A silent video
+
+Launched with `-ProbeVideo YES` (`launch com.lemambo.manzanero.probetv --relaunch --simulator <UUID> -- -ProbeVideo YES`), the tvOS probe shows Apple's own player (`AVPlayerViewController`) on a ten-minute movie it makes for itself on first launch, into its Caches (about half a minute on a simulator). The movie has no sound track and the player is muted, so the room an Apple TV is in stays quiet. Each frame is grey, never black, with its own time in large figures (`mm:ss.f`) and a bar that grows with it, so a screenshot reads the position. The position is also logged every half second, category `video` (`video 43.0 rate 1.00`), and kept as the value of an element in the player's content overlay, `probe.tv.video.time` (label `Video time`), which updates only while the video plays; while paused, read the transport bar's `Media Controls` value instead. It is for seeking, the player's tree, and captures of a player; it is not protected content, so it does not show what a FairPlay video does to a screenshot.
+
 `build-run` does not build for tvOS. A build for a physical Apple TV needs a tvOS development profile for the bundle identifier; without one already on the Mac, `xcodebuild` asks for `-allowProvisioningUpdates`, which acts on the Apple developer account and is the owner's decision.
 
 Checked on one tvOS 27.2 simulator on 2026-11-18: each of the seven `remote` buttons was recorded once, and the keys Space, Escape and Return were recorded as `play-pause`, `menu` and `select`. The same day the owner ran it from Xcode onto an Apple TV 4K (3rd generation, tvOS 27.2), where it recorded `play-pause`, `select:b`, `menu`, `up`, `left` twice and `right` as `remote` sent them, and its text field took `set-value` ([record](verification.md#first-look-at-a-physical-apple-tv)). The app starts with focus on the text field, so move up to the buttons before `select`.

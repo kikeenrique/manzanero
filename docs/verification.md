@@ -2065,6 +2065,22 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote left --report-focus` | `focus.label` Settings |
 | `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
 
+### Seeking in Apple's player on a simulator
+
+**2026-11-23**, `manzanero-research-tv-4k` (tvOS 27.2), the tvOS probe's [silent video](probe-app.md#a-silent-video) in `AVPlayerViewController`. The position was read from the probe's readout, the transport bar's `Media Controls` value and screenshots.
+
+| Step | Observed |
+| --- | --- |
+| Playing, controls hidden: `tree` | 15 nodes, none labelled but the probe's readout; the player shows in the class names (native attribute 5003): `_AVPlayerViewControllerContainerView`, `_AVFocusContainerView`, `__AVPlayerLayerView` |
+| `remote play-pause`, then `tree` | 43 nodes: the transport bar (`AVNowPlayingTransportBar`) with `Media Controls` (value "17 seconds elapsed, 9 minutes, 43 seconds remaining"), `Scrub Needle`, `Elapsed Time Scrubbing Marker`, `AXElapsedTime` `00:17`, `AXRemainingTime` `-09:43`, `Reverse Scanning Speed`, `Forward Scanning Speed`, `AVAudibleSettings` |
+| Paused: `remote swipe-right --travel 0.8 --seconds 0.6` | The picture stayed at 00:17.2; the bar's marker moved to 00:42 with a preview thumbnail. `Media Controls` said 42 seconds; the video had not moved |
+| `remote select` | Playback resumed at 43.0 s: the select committed the scrub |
+| Playing: `remote right --hold 3` | Fast-forward scanning (the ⏩ icon): the picture held at 48.8 while the marker ran on, 1:16 then 1:49; rate 0 |
+| `remote play-pause` | Scanning ended and playback resumed at 156.0 s |
+| Paused: `set-value --id "Media Controls" 300` | Refused before sending: "target enabled/visible state is unavailable, changed or unsuitable", stage `live-attributes` |
+
+So a swipe while paused moves only a preview, which a select commits; a held arrow scans until play-pause. An agent that swiped while paused and saw the playhead stay put (2026-11-23, on the Apple TV 4K) may have been seeing the preview before a commit; whether the device behaves the same has not been run.
+
 ### The new tools over MCP
 
 **2026-11-16**, a real stdio `manzanero mcp` session fed from a file, against the three simulators at once: `list_displays` (Duo), `press_remote play-pause` (TV probe), `rotate_crown 200` (watch probe) and `screenshot` with `display: LCD` (Duo). All four answered `isError: false`; over six sessions the probes counted every Play/Pause and moved the crown value by exactly 1.0 per call, and the PNG was written. When the first `tools/call` followed `notifications/initialized` with no pause, it sometimes got no response at all (in about half of eight such sessions, each time a `list_displays` call; the same `list_displays` alone also answered in one run and not in another, and two sessions starting with `inspect_device` answered). With a one-second pause after initialization three sessions in a row answered every call. This looked like a startup race in the MCP session, not in these tools; it was one, and is fixed ([MCP calls sent without waiting](#mcp-calls-sent-without-waiting)).

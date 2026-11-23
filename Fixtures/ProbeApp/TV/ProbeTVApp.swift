@@ -8,7 +8,11 @@ import SwiftUI
 @main
 struct ProbeTVApp: App {
     var body: some Scene {
-        WindowGroup { ProbeTVView() }
+        WindowGroup {
+            // `-ProbeVideo YES`: Apple's player on a silent movie of the
+            // probe's own (ProbeTVVideo.swift).
+            if UserDefaults.standard.bool(forKey: "ProbeVideo") { ProbeTVVideoView() } else { ProbeTVView() }
+        }
     }
 }
 
