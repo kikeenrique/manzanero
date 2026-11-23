@@ -1541,6 +1541,31 @@ So both count: a longer swipe goes further, and the same length goes further fas
 
 Not shown: the same on a physical Apple TV, which is not to be sent anything for now; other directions; a second run of each, so the numbers are one sample; the shortest swipe away from a list's end.
 
+Later: the physical Apple TV ran swipes on 2026-11-20 and 2026-11-22, and the other directions ran on a simulator on 2026-11-23, below.
+
+#### Swipes upward and sideways on a simulator
+
+On 2026-11-23, `manzanero-research-tv-4k` (Apple TV 4K (4th generation), tvOS 27.2), the tvOS probe in front, each swipe sent with `--report-focus` so its own receipt named where the focus went (the default duration is 0.4 s since 2026-11-22). Upward through the forty-row list, from row 16, one after another:
+
+| Travel | Seconds | Focus after | Rows |
+| --- | --- | --- | --- |
+| 0.9 | 0.4 | row 10 | 6 |
+| 0.3 | 0.4 | row 8 | 2 |
+| 0.6 | 1 | row 5 | 3 |
+| 0.9 | 2 | row 1 | 4, the list's top |
+
+Sideways along the thirty-column strip, from column 10, one after another:
+
+| Swipe | Travel | Seconds | Focus after | Columns |
+| --- | --- | --- | --- | --- |
+| right | 0.9 | 0.4 | column 14 | +4 |
+| left | 0.3 | 0.4 | column 13 | −1 |
+| right | 0.6 | 1 | column 16 | +3 |
+| left | 0.9 | 2 | column 12 | −4 |
+| left | 0.9 | 0.4 | column 7 | −5 |
+
+So upward and sideways behave as downward did: a longer swipe goes further, and the same length goes further fast than slow. One sample each. On the way, `remote left` from row 1 kept the focus in the list, and a held `remote down --hold 3` ran from row 30 past the list's end into the strip.
+
 ## Direct physical input
 
 **2026-11-12 through 2026-11-14 — project-owned in-process Apple backends.**
