@@ -2241,6 +2241,10 @@ The tap, the same night, done by the tap's own session and the human owner:
 - **The archive.** Packed again, `test:package` passed on it (extraction, signatures, architecture, notices, the CLI through a Homebrew-style link).
 - **The hardened runtime on devices**, with the signed binary from that archive: `doctor` listed every private interface available, as the unsigned debug build does; its one difference was the firewall entry, `no-rule` for the new executable's path. On `manzanero-research-phone` a `tap` reached the probe and `tree` read it. On the iPhone 13 mini, on its cable: `readiness`, `press --id probe.touch.reset` over the tool's own tunnel (`ownTunnelLink: cable`), a `tap` the probe counted, a `tree`, and a 5-second `record --backend coredevice` (94 H.264 frames) although the firewall had no rule for that path. No entitlement was needed.
 
+### An install on a second Mac
+
+2026-11-23, reported by the human owner: the tool was installed on a Mac other than the development one and works there. The beta's version, the install route and that Mac's macOS and Xcode versions were not recorded, nor which commands ran.
+
 ### Homebrew install from the tap
 
 **2026-11-18, morning**, on the development Mac (Apple silicon, Homebrew 7.0.x), reported by the session working in the tap repository; the owner ran the install himself.

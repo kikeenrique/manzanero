@@ -1,6 +1,6 @@
 # Status at a glance
 
-One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-22. Which release carries a change is in the release notes on [GitHub](https://github.com/kikeenrique/manzanero/releases).
+One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-23. Which release carries a change is in the release notes on [GitHub](https://github.com/kikeenrique/manzanero/releases).
 
 ## How to read it
 
@@ -63,10 +63,9 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
-2. **An install on a tester's Mac**: betas have been installed on the development Mac only; a tester needs Xcode 27, launched once.
-3. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
-4. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
-5. **Not built**: `hold` on a simulator, a click of the remote's touch surface, the agent features (durable sessions, element handles, symbolication and the rest).
+2. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
+3. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
+4. **Not built**: `hold` on a simulator, a click of the remote's touch surface, the agent features (durable sessions, element handles, symbolication and the rest).
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 
@@ -75,6 +74,7 @@ A release is one command, `mise run release <version>`, whenever the human owner
 - **Releases from one task**: `mise run release <version>` scans for secrets and this Mac's identifiers, sets the version, pushes `main` and the tag together, waits for CI's draft (or builds it on the Mac with `release:ci`), then signs it with the Developer ID, notarizes and publishes it; a rerun continues where it stopped.
 - **Signed and notarized**: the first such beta went out that day; the signed binary needs no entitlement on a simulator or the phone.
 - **The tap's code moved out**: the formula belongs to the tap's own repository.
+- **A second Mac**: the human owner installed the tool on another Mac, and it works there.
 
 ## Done later on 2026-11-22
 

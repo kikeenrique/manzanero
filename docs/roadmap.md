@@ -301,12 +301,11 @@ The release work of the day: the human owner's Developer ID and notary profile o
 The order is laia-LLM's suggestion, not one the human owner set.
 
 1. **The Apple TV's loose ends** (items 16 and 22): the pairing after a restart of the device (two days on it held); `remote sleep` from a screen saver, which did not start in 20 idle minutes on 2026-11-22; a recording with sound playing, now allowed; and a recording with sound across a loss.
-2. **An install on a tester's Mac** (item 31): Xcode 27 on that Mac, launched once.
-3. **A physical Apple Watch** (items 16 and 18): watch typing and the crown have run on simulators only.
-4. **Hardware never used** (item 9): a second iPhone, an iPad, an iPhone Duo, each only once the human owner names it.
-5. **Not built**: `hold` on a simulator (item 25), a click of the remote's touch surface (item 17), and the agent features (item 24).
+2. **A physical Apple Watch** (items 16 and 18): watch typing and the crown have run on simulators only.
+3. **Hardware never used** (item 9): a second iPhone, an iPad, an iPhone Duo, each only once the human owner names it.
+4. **Not built**: `hold` on a simulator (item 25), a click of the remote's touch surface (item 17), and the agent features (item 24).
 
-Done since the last list: signed and notarized releases from one task, with the scans built in and the tap's code moved out; the first such beta went out on 2026-11-23 ([achieved](#added-on-2026-11-23-signed-and-notarized-releases-from-one-task)). A release is not on this list: it is one command whenever the human owner chooses.
+Done since the last list: signed and notarized releases from one task, with the scans built in and the tap's code moved out; the first such beta went out on 2026-11-23 ([achieved](#added-on-2026-11-23-signed-and-notarized-releases-from-one-task)). An install on a second Mac works, as the human owner reported the same day (item 31). A release is not on this list: it is one command whenever the human owner chooses.
 
 The numbered lists below follow the standing priorities of this page: dependable physical testing first, then coverage of more devices, then the gaps in other families, then what is not built, then commands to add, then delivery.
 
@@ -378,7 +377,7 @@ Listed on 2026-11-18, ten commands in all. `batch` and the searching scroll were
 Betas are published as prereleases on [GitHub](https://github.com/kikeenrique/manzanero/releases) (the first two: [beta.1](verification.md#first-beta-published), [beta.2](verification.md#second-beta-published)) and install with `brew install kikeenrique/tap/manzanero`, whose formula lives in the tap's own repository. What is left:
 
 30. **Releases**: one command, `mise run release <version>`, from the human owner's terminal ([releasing](releasing.md#publish-a-beta)); a release needs no documentation change, and its notes on GitHub say what it carries.
-31. **An install on a tester's Mac.** Only the development Mac has installed it, and that Mac has Xcode and every tool already.
+31. **An install on a tester's Mac: done.** On 2026-11-23 the human owner installed it on a Mac other than the development one, where it works ([record](verification.md#an-install-on-a-second-mac)).
 32. **Signing and notarization: done.** Developer ID signing and notarization on the human owner's Mac only, inside `mise run release`; the first release through them was v0.1.0-beta.3 on 2026-11-23 ([notarization](releasing.md#notarization)). Not done, and not planned: a stapled ticket, which a bare executable cannot hold; Gatekeeper finds the ticket online.
 33. **Before each release:** nothing by hand. `mise run release` runs the identifier check, the secrets scan and the archive check itself and stops at a finding ([public readiness](public-readiness.md#how-the-scan-is-run)).
 
