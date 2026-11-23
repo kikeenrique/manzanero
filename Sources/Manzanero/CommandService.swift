@@ -262,7 +262,8 @@ actor CommandService {
             let data = try runner.run(arguments, executable: command.executable, environment: command.environment)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
             if tool.platform == .physical, tool.operation == "screenshot" {
-                return CommandOutput(data: DeviceUIReadiness.annotateScreenshot(data, device: tool.device, query: uiReadinessQuery))
+                let annotated = DeviceUIReadiness.annotateScreenshot(data, device: tool.device, query: uiReadinessQuery)
+                return CommandOutput(data: ScreenshotBlank.annotate(annotated, image: ScreenshotBlank.destination(arguments)))
             }
             return CommandOutput(data: data)
         case .simulatorDisplay(let display):
