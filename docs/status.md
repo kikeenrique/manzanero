@@ -62,10 +62,11 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
-2. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
-3. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
-4. **Not built**: `hold` on a simulator, a click of the remote's touch surface, the agent features (durable sessions, element handles, symbolication and the rest).
+1. **Apple TV, from an agent's first use**: a `wake` that wakes it, the focus in a remote press's receipt, a black capture that says so (and whether a player is in front), seeking in a player.
+2. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
+3. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
+4. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
+5. **Not built**: `hold` on a simulator, a click of the remote's touch surface, the agent features (durable sessions, element handles, symbolication and the rest).
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 

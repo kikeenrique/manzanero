@@ -300,10 +300,11 @@ The release work of the day: the human owner's Developer ID and notary profile o
 
 The order is laia-LLM's suggestion, not one the human owner set.
 
-1. **The Apple TV's loose ends** (items 16 and 22): the pairing after a restart of the device (two days on it held); `remote sleep` from a screen saver, which did not start in 20 idle minutes on 2026-11-22; a recording with sound playing, now allowed; and a recording with sound across a loss.
-2. **A physical Apple Watch** (items 16 and 18): watch typing and the crown have run on simulators only.
-3. **Hardware never used** (item 9): a second iPhone, an iPad, an iPhone Duo, each only once the human owner names it.
-4. **Not built**: `hold` on a simulator (item 25), a click of the remote's touch surface (item 17), and the agent features (item 24).
+1. **What an agent's first use of the Apple TV asked for** (items 34 to 37): a `wake` that wakes it, the focus in a remote press's receipt, a black capture that says so, then seeking in a player.
+2. **The Apple TV's loose ends** (items 16 and 22): the pairing after a restart of the device (two days on it held); `remote sleep` from a screen saver, which did not start in 20 idle minutes on 2026-11-22; a recording with sound playing, now allowed; and a recording with sound across a loss.
+3. **A physical Apple Watch** (items 16 and 18): watch typing and the crown have run on simulators only.
+4. **Hardware never used** (item 9): a second iPhone, an iPad, an iPhone Duo, each only once the human owner names it.
+5. **Not built**: `hold` on a simulator (item 25), a click of the remote's touch surface (item 17), and the agent features (item 24).
 
 Done since the last list: signed and notarized releases from one task, with the scans built in and the tap's code moved out; the first such beta went out on 2026-11-23 ([achieved](#added-on-2026-11-23-signed-and-notarized-releases-from-one-task)). An install on a second Mac works, as the human owner reported the same day (item 31). A release is not on this list: it is one command whenever the human owner chooses.
 
@@ -380,6 +381,15 @@ Betas are published as prereleases on [GitHub](https://github.com/kikeenrique/ma
 31. **An install on a tester's Mac: done.** On 2026-11-23 the human owner installed it on a Mac other than the development one, where it works ([record](verification.md#an-install-on-a-second-mac)).
 32. **Signing and notarization: done.** Developer ID signing and notarization on the human owner's Mac only, inside `mise run release`; the first release through them was v0.1.0-beta.3 on 2026-11-23 ([notarization](releasing.md#notarization)). Not done, and not planned: a stapled ticket, which a bare executable cannot hold; Gatekeeper finds the ticket online.
 33. **Before each release:** nothing by hand. `mise run release` runs the identifier check, the secrets scan and the archive check itself and stops at a finding ([public readiness](public-readiness.md#how-the-scan-is-run)).
+
+### From an agent's first use of the Apple TV
+
+On 2026-11-23 an agent with no knowledge of this project drove the Apple TV 4K with an installed binary, through video playback, and reported what it missed. In the order suggested:
+
+34. **A `wake` that wakes an Apple TV.** `wake` presses nothing there and answers `external-display`, and `remote wake` failed with "HID service did not become ready"; only `remote home` worked. That refusal comes before any input, so waiting for the service is not a repeated press. To build: `wake` on an Apple TV does what `remote wake` does; `remote wake` waits up to about a minute for the HID service before its one Home press, then confirms by screenshot as now; `readiness` reports whether the Apple TV is asleep, by the same screenshot test. Whether the television is on stays unreadable.
+35. **The focus in a remote press's receipt.** Receipts say what was sent (`verified: false`), not where the focus went, so the agent took screenshots to see it. To build: an opt-in `--report-focus` on `remote` (MCP `report_focus`) that reads a fresh tree after the press settles and returns the focused element's label, identifier and frame; on the tool's own tunnel only, saying why in `ownTunnelUnavailable` otherwise, never by Apple's tunnel.
+36. **A black capture that says so.** With FairPlay video on screen the screenshot was black. The interface layer alone cannot be captured, but the tool can tell: a sleeping Apple TV refuses a screenshot, so a black picture from one that gave a picture means a black screen or protected video. To build: `blankImage: true` in the `screenshot` receipt (and `frames`), with a note naming the likely causes; and, when the tree can be read cheaply (the tool's own tunnel), whether a video player is in front, as `playerOnScreen`, so the note can say protected video is likely. What marks a player in a tvOS tree is unknown: measure it in item 37 first.
+37. **Seeking in a player.** Swipes on a paused video did not move the playhead, and the agent seeked from a debugger. Untried: a held arrow in a player (`remote right --hold 3`; held arrows repeat in lists on the device), a swipe while paused with a click of the surface (item 17), and `set-value` on the player's progress bar. To do first: a silent video in the tvOS probe (an `AVPlayerViewController`, no sound track, so the room stays quiet), on which each of these is measured, and the player's tree read for item 36; only then a command such as `scrub --to <fraction>`, on whichever route works. Needs the Apple TV and the human owner's word, since the television may come on.
 
 ## Owner decisions, 2026-11-16
 
