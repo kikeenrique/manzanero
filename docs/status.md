@@ -62,16 +62,21 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **A release** of the work of 2026-11-21 and 2026-11-22, which is in no beta yet.
-2. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
-3. **An install on a tester's Mac**: betas have been installed on the development Mac only; a tester needs Xcode 27, launched once.
-4. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
-5. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
-6. **Not built**: `hold` on a simulator, a click of the remote's touch surface, the agent features (durable sessions, element handles, symbolication and the rest).
+1. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
+2. **An install on a tester's Mac**: betas have been installed on the development Mac only; a tester needs Xcode 27, launched once.
+3. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
+4. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
+5. **Not built**: `hold` on a simulator, a click of the remote's touch surface, the agent features (durable sessions, element handles, symbolication and the rest).
 
-Signing and notarization run on the human owner's Mac only; the trial passed on 2026-11-23 and the next beta is the first to ship them ([releasing](releasing.md#notarization)).
+A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 
-## Done on 2026-11-22 (later; not released)
+## Done on 2026-11-23
+
+- **Releases from one task**: `mise run release <version>` scans for secrets and this Mac's identifiers, sets the version, pushes `main` and the tag together, waits for CI's draft (or builds it on the Mac with `release:ci`), then signs it with the Developer ID, notarizes and publishes it; a rerun continues where it stopped.
+- **Signed and notarized**: the first such beta went out that day; the signed binary needs no entitlement on a simulator or the phone.
+- **The tap's code moved out**: the formula belongs to the tap's own repository.
+
+## Done later on 2026-11-22
 
 - **Apple TV, no person needed**: the pairing still held two days on; three quiet minutes recorded with sound, nothing lost; the remote's swipes last 0.4 s by default, since shorter ones seldom moved the focus.
 - **A contact held across steps**: `batch` steps `hold` and `release` keep one finger down on a device while the steps between run; on the iPhone, Control Centre's flashlight was switched on and off by identifier during a hold. Accessibility reads may now take longer (40 s a snapshot, 120 s a session), since Control Centre answers slowly.
@@ -79,14 +84,14 @@ Signing and notarization run on the human owner's Mac only; the trial passed on 
 - **The phone checks with no person**: `console` above its default bound, a SwiftUI field, an interrupted recording's movie, 1000 frames with a second process refused, MCP `index` and `capture_logs`, rows that share no edge, a page with frames, edge gestures, three-finger undo and redo, long log streams.
 - **Simulators**: touch steps in a `batch`; the Duo's fold waits up to 20 s after a boot; presses in Settings on the Duo's inner display again, with `--index`; searches of rows that share no edge (three fixes); `set-value` in a SwiftUI field; watch typing in any keyboard language.
 
-## Done on 2026-11-22 (not released)
+## Done on 2026-11-22
 
 - **Recording, the two choices**: an interrupted recording keeps its movie as partial (exit 130/143, the path on stderr); another viewer taking the screen ends a recording with `stopCause: another-viewer`, with no wait.
 - **Web pages**: an app's own web view inset from the screen's corner, and `scroll` on a page, work on the phone and a simulator (the iOS probe's new web screen), after two fixes; a field zoomed past the display's edge is pressed on the phone.
 - **Sound in recording recovery**: a recording with `--audio` restarts after a lost stream, its sound stream started again; seen once on the phone across a pulled cable.
 - **The phone checks owed**: keys, several contacts, `frames` and recording in both landscapes; `--with-value` on the Settings search field; a secure field's masked receipt; a cable pulled and a Wi‑Fi path lost during input, both ending in quarantine (the phone released a held contact at the screen's corner, `[0,0]`).
 
-## Done on the night of 2026-11-21 (not released)
+## Done on the night of 2026-11-21
 
 - **The iPhone cable checks**: an action in flight fails once and is not repeated; a `batch` stops at the step in flight; `frames` and `record` recover across a pulled cable.
 - **Recording**: `frames` recovers as `record` does; an interrupt stops the device's stream; a still Apple TV screen no longer restarts a recording; Device Hub taking the screen ends a recording as `partial` and is left alone.
@@ -94,7 +99,7 @@ Signing and notarization run on the human owner's Mac only; the trial passed on 
 - **Web pages**: Safari on the phone works by label; on a simulator a Safari page is acted on with `--pid <page>`.
 - **Smaller**: `devices` shows paired devices (`ownTunnel: paired`); the watch types its symbols page; searches run in four directions on the phone; iPadOS's four-contact cancel is a limit of iPadOS; the accessibility socket's failures have error categories.
 
-## Done later on 2026-11-21 (not released)
+## Done later on 2026-11-21
 
 - **New commands**: `launch` options and `terminate` by bundle, `--match contains|regex` for selectors, `rotate`, `settings`, `location`, `status-bar`, `clipboard`, `double-tap`, `create-simulator`. All ran on simulators, and on the iPhone all that apply to a phone (`status-bar` is refused there).
 - **A phone in landscape**: accessibility, a tap and a screenshot work on the iPhone.

@@ -279,20 +279,34 @@ The simulator items left on the list, run by laia-LLM; then the iPhone 13 mini, 
 | Apple TV 4K, no person needed | The pairing still held two days on; three quiet minutes recorded with sound (179.97 s, no packet lost, no restart); `remote sleep` from a screen saver not run, since none started in 20 idle minutes | [Record](verification.md#hold-and-act-on-the-phone-and-the-apple-tv-without-a-person) |
 | The remote's swipe default | 0.4 s, from 0.2 s: on the device a 0.2-second swipe moved the focus 3 times in 9, 0.15 s or less never, 0.4 s every time | [Record](verification.md#hold-and-act-on-the-phone-and-the-apple-tv-without-a-person) |
 
+### Added on 2026-11-23: signed and notarized releases from one task
+
+The release work of the day: the human owner's Developer ID and notary profile on the development Mac, a release that is one mise task, and the tap's code moved out of this repository.
+
+| Task | Result | Record |
+| --- | --- | --- |
+| Secrets scan as a task | `check:secrets`: Gitleaks 8.30.1 pinned by the task, over the commits after a revision (`--since`, `--all`) and the tracked files; one reviewed false positive allowed by name | [Public readiness](public-readiness.md#how-the-scan-is-run) |
+| Identifier check as a task | `check:identifiers`: fails on this Mac's device identifiers, the names given to its devices, signing hashes and team IDs, the account name, home path or git identity in added lines or commit messages; the terms are read from the Mac each time and never written | [Public readiness](public-readiness.md#how-the-scan-is-run) |
+| Signing and notarization on the human owner's Mac | `release:notarize`: Developer ID signing (hardened runtime, timestamp; the certificate by its SHA-1 hash when two share a name), notarization through a keychain profile, Gatekeeper's own assessment instead of a staple check; signed files and the submission's identifier kept, so a rerun neither signs nor uploads again | [Notarization](releasing.md#notarization) |
+| The signed binary on devices | No entitlement needed: `doctor`, a simulator tap and tree, and on the phone a press over the tool's own tunnel, a tap, a tree and a recording, all with the signed, notarized binary | [Trial](verification.md#signing-and-notarization-trial) |
+| One release task | `mise run release <version>`: the scans, the version commit, the tag and one atomic push of `main` and the tag, CI's draft (from `release:ci`, which also runs on the Mac when no workflow run comes), then `release:notarize`; a rerun continues where a run stopped | [Releasing](releasing.md#publish-a-beta) |
+| No tap code here | `release:tap`, the formula generator and the formula asset removed: the tap is its own repository and builds its formula from a release's `SHA256SUMS` | [Releasing](releasing.md#publish-a-beta) |
+| Docs that do not follow releases | No page names a current beta or the work not yet released, so a release changes no documentation | [Releasing](releasing.md#publish-a-beta) |
+| The first signed and notarized beta | v0.1.0-beta.3, by one run of `mise run release` with no rerun; a downloaded copy matched its checksum, carried the Developer ID signature and was accepted by Gatekeeper as notarized | [Notarization](releasing.md#notarization) |
+
 ## Pending
 
 ### Next, in the order suggested
 
 The order is laia-LLM's suggestion, not one the human owner set.
 
-1. **The next beta** (item 30): `mise run release <version>` from the human owner's terminal; what it carries is everything since the previous tag.
-2. **The Apple TV's loose ends** (items 16 and 22): the pairing after a restart of the device (two days on it held); `remote sleep` from a screen saver, which did not start in 20 idle minutes on 2026-11-22; a recording with sound playing, now allowed; and a recording with sound across a loss.
-3. **An install on a tester's Mac** (item 31): Xcode 27 on that Mac, launched once.
-4. **A physical Apple Watch** (items 16 and 18): watch typing and the crown have run on simulators only.
-5. **Hardware never used** (item 9): a second iPhone, an iPad, an iPhone Duo, each only once the human owner names it.
-6. **Not built**: `hold` on a simulator (item 25), a click of the remote's touch surface (item 17), and the agent features (item 24).
+1. **The Apple TV's loose ends** (items 16 and 22): the pairing after a restart of the device (two days on it held); `remote sleep` from a screen saver, which did not start in 20 idle minutes on 2026-11-22; a recording with sound playing, now allowed; and a recording with sound across a loss.
+2. **An install on a tester's Mac** (item 31): Xcode 27 on that Mac, launched once.
+3. **A physical Apple Watch** (items 16 and 18): watch typing and the crown have run on simulators only.
+4. **Hardware never used** (item 9): a second iPhone, an iPad, an iPhone Duo, each only once the human owner names it.
+5. **Not built**: `hold` on a simulator (item 25), a click of the remote's touch surface (item 17), and the agent features (item 24).
 
-Done since the last list: every phone check owed (`console` bounds, a SwiftUI field, an interrupted recording, 1000 frames, MCP `index` and `capture_logs`, a page with frames, edge gestures, three-finger undo, long log streams, another viewer, sound across a restart, a Wi‑Fi cut over the probe), the simulator items left (touch steps in a batch, the Duo's fold bound and inner-display press, the staggered list, watch typing in any language), `hold` and `release` in a batch, slower snapshots allowed, and the Apple TV's pairing two days on, three quiet minutes with sound and the 0.4 s swipe ([achieved](#added-later-on-2026-11-22-closing-runs-the-phones-owed-checks-and-a-held-contact)).
+Done since the last list: signed and notarized releases from one task, with the scans built in and the tap's code moved out; the first such beta went out on 2026-11-23 ([achieved](#added-on-2026-11-23-signed-and-notarized-releases-from-one-task)). A release is not on this list: it is one command whenever the human owner chooses.
 
 The numbered lists below follow the standing priorities of this page: dependable physical testing first, then coverage of more devices, then the gaps in other families, then what is not built, then commands to add, then delivery.
 
@@ -365,7 +379,7 @@ Betas are published as prereleases on [GitHub](https://github.com/kikeenrique/ma
 
 30. **Releases**: one command, `mise run release <version>`, from the human owner's terminal ([releasing](releasing.md#publish-a-beta)); a release needs no documentation change, and its notes on GitHub say what it carries.
 31. **An install on a tester's Mac.** Only the development Mac has installed it, and that Mac has Xcode and every tool already.
-32. **Signing and notarization: built, trial passed.** By the human owner's decision of 2026-11-23 they happen on the human owner's Mac only: CI builds, tests, packages and leaves a draft prerelease, and `mise run release:notarize <version>` signs its binaries with the Developer ID (hardened runtime, timestamp), notarizes them, replaces the draft's assets and publishes it ([notarization](releasing.md#notarization)). The trial on 2026-11-23 signed, notarized and checked a local archive, and the signed binary ran on a simulator and the phone under the hardened runtime with no entitlement ([record](verification.md#signing-and-notarization-trial)). Left: the first notarized beta.
+32. **Signing and notarization: done.** Developer ID signing and notarization on the human owner's Mac only, inside `mise run release`; the first release through them was v0.1.0-beta.3 on 2026-11-23 ([notarization](releasing.md#notarization)). Not done, and not planned: a stapled ticket, which a bare executable cannot hold; Gatekeeper finds the ticket online.
 33. **Before each release:** nothing by hand. `mise run release` runs the identifier check, the secrets scan and the archive check itself and stops at a finding ([public readiness](public-readiness.md#how-the-scan-is-run)).
 
 ## Owner decisions, 2026-11-16

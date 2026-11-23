@@ -110,6 +110,6 @@ One-time setup:
 
 A bare executable cannot hold a stapled ticket (Apple: "it's not currently possible to staple tickets to them"), so `syspolicy_check distribution`, a local check of app bundles that demands one, always fails it; Gatekeeper fetches the ticket online the first time a downloaded copy runs. Through Homebrew the binary is not quarantined either way.
 
-Before the first notarized release, check the signed binary on devices: the hardened runtime may refuse something the tool loads at run time (Apple's private frameworks). `mise run package`, then `mise run release:notarize <version> --local --no-publish` signs and notarizes that archive under `tmp/dist/<version>/` and changes no release; run `doctor`, a simulator tap and tree, and the phone's input, accessibility and recording with it.
+After a change to what the tool loads at run time, check the signed binary on devices before the next release, as the trial did: the hardened runtime may refuse something the tool loads at run time (Apple's private frameworks). `mise run package`, then `mise run release:notarize <version> --local --no-publish` signs and notarizes that archive under `tmp/dist/<version>/` and changes no release; run `doctor`, a simulator tap and tree, and the phone's input, accessibility and recording with it.
 
 The [public-readiness review](public-readiness.md) was completed before the first publication. See [tester setup](beta-testing.md) for the installation experience.
