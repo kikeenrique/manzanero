@@ -117,6 +117,8 @@ func summary(_ request: CommandRequest) -> [String] {
         return ["physical", hold.device, HoldStep.operation, String(hold.x), String(hold.y)]
     case .release(let target):
         return [target.platform.rawValue, target.identifier, HoldStep.releaseOperation]
+    case .reportingFocus(let press, _):
+        return summary(press) + [RemoteFocusReport.flag]
     }
 }
 

@@ -42,6 +42,9 @@ enum CommandRequest: Sendable, Equatable {
     case hold(HoldStep)
     /// `release`: the batch step that lifts the hold before it.
     case release(Target)
+    /// `remote <button> --report-focus`: the press, then a fresh tree whose
+    /// focused node goes into the press's receipt (`RemoteFocusReport`).
+    indirect case reportingFocus(press: CommandRequest, tree: CommandRequest)
 }
 
 /// A wrapped Apple tool invocation and the operation it implements.
@@ -111,6 +114,7 @@ extension CommandRequest {
         case .batch(let batch): (batch.target.platform.rawValue, batch.target.identifier, "batch")
         case .hold(let hold): ("physical", hold.device, HoldStep.operation)
         case .release(let target): (target.platform.rawValue, target.identifier, HoldStep.releaseOperation)
+        case .reportingFocus(let press, _): press.addressed
         case .decodeArchive, .ocr, .devices, .createSimulator, .doctor, .keyboardLayouts: nil
         }
     }
@@ -142,6 +146,7 @@ extension CommandRequest {
         case .record(let recording) where recording.physical && recording.native: "native recording"
         case .detectLayout: "layout detection"
         case .batch(let batch): batch.requests.contains { $0.signalContext != nil } ? "batch" : nil
+        case .reportingFocus(let press, _): press.signalContext
         default: nil
         }
     }

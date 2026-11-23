@@ -2057,6 +2057,14 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `tree` on Settings, then `remote down`, `tree` | `focus.label` Profiles and Accounts, then Video and Audio; `wait --label "Video and Audio" --until focused` met |
 | `tree` on the Duo and on the watch | No `focus` key and no `focused` field |
 
+**2026-11-23**, `remote --report-focus` on `manzanero-research-tv-4k` (tvOS 27.2), its Home Screen with Settings focused, read from a screenshot first. The first press, a few seconds after boot, was refused with "The simulator HID service did not become ready; no input sent", and the same press later went through.
+
+| Command | Observed |
+| --- | --- |
+| `remote right --report-focus` | `focus` `{label: Probe TV, identifier: AppCell, frame: 388,824 250×150}`, `focusApplication.pid` PineBoard's, `status: dispatched` |
+| `remote left --report-focus` | `focus.label` Settings |
+| `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
+
 ### The new tools over MCP
 
 **2026-11-16**, a real stdio `manzanero mcp` session fed from a file, against the three simulators at once: `list_displays` (Duo), `press_remote play-pause` (TV probe), `rotate_crown 200` (watch probe) and `screenshot` with `display: LCD` (Duo). All four answered `isError: false`; over six sessions the probes counted every Play/Pause and moved the crown value by exactly 1.0 per call, and the PNG was written. When the first `tools/call` followed `notifications/initialized` with no pause, it sometimes got no response at all (in about half of eight such sessions, each time a `list_displays` call; the same `list_displays` alone also answered in one run and not in another, and two sessions starting with `inspect_device` answered). With a one-second pause after initialization three sessions in a row answered every call. This looked like a startup race in the MCP session, not in these tools; it was one, and is fixed ([MCP calls sent without waiting](#mcp-calls-sent-without-waiting)).

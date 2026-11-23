@@ -121,6 +121,17 @@ actor CommandService {
             return CommandOutput(data: try KeyedArchiveInspector.inspectFile(path))
         case .physicalInput(let native):
             return try await executePhysical(native, dryRun: dryRun)
+        case .reportingFocus(let press, let tree):
+            let pressed = try await perform(press, dryRun: dryRun, allowInteractive: allowInteractive, handoffConfirmation: handoffConfirmation)
+            if dryRun {
+                var plan = (try? JSONSerialization.jsonObject(with: pressed.data)) as? [String: Any] ?? [:]
+                plan["reportFocus"] = RemoteFocusReport.plan
+                return try json(plan)
+            }
+            return await RemoteFocusReport.annotate(pressed) {
+                try await Task.sleep(for: RemoteFocusReport.settle)
+                return try await self.perform(tree, dryRun: false, allowInteractive: allowInteractive, handoffConfirmation: handoffConfirmation)
+            }
         case .simulatorInput(let simulator):
             if dryRun { return try json(simulator.plan()) }
             return try await executeSimulator(simulator)

@@ -62,7 +62,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **Apple TV, from an agent's first use**: a `wake` that wakes it (built on 2026-11-23, not yet run on the device), the focus in a remote press's receipt, a black capture that says so (and whether a player is in front), seeking in a player.
+1. **Apple TV, from an agent's first use**: a `wake` that wakes it (built on 2026-11-23, not yet run on the device), the focus in a remote press's receipt (built, run on a simulator), a black capture that says so (and whether a player is in front), seeking in a player.
 2. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
 3. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
 4. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
@@ -77,6 +77,7 @@ A release is one command, `mise run release <version>`, whenever the human owner
 - **The tap's code moved out**: the formula belongs to the tap's own repository.
 - **A second Mac**: the human owner installed the tool on another Mac, and it works there.
 - **Apple TV wake** (built, not yet run on the device): `wake` does what `remote wake` does, which now waits for a slow HID service before its one press, and `readiness` says whether the Apple TV is asleep.
+- **The focus after a remote press**: `remote --report-focus` adds the focused element to the receipt; run on an Apple TV simulator.
 
 ## Done later on 2026-11-22
 

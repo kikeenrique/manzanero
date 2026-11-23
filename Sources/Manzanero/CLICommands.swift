@@ -160,9 +160,13 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("Hold the button this long, 0.08...3 seconds. On a simulator a 1.5 s hold on home opens Control Centre; on a device home cannot be held.", valueName: "seconds")) var hold: String?
         @Option(help: ArgumentHelp("A swipe's length as a share of the touch surface, 0.05...0.9 (default 0.5).", valueName: "share")) var travel: String?
         @Option(help: ArgumentHelp("A swipe's duration, 0.04...2 seconds (default 0.4; on an Apple TV 4K a swipe of 0.2 s or less often moves nothing).", valueName: "seconds")) var seconds: String?
+        @Flag(name: .customLong("report-focus"), help: "After the press, read a fresh tree and add the focused element (label, identifier, value, frame) to the receipt as focus. On a physical Apple TV it needs the tool's own tunnel (manzanero pair); without it the receipt says why in focusUnavailable. Not for sleep or wake.") var reportFocus = false
         func request(_ target: Target) throws -> CommandRequest {
-            try .input(target, "remote", [name] + (hold.map { [AppleTVRemote.holdOption, $0] } ?? [])
+            let press = try CommandRequest.input(target, "remote", [name] + (hold.map { [AppleTVRemote.holdOption, $0] } ?? [])
                 + (travel.map { [AppleTVRemote.travelOption, $0] } ?? []) + (seconds.map { [AppleTVRemote.secondsOption, $0] } ?? []))
+            guard reportFocus else { return press }
+            if AppleTVPower.handles([name]) { throw CommandFailure.usage("\(RemoteFocusReport.flag) is for a button or a swipe, not for sleep or wake; no input sent.") }
+            return .reportingFocus(press: press, tree: try .input(target, "tree"))
         }
     }
 
