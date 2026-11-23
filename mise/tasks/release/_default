@@ -1,24 +1,75 @@
 #!/usr/bin/env bash
 #MISE dir = "{{ config_root }}"
-#MISE description = "Tag a committed version and push it to trigger the beta release workflow"
-#USAGE arg "<version>" help="Version tag matching Version.swift, e.g. v0.1.0-beta.1"
+#MISE description = "Release a version: secrets scans, version, tag and one push of main and the tag, CI's draft (or release:ci here), then release:notarize; a rerun continues"
+#USAGE arg "<version>" help="Version tag, e.g. v0.1.0-beta.3"
+# Run from the human owner's own terminal, on main with a clean tree: it
+# pushes, it signs with the Developer ID in this Mac's keychain and notarizes
+# through the keychain profile, and it needs GitHub CLI signed in. Each step
+# is a mise task of its own; nothing is edited by hand before, between or
+# after them. A rerun continues: a version already set is not committed
+# twice, a tag at HEAD is reused, an existing draft is not built again and
+# release:notarize keeps its state. The Homebrew tap is another repository's
+# business and follows the published release on its own.
 set -euo pipefail
 
 tag="$usage_version"
-[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || { echo "Provide a version tag such as v0.1.0-beta.1" >&2; exit 1; }
-declared=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
-[[ "$tag" = "v$declared" ]] || { echo "Version mismatch: $tag does not match Version.swift ($declared). Commit the version change first." >&2; exit 1; }
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || { echo "Provide a version tag such as v0.1.0-beta.3" >&2; exit 1; }
+version="${tag#v}"
 # tmp/ is untracked on purpose and never ignored, so it is left out of the check.
 [[ -z "$(git status --porcelain -- . ':(exclude)tmp')" ]] || { echo "Commit or set aside working-tree changes before releasing." >&2; exit 1; }
+[ "$(git branch --show-current)" = "main" ] || { echo "Release from main." >&2; exit 1; }
+[ -n "${MANZANERO_SIGN_IDENTITY:-}" ] || { echo "Set MANZANERO_SIGN_IDENTITY in .env.local (docs/releasing.md#notarization)." >&2; exit 1; }
+gh auth status >/dev/null 2>&1 || { echo "Sign in with gh auth login first." >&2; exit 1; }
+repository=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 
+# 1. Secrets scans of everything since the previous release; a finding stops
+# the release, and nothing is written.
+previous=$(git tag --merged HEAD --list 'v*' --sort=-v:refname | grep -vxF "$tag" | head -1 || true)
+since="${previous:-$(git rev-list --max-parents=0 HEAD | tail -1)}"
+echo "Scanning the changes since ${previous:-the first commit}…"
+mise run check:secrets --since "$since"
+mise run check:identifiers --since "$since"
+
+# 2. The version, committed once; the tag, made once and never moved; main
+# and the tag pushed together, so neither reaches GitHub without the other.
+declared=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
+if [ "$declared" != "$version" ]; then
+  git show-ref --verify --quiet "refs/tags/$tag" && { echo "Tag $tag exists but Version.swift says $declared." >&2; exit 1; }
+  /usr/bin/sed -i '' "s/^let manzaneroVersion = \".*\"$/let manzaneroVersion = \"$version\"/" Sources/Manzanero/Version.swift
+  [ "$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)" = "$version" ] || { echo "Could not set the version in Version.swift." >&2; exit 1; }
+  git add Sources/Manzanero/Version.swift
+  git commit --quiet -m "Set the version to $version"
+fi
 head=$(git rev-parse HEAD)
 if git show-ref --verify --quiet "refs/tags/$tag"; then
-  existing=$(git rev-parse "refs/tags/$tag^{commit}")
-  [[ "$existing" = "$head" ]] || { echo "Tag $tag already points at a different commit; choose another version. No tag was moved." >&2; exit 1; }
-  echo "Tag $tag already points at HEAD; reusing it."
+  [ "$(git rev-parse "refs/tags/$tag^{commit}")" = "$head" ] || { echo "Tag $tag already points at a different commit; choose another version. No tag was moved." >&2; exit 1; }
 else
   git tag "$tag"
 fi
+git push --atomic origin main "refs/tags/$tag"
 
-git push origin "refs/tags/$tag"
-echo "Pushed $tag; the beta release workflow will build and publish immutable prerelease assets."
+# 3. The draft prerelease from CI's release workflow; when no run comes for
+# the tag, the same task runs here.
+if ! gh release view "$tag" --repo "$repository" >/dev/null 2>&1; then
+  run=""
+  for attempt in $(seq 1 18); do
+    run=$(gh run list --repo "$repository" --workflow release.yml --event push --limit 20 \
+      --json databaseId,headBranch,headSha --jq ".[] | select(.headBranch == \"$tag\" and .headSha == \"$head\") | .databaseId" | head -1)
+    [ -n "$run" ] && break
+    [ "$attempt" -eq 1 ] && echo "Waiting for the release workflow of $tag to start…"
+    sleep 10
+  done
+  if [ -n "$run" ]; then
+    echo "Following the release workflow (run $run)…"
+    gh run watch "$run" --repo "$repository" --exit-status --interval 30 >/dev/null \
+      || { echo "The release workflow failed (gh run view $run --log-failed). Rerun it (gh run rerun $run --failed) or build here (mise run release:ci $tag), then run this again." >&2; exit 1; }
+  else
+    echo "No release workflow run for $tag after three minutes; running release:ci here."
+    mise run release:ci "$tag"
+  fi
+  gh release view "$tag" --repo "$repository" >/dev/null 2>&1 || { echo "No draft release for $tag." >&2; exit 1; }
+fi
+
+# 4. Developer ID signing, notarization and publication, on this Mac only.
+mise run release:notarize "$tag"
+echo "Released $tag."

@@ -16,6 +16,10 @@ The project uses the [MIT license](../license), and its public source repository
 
 History cleanup changes commit IDs. `tmp/` is untracked working space: never publish that directory or include it in a source archive. Required attribution remains in [dependencies](dependencies.md) and `ThirdParty/`.
 
+## How the scan is run
+
+`mise run release` runs both checks below on everything since the previous release tag and stops at a finding; nothing is recorded for a clean run. `mise run check:identifiers` searches the added lines and commit messages for this Mac's device identifiers, the names given to its devices, the signing certificates' hashes and team IDs, the account name, home path and git identity, read from the Mac each time and never written. `mise run check:secrets` runs Gitleaks 8.30.1 (pinned by the task) with default rules and full redaction over the commits after `origin/main`, or every reachable commit with `--all`, and over an export of the tracked files. One reviewed false positive is allowed and nothing else: `Sources/Manzanero/RemotePairing.swift`, which builds a CryptoKit key from a variable named `privateKey` (`.gitleaks.toml` for the files, `.gitleaksignore` for its commit in history). On 2026-11-23 both scans found nothing else, over 422 commits.
+
 ## Review of the unpushed work, 2026-11-22
 
 Done at the human owner's request on the 82 local commits after the last pushed one (`78ea03c`), before any of them was pushed: the added lines of every file and every commit message.
@@ -42,7 +46,7 @@ Done before any tag exists, because a published tag makes a later history change
 - **Secrets.** Gitleaks 8.30.1, default rules, full redaction, allow-comments disabled: no findings in the rewritten history (every reachable commit) and none in an export of the 323 tracked files. Source and reports were not uploaded.
 - **Tracked files.** No movies, app packages, pairing records, `.env` files, key or certificate exports, provisioning profiles or crash reports; the three tracked images are the project's own artwork in `docs/assets/`.
 
-A UDID is not a credential, and the device cannot be reached with it; it was removed because no device identifier belongs in the repository. These are results for the state checked, not a guarantee about what is added later: repeat the identifier check and the scan before each release.
+A UDID is not a credential, and the device cannot be reached with it; it was removed because no device identifier belongs in the repository. These are results for the state checked, not a guarantee about what is added later: `mise run release` runs the identifier check and the scan before each release.
 ## Earlier audit
 
 The local audit on 2026-11-14 used Gitleaks 8.30.1 against the then-current tracked snapshot and all 88 then-reachable commits. Both scans reported no findings with default rules, full redaction and allow-comments disabled. Source and reports were not uploaded.

@@ -19,8 +19,12 @@ mise tasks validate
 | Task | Purpose |
 | --- | --- |
 | `build`, `test`, `cli`, `completions` | Main executable, local regression checks and shell completion scripts |
-| `package`, `test:package`, `release:formula` | [Beta packaging](releasing.md), archive smoke and tap formula generation |
-| `release <version>` | Check version/worktree/tag, then push the tag to publish a beta through CI. Run it from your own terminal: a shell inside an agent session has no access to the SSH key and fails at the push |
+| `package`, `test:package` | [Beta packaging](releasing.md) and the archive smoke test |
+| `release <version>` | The whole release from the human owner's own terminal: `check:secrets` and `check:identifiers` since the previous tag, the version commit, the tag and one atomic push of `main` and the tag, CI's draft (or `release:ci` here), `release:notarize`; a rerun continues ([releasing](releasing.md#publish-a-beta)) |
+| `release:ci <version> [--no-release]` | What CI's release workflow runs, and what `release` runs here when no workflow run comes: validate, test, package, then the draft prerelease with the ad hoc archive; `--no-release` stops after packaging |
+| `release:notarize <version> [--local] [--no-publish]` | On this Mac only: sign the draft's binaries with the Developer ID, notarize them, replace the draft's assets and publish it ([notarization](releasing.md#notarization)); `--local --no-publish` signs and notarizes a locally packaged archive and changes no release |
+| `check:secrets [--all \| --since <rev>]` | Gitleaks 8.30.1 over the commits after `origin/main` (or `<rev>`; every commit with `--all`) and the tracked files ([public readiness](public-readiness.md#how-the-scan-is-run)) |
+| `check:identifiers [--since <rev>]` | Fails if lines added since `origin/main` (or `<rev>`), or their commit messages, carry this Mac's device identifiers, names given to its devices, signing hashes and team IDs, the account name, home path or git identity; the terms are read from the Mac each time and never written |
 | `test:mcp-*` | Real stdio integration; some read only, others mutate the selected device. `test:mcp-live <UUID>` runs against a booted simulator |
 | `test:media-*`, `test:native-tunnel`, `test:rsd-*` | Opt-in native transport/media diagnostics |
 | `test:os-trace-relay <UDID> <pid>` | Opt-in experiment: a bounded read of one process's log entries from a phone's `os_trace_relay`, then a reopen; read-only, result under `tmp/os-trace-relay/` ([research, Q6](app-logs-research.md#6-open-questions-and-settling-experiments)) |

@@ -2230,6 +2230,17 @@ The tap, the same night, done by the tap's own session and the human owner:
 | `brew test`, and `manzanero --version` through the `bin` link | Both pass; `manzanero 0.1.0-beta.2` |
 | The installed binary | Thin arm64, ad hoc signed, no team identifier; `com.apple.provenance` and no `com.apple.quarantine`. It ran at once, with no Gatekeeper block, as beta.1 did |
 
+### Signing and notarization trial
+
+2026-11-23, on the development Mac (macOS 27.2.1, Xcode 27.2), with `mise run package` and then `mise run release:notarize v0.1.0-beta.2 --local --no-publish` ([notarization](releasing.md#notarization)); no release was changed.
+
+- **Identity.** The keychain held two Developer ID Application certificates of one name and team (one from 2025, one issued that day); `codesign` refuses the name then, so the task takes the certificate's SHA-1 hash, set in `.env.local`. Signed with the newer one.
+- **Signing.** The executable with the hardened runtime and a secure timestamp, the bundled Swift runtimes with a timestamp; `codesign --verify --strict` passed, and the executable's `Authority` is the Developer ID.
+- **Notarization.** `notarytool submit --wait` through the keychain profile: `Accepted`, no issues in Apple's log, twice (the second run after the fix below).
+- **Gatekeeper.** `syspolicy_check distribution` failed the first run with "Notary Ticket Missing": it demands a stapled ticket, which a bare executable cannot hold. `spctl --assess --type install` reported "Unnotarized Developer ID" for about five minutes after acceptance, then "Notarized Developer ID". The task now waits for that assessment, at most 15 minutes, instead of the staple check; on the second run it passed.
+- **The archive.** Packed again, `test:package` passed on it (extraction, signatures, architecture, notices, the CLI through a Homebrew-style link).
+- **The hardened runtime on devices**, with the signed binary from that archive: `doctor` listed every private interface available, as the unsigned debug build does; its one difference was the firewall entry, `no-rule` for the new executable's path. On `manzanero-research-phone` a `tap` reached the probe and `tree` read it. On the iPhone 13 mini, on its cable: `readiness`, `press --id probe.touch.reset` over the tool's own tunnel (`ownTunnelLink: cable`), a `tap` the probe counted, a `tree`, and a 5-second `record --backend coredevice` (94 H.264 frames) although the firewall had no rule for that path. No entitlement was needed.
+
 ### Homebrew install from the tap
 
 **2026-11-18, morning**, on the development Mac (Apple silicon, Homebrew 7.0.x), reported by the session working in the tap repository; the owner ran the install himself.

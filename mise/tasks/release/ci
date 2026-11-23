@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+#MISE dir = "{{ config_root }}"
+#MISE description = "What CI does for a release tag: validate, test, package and create the draft prerelease with the ad hoc archive; also runnable on this Mac"
+#USAGE arg "<version>" help="Version tag matching Version.swift, e.g. v0.1.0-beta.3"
+#USAGE flag "--no-release" help="Validate, test and package only; create no release"
+# The release workflow runs this for a pushed tag, and `mise run release`
+# runs it on this Mac when no workflow run comes. The draft is not public:
+# release:notarize signs and notarizes its archive here, replaces it and
+# publishes the release. A draft that exists already is left as it is.
+set -euo pipefail
+
+tag="$usage_version"
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || { echo "Provide a version tag such as v0.1.0-beta.3" >&2; exit 1; }
+version=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
+[[ "$tag" = "v$version" ]] || { echo "Version mismatch: $tag does not match Version.swift ($version)." >&2; exit 1; }
+release=true
+[ "${usage_no_release:-false}" = "true" ] && release=false
+
+if [ "$release" = "true" ]; then
+  git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null || { echo "No tag $tag here." >&2; exit 1; }
+  [ "$(git rev-parse "refs/tags/$tag^{commit}")" = "$(git rev-parse HEAD)" ] || { echo "HEAD is not the commit tagged $tag." >&2; exit 1; }
+  repository="${GITHUB_REPOSITORY:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
+  if gh release view "$tag" --repo "$repository" >/dev/null 2>&1; then
+    echo "Release $tag exists already; nothing to do."
+    exit 0
+  fi
+fi
+
+mise tasks validate
+mise run test
+mise run package
+mise run test:package
+[ "$release" = "true" ] || { echo "Packaged $version in tmp/dist/$version; no release created."; exit 0; }
+
+directory="tmp/dist/$version"
+(cd "$directory" && shasum -a 256 -c SHA256SUMS)
+gh release create "$tag" "$directory/manzanero-aarch64-apple-darwin.tar.gz" "$directory/SHA256SUMS" \
+  --repo "$repository" --verify-tag --draft --prerelease --generate-notes --title "$tag"
+echo "Created the draft prerelease $tag; mise run release:notarize $tag signs, notarizes and publishes it."

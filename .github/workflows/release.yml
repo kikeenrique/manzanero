@@ -12,7 +12,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  package:
+  release:
+    # contents: write lets release:ci create the draft prerelease.
+    permissions:
+      contents: write
     # Same toolchain as CI: Xcode 27.2 exists only on the preview `xcode-27`
     # image, whose default Xcode is 27.1.
     runs-on: xcode-27
@@ -54,48 +57,24 @@ jobs:
           restore-keys: |
             swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-release-${{ hashFiles('Package.swift', 'Package.resolved') }}-
             swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-release-
-      - name: Check version against tag
+      # The whole job is one mise task, which also runs on the human owner's
+      # Mac when no workflow run comes (docs/releasing.md). A pushed tag gets a
+      # draft prerelease, unseen by the public: its binaries are signed with
+      # the human owner's Developer ID and notarized on that Mac, which then
+      # replaces the archive and publishes it (mise run release:notarize). No
+      # signing or notary credential is used here.
+      - name: Release build and draft
         if: github.event_name == 'push'
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: mise run release:ci "$GITHUB_REF_NAME"
+      - name: Build only
+        if: github.event_name != 'push'
         run: |
           version=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
-          test "$RELEASE_TAG" = "v$version"
-      - run: mise tasks validate
-      - run: mise run test
-      - run: mise run package
-      - run: mise run test:package
-      - name: Generate tap formula
-        env:
-          RELEASE_REPOSITORY: ${{ github.repository }}
-        run: mise run release:formula "$RELEASE_REPOSITORY"
+          mise run release:ci "v$version" --no-release
       - uses: actions/upload-artifact@v7
         with:
           name: beta-dist
           path: tmp/dist/
           if-no-files-found: error
-  publish:
-    if: github.event_name == 'push'
-    needs: package
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: beta-dist
-          path: dist
-      - name: Publish immutable prerelease assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
-          RELEASE_REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          directory="dist/${RELEASE_TAG#v}"
-          cd "$directory"
-          sha256sum --strict -c SHA256SUMS
-          # Refuse replacement of an existing release: tap checksums must remain stable.
-          gh release create "$RELEASE_TAG" manzanero-*-apple-darwin.tar.gz SHA256SUMS manzanero.rb \
-            --repo "$RELEASE_REPOSITORY" --verify-tag --draft --prerelease --generate-notes --title "$RELEASE_TAG"
-          gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft=false --prerelease

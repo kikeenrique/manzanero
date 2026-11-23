@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#MISE dir = "{{ config_root }}"
+#MISE description = "Fail if lines added since a revision, or their commit messages, carry this Mac's device identifiers, account names or signing details"
+#USAGE flag "--since <revision>" help="Compare with this revision (default: origin/main)"
+# Part of the pre-release checks (docs/public-readiness.md). The terms are
+# read from this Mac each time and never written anywhere: the paired
+# devices' identifiers and the names given to them, every simulator's UDID,
+# the signing certificates' hashes and team IDs, the account name, the home
+# path and the git identity. A hit is printed partly masked.
+set -euo pipefail
+
+since="${usage_since:-origin/main}"
+git rev-parse --verify --quiet "$since^{commit}" >/dev/null || { echo "Unknown revision: $since" >&2; exit 1; }
+work=$(mktemp -d tmp/identifiers.XXXXXX)
+trap 'rm -rf "$work"' EXIT
+
+xcrun devicectl list devices --timeout 15 --json-output "$work/devices.json" >/dev/null 2>&1 || true
+xcrun simctl list devices --json > "$work/simulators.json" 2>/dev/null || true
+xcrun simctl list devicetypes --json > "$work/devicetypes.json" 2>/dev/null || true
+/usr/bin/python3 -I - "$work" > "$work/terms" <<'EOF'
+import json, os, re, subprocess, sys
+work = sys.argv[1]
+terms = set()
+try:
+    devices = json.load(open(os.path.join(work, "devices.json")))["result"]["devices"]
+except Exception:
+    devices = []
+# Product names, which docs use freely ("iPhone Duo" names both a phone and
+# a simulator): a device named exactly like a product is not a private name.
+try:
+    products = {t["name"].lower() for t in json.load(open(os.path.join(work, "devicetypes.json")))["devicetypes"]}
+except Exception:
+    products = set()
+for device in devices:
+    hw = device.get("hardwareProperties", {})
+    props = device.get("deviceProperties", {})
+    for value in (device.get("identifier"), hw.get("udid"), hw.get("ecid"), hw.get("serialNumber")):
+        if value not in (None, "", 0):
+            terms.add(str(value))
+    # A name the owner gave a physical device, unless it is the product's own.
+    name, product = props.get("name") or "", hw.get("marketingName") or ""
+    if hw.get("reality") == "physical" and len(name) >= 4 and name.lower() not in products | {product.lower()}:
+        terms.add(name)
+try:
+    for runtime in json.load(open(os.path.join(work, "simulators.json")))["devices"].values():
+        for simulator in runtime:
+            terms.add(simulator["udid"])
+except Exception:
+    pass
+identities = subprocess.run(["security", "find-identity", "-v", "-p", "codesigning"], capture_output=True, text=True).stdout
+for digest, label in re.findall(r'\) ([0-9A-F]{40}) "([^"]*)"', identities):
+    terms.add(digest)
+    match = re.match(r'[^:]+: (.+?) \(([A-Z0-9]{10})\)$', label)
+    if match:
+        terms.update(match.groups())
+for command in (["git", "config", "user.name"], ["git", "config", "user.email"]):
+    value = subprocess.run(command, capture_output=True, text=True).stdout.strip()
+    if value:
+        terms.add(value)
+home = os.path.expanduser("~")
+terms.update({os.environ.get("USER", ""), home + "/"})
+# The repository's own fixtures are not this Mac's.
+terms -= {"00008110-000A11112222801E", "11111111-2222-3333-4444-555555555555"}
+print("\n".join(sorted(t for t in terms if len(t) >= 4)))
+EOF
+count=$(wc -l < "$work/terms" | tr -d ' ')
+git diff "$since"..HEAD | grep -E '^\+' | grep -vE '^\+\+\+ ' > "$work/added" || true
+git diff | grep -E '^\+' | grep -vE '^\+\+\+ ' >> "$work/added" || true
+git log --format='%B' "$since"..HEAD > "$work/messages"
+hits=0
+for source in added messages; do
+  while IFS= read -r term; do
+    [ -n "$term" ] || continue
+    if grep -qiF -- "$term" "$work/$source"; then
+      echo "Found ${term:0:3}…${term: -2} (${#term} characters) in the $( [ "$source" = added ] && echo "added lines" || echo "commit messages" ) since $since" >&2
+      hits=$((hits + 1))
+    fi
+  done < "$work/terms"
+done
+[ "$hits" -eq 0 ] || { echo "$hits identifying term(s) found; replace them with placeholders (<UDID>, the fixture UDID) before releasing." >&2; exit 1; }
+echo "No identifying terms ($count checked) in the changes since $since."

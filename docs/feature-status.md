@@ -4,7 +4,7 @@ For one table of what works on which platform, read [status at a glance](status.
 
 Unless a row says otherwise, physical evidence comes from one iPhone 13 mini (iOS 27.2.1) and simulator evidence from iOS 27.2 runtime simulators.
 
-The tool runs on an Apple silicon Mac with macOS 26.6 or later and Xcode 27 or later. The current beta, v0.1.0-beta.2, was published on 2026-11-21 and installs with `brew install kikeenrique/tap/manzanero`; it has been installed on the development Mac only ([record](verification.md#second-beta-published)).
+The tool runs on an Apple silicon Mac with macOS 26.6 or later and Xcode 27 or later. Betas are published as prereleases on [GitHub](https://github.com/kikeenrique/manzanero/releases) and install with `brew install kikeenrique/tap/manzanero`; they have been installed on the development Mac only.
 
 ## Current runtime availability
 

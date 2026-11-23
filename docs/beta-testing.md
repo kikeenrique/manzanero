@@ -6,7 +6,7 @@ The beta package contains the executable, any required Swift compatibility libra
 
 ## Installation
 
-The current beta, [v0.1.0-beta.2](https://github.com/kikeenrique/manzanero/releases/tag/v0.1.0-beta.2), was published on 2026-11-21 and its formula is in the tap. An upgrade from beta.1, `brew audit`, `brew test` and a first run passed on one Mac, the development one ([record](verification.md#second-beta-published)). For source builds, follow the [readme](../readme.md#build-and-start) and substitute `mise run cli` for the bare executable below.
+Betas are published as prereleases on [GitHub](https://github.com/kikeenrique/manzanero/releases), and the tap's formula, kept in its own repository, follows the newest one. For source builds, follow the [readme](../readme.md#build-and-start) and substitute `mise run cli` for the bare executable below.
 
 ```sh
 brew install kikeenrique/tap/manzanero

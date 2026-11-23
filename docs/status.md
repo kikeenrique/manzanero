@@ -1,6 +1,6 @@
 # Status at a glance
 
-One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-22; the work since v0.1.0-beta.2 (2026-11-21) is in no release yet.
+One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-22. Which release carries a change is in the release notes on [GitHub](https://github.com/kikeenrique/manzanero/releases).
 
 ## How to read it
 
@@ -64,12 +64,12 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 
 1. **A release** of the work of 2026-11-21 and 2026-11-22, which is in no beta yet.
 2. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
-3. **An install on a tester's Mac**: v0.1.0-beta.2 is installed on the development Mac only; a tester needs Xcode 27, launched once.
+3. **An install on a tester's Mac**: betas have been installed on the development Mac only; a tester needs Xcode 27, launched once.
 4. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
 5. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
 6. **Not built**: `hold` on a simulator, a click of the remote's touch surface, the agent features (durable sessions, element handles, symbolication and the rest).
 
-Still the human owner's to decide: signing and notarization.
+Signing and notarization run on the human owner's Mac only; the trial passed on 2026-11-23 and the next beta is the first to ship them ([releasing](releasing.md#notarization)).
 
 ## Done on 2026-11-22 (later; not released)
 

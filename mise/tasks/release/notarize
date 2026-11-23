@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+#MISE extends = "swift"
+#MISE description = "Sign a beta archive with the Developer ID, notarize it and publish its draft release, on this Mac; a rerun continues where a run stopped"
+#USAGE arg "<version>" help="Version tag matching Version.swift, e.g. v0.1.0-beta.3"
+#USAGE flag "--local" help="Sign the archive mise run package left under tmp/dist instead of the draft release's"
+#USAGE flag "--no-publish" help="Stop after signing and notarizing: change no release"
+#USAGE flag "--restart" help="Discard what an earlier run kept and start again from signing"
+# Signing and notarization are the only release steps on this Mac: CI builds,
+# tests, packages and leaves a draft prerelease; this task replaces the
+# draft's assets with the signed ones and publishes it (docs/releasing.md).
+# Needs, from the human owner's own terminal:
+# - MANZANERO_SIGN_IDENTITY: the Developer ID Application certificate's SHA-1
+#   hash or full name, in the untracked .env.local;
+# - the notary profile made once with `xcrun notarytool store-credentials`,
+#   named by MANZANERO_NOTARY_PROFILE (manzanero-notary by default);
+# - GitHub CLI signed in, unless --local --no-publish.
+# No credential is read or written by this script.
+#
+# Every step that talks to Apple or GitHub can fail or time out, so what each
+# step achieved is kept in tmp/dist/<version>/notarize/ and a rerun goes on
+# from there: the signed files are reused, never signed again; a submission
+# is asked about by its identifier, never sent again; Gatekeeper is polled
+# again. --restart discards that state.
+set -euo pipefail
+
+tag="$usage_version"
+[[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]] || { echo "Provide a version tag such as v0.1.0-beta.3" >&2; exit 1; }
+version=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
+[[ "$tag" = "v$version" ]] || { echo "Version mismatch: $tag does not match Version.swift ($version)." >&2; exit 1; }
+local_archive="${usage_local:-false}"
+publish=true
+[ "${usage_no_publish:-false}" = "true" ] && publish=false
+[ "$local_archive" = "true" ] && [ "$publish" = "true" ] && { echo "--local signs a locally built archive: add --no-publish; a release publishes what CI built." >&2; exit 1; }
+
+# MANZANERO_SIGN_IDENTITY is the certificate's SHA-1 hash (as
+# `security find-identity -v -p codesigning` prints it) or its full name. A
+# keychain can hold two certificates of one name, a renewal beside the one
+# it replaces; codesign then refuses the name, so give the hash.
+identity="${MANZANERO_SIGN_IDENTITY:-}"
+[ -n "$identity" ] || { echo "Set MANZANERO_SIGN_IDENTITY (in .env.local) to the Developer ID Application certificate's SHA-1 hash or name." >&2; exit 1; }
+identities=$(security find-identity -v -p codesigning | grep '"Developer ID Application:' || true)
+if [[ "$identity" =~ ^[0-9A-Fa-f]{40}$ ]]; then
+  identity=$(tr '[:lower:]' '[:upper:]' <<<"$identity")
+  grep -qE "^ *[0-9]+\) $identity \"Developer ID Application:" <<<"$identities" || { echo "No valid Developer ID Application identity with that hash in this Mac's keychain." >&2; exit 1; }
+else
+  [[ "$identity" == "Developer ID Application:"* ]] || { echo "MANZANERO_SIGN_IDENTITY must be a SHA-1 hash or a Developer ID Application name." >&2; exit 1; }
+  matches=$(grep -cF "\"$identity\"" <<<"$identities" || true)
+  [ "$matches" -ge 1 ] || { echo "The signing identity is not in this Mac's keychain." >&2; exit 1; }
+  if [ "$matches" -gt 1 ]; then
+    echo "$matches certificates in this Mac's keychain are named \"$identity\"; set MANZANERO_SIGN_IDENTITY to one's SHA-1 hash:" >&2
+    grep -F "\"$identity\"" <<<"$identities" | sed -E 's/^ *[0-9]+\) ([0-9A-F]{40}) .*/  \1/' >&2
+    exit 1
+  fi
+fi
+profile="${MANZANERO_NOTARY_PROFILE:-manzanero-notary}"
+directory="tmp/dist/$version"
+archive="$directory/manzanero-aarch64-apple-darwin.tar.gz"
+state="$directory/notarize"
+payload="$state/payload"
+binary="$payload/manzanero"
+mkdir -p "$directory"
+[ "${usage_restart:-false}" = "true" ] && rm -rf "$state"
+mkdir -p "$state"
+
+# A step that talks to Apple or GitHub, tried three times with a growing
+# pause before the run stops; a rerun then continues from the kept state.
+retry() {
+  local attempt
+  for attempt in 1 2 3; do
+    "$@" && return 0
+    [ "$attempt" -lt 3 ] && { echo "Attempt $attempt failed: $1 … ; trying again in $((attempt * 20)) s." >&2; sleep $((attempt * 20)); }
+  done
+  return 1
+}
+stopped() { echo "$1 Run the same command again to continue from here; --restart starts over." >&2; exit 1; }
+
+if [ "$publish" = "true" ] || [ "$local_archive" != "true" ]; then
+  retry gh auth status >/dev/null 2>&1 || { echo "Sign in with gh auth login first." >&2; exit 1; }
+  repository=$(retry gh repo view --json nameWithOwner --jq .nameWithOwner) || stopped "GitHub did not answer."
+fi
+
+signed_ok() {
+  [ -x "$binary" ] || return 1
+  codesign --verify --strict "$binary" 2>/dev/null || return 1
+  local details
+  details=$(codesign -d --verbose=2 "$binary" 2>&1)
+  grep -q '^Authority=Developer ID Application:' <<<"$details" && grep -q 'flags=.*runtime' <<<"$details" && grep -q '^Timestamp=' <<<"$details"
+}
+
+# 1. Signed files: reused when an earlier run left them signed.
+if signed_ok; then
+  echo "Reusing the files signed by an earlier run ($state)."
+else
+  rm -rf "$payload" "$state/submission-id" "$state/accepted" "$state/gatekeeper-ok"
+  if [ "$local_archive" != "true" ]; then
+    # Only a draft is changed: a published release's assets are never
+    # replaced, because a published checksum must stay what it was.
+    draft=$(retry gh release view "$tag" --repo "$repository" --json isDraft --jq .isDraft) || stopped "GitHub did not answer."
+    [ "$draft" = "true" ] || { echo "$tag is not a draft release (published already, or CI has not made it yet)." >&2; exit 1; }
+    rm -f "$archive" "$directory/SHA256SUMS"
+    retry gh release download "$tag" --repo "$repository" --dir "$directory" --clobber --pattern 'manzanero-aarch64-apple-darwin.tar.gz' --pattern SHA256SUMS || stopped "The draft's assets could not be downloaded."
+    (cd "$directory" && shasum -a 256 -c SHA256SUMS)
+  fi
+  [ -f "$archive" ] || { echo "No archive at $archive: run mise run package first." >&2; exit 1; }
+  mkdir -p "$payload"
+  tar -xzf "$archive" -C "$payload"
+  test "$("$binary" --version)" = "manzanero $version"
+  # The bundled Swift runtimes first, then the executable with the hardened
+  # runtime; all with a secure timestamp, as notarization requires.
+  for runtime in "$payload/lib/"*.dylib; do
+    [ -f "$runtime" ] || continue
+    retry codesign --force --timestamp --sign "$identity" "$runtime" || stopped "Signing failed (the timestamp needs Apple's server)."
+  done
+  retry codesign --force --options runtime --timestamp --sign "$identity" "$binary" || stopped "Signing failed (the timestamp needs Apple's server)."
+  signed_ok || { echo "The executable is not Developer ID signed with the hardened runtime and a timestamp." >&2; exit 1; }
+  test "$("$binary" --version)" = "manzanero $version"
+fi
+
+# 2. Notarization: a submission is sent once; a rerun asks about it by its
+# identifier. Apple says it usually ends within 5 minutes, 98 percent
+# within 15 and nearly always within an hour; notarytool waits without limit.
+if [ ! -f "$state/accepted" ]; then
+  if [ ! -s "$state/submission-id" ]; then
+    # The notary service takes a zip, a disk image or an installer package;
+    # the zip carries the same signed files that the archive will carry.
+    rm -f "$state/manzanero.zip"
+    ditto -c -k --keepParent "$payload" "$state/manzanero.zip"
+    retry xcrun notarytool submit "$state/manzanero.zip" --keychain-profile "$profile" --no-wait --output-format json > "$state/submission.json" || stopped "The upload to the notary service failed."
+    plutil -extract id raw -o - "$state/submission.json" > "$state/submission-id"
+    echo "Submitted to the notary service: $(cat "$state/submission-id")"
+  fi
+  identifier=$(cat "$state/submission-id")
+  xcrun notarytool wait "$identifier" --keychain-profile "$profile" >/dev/null || true
+  retry xcrun notarytool info "$identifier" --keychain-profile "$profile" --output-format json > "$state/info.json" || stopped "The notary service did not answer about $identifier."
+  status=$(plutil -extract status raw -o - "$state/info.json")
+  retry xcrun notarytool log "$identifier" --keychain-profile "$profile" "$directory/notarization-log.json" >/dev/null || true
+  case "$status" in
+    Accepted) touch "$state/accepted" ;;
+    "In Progress") stopped "Notarization $identifier is still in progress." ;;
+    *) echo "Notarization $identifier ended $status; see $directory/notarization-log.json. Fix the cause and rerun with --restart." >&2; exit 1 ;;
+  esac
+fi
+identifier=$(cat "$state/submission-id")
+
+# 3. Gatekeeper: a bare executable cannot hold a stapled ticket ("it's not
+# currently possible to staple tickets to" standalone binaries, Apple says),
+# so syspolicy_check's distribution check, which demands one, always fails
+# it. Gatekeeper finds the ticket online; its assessment said "Unnotarized
+# Developer ID" for about five minutes after Apple accepted the trial on
+# 2026-11-23, then "Notarized Developer ID".
+if [ ! -f "$state/gatekeeper-ok" ]; then
+  for attempt in $(seq 1 120); do
+    if spctl --assess --type install -vv "$binary" 2>&1 | grep -q '^source=Notarized Developer ID$'; then touch "$state/gatekeeper-ok"; break; fi
+    [ "$attempt" -eq 1 ] && echo "Waiting for Gatekeeper to see the notarization ticket (up to 60 minutes)…"
+    sleep 30
+  done
+  [ -f "$state/gatekeeper-ok" ] || stopped "Apple accepted $identifier, but Gatekeeper did not report it notarized within 60 minutes."
+fi
+
+# 4. The archive again, made as the package task makes it, with its checksum,
+# then the same checks as any archive. Cheap, so every run does it.
+COPYFILE_DISABLE=1 tar -cf "$state/payload.tar" -C "$payload" .
+gzip -n -c "$state/payload.tar" > "$archive"
+rm -f "$state/payload.tar"
+(cd "$directory" && shasum -a 256 manzanero-aarch64-apple-darwin.tar.gz > SHA256SUMS && shasum -a 256 -c SHA256SUMS)
+mise run test:package
+
+if [ "$publish" != "true" ]; then
+  echo "Signed and notarized $version ($identifier) in $directory; no release changed."
+  exit 0
+fi
+
+# 5. Publishing. A draft gets the signed archive and checksum (again, if an earlier upload
+# broke off) and is published; a release already published counts as done
+# only if it carries this very archive.
+draft=$(retry gh release view "$tag" --repo "$repository" --json isDraft --jq .isDraft) || stopped "GitHub did not answer."
+if [ "$draft" = "true" ]; then
+  retry gh release upload "$tag" "$archive" "$directory/SHA256SUMS" --repo "$repository" --clobber || stopped "The upload to the draft release failed."
+  retry gh release edit "$tag" --repo "$repository" --draft=false --prerelease >/dev/null || stopped "The draft release could not be published."
+else
+  rm -rf "$state/published" && mkdir -p "$state/published"
+  retry gh release download "$tag" --repo "$repository" --dir "$state/published" --pattern SHA256SUMS || stopped "The published release's checksum could not be read."
+  cmp -s "$state/published/SHA256SUMS" "$directory/SHA256SUMS" || { echo "$tag is published with another archive than this one; its assets are never replaced." >&2; exit 1; }
+  echo "$tag was already published with this archive."
+fi
+echo "Published $tag: Developer ID signed and notarized ($identifier)."

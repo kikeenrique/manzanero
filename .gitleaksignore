@@ -1,0 +1,2 @@
+# Reviewed false positive (docs/public-readiness.md): a CryptoKit key built from a variable named privateKey; no key in the source.
+f7ee96a51042c86136985b1057324cd28d81985f:Sources/Manzanero/RemotePairing.swift:generic-api-key:18

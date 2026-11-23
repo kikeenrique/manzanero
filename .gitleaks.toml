@@ -1,0 +1,12 @@
+# Gitleaks' default rules, with one reviewed false positive allowed
+# (docs/public-readiness.md): RemotePairing.swift builds a CryptoKit key from a
+# stored variable named privateKey; the source holds no key.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "CryptoKit key built from a variable named privateKey; no key in the source"
+condition = "AND"
+regexTarget = "line"
+paths = ['''Sources/Manzanero/RemotePairing\.swift$''']
+regexes = ['''PrivateKey\(rawRepresentation: privateKey\)''']

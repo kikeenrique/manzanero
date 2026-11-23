@@ -6,7 +6,7 @@ The project is in beta.
 
 Physical iPhone control is the current priority, and reliable unattended testing is still unfinished. iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope, with support varying by device and operation.
 
-Most live evidence comes from one iPhone 13 mini; one Apple TV 4K runs almost every command too. Apple Watch, iPad and iPhone Duo have been run on simulators only. The commands added after v0.1.0-beta.2 (`launch` options, `--match`, `rotate`, `settings`, `location`, `status-bar`, `clipboard`, `double-tap`, `create-simulator`, recording and `frames` recovery, `type` on a watch, `ownTunnel: paired` in `devices`, `--pid` for a Safari page on a simulator, sound kept in step to the end of a recording, interrupted recordings stopping the device's stream and keeping their movie, another viewer ending a recording with its reason, sound restarted with a recording after a loss, `hold` and `release` batch steps that keep a finger down across steps, a 0.4 s default swipe on the Apple TV remote) are on the development branch and not yet in a release. See [status at a glance](docs/status.md) for one table of what works where, [feature status](docs/feature-status.md) before relying on another device or operation, and the [roadmap](docs/roadmap.md) for what is achieved and what is pending.
+Most live evidence comes from one iPhone 13 mini; one Apple TV 4K runs almost every command too. Apple Watch, iPad and iPhone Duo have been run on simulators only. See [status at a glance](docs/status.md) for one table of what works where, [feature status](docs/feature-status.md) before relying on another device or operation, and the [roadmap](docs/roadmap.md) for what is achieved and what is pending.
 
 <img src="docs/assets/manzanero-clay.png" alt="A cheerful orchard worker biting an apple beside a tree growing a phone, a foldable iPhone Duo, a tablet, a watch and an Apple TV with its remote." width="560">
 
@@ -19,7 +19,7 @@ brew install kikeenrique/tap/manzanero
 manzanero doctor
 ```
 
-The current beta, [v0.1.0-beta.2](https://github.com/kikeenrique/manzanero/releases/tag/v0.1.0-beta.2), was published on 2026-11-21: one Apple silicon archive that states the requirements below. Install it through the tap: the archive is ad hoc signed and not notarized, which Homebrew runs at once and a hand-downloaded copy is expected not to. The first beta, v0.1.0-beta.1 of 2026-11-18, shipped a universal binary that cannot work on Intel and claimed macOS 15. See [beta installation](docs/beta-testing.md), [release preparation](docs/releasing.md) and the [public-readiness review](docs/public-readiness.md).
+Betas are published as prereleases on [GitHub](https://github.com/kikeenrique/manzanero/releases), each with its notes, and the Homebrew tap follows the newest: `brew install kikeenrique/tap/manzanero`. Each is one Apple silicon archive that states the requirements below; from v0.1.0-beta.3 its binaries are signed with a Developer ID and notarized, so a hand-downloaded copy runs too. See [beta installation](docs/beta-testing.md), [release preparation](docs/releasing.md) and the [public-readiness review](docs/public-readiness.md).
 
 ## Build and start
 
