@@ -120,6 +120,40 @@ struct DeviceUIReadinessTests {
         }
     }
 
+    /// An Apple TV's television reads the same asleep and awake, so
+    /// readiness asks for a screenshot there, and only there: a sleeping
+    /// Apple TV refuses one with a zero-sized display.
+    @Test func readinessTellsASleepingAppleTVByItsScreenshot() async throws {
+        let fixture = CoreDeviceInputTests(), details = try fixture.details()
+        let external = try JSONSerialization.data(withJSONObject: ["info": ["outcome": "success"], "result": ["displays": [
+            ["primary": true, "backlightState": "off", "type": ["external": [:] as [String: Any]]]]]])
+        let zeroSized = CommandFailure(.toolFailed, "ERROR: Display reports zero-sized native size (com.apple.dt.CoreDeviceError error 25005 (0x61AD))", inputSent: .none)
+        func ui(_ screenshot: @escaping @Sendable () throws -> Data) async throws -> [String: Any] {
+            let service = CommandService(readinessQuery: { _ in details }, uiReadinessQuery: { plan in
+                switch plan.arguments[3] {
+                case "displays": return external
+                case "screenshot": return try screenshot()
+                default: return try response(plan.arguments[3])
+                }
+            })
+            let output = try await service.run(["readiness", "--device", fixture.udid])
+            let value = try #require(try JSONSerialization.jsonObject(with: output.data) as? [String: Any])
+            return try #require(value["ui"] as? [String: Any])
+        }
+        let asleep = try await ui { throw zeroSized }
+        #expect(asleep["displayPower"] as? String == "external" && asleep["asleep"] as? Bool == true)
+        #expect(asleep["status"] as? String == "needsUserAction" && (asleep["actions"] as? [String])?.contains(DeviceUIReadiness.asleepAction) == true)
+        let awake = try await ui { Data("{}".utf8) }
+        #expect(awake["asleep"] as? Bool == false && awake["status"] as? String == "observed")
+        // Another failure is not a sleep: unknown, and said why.
+        let unknown = try await ui { throw CommandFailure(.timeout, "devicectl timed out.", inputSent: .none) }
+        #expect(unknown["asleep"] == nil && (unknown["diagnostics"] as? [String])?.contains { $0.hasPrefix("sleepStateUnknown") } == true)
+        // A phone's display has a backlight: no screenshot is taken.
+        let phone = try DeviceUIReadiness.observe(details: details, device: fixture.udid) { try response($0.arguments[3]) }
+            .observingSleep { Issue.record("Screenshot of a phone"); return nil }
+        #expect(phone.asleep == nil && phone.status == "observed")
+    }
+
     @Test func explicitReadinessIncludesUIAndDryRunNeverQueries() async throws {
         let fixture = CoreDeviceInputTests(), details = try fixture.details()
         let service = CommandService(readinessQuery: { _ in details }, uiReadinessQuery: { plan in

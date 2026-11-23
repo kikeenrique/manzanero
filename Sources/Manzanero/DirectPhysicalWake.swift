@@ -25,7 +25,8 @@ enum DirectPhysicalWake {
         try validate(input.operands)
         return ["backend": "coredevice-direct", "operation": operation, "identityArguments": try input.identityPlan().arguments,
             "dismissLockScreen": input.operands.isEmpty, "maximumSideButtonPresses": 1, "liveVerification": "one iPhone 13 mini without a passcode",
-            "execution": "Read Apple display and passcode state twice. Only if the primary display is off both times, press the side button once in process, then read the state again. If the display is then on and no passcode is required, press Home once to leave the lock screen. No press when the display is on or its state is unknown; no retry; no passcode entry."]
+            "execution": "Read Apple display and passcode state twice. Only if the primary display is off both times, press the side button once in process, then read the state again. If the display is then on and no passcode is required, press Home once to leave the lock screen. No press when the display is on or its state is unknown; no retry; no passcode entry.",
+            "appleTV": "When the device's details say it is an Apple TV, which has no side button, do what remote wake does instead: a screenshot tells whether it is asleep, and only then Home is pressed once, after waiting for the HID service while it refuses before any input; screenshots then confirm the wake."]
     }
 
     /// `press` sends one hardware button. `settle` waits for the display to

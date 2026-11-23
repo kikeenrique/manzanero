@@ -88,6 +88,50 @@ struct AppleTVPowerTests {
         #expect(slow.pressed == ["home"] && third["status"] as? String == "not-awake" && third["exitCode"] as? Int == 1)
     }
 
+    private static let hidNotReady = CommandFailure(.transportFailed, "Apple HID service did not become ready; no input sent.", inputSent: .none)
+
+    /// A device asleep for hours refuses the press before any input; the
+    /// wake waits and asks again, and still presses Home once.
+    @Test func wakeWaitsForTheHIDServiceAndStillPressesOnce() async throws {
+        let device = Device(awake: [false, false, true])
+        var environment = device.environment()
+        var refusals = 2, waits: [Duration] = []
+        environment.press = { name in
+            if refusals > 0 { refusals -= 1; throw Self.hidNotReady }
+            device.pressed.append(name)
+        }
+        environment.settle = { waits.append($0) }
+        let result = try await Self.run("wake", environment)
+        #expect(device.pressed == ["home"] && result["status"] as? String == "awake" && result["hidWaits"] as? Int == 2)
+        #expect(waits.prefix(2) == [AppleTVPower.hidWaitInterval, AppleTVPower.hidWaitInterval])
+    }
+
+    @Test func wakeGivesUpOnTheHIDServiceWithNothingSentAndRetriesNothingElse() async throws {
+        let device = Device(awake: [false])
+        var environment = device.environment()
+        var asked = 0
+        environment.press = { _ in asked += 1; throw Self.hidNotReady }
+        let failure = await #expect(throws: CommandFailure.self) { _ = try await Self.run("wake", environment) }
+        #expect(failure?.code == .deviceNotReady && failure?.inputSent == CommandFailure.InputSent.none)
+        #expect(asked == AppleTVPower.hidWaits + 1 && device.pressed.isEmpty)
+        // Any other failure is not waited on.
+        asked = 0
+        environment.press = { _ in asked += 1; throw CommandFailure(.transportFailed, "The connection failed.", inputSent: .none) }
+        let other = await #expect(throws: CommandFailure.self) { _ = try await Self.run("wake", environment) }
+        #expect(other?.code == .transportFailed && asked == 1)
+    }
+
+    @Test func wakeOnAnAppleTVIsRemoteWakeUnderItsOwnName() async throws {
+        let asleep = Device(awake: [false, true])
+        let input = try CoreDeviceInput.validated(device: Self.uuid, operation: "remote", operands: ["wake"])
+        let data = try await AppleTVPower.execute(input, details: try Self.details(), environment: asleep.environment(), operation: "wake")
+        let result = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(result["operation"] as? String == "wake" && result["remote"] == nil && result["status"] as? String == "awake")
+        let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried the device"); return Data() })
+        let plan = try #require(JSONSerialization.jsonObject(with: try await service.run(["wake", "--device", Self.uuid], dryRun: true).data) as? [String: Any])
+        #expect((plan["appleTV"] as? String)?.contains("remote wake") == true)
+    }
+
     @Test func aFailureAfterAPressSaysInputMayHaveGone() async throws {
         let device = Device(awake: [true])
         var environment = device.environment()

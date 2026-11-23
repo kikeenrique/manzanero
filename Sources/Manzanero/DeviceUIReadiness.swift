@@ -6,9 +6,13 @@ struct DeviceUIReadiness: Encodable, Sendable {
     let displayPower: String
     let passcodeRequired: Bool?
     let unlockedSinceBoot: Bool?
-    let status: String
-    let actions: [String]
-    let diagnostics: [String]
+    private(set) var status: String
+    private(set) var actions: [String]
+    private(set) var diagnostics: [String]
+    /// Only for an external display (an Apple TV): whether the device is
+    /// asleep, from its screenshot (`AppleTVPower.isAsleep`); absent when
+    /// not looked at or when the screenshot failed for another reason.
+    private(set) var asleep: Bool? = nil
     let limitations = [
         "Display and passcode observations are sequential, non-atomic and may change immediately.",
         "No passcode requirement and unlockedSinceBoot do not prove the current UI is unlocked.",
@@ -90,6 +94,30 @@ struct DeviceUIReadiness: Encodable, Sendable {
         case "off": return "off"
         default: return "unknown"
         }
+    }
+
+    static let asleepAction = "The Apple TV is asleep: wake it (wake or remote wake) before UI inspection, input or recording."
+
+    /// The display of an Apple TV reads the same asleep and awake; its
+    /// screenshot does not: a sleeping one refuses it with a zero-sized
+    /// display. One screenshot, which did not wake the device when it was
+    /// asleep (2026-11-18), only for an external display. `screenshot`
+    /// returns nil for asleep and throws for any other failure.
+    func observingSleep(_ screenshot: () throws -> URL?) throws -> Self {
+        guard displayPower == Self.externalPower else { return self }
+        var observed = self
+        do {
+            let asleep = try screenshot() == nil
+            observed.asleep = asleep
+            if asleep {
+                observed.actions.append(Self.asleepAction)
+                observed.status = "needsUserAction"
+            }
+        } catch {
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            observed.diagnostics.append("sleepStateUnknown: the screenshot that tells an Apple TV's sleep failed for another reason.")
+        }
+        return observed
     }
 
     static func observe(details: Data, device: String, query: (DeviceCommand) throws -> Data) throws -> Self {

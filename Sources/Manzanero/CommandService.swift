@@ -567,9 +567,23 @@ actor CommandService {
             func sent(_ data: Data) -> CommandOutput {
                 CommandOutput(data: inputDevice.map { DeviceUIReadiness.annotateInput(data, uuid: $0, query: lockQuery) } ?? data)
             }
+            func appleTVPower(_ name: String, operation: String, details: Data) async throws -> CommandOutput {
+                let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/power-\(UUID().uuidString)")
+                defer { try? FileManager.default.removeItem(at: directory) }
+                let power = CoreDeviceInput(device: native.device, operation: "remote", operands: [name])
+                return try DirectPhysicalWake.output(await AppleTVPower.execute(power, details: details,
+                    environment: AppleTVPower.live(power, details: details, directory: directory, query: query), operation: operation))
+            }
             do {
             if native.operation == DirectPhysicalWake.operation {
-                return try DirectPhysicalWake.output(DirectPhysicalWake.execute(native, query: query))
+                // An Apple TV has no side button: its wake is remote wake's.
+                let details = try query(identity)
+                if AppleTVRemote.deviceType(details) == "appleTV" {
+                    return try await appleTVPower("wake", operation: DirectPhysicalWake.operation, details: details)
+                }
+                return try DirectPhysicalWake.output(DirectPhysicalWake.execute(native, query: { plan in
+                    plan.executable == identity.executable && plan.arguments == identity.arguments ? details : try query(plan)
+                }))
             }
             if AccessibilityWait.operations.contains(native.operation) {
                 // A wait suspends between polls, so other calls to this
@@ -594,12 +608,8 @@ actor CommandService {
                 return sent(try DirectPhysicalKeyboard.execute(native, query: query))
             }
             if native.operation == "remote", AppleTVPower.handles(native.operands) {
-                let details = try query(native.identityPlan())
-                let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/power-\(UUID().uuidString)")
-                defer { try? FileManager.default.removeItem(at: directory) }
-                let data = try await AppleTVPower.execute(native, details: details,
-                    environment: AppleTVPower.live(native, details: details, directory: directory, query: query))
-                return try DirectPhysicalWake.output(data)
+                try AppleTVPower.validate(native.operands)
+                return try await appleTVPower(native.operands[0], operation: "remote", details: try query(identity))
             }
             if native.operation == "remote" {
                 return sent(try AppleTVRemote.execute(native, query: query))
@@ -650,12 +660,17 @@ actor CommandService {
             if dryRun {
                 let plan = try DeviceCommand.plan(physical: true, device: device, operation: "details")
                 return try json(["executable": plan.executable, "arguments": plan.arguments + ["--quiet"],
-                    "additionalReadOnlyQueries": ["displays", "lockState"],
+                    "additionalReadOnlyQueries": ["displays", "lockState", "screenshot (an external display only: an Apple TV refuses it while asleep)"],
                     "targetResolution": "Additional UI observations use the UUID resolved from fresh details; no queries are performed in dry run."] as [String: Any])
             }
             let details = try readinessQuery(device)
             var report = try DeviceReadiness.decode(details, device: device)
-            report.ui = try DeviceUIReadiness.observe(details: details, device: device, query: uiReadinessQuery)
+            let directory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("tmp/readiness-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let query = uiReadinessQuery
+            report.ui = try DeviceUIReadiness.observe(details: details, device: device, query: query).observingSleep {
+                try AppleTVPower.screenshot(device: device, to: directory.appendingPathComponent("sleep.png"), query: query)
+            }
             return try report.output()
     }
 
