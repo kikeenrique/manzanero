@@ -35,6 +35,33 @@ struct DeviceSettingsTests {
         #expect(refused.description.contains("status-bar is for simulators"))
     }
 
+    /// VoiceOver and StandBy are devicectl subcommands of their own, each
+    /// alone in its call.
+    @Test func voiceOverAndStandByAreCallsOfTheirOwn() throws {
+        let tail = ["--timeout", "30", "--json-output", "-"]
+        for (target, id) in [("--device", device), ("--simulator", simulator)] {
+            #expect(try arguments(["settings", "--voiceover", "on", target, id]) == ["devicectl", "device", "settings", "voiceover", "--enable", "--device", id] + tail)
+            #expect(try arguments(["settings", "--voiceover", "off", target, id]) == ["devicectl", "device", "settings", "voiceover", "--disable", "--device", id] + tail)
+            #expect(try arguments(["settings", "--standby", "hide", target, id]) == ["devicectl", "device", "settings", "standby", "--hide", "--device", id] + tail)
+            // Kept up for a while: devicectl's own timeout outlasts it.
+            #expect(try arguments(["settings", "--standby", "show", "--standby-seconds", "60", target, id])
+                == ["devicectl", "device", "settings", "standby", "--show", "--duration", "60", "--device", id, "--timeout", "90", "--json-output", "-"])
+            #expect(try !request(["settings", "--voiceover", "on", target, id]).isReadOnly)
+        }
+        let tool = try #require(MCPTools.definitions.first { $0.name == "device_settings" })
+        #expect(try tool.command(["device": .string(simulator), "platform": "simulator", "operation": "settings", "voiceover": "off"])
+            .contains { $0.hasPrefix("--voiceover") })
+    }
+
+    @Test(arguments: [["settings", "--voiceover", "on", "--appearance", "dark"], ["settings", "--voiceover", "on", "--standby", "hide"],
+                      ["settings", "--voiceover", "yes"], ["settings", "--standby", "hide", "--standby-seconds", "5"],
+                      ["settings", "--standby-seconds", "5"], ["settings", "--standby", "show", "--standby-seconds", "0"],
+                      ["settings", "--standby", "show", "--standby-seconds", "601"]])
+    func voiceOverAndStandByMisuseIsAUsageError(_ cli: [String]) {
+        let failure = #expect(throws: CommandFailure.self) { try request(cli + ["--simulator", simulator]) }
+        #expect(failure?.code == .usage)
+    }
+
     @Test(arguments: [["rotate", "sideways"], ["settings", "--appearance", "blue"], ["settings", "--text-size", "huge"],
                       ["location", "91,0"], ["location", "1"], ["location", "a,b"], ["location"], ["location", "1,2", "--clear"],
                       ["status-bar"], ["status-bar", "--wifi-bars", "4"], ["status-bar", "--battery-level", "101"],

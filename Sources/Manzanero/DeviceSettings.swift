@@ -22,6 +22,9 @@ enum DeviceSettings {
     static let dataNetworks = ["hide", "wifi", "hotspot", "1x", "GPRS", "Edge", "UMTS", "4G", "LTE", "LTEA", "LTEPlus", "5G", "5GPlus", "5GUWB", "5GUC"]
     static let batteryStates = ["draining", "charging", "charged"]
     static let clear = "--clear"
+    /// `settings` options that are devicectl subcommands of their own.
+    static let ownSubcommands = ["--voiceover", "--standby", "--standby-seconds"]
+    static let standbySeconds = 1...600
     /// Stands for the result file a clipboard read writes, named per run.
     static let resultPlaceholder = "<result file>"
     /// The most clipboard text a read returns.
@@ -47,6 +50,30 @@ enum DeviceSettings {
             guard operands.isEmpty else { throw CommandFailure.usage("Reading the settings takes no operands.") }
             return json(["info", "appearance"])
         case "settings":
+            // VoiceOver and StandBy are devicectl subcommands of their own,
+            // so each is one call, alone.
+            if let own = operands.first, ownSubcommands.contains(own) {
+                let pairs = try Self.pairs(operands, allowed: [
+                    "--voiceover": ["on", "off"], "--standby": ["show", "hide"], "--standby-seconds": nil,
+                ], subject: "settings")
+                let names = Set(pairs.map(\.0))
+                guard names.count == 1 || names == ["--standby", "--standby-seconds"] else {
+                    throw CommandFailure.usage("settings takes --voiceover or --standby alone, in a call of its own: each is a devicectl subcommand of its own.")
+                }
+                let values = Dictionary(uniqueKeysWithValues: pairs)
+                if let voiceover = values["--voiceover"] {
+                    return json(["settings", "voiceover", voiceover == "on" ? "--enable" : "--disable"])
+                }
+                guard let standby = values["--standby"] else { throw CommandFailure.usage("--standby-seconds goes with --standby show.") }
+                guard let seconds = values["--standby-seconds"] else { return json(["settings", "standby", "--\(standby)"]) }
+                guard standby == "show", let count = Int(seconds), standbySeconds.contains(count) else {
+                    throw CommandFailure.usage("--standby-seconds takes \(standbySeconds.lowerBound)...\(standbySeconds.upperBound) with --standby show.")
+                }
+                // devicectl keeps StandBy up for the duration, so its own
+                // timeout must outlast it.
+                return DeviceCommand(arguments: ["devicectl", "device", "settings", "standby", "--show", "--duration", seconds,
+                    "--device", device, "--timeout", String(count + 30), "--json-output", "-"], jsonOutput: true)
+            }
             let pairs = try Self.pairs(operands, allowed: [
                 "--appearance": ["light", "dark"], "--text-size": textSizes,
                 "--increase-contrast": ["on", "off"], "--reduce-motion": ["on", "off"],

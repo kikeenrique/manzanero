@@ -544,7 +544,7 @@ extension ManzaneroCLI {
     }
 
     struct Settings: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "settings", abstract: "Read, or set, appearance, text size, contrast or reduced motion.",
+        static let configuration = CommandConfiguration(commandName: "settings", abstract: "Read, or set, appearance, text size, contrast, reduced motion, VoiceOver or StandBy.",
             discussion: "Without options it reads the current values (devicectl device info appearance: userInterfaceStyle, textSize, increaseContrast, reduceMotion and others), read-only, so a change can be put back as it was. With options it changes them: \(settingsCaveat) An accessibility text size also turns Larger Accessibility Sizes on.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
@@ -553,9 +553,18 @@ extension ManzaneroCLI {
                 completion: .list(DeviceSettings.textSizes)) var textSize: String?
         @Option(help: ArgumentHelp("on or off.", valueName: "state")) var increaseContrast: String?
         @Option(help: ArgumentHelp("on or off.", valueName: "state")) var reduceMotion: String?
+        @Option(help: ArgumentHelp("on or off; alone, in a call of its own. VoiceOver changes how every touch is taken, so turn it off again.", valueName: "state")) var voiceover: String?
+        @Option(help: ArgumentHelp("show or hide; alone, in a call of its own. StandBy shows only from the lock screen.", valueName: "state")) var standby: String?
+        @Option(help: ArgumentHelp("With --standby show: keep StandBy up this long, 1...600 seconds, and wait for it.", valueName: "seconds")) var standbySeconds: String?
         func request(_ target: Target) throws -> CommandRequest {
-            let pairs = [("--appearance", appearance), ("--text-size", textSize), ("--increase-contrast", increaseContrast), ("--reduce-motion", reduceMotion)]
+            let own = [("--voiceover", voiceover), ("--standby", standby), ("--standby-seconds", standbySeconds)]
                 .flatMap { name, value in value.map { [name, $0] } ?? [] }
+            let appearancePairs = [("--appearance", appearance), ("--text-size", textSize), ("--increase-contrast", increaseContrast), ("--reduce-motion", reduceMotion)]
+                .flatMap { name, value in value.map { [name, $0] } ?? [] }
+            if !own.isEmpty, !appearancePairs.isEmpty {
+                throw CommandFailure.usage("settings takes --voiceover or --standby alone, in a call of its own: each is a devicectl subcommand of its own.")
+            }
+            let pairs = own + appearancePairs
             return .tool(try DeviceOperation(target, pairs.isEmpty ? DeviceSettings.readOperation : "settings", pairs))
         }
     }

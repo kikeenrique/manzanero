@@ -239,13 +239,16 @@ enum MCPTools {
             return arguments.command(["launch"], options: options + [arguments.text("value")],
                                      operands: (arguments["app_arguments"]?.arrayValue ?? []).compactMap(\.stringValue))
         },
-        .init(name: "device_settings", description: "Change a device's or booted simulator's state through Apple's devicectl, which addresses a simulator by UUID. operation rotate: orientation (portrait, portrait-upside-down, landscape-left, landscape-right); an app that supports fewer orientations stays as it is, so read the tree after. settings: any of appearance (light, dark), text_size (extra-small ... extra-extra-extra-large, accessibility-medium ... accessibility-extra-extra-extra-large), increase_contrast and reduce_motion (on, off). location: latitude and longitude in decimal degrees, or clear true. status-bar: any of time, battery_level (0...100), battery_state (draining, charging, charged), wifi_bars (1...3), cellular_bars (1...5), data_network, or clear true. On a physical device these change the owner's device: ask first.", fields: [
+        .init(name: "device_settings", description: "Change a device's or booted simulator's state through Apple's devicectl, which addresses a simulator by UUID. operation rotate: orientation (portrait, portrait-upside-down, landscape-left, landscape-right); an app that supports fewer orientations stays as it is, so read the tree after. settings: any of appearance (light, dark), text_size (extra-small ... extra-extra-extra-large, accessibility-medium ... accessibility-extra-extra-extra-large), increase_contrast and reduce_motion (on, off); or, alone in a call of its own, voiceover (on, off; turn it off again, since it changes how every touch is taken) or standby (show, hide; show only from the lock screen) with standby_seconds (1...600) to keep it up and wait. location: latitude and longitude in decimal degrees, or clear true. status-bar: any of time, battery_level (0...100), battery_state (draining, charging, charged), wifi_bars (1...3), cellular_bars (1...5), data_network, or clear true. On a physical device these change the owner's device: ask first.", fields: [
             platform, device, .init(name: "operation", choices: ["rotate", "settings", "location", "status-bar"]),
             .init(name: "orientation", required: false, choices: DeviceSettings.orientations.map(\.name)),
             .init(name: "appearance", required: false, choices: ["light", "dark"]),
             .init(name: "text_size", required: false, choices: DeviceSettings.textSizes),
             .init(name: "increase_contrast", required: false, choices: ["on", "off"]),
             .init(name: "reduce_motion", required: false, choices: ["on", "off"]),
+            .init(name: "voiceover", required: false, choices: ["on", "off"]),
+            .init(name: "standby", required: false, choices: ["show", "hide"]),
+            .init(name: "standby_seconds", kind: .integer, required: false),
             .init(name: "latitude", kind: .number, required: false), .init(name: "longitude", kind: .number, required: false),
             .init(name: "time", required: false), .init(name: "battery_level", kind: .integer, required: false),
             .init(name: "battery_state", required: false, choices: DeviceSettings.batteryStates),
@@ -258,7 +261,8 @@ enum MCPTools {
                 return arguments.command(["rotate"], operands: [arguments.text("orientation")])
             case "settings":
                 return arguments.command(["settings"], options: arguments.options([("appearance", "--appearance"), ("text_size", "--text-size"),
-                    ("increase_contrast", "--increase-contrast"), ("reduce_motion", "--reduce-motion")]))
+                    ("increase_contrast", "--increase-contrast"), ("reduce_motion", "--reduce-motion"), ("voiceover", "--voiceover"),
+                    ("standby", "--standby")]) + arguments.options([("standby_seconds", "--standby-seconds")], numeric: true))
             case "location":
                 guard clear.isEmpty else { return arguments.command(["location"], options: clear) }
                 return arguments.command(["location"], operands: ["\(arguments.number("latitude")),\(arguments.number("longitude"))"])
