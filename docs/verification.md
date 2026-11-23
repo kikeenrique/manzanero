@@ -2115,7 +2115,14 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote play-pause` | Scanning ended and playback resumed at 156.0 s |
 | Paused: `set-value --id "Media Controls" 300` | Refused before sending: "target enabled/visible state is unavailable, changed or unsuitable", stage `live-attributes` |
 
-So a swipe while paused moves only a preview, which a select commits; a held arrow scans until play-pause. An agent that swiped while paused and saw the playhead stay put (2026-11-23, on the Apple TV 4K) may have been seeing the preview before a commit; whether the device behaves the same has not been run.
+Later the same evening, on the same simulator, the video playing, the position read from the probe's readout before and after each press:
+
+| Step | Observed |
+| --- | --- |
+| `remote right` | 16.0 s, then 27.0 s about a second later: a skip of 10 s forward |
+| `remote left` | 32.0 s, then 23.0 s about two seconds later: a skip of 10 s back |
+
+So a swipe while paused moves only a preview, which a select commits; a held arrow scans until play-pause; and one arrow press while playing skips 10 s, as a press on the second-generation remote's clickpad ring does. An agent that swiped while paused and saw the playhead stay put (2026-11-23, on the Apple TV 4K) may have been seeing the preview before a commit; whether the device behaves the same has not been run.
 
 ### The new tools over MCP
 
