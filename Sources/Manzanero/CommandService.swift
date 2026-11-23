@@ -263,7 +263,14 @@ actor CommandService {
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
             if tool.platform == .physical, tool.operation == "screenshot" {
                 let annotated = DeviceUIReadiness.annotateScreenshot(data, device: tool.device, query: uiReadinessQuery)
-                return CommandOutput(data: ScreenshotBlank.annotate(annotated, image: ScreenshotBlank.destination(arguments)))
+                let blank = ScreenshotBlank.annotate(annotated, image: ScreenshotBlank.destination(arguments))
+                // A black Apple TV picture: one tree says whether Apple's
+                // player is in front (on the tool's own tunnel only, as
+                // every Apple TV accessibility command).
+                return CommandOutput(data: await ScreenshotBlank.annotatePlayer(blank) {
+                    try await self.perform(.tree(platform: "physical", device: tool.device), dryRun: false,
+                                           allowInteractive: false, handoffConfirmation: nil).data
+                })
             }
             return CommandOutput(data: data)
         case .simulatorDisplay(let display):

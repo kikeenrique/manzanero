@@ -47,6 +47,46 @@ enum ScreenshotBlank {
         return true
     }
 
+    /// What marks Apple's player in a tvOS tree, read on an Apple TV
+    /// simulator on 2026-11-23 with the tvOS probe's silent video: class
+    /// names (native attribute 5003) while it plays with its controls
+    /// hidden, and the transport bar's elements while they show. A player
+    /// an app draws itself on a bare `AVPlayerLayer` may show none of them.
+    static let playerClasses = ["AVPlayerViewControllerContainerView", "AVPlayerLayerView", "AVNowPlayingTransportBar"]
+    static let playerIdentifiers = ["Media Controls", "Scrub Needle", "AXElapsedTime"]
+
+    /// Whether a tree's JSON shows Apple's player; nil when it has no nodes.
+    static func showsPlayer(_ tree: Data) -> Bool? {
+        guard let root = (try? JSONSerialization.jsonObject(with: tree)) as? [String: Any],
+              let nodes = root["nodes"] as? [[String: Any]] else { return nil }
+        return nodes.contains { node in
+            if let identifier = node["identifier"] as? String, playerIdentifiers.contains(identifier) { return true }
+            guard let name = (node["nativeAttributes"] as? [String: Any])?["5003"] as? String else { return false }
+            return playerClasses.contains { name.contains($0) }
+        }
+    }
+
+    static let playerNote = "Apple's video player is in front, so protected video (FairPlay) is the likely cause: the device leaves it out of captures, interface and all. The tree still reads the player's controls while they show (Media Controls has the position)."
+
+    /// Adds `playerOnScreen` after a blank Apple TV picture, from one tree
+    /// read by `readTree`; a failed read adds `playerCheckUnavailable`
+    /// instead. Any other receipt is left as it is and nothing is read.
+    static func annotatePlayer(_ receipt: Data, isolation: isolated (any Actor)? = #isolation,
+                               readTree: () async throws -> Data) async -> Data {
+        guard var root = (try? JSONSerialization.jsonObject(with: receipt)) as? [String: Any],
+              root["blankImage"] as? Bool == true, root["displayPower"] as? String == DeviceUIReadiness.externalPower else { return receipt }
+        do {
+            guard let player = showsPlayer(try await readTree()) else {
+                throw CommandFailure(.internal, "The tree had no nodes.", inputSent: .none)
+            }
+            root["playerOnScreen"] = player
+            if player { root["blankNote"] = playerNote }
+        } catch {
+            root["playerCheckUnavailable"] = CommandFailure.classify(error).description
+        }
+        return (try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])) ?? receipt
+    }
+
     /// The `--destination` of a planned `devicectl` screenshot.
     static func destination(_ arguments: [String]) -> URL? {
         guard let index = arguments.firstIndex(of: "--destination"), arguments.indices.contains(index + 1) else { return nil }

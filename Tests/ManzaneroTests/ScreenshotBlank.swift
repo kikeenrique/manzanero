@@ -58,6 +58,41 @@ struct ScreenshotBlankTests {
         #expect(unread["blankImage"] == nil)
     }
 
+    private static func tree(_ nodes: [[String: Any]]) throws -> Data { try JSONSerialization.data(withJSONObject: ["nodes": nodes]) }
+
+    /// The markers read from Apple's player on a tvOS simulator.
+    @Test func applesPlayerIsToldByItsClassesOrItsTransportBar() throws {
+        let playing = try Self.tree([["id": "n1", "nativeAttributes": ["5003": "UIWindow"]],
+                                     ["id": "n2", "nativeAttributes": ["5003": "__AVPlayerLayerView"]]])
+        let paused = try Self.tree([["id": "n1", "identifier": "Media Controls", "value": "17 seconds elapsed"]])
+        let home = try Self.tree([["id": "n1", "label": "Probe TV", "identifier": "AppCell", "nativeAttributes": ["5003": "UIView"]]])
+        #expect(ScreenshotBlank.showsPlayer(playing) == true && ScreenshotBlank.showsPlayer(paused) == true)
+        #expect(ScreenshotBlank.showsPlayer(home) == false && ScreenshotBlank.showsPlayer(Data("{}".utf8)) == nil)
+    }
+
+    @Test func aBlankAppleTVPictureReadsOneTreeAndNothingElseDoes() async throws {
+        func receipt(_ power: String, blank: Bool) throws -> Data {
+            try JSONSerialization.data(withJSONObject: ["displayPower": power, "blankImage": blank, "blankNote": "x"])
+        }
+        func decoded(_ data: Data) throws -> [String: Any] { try #require(JSONSerialization.jsonObject(with: data) as? [String: Any]) }
+        let player = try Self.tree([["id": "n1", "nativeAttributes": ["5003": "_AVPlayerViewControllerContainerView"]]])
+        let withPlayer = try decoded(await ScreenshotBlank.annotatePlayer(try receipt(DeviceUIReadiness.externalPower, blank: true)) { player })
+        #expect(withPlayer["playerOnScreen"] as? Bool == true && withPlayer["blankNote"] as? String == ScreenshotBlank.playerNote)
+        let without = try decoded(await ScreenshotBlank.annotatePlayer(try receipt(DeviceUIReadiness.externalPower, blank: true)) {
+            try Self.tree([["id": "n1", "label": "Settings"]])
+        })
+        #expect(without["playerOnScreen"] as? Bool == false && without["blankNote"] as? String == "x")
+        let refused = try decoded(await ScreenshotBlank.annotatePlayer(try receipt(DeviceUIReadiness.externalPower, blank: true)) {
+            throw CommandFailure(.unsupportedOperation, "An Apple TV's accessibility needs the tool's own tunnel.", inputSent: .none)
+        })
+        #expect(refused["playerOnScreen"] == nil && (refused["playerCheckUnavailable"] as? String)?.contains("own tunnel") == true)
+        // A phone's black picture, or a picture that is not black: no tree.
+        for (power, blank) in [("on", true), (DeviceUIReadiness.externalPower, false)] {
+            let original = try receipt(power, blank: blank)
+            #expect(await ScreenshotBlank.annotatePlayer(original) { Issue.record("Tree read"); return Data() } == original)
+        }
+    }
+
     @Test func theDestinationIsReadFromThePlannedArguments() {
         #expect(ScreenshotBlank.destination(["devicectl", "device", "capture", "screenshot", "--destination", "tmp/a.png", "--device", "x"])?.path.hasSuffix("tmp/a.png") == true)
         #expect(ScreenshotBlank.destination(["devicectl", "--destination"]) == nil)
