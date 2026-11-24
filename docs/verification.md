@@ -2124,7 +2124,18 @@ Then a long session on the tool's own pairing, through the MCP server connected 
 | Result | `status: recorded`, 60 s; `recovery.restarts: 2`, one gap `{atSeconds: 2.318, seconds: 17.778, reason: stream-ended}`; `audioTrack.restarts: 1`, 4262 sound packets, none lost or refused, 42.62 s of received sound |
 | The track, its level every two seconds | The beeps from 0 to 2 s, digital silence from 4 to 16 s, the beeps again from 18 s to the end (RMS about 7400 to 8400); 59.92 s in all |
 
-So a recording with sound recovers on the Apple TV as on the phone: the sound stream starts again with the session, and the gap is written as silence, so the sound after it keeps its place. How close the sound after the gap is to the picture was not measured (the probe flashes on each round's first beep, as the iOS probe does, for that measurement). The probe was closed twenty seconds after the recording ended and the device put to sleep.
+So a recording with sound recovers on the Apple TV as on the phone: the sound stream starts again with the session, and the gap is written as silence, so the sound after it keeps its place. The probe was closed twenty seconds after the recording ended and the device put to sleep.
+
+Sound against picture, measured the same evening with AVFoundation from the movie itself: the times of the probe's white flashes (frames whose mean is near white) against the start of each round's first beep in the sound track (the first loud sample after the 0.4-second rest). The sound's rounds are exactly 1.600 s apart; the flashes, drawn by the probe at the display's pace, from 1.54 to 1.70 s.
+
+| Movie | Picture after sound |
+| --- | --- |
+| A 20-second baseline with no loss, made for this (the probe closed in the same command) | −7 to +140 ms over twelve rounds, about +60 ms in the middle; one flash 487 ms late, a frame missed |
+| The cable-pull movie, the one round before the gap | +38 ms |
+| The same movie, the 25 rounds after the gap | +113 to +250 ms, about +150 ms in the middle, with no drift over 38 s |
+
+So after a restart the Apple TV's picture runs about 0.1 s, some three frames, later against its sound than without one, and stays there; on the phone the sound after a restart was within a frame or two (2026-11-22). Part of the spread is the probe's own flash, which follows the player's position less the output latency the audio session reports.
+
 
 ### The tool's host removed on the Apple TV, and paired again
 
