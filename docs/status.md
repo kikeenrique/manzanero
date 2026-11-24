@@ -1,6 +1,6 @@
 # Status at a glance
 
-One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-24. Which release carries a change is in the release notes on [GitHub](https://github.com/kikeenrique/manzanero/releases).
+One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-25. Which release carries a change is in the release notes on [GitHub](https://github.com/kikeenrique/manzanero/releases).
 
 ## How to read it
 
@@ -64,11 +64,12 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **A release**: a lot changed since v0.1.0-beta.3 (new commands and options, `crown` and `type` on a real watch, fixes for an iPad's and a watch's panels); one command from the human owner's terminal.
+1. **A release**: a lot changed since v0.1.0-beta.3 (new commands and options, the watch's crown, typing, buttons and video, fixes for an iPad's and a watch's panels); one command from the human owner's terminal.
 2. **An iPhone Duo**: paired, never used; fold, hinge and displays ran on a simulator only.
 3. **A second iPhone**: an iPhone 17 Pro Max is paired; touch timing was measured on the iPhone 13 mini only.
-4. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
-5. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
+4. **`logs` on an Apple Watch**: the watch's log relay sends nothing; the cause is unknown.
+5. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
+6. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 

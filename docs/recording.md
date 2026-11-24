@@ -40,7 +40,9 @@ Manzanero only reads the firewall state. It never changes a rule and does not wo
 
 The operation retains an Apple tunnel assertion and an in-process reservation for the resolved device UUID. It refuses pre-existing media sessions, negotiates an owned standard-RTP stream and validates endpoints, payload and cipher settings.
 
-Project code reconstructs single-layer, non-interleaved HEVC NAL/aggregation/fragmentation packets without DONL. Pictures are bounded to 8 MiB/256 NAL units; VPS/SPS/PPS are at most 65535 bytes each. Gaps or incomplete pictures discard dependent output until a random-access picture. There is no reordering/jitter buffer, multilayer handling or H.264 input decoder.
+Project code reconstructs single-layer, non-interleaved HEVC NAL/aggregation/fragmentation packets without DONL. Pictures are bounded to 8 MiB/256 NAL units; VPS/SPS/PPS are at most 65535 bytes each. Gaps or incomplete pictures discard dependent output until a random-access picture. There is no reordering/jitter buffer or multilayer handling.
+
+An Apple Watch sends H.264 instead (since 2026-11-25): RFC 6184 single NAL units, STAP-A and FU-A, with its SPS and PPS not in band but in the stream's first packet, four bytes and a QuickTime `avc1` sample description whose `avcC` holds them. `MediaVideoAssembler` picks the codec from the first packet only one of them reads, and `MediaH264Assembler` applies the same bounds and loss rules; the decoder then builds an H.264 format description ([record](verification.md#the-physical-apple-watchs-remaining-commands)).
 
 VideoToolbox decodes the stream. During its synchronous callback, CoreImage copies BGRA pixels into owned buffers, consumed into Apple's sendable read-only pixel-buffer type before crossing to the encoder actor. AVFoundation encodes the requested H.264/HEVC output. Movies do not use a JPEG roundtrip; diagnostic frame probes still save JPEGs.
 

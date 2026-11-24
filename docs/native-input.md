@@ -18,7 +18,7 @@ The direct backend is the only physical backend; there is no backend option. Pai
 
 ## Direct buttons
 
-Buttons are `home`, `lock`, `volume-up` and `volume-down`. The bridge sends one down/up pair with readiness and completion barriers. `lock` uses a 0.4-second hold; the others use 80 ms.
+Buttons are `home`, `lock`, `volume-up` and `volume-down`, and on an Apple Watch since 2026-11-25 `side` and `action` ([watch buttons](other-families.md#digital-crown-and-side-button-apple-watch); another device is refused before input). The bridge sends one down/up pair with readiness and completion barriers. `lock` uses a 0.4-second hold; the others use 80 ms.
 
 A barrier acknowledges transport progress, not a UI effect. Home has scoped visual verification on iPhone 13 mini. One side-button check saw display power change from off to active, but the next media probe found it off again. `button lock` is a toggle, not an idempotent wake command; do not replay it as an automatic wake strategy. Wake duration and unlock remain unverified.
 
