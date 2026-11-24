@@ -1,6 +1,6 @@
 # Status at a glance
 
-One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-23. Which release carries a change is in the release notes on [GitHub](https://github.com/kikeenrique/manzanero/releases).
+One table of what works where, for a reader who wants the answer before the detail. It is a summary of [feature status](feature-status.md), which has the limits, and of [verification](verification.md), which has the evidence; when they disagree, they are right and this page is stale. Last brought up to date on 2026-11-24. Which release carries a change is in the release notes on [GitHub](https://github.com/kikeenrique/manzanero/releases).
 
 ## How to read it
 
@@ -69,6 +69,12 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 5. **Not built**: a press at a point of the first-generation remote's touch surface (the clickpad ring's presses are the arrows, already sent), the rest of the agent features (durable sessions, `.xcappdata` export); element handles (`--handle`), symbolication on request (`last-crash --symbols`) and a build deadline with progress were built on 2026-11-23.
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
+
+## Done on 2026-11-24
+
+- **A protected picture without DRM**: the tvOS probe's `-ProbeVideoProtected YES` shows its silent movie in a layer that prevents capture; a simulator ignores that in screenshots and recordings, so the Apple TV is where a black capture is checked.
+- **Face ID on a simulator**: `settings --biometrics on|off|state`, and on a simulator `match|nomatch` for the prompt on screen; the iOS probe raises a real Face ID prompt, which was answered, failed, and its alert cancelled by identifier.
+- **Black frames**: `frames` marks and counts entirely black frames in its receipt.
 
 ## Done on 2026-11-23
 
