@@ -282,8 +282,9 @@ actor CommandService {
                                  "notifications": arguments.filter { $0.hasPrefix("com.apple.BiometricKit_Sim.") },
                                  "note": "Posted inside the simulator for the biometric prompt on its screen; with none showing it does nothing. Read the app, or the prompt's process (LocalAuthenticationUIService), to see the outcome."])
             }
-            let data = try runner.run(arguments, executable: command.executable, environment: command.environment)
+            var data = try runner.run(arguments, executable: command.executable, environment: command.environment)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
+            if arguments.contains("settings"), arguments.contains("biometrics") { data = DeviceSettings.annotateBiometrics(data) }
             if tool.platform == .physical, tool.operation == "screenshot" {
                 let annotated = DeviceUIReadiness.annotateScreenshot(data, device: tool.device, query: uiReadinessQuery)
                 let blank = ScreenshotBlank.annotate(annotated, image: ScreenshotBlank.destination(arguments))

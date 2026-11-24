@@ -161,6 +161,25 @@ enum DeviceSettings {
         }
     }
 
+    /// A biometrics result whose device lists no biometric type: devicectl
+    /// says so only on stderr ("Device does not support any biometrics,
+    /// nothing to do") and still answers `outcome: success` and, for
+    /// `--enable`, `enabled: true`. Seen on the iPhone 13 mini on 2026-11-24,
+    /// which has Face ID hardware. The result then says
+    /// `biometricsSupported: false` and, for on or off, `changed: false`.
+    static func annotateBiometrics(_ data: Data) -> Data {
+        guard var root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let result = root["result"] as? [String: Any],
+              let types = result["biometrics"] as? [Any], types.isEmpty else { return data }
+        root["biometricsSupported"] = false
+        let changing = (result["operation"] as? String).map { $0 != "query" } ?? false
+        if changing { root["changed"] = false }
+        root["biometricsNote"] = "The device lists no biometric type that devicectl controls"
+            + (changing ? ", so nothing was changed although devicectl answers success." : ".")
+            + " Simulators list Face ID or Touch ID; a physical device may list none even with the hardware."
+        return (try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])) ?? data
+    }
+
     /// A clipboard read's result: the text devicectl wrote to stdout, with
     /// the type and size from its result file. An empty clipboard is
     /// `empty: true` with no text.

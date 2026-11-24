@@ -63,7 +63,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **`wake` on error 25004**: built on 2026-11-24 by the human owner's decision. When the Apple TV refuses `wake`'s screenshot with 25004 instead of the 25005 that means asleep, `wake` presses Home once, as for a sleeping device. Left: a run on the device.
-2. **Phone checks still owed**: biometric enrolment on the phone (on the human owner's word; StandBy is refused by this phone, which lacks the capability), a real biometric prompt on the phone.
+2. **Phone checks**: done; biometrics and StandBy do not apply to this phone (no biometric type for `devicectl`, no StandBy capability). Left: a real biometric prompt on the phone.
 3. **Apple TV, loose ends**: the awake device whose services stopped answering on 2026-11-24 until a restart, cause unknown. The pairing after a restart and `remote sleep` from a screen saver are done.
 4. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
 5. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.

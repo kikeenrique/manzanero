@@ -152,4 +152,21 @@ struct DeviceSettingsTests {
         #expect(clipboard.readOnly)
         #expect(try clipboard.command(base) == ["clipboard", "--simulator=\(simulator)"])
     }
+
+    /// A device that lists no biometric type: devicectl answers success and,
+    /// for --enable, enabled true; the result says nothing changed.
+    @Test func biometricsOnADeviceWithNoTypeSayNothingChanged() throws {
+        func result(_ operation: String, _ types: [Any]) throws -> [String: Any] {
+            let raw = try JSONSerialization.data(withJSONObject: ["info": ["outcome": "success"],
+                "result": ["biometrics": types, "enabled": true, "operation": operation]])
+            return try #require(JSONSerialization.jsonObject(with: DeviceSettings.annotateBiometrics(raw)) as? [String: Any])
+        }
+        let enable = try result("enable", [])
+        #expect(enable["biometricsSupported"] as? Bool == false && enable["changed"] as? Bool == false)
+        #expect((enable["biometricsNote"] as? String)?.contains("nothing was changed") == true)
+        let query = try result("query", [])
+        #expect(query["biometricsSupported"] as? Bool == false && query["changed"] == nil)
+        let simulator = try result("enable", [["type": "faceID", "enrolled": true]])
+        #expect(simulator["biometricsSupported"] == nil && simulator["changed"] == nil)
+    }
 }

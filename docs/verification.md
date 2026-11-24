@@ -2115,6 +2115,18 @@ After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wa
 
 Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
 
+### Biometrics on the phone: no type to control
+
+**2026-11-24, 19:45**, the iPhone 13 mini (iOS 27.2.1), on the human owner's word, unlocked, with no Face ID enrolled.
+
+| Step | Observed |
+| --- | --- |
+| `settings --biometrics state` | devicectl: "WARNING: Device does not support any biometrics" on stderr; `outcome: success`, `biometrics: []` |
+| `settings --biometrics on`, once | "Device does not support any biometrics, nothing to do" on stderr, yet `outcome: success` and `enabled: true` in the JSON: a reader of the result alone would believe Face ID had been enabled. Fixed the same day: an empty `biometrics` list makes the result say `biometricsSupported: false`, `changed: false` and why (`biometricsNote`) |
+| `settings --biometrics off`, `state`, with the fix | `changed: false` and `biometricsSupported: false` with the note; nothing on the phone changed |
+
+So `devicectl device settings biometrics` controls no biometric type on this phone, although it has Face ID hardware: the enrolment it switches is a simulator's (and perhaps an internal device's), and a real prompt on a phone needs a face enrolled by a person. No prompt was raised and nothing was put back, since nothing had changed.
+
 ### StandBy on the phone, refused by the device
 
 **2026-11-24, 19:25**, the iPhone 13 mini (iOS 27.2.1), on its cable and charging.
