@@ -2090,6 +2090,27 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote left --report-focus` | `focus.label` Settings |
 | `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
 
+### FairPlay video on the Apple TV 4K
+
+**2026-11-24, morning**, in a third-party streaming app with FairPlay-protected video and a series, both chosen by the human owner; the episodes played with sound, which the human owner had asked for, and were paused after each capture.
+
+| Step | Observed |
+| --- | --- |
+| `wake`, `launch` | Awake (`hidWaits: 0`); the app's profile screen, with a countdown |
+| `press --label <profile>` | The app's home page followed |
+| `press --label <first episode's tile>` | Refused before sending (`live-attributes`): the tile was below the screen. `scroll --label` on it: `postcondition-failed`, this app's rows move by focus only. Moving the focus with `remote up`/`down` and reading the tile's frame from a fresh tree after each press, then a screenshot showing the tile focused, then `remote select` |
+| `remote --report-focus` in this app | The focused node had no label or identifier, only a frame: the receipt can only be as good as the app's accessibility |
+| `remote select` on the episode page's E1 | The pilot had been watched almost to the end: the app showed its "next episode" screen and counted down into E2 |
+| `screenshot` while E2 played | Entirely black, `blankImage: true`, `playerOnScreen: true` with the player note |
+| `frames --count 2` while it played | Both black, `blankFrames: 2` |
+| `press --label <the app's start button>`, then the same captures | Screenshot black with `playerOnScreen: true`; `frames` both black |
+| `remote play-pause`, `tree` | `AXElapsedTime` `00:18`; `Media Controls` "Tiempo transcurrido: 18 segundos, Tiempo restante: 21 minutos, 33 segundos" (in the device's language: read the position from `AXElapsedTime`) |
+| `screenshot` while paused | The player's controls (title, bar, 00:18, "Información") drawn over a black video area; `blankImage: false` |
+| `frames` while paused, one and then three half a second apart | Each a single flat dark green (RGB 1, 94, 1), not the controls |
+| `remote sleep` | `asleep` |
+
+So FairPlay video, unlike a layer that prevents capture, is left out of the stream as well as of screenshots: black while playing, a flat green picture while paused. The screenshot leaves out the video alone and keeps the interface drawn over it. The black-picture notes were changed the same day to say so, and `frames` counts flat pictures of any colour as `uniform`.
+
 ### Apple TV session of 2026-11-24: wake, the focus, a protected picture and seeking
 
 **2026-11-24, morning**, the Apple TV 4K (`AppleTV14,1`, tvOS 27.2), on the tool's own pairing (`ownTunnel: paired`), on the human owner's word to go on with the Apple TV checks; the room kept quiet (the probe's movies have no sound track, its player is muted, and no recording took sound).

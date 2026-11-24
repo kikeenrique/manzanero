@@ -18,12 +18,23 @@ enum ScreenshotBlank {
     /// A pixel is dark when none of its channels is above this (of 255).
     static let darkLimit: UInt8 = 12
 
-    static let externalNote = "The picture is entirely black. The Apple TV gave a picture, so it is not asleep: the screen is black, or protected content is on screen, which the device leaves out of screenshots, interface and all. Read the tree to see what is in front, and try frames --count 1: the device's video stream showed a layer that prevents capture whole on 2026-11-24 (FairPlay video untested)."
+    static let externalNote = "The picture is entirely black. The Apple TV gave a picture, so it is not asleep: the screen is black, or protected content is on screen. Read the tree to see what is in front. A layer that prevents capture is left out of screenshots only, so frames --count 1 shows it; FairPlay video is left out of both (seen on 2026-11-24)."
     static let displayNote = "The picture is entirely black while the display was not reported off: the screen is black, or protected video is on screen, which the device leaves out of captures. Read the tree to see what is in front."
 
     /// True when every pixel of the image's thumbnail is dark, false when
     /// one is not, nil when the file cannot be read as an image.
     static func isBlank(_ url: URL) -> Bool? {
+        guard let pixels = thumbnailPixels(url) else { return nil }
+        for index in stride(from: 0, to: pixels.count, by: 4)
+        where pixels[index] > darkLimit || pixels[index + 1] > darkLimit || pixels[index + 2] > darkLimit {
+            return false
+        }
+        return true
+    }
+
+    /// The image's thumbnail as RGBX bytes, at most `thumbnailSide` pixels
+    /// on its longer side; nil when the file cannot be read as an image.
+    static func thumbnailPixels(_ url: URL) -> [UInt8]? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -39,12 +50,7 @@ enum ScreenshotBlank {
             context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
             return true
         }
-        guard drawn else { return nil }
-        for index in stride(from: 0, to: pixels.count, by: 4)
-        where pixels[index] > darkLimit || pixels[index + 1] > darkLimit || pixels[index + 2] > darkLimit {
-            return false
-        }
-        return true
+        return drawn ? pixels : nil
     }
 
     /// What marks Apple's player in a tvOS tree, read on an Apple TV
@@ -66,7 +72,7 @@ enum ScreenshotBlank {
         }
     }
 
-    static let playerNote = "Apple's video player is in front, so protected video is the likely cause: the device leaves it out of screenshots, interface and all. The tree still reads the player's controls while they show (Media Controls has the position), and frames --count 1 may show the picture: the device's video stream showed a layer that prevents capture whole on 2026-11-24 (FairPlay video untested)."
+    static let playerNote = "Apple's video player is in front, so protected (FairPlay) video is the likely cause: the device leaves the video out of screenshots and out of its stream (black while playing, a single-colour picture while paused; seen on 2026-11-24). Read the tree instead: while the player's controls show, AXElapsedTime has the position as mm:ss in any language, and a paused screenshot shows the controls over a black video."
 
     /// Adds `playerOnScreen` after a blank Apple TV picture, from one tree
     /// read by `readTree`; a failed read adds `playerCheckUnavailable`
@@ -87,25 +93,49 @@ enum ScreenshotBlank {
         return (try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])) ?? receipt
     }
 
-    static let framesNote = "Some saved frames are entirely black: the screen was black then, or protected content (FairPlay, or a layer that prevents capture) was on screen, which the device leaves out of its stream."
+    static let framesNote = "Some saved frames are entirely black or a single flat colour: the screen was black then, or protected (FairPlay) video was on screen, which the device leaves out of its stream (black while playing, a flat dark green while paused; seen on 2026-11-24)."
+
+    /// How far a channel may stray from the picture's mean and still count
+    /// as one flat colour (of 255), on the thumbnail.
+    static let uniformTolerance = 6
+
+    /// True when every pixel of the thumbnail is within `uniformTolerance` of
+    /// the first one in every channel: a flat picture of any colour. Nil when
+    /// the file cannot be read.
+    static func isUniform(_ url: URL) -> Bool? {
+        guard let pixels = thumbnailPixels(url), pixels.count >= 4 else { return nil }
+        let first = pixels[0..<3].map(Int.init)
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            for channel in 0..<3 where abs(Int(pixels[index + channel]) - first[channel]) > uniformTolerance { return false }
+        }
+        return true
+    }
 
     /// `frames`' receipt with `blank: true` on each saved frame that is
-    /// entirely black, `blankFrames` (how many), and `blankNote` when there
-    /// are any. A frame that cannot be read is left unmarked.
+    /// entirely black and `uniform: true` on one that is a flat colour other
+    /// than black, `blankFrames` (both kinds), `uniformFrames` (the second),
+    /// and `blankNote` when there are any. A frame that cannot be read is
+    /// left unmarked.
     static func annotateFrames(_ receipt: [String: Any], directory: URL) -> [String: Any] {
         guard let frames = receipt["frames"] as? [[String: Any]] else { return receipt }
-        var count = 0
+        var blank = 0, uniform = 0
         var marked = frames
         for index in marked.indices {
-            guard let file = marked[index]["file"] as? String,
-                  isBlank(directory.appendingPathComponent(file)) == true else { continue }
-            marked[index]["blank"] = true
-            count += 1
+            guard let file = marked[index]["file"] as? String else { continue }
+            let url = directory.appendingPathComponent(file)
+            if isBlank(url) == true {
+                marked[index]["blank"] = true
+                blank += 1
+            } else if isUniform(url) == true {
+                marked[index]["uniform"] = true
+                uniform += 1
+            }
         }
         var receipt = receipt
         receipt["frames"] = marked
-        receipt["blankFrames"] = count
-        if count > 0 { receipt["blankNote"] = framesNote }
+        receipt["blankFrames"] = blank + uniform
+        receipt["uniformFrames"] = uniform
+        if blank + uniform > 0 { receipt["blankNote"] = framesNote }
         return receipt
     }
 

@@ -8,13 +8,14 @@ import UniformTypeIdentifiers
 /// A black screenshot says so, with the cause it can narrow down to.
 struct ScreenshotBlankTests {
     /// A PNG of `width` × `height`, black but for one bright rectangle.
-    private static func png(_ name: String, width: Int = 1920, height: Int = 1080, bright: CGRect? = nil) throws -> URL {
+    private static func png(_ name: String, width: Int = 1920, height: Int = 1080, bright: CGRect? = nil,
+                            fill: (red: CGFloat, green: CGFloat, blue: CGFloat) = (0.01, 0.01, 0.01)) throws -> URL {
         let directory = URL(fileURLWithPath: "tmp/screenshot-blank-tests", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appendingPathComponent("\(name)-\(UUID().uuidString).png")
         let context = try #require(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
                                              space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
-        context.setFillColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 1)
+        context.setFillColor(red: fill.red, green: fill.green, blue: fill.blue, alpha: 1)
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         if let bright {
             context.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
@@ -107,6 +108,14 @@ struct ScreenshotBlankTests {
         #expect(annotated["blankFrames"] as? Int == 2 && annotated["blankNote"] as? String == ScreenshotBlank.framesNote)
         let none = ScreenshotBlank.annotateFrames(["frames": [["file": drawn.lastPathComponent]]], directory: directory)
         #expect(none["blankFrames"] as? Int == 0 && none["blankNote"] == nil)
+        // The flat dark green the stream gave over a paused FairPlay video.
+        let green = try Self.png("frame-green", fill: (0, 0.38, 0))
+        defer { try? FileManager.default.removeItem(at: green) }
+        #expect(ScreenshotBlank.isBlank(green) == false && ScreenshotBlank.isUniform(green) == true && ScreenshotBlank.isUniform(drawn) == false)
+        let flat = ScreenshotBlank.annotateFrames(["frames": [["file": green.lastPathComponent], ["file": black.lastPathComponent]]], directory: directory)
+        let flatFrames = try #require(flat["frames"] as? [[String: Any]])
+        #expect(flatFrames[0]["uniform"] as? Bool == true && flatFrames[0]["blank"] == nil && flatFrames[1]["blank"] as? Bool == true)
+        #expect(flat["blankFrames"] as? Int == 2 && flat["uniformFrames"] as? Int == 1 && flat["blankNote"] as? String == ScreenshotBlank.framesNote)
     }
 
     @Test func theDestinationIsReadFromThePlannedArguments() {
