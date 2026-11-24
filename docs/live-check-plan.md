@@ -12,6 +12,8 @@ If every query to a connected device times out, read the state of Apple's device
 
 ## Not yet run on hardware
 
+- Built on 2026-11-23 and run on simulators only, to run on the phone: `press`, `wait` and `set-value` by `--handle` (a handle from a fresh `tree`, then the same handle after the screen changes, which should be refused); `settings --voiceover on` and `off` (put it back off, and read a `tree` afterwards: on a simulator trees came back empty later that evening until it was restarted), and `settings --standby show` from the lock screen (the human owner's word first, since both change the phone); `last-crash --symbols` on a crash of a Release build of the probe, with its `.dSYM`.
+
 - A recording of several minutes with sound on the phone (the longest so far is 75 s), and recording recovery with sound on the Apple TV 4K: a recording with `--audio` across a loss, with the room kept quiet ([design](recording-recovery.md#live-checks-owed)).
 - With the passcode now set on the test phone: `wake` and `readiness` after a restart before the first unlock, and whether setting or removing a passcode always drops the pairing (it did once: [record](verification.md#a-passcode-on-the-phone-pairing-handoff-and-the-lock-screen)). The passcode keypad is in the tree ([record](verification.md#the-last-handoff-runs-on-the-phone)).
 - `handoff` is finished on this phone and host ([record](verification.md#the-last-handoff-runs-on-the-phone)). What would need other equipment: a second MCP host, and a real Face ID or purchase prompt (the phone has no Face ID set up; the passcode gate of Settings › Face ID y código ran in its place). Reconnect an MCP server after a rebuild, or it keeps running the old binary.

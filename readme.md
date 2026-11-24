@@ -72,7 +72,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Video, with the device's sound if asked (`--audio`), or many screenshots in a row | [Recording](docs/recording.md), [sound](docs/recording.md#sound), [frames](docs/recording.md#frames-repeated-screenshots-from-one-stream), [recovery after a lost stream](docs/recording-recovery.md) |
 | Build, install and launch an iOS app | [Build & Run](docs/build-run.md) |
 | A step that needs a person (unlock, pairing, a permission prompt) | [Human handoff](docs/handoff.md): `handoff --until` watches the device and ends by itself |
-| Several commands in one call | [`batch`](docs/mcp.md#several-steps-in-one-call-run_batch): up to 30 steps in order, stopped at the first failure; on a device, [`hold` and `release`](docs/gesture-sequences.md#holding-a-contact-across-steps) keep a contact down across steps |
+| Several commands in one call | [`batch`](docs/mcp.md#several-steps-in-one-call-run_batch): up to 30 steps in order, stopped at the first failure; on a device or a simulator, [`hold` and `release`](docs/gesture-sequences.md#holding-a-contact-across-steps) keep a contact down across steps |
 | Input sent to a locked phone | [Lock state in receipts](docs/native-input.md#receipts-and-partial-effects) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
 | Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown, typing on a watch's on-screen keyboard | [Other families](docs/other-families.md) |
