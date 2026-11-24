@@ -78,6 +78,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown, typing on a watch's on-screen keyboard | [Other families](docs/other-families.md) |
 | A new simulator of a named type and runtime | `manzanero create-simulator --help` |
 | A physical Apple TV: trees with focus, the Siri Remote and its swipes, recording, `remote sleep` and `remote wake` | [A physical Apple TV](docs/other-families.md#a-physical-apple-tv), [sleep and wake](docs/other-families.md#sleep-and-wake) |
+| Seeking in Apple's player on an Apple TV: arrows, swipes and `scrub --to <time>` | [Seeking](docs/other-families.md#seeking-in-apples-player) |
 | How a command reaches a device, and the tool's own tunnel | [Transport](docs/transport.md), [the services a device offers](docs/device-services.md) |
 | A row further down a long list | [`scroll --search`](docs/direct-accessibility.md#searching-a-list-that-loads-its-rows---search) |
 | Why the app misbehaved: its unified log, stdout/stderr, last crash | [App logs, console and crashes](docs/app-logs.md) (`logs` for one process, a group or all, with filters, on simulators and devices, debug lines included on a device; `console`; `last-crash`) |

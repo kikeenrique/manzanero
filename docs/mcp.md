@@ -25,7 +25,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 ## Tool catalog
 
-`tools/list` is the exact schema reference: 51 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
+`tools/list` is the exact schema reference: 52 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
 
 | Tools | Current purpose |
 | --- | --- |

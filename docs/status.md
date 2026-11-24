@@ -62,11 +62,12 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **Apple TV, from an agent's first use**: done on the device on 2026-11-24 (`wake`, `--report-focus`, a black screenshot that says so, seeking). FairPlay video checked in a third-party streaming app the same day, and `scrub --to <time>` built and run on the device and in a third-party streaming app. Left: `wake` when the sleeping device answers screenshots with error 25004.
-2. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
-3. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
-4. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
-5. **Not built**: a press at a point of the first-generation remote's touch surface (the clickpad ring's presses are the arrows, already sent), the rest of the agent features (durable sessions, `.xcappdata` export); element handles (`--handle`), symbolication on request (`last-crash --symbols`) and a build deadline with progress were built on 2026-11-23.
+1. **`wake` refused with error 25004**: ten minutes after a sleep the Apple TV answered `wake`'s screenshot with 25004, not the 25005 that means asleep, so nothing was pressed; `remote home` woke it. Whether `wake` should press then too is the human owner's decision.
+2. **Phone checks still owed**: StandBy and biometric enrolment on the phone (biometrics on the human owner's word), `last-crash --symbols` on a stripped build, a real biometric prompt on the phone.
+3. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
+4. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
+5. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
+6. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 
@@ -76,6 +77,7 @@ A release is one command, `mise run release <version>`, whenever the human owner
 - **Face ID on a simulator**: `settings --biometrics on|off|state`, and on a simulator `match|nomatch` for the prompt on screen; the iOS probe raises a real Face ID prompt, which was answered, failed, and its alert cancelled by identifier.
 - **Black frames**: `frames` marks and counts entirely black frames in its receipt.
 - **On the iPhone**: element handles, a tree's cost measured (a kept session would save a fifth; not to be built for now), `--symbols` on a Release build's crash, VoiceOver on and off.
+- **Seeking by command**: `scrub --to <time|percent>` (MCP `scrub_video`) pauses Apple's player, swipes its preview to the time and commits; it reached its goals on a simulator, on the Apple TV and in a third-party streaming app's player over FairPlay video.
 - **On the Apple TV**: `wake` and `readiness`'s `asleep`, `--report-focus`, seeking as on the simulator; over a layer that prevents capture the screenshot was black but `frames` and `record` showed it whole; under FairPlay video (a third-party streaming app) both were black while it played, and `frames` gave a flat green while it was paused.
 
 ## Done on 2026-11-23
@@ -84,7 +86,7 @@ A release is one command, `mise run release <version>`, whenever the human owner
 - **Signed and notarized**: the first such beta went out that day; the signed binary needs no entitlement on a simulator or the phone.
 - **The tap's code moved out**: the formula belongs to the tap's own repository.
 - **A second Mac**: the human owner installed the tool on another Mac, and it works there.
-- **Apple TV wake** (built, not yet run on the device): `wake` does what `remote wake` does, which now waits for a slow HID service before its one press, and `readiness` says whether the Apple TV is asleep.
+- **Apple TV wake** (run on the device on 2026-11-24): `wake` does what `remote wake` does, which now waits for a slow HID service before its one press, and `readiness` says whether the Apple TV is asleep.
 - **The focus after a remote press**: `remote --report-focus` adds the focused element to the receipt; run on an Apple TV simulator.
 - **A black screenshot says so**: a device screenshot's receipt has `blankImage`, and on an Apple TV a note that the screen is black or protected video is on screen, with `playerOnScreen` from one tree.
 - **Seeking, measured**: the tvOS probe plays a silent video in Apple's player; on a simulator a swipe while paused moves a preview that `select` commits, and a held arrow scans until `play-pause`.
