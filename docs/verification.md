@@ -2158,6 +2158,30 @@ So on a physical watch `type` taps the on-screen keys, read from a tree before e
 
 The watchOS probe was uninstalled from the watch afterwards at the human owner's request; the app list no longer has it.
 
+### The physical Apple Watch's remaining commands
+
+**2026-11-25, just after midnight**, the same Apple Watch (`Watch8,1`, an Ultra, watchOS 27.2.1) over the local network, on the human owner's word, the watchOS probe installed by `build-run` for the run and uninstalled after it. The human owner allowed `button side`, `button action`, `reports`, `last-crash` and a read of `settings`; everything else ran inside the probe, and nothing of the watch face was read.
+
+| Step | Observed |
+| --- | --- |
+| `crown` against the probe's `-ProbeCrownList YES` list | One row per event, as on a simulator: one 100-unit event moved the list 70.5 points (the title collapsing and one row), `crown 300 --events 3` exactly three rows of 59.5 points, one `crown -400` one row back |
+| `screenshot` | 422 × 514 pixels, upright, the probe whole although the panel is mounted sideways |
+| `frames --count 1`, `record … 5 --backend coredevice`, before a fix | Failed at the 12-second first-frame budget with hundreds of packets and no picture. The kept packets (`MANZANERO_KEEP_STREAM=1`) were H.264, not HEVC: payload type 123, FU-A fragments of an IDR slice and single slices, and a first packet of 138 bytes holding four bytes and then a QuickTime `avc1` sample description, whose `avcC` carries the SPS and PPS. The phone and the Apple TV send HEVC with its parameter sets in band |
+| The same after the fix (`MediaH264Assembler`, H.264 in the decoder) | `frames`: one clean picture of the probe, 514 × 422, sideways as the panel is mounted (deleted after reading). `record`: `status: recorded`, 72 source pictures in 5 s, no restart |
+| `button side` (new for a physical watch), twice | Control Centre came up over the probe (the system's `Carousel` process in front, its scroll view in the tree), and the second press closed it with the probe back in front |
+| `button action` (new for a physical watch), twice | The Action button is set to the flashlight: the first press lit it (a full-screen `flashlight-white` element in the tree), the second put it out and the probe was back in front |
+| `press` button A | Refused at the hit test before sending (error 8): the button sits at the display's bottom edge, its frame running past it. Button B beside it was pressed |
+| `logs --bundle` the probe, at `default`, `info` and `debug`, while buttons were pressed | Ended at its duration with nothing received: `receivedRecords: 0`, `receivedBytes: 0`, over Apple's tunnel (the tool's own is not available for a watch). The probe logs each press at `info`. Why the watch's relay sends nothing is open |
+| `console` the probe, 5 s | The probe's own stderr line arrived; the launch ended at its bound (signal 2) |
+| `last-crash --process ProbeWatch`, `reports list` | No probe report; the list read (three entries, none the probe's) |
+| `settings` (read) | Refused by the device: it lacks CoreDevice's "Customize User Interface Style" capability (`com.apple.coredevice.feature.customizeuistyle`) |
+| `files list` of the probe's container | Its directories read |
+| `batch`: press B, `crown 200`, `scroll --search` to the pad, `tap 0.5 0.5`, a `wait` | The four actions took effect (count 2, crown 1.000, the tap at `0.500,0.400` of the pad); the `wait` timed out because it named a readout the scroll had moved off screen, a mistake in the step, and the batch stopped there as designed |
+| `handoff --until value --id probe.watch.count --value 3`, with a press of B from another process playing the person | Ended by itself after 13 s, `status: observed` |
+| MCP (the server of the current build over stdio): `press_element`, `rotate_crown` and `press_button side` with `platform: physical` | The press counted and the crown read 1.000 in the probe. An earlier session's crown and side presses were sent while the watch had locked and its display slept (`passcodeRequired: true` in their receipts); their effect is unknown. The MCP host's own server, started before the day's rebuild, refused the watch's display geometry, as the build before the fix for sideways panels did |
+
+So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
+
 ### First run on a physical iPad: the iPad mini (6th generation)
 
 **2026-11-24, evening**, an iPad mini (6th generation) (iPadOS 27.2.1), on its cable, with the human owner's word for each step: the device has top privacy restrictions, so everything ran inside the probe app, every capture was deleted after reading, and nothing else on it is recorded here.

@@ -1,10 +1,13 @@
 import Foundation
 
+/// One picture of a screen stream, HEVC by default or H.264 (an Apple Watch's).
 struct MediaHEVCAccessUnit: Sendable, Equatable {
+    enum Codec: Sendable, Equatable { case hevc, h264 }
     let timestamp: UInt32
-    let parameterSets: [Data] // VPS, SPS, PPS
+    let parameterSets: [Data] // HEVC: VPS, SPS, PPS; H.264: SPS, PPS
     let nals: [Data]
     let randomAccess: Bool
+    var codec: Codec = .hevc
 
     var lengthPrefixed: Data {
         var data = Data()
@@ -66,7 +69,7 @@ struct MediaHEVCAssembler {
         return MediaHEVCAccessUnit(timestamp: packet.timestamp, parameterSets: sets, nals: nals, randomAccess: randomAccess)
     }
 
-    private static func type(_ nal: Data) -> Int? {
+    static func type(_ nal: Data) -> Int? {
         guard nal.count >= 2, nal[0] & 0x81 == 0, nal[1] >> 3 == 0, nal[1] & 7 != 0 else { return nil }
         return Int((nal[0] >> 1) & 63)
     }

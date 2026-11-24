@@ -5,13 +5,14 @@ import Foundation
 /// decoded again without the device. `stream.h265` is the access units in Annex B form,
 /// with the parameter sets before each random-access picture; `packets.txt`
 /// has one line for each RTP packet: sequence number, timestamp, marker,
-/// payload bytes, and the header extension's profile and data when there is
-/// one. Reading one of these showed what damaged an Apple TV's pictures
+/// payload bytes, the header extension's profile and data when there is
+/// one, the payload type and the payload's first two bytes. Reading one of these showed what damaged an Apple TV's pictures
 /// (docs/verification.md#the-apple-tvs-video-stream-read-packet-by-packet).
 struct NativeStreamDump {
     static var requested: Bool { ProcessInfo.processInfo.environment["MANZANERO_KEEP_STREAM"] == "1" }
     static let streamName = "stream.h265", packetsName = "packets.txt"
     static let maximumBytes = 256 * 1024 * 1024, maximumPackets = 500_000
+    static let openingPackets = 20, openingBytes = 48
     private(set) var stream = Data()
     private(set) var lines: [String] = []
 
@@ -29,7 +30,15 @@ struct NativeStreamDump {
                 begin += 4 + size
             }
         }
-        line += " \(max(0, bytes.count - begin)) \(extensionText)"
+        // The payload type and the payload's first two bytes (an HEVC NAL
+        // unit's header): what told a watch's stream apart (2026-11-25).
+        let head = bytes.count > begin ? Self.hex(bytes[begin..<min(bytes.count, begin + 2)]) : "-"
+        line += " \(max(0, bytes.count - begin)) \(extensionText) \(bytes[1] & 0x7f) \(head)"
+        // The first packets' payloads begin in full: a stream's opening
+        // packets carry its parameters, whatever their form.
+        if lines.count < Self.openingPackets, bytes.count > begin {
+            line += " " + Self.hex(bytes[begin..<min(bytes.count, begin + Self.openingBytes)])
+        }
         lines.append(line)
     }
 

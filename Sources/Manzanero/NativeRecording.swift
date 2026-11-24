@@ -122,7 +122,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
     let displayID: Int64
     private(set) var capture: (any NativeRecordingSession)?
     private(set) var decoder: (any NativeRecordingDecoder)?
-    var assembler = MediaHEVCAssembler()
+    var assembler = MediaVideoAssembler()
     /// The negotiated video profile of the first session; a restart must match it.
     private(set) var width: UInt64 = 0
     private(set) var height: UInt64 = 0
@@ -279,7 +279,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
             throw CommandFailure(.preconditionChanged, "A restarted native session negotiated another picture size or payload; the capture stops.", inputSent: .none)
         }
         decoder = try link.decoder(Int(width), Int(height))
-        assembler = MediaHEVCAssembler()
+        assembler = MediaVideoAssembler()
         generation += 1
     }
 

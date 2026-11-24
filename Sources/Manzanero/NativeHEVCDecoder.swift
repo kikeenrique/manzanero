@@ -92,7 +92,7 @@ final class NativeHEVCDecoder {
         transform: @escaping @Sendable (CVPixelBuffer) throws -> Value?) throws -> Value? {
         try Task.checkCancellation()
         guard !closed else { throw closedFailure }
-        guard unit.parameterSets.count == 3, unit.parameterSets.allSatisfy({ (2...65_535).contains($0.count) }),
+        guard unit.parameterSets.count == (unit.codec == .h264 ? 2 : 3), unit.parameterSets.allSatisfy({ (2...65_535).contains($0.count) }),
               !unit.nals.isEmpty, unit.nals.count <= 256 else { throw failure("invalid access unit", stream: true) }
         var available = 8 * 1024 * 1024
         for nal in unit.nals {
@@ -101,7 +101,7 @@ final class NativeHEVCDecoder {
         }
         if parameters == nil {
             guard unit.randomAccess else { throw failure("initial picture is not random access", stream: true) }
-            try configure(unit.parameterSets)
+            try configure(unit.parameterSets, codec: unit.codec)
         } else if parameters != unit.parameterSets { throw failure("parameter sets changed during capture", stream: true) }
         guard let session, let format else { throw closedFailure }
         if let previousTimestamp {
@@ -148,17 +148,24 @@ final class NativeHEVCDecoder {
         return output.value
     }
 
-    private func configure(_ sets: [Data]) throws {
+    private func configure(_ sets: [Data], codec: MediaHEVCAccessUnit.Codec) throws {
         var description: CMFormatDescription?
         let sizes = sets.map(\.count)
-        let status = sets[0].withUnsafeBytes { first in
-            sets[1].withUnsafeBytes { second in
-                sets[2].withUnsafeBytes { third in
-                    let pointers = [first.bindMemory(to: UInt8.self).baseAddress!, second.bindMemory(to: UInt8.self).baseAddress!, third.bindMemory(to: UInt8.self).baseAddress!]
-                    return CMVideoFormatDescriptionCreateFromHEVCParameterSets(allocator: kCFAllocatorDefault,
-                        parameterSetCount: 3, parameterSetPointers: pointers, parameterSetSizes: sizes,
-                        nalUnitHeaderLength: 4, extensions: nil, formatDescriptionOut: &description)
-                }
+        // One contiguous copy, so every set's pointer stays valid for the call.
+        let joined = sets.reduce(Data(), +)
+        let status = joined.withUnsafeBytes { raw -> OSStatus in
+            let base = raw.bindMemory(to: UInt8.self).baseAddress!
+            var offset = 0
+            let pointers = sizes.map { size -> UnsafePointer<UInt8> in defer { offset += size }; return base + offset }
+            switch codec {
+            case .hevc:
+                return CMVideoFormatDescriptionCreateFromHEVCParameterSets(allocator: kCFAllocatorDefault,
+                    parameterSetCount: sets.count, parameterSetPointers: pointers, parameterSetSizes: sizes,
+                    nalUnitHeaderLength: 4, extensions: nil, formatDescriptionOut: &description)
+            case .h264:
+                return CMVideoFormatDescriptionCreateFromH264ParameterSets(allocator: kCFAllocatorDefault,
+                    parameterSetCount: sets.count, parameterSetPointers: pointers, parameterSetSizes: sizes,
+                    nalUnitHeaderLength: 4, formatDescriptionOut: &description)
             }
         }
         try check(status, "read parameter sets")

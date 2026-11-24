@@ -133,7 +133,7 @@ struct RecordingCommand: Sendable, Equatable {
                     "ownedStreamAbsent": nativeReceipt.media.ownedStreamAbsent,
                     "deviceStopConfirmed": nativeReceipt.media.stopAcknowledged && nativeReceipt.media.ownedStreamAbsent,
                     "videoToolboxInvalidationReturned": true, "tunnelAssertionRelease": nativeReceipt.assertionRelease] as [String: Any]
-                result["warnings"] = ["Experimental HEVC input. Reliable startup, keyframe recovery and crash recovery remain unfinished or unverified; synchronous Apple media calls have no independent hard deadline. RTCP send counts are local sends, not remote acknowledgements."]
+                result["warnings"] = ["Experimental video input (HEVC, or H.264 from an Apple Watch). Reliable startup, keyframe recovery and crash recovery remain unfinished or unverified; synchronous Apple media calls have no independent hard deadline. RTCP send counts are local sends, not remote acknowledgements."]
             }
             return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         } catch {

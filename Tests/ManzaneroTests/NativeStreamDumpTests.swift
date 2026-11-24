@@ -30,7 +30,7 @@ struct NativeStreamDumpTests {
         // Not RTP, and too short: no line.
         dump.packet(Data([0x00, 0x63, 0x27, 0x43, 0, 0, 0x07, 0x80, 1, 2, 3, 4, 0x02]))
         dump.packet(Data([0x80, 0x63]))
-        #expect(dump.lines == ["10050 960 1 3 9011:0035f354", "10051 1920 0 2 -"])
+        #expect(dump.lines == ["10050 960 1 3 9011:0035f354 99 6201 620194", "10051 1920 0 2 - 99 0201 0201"])
     }
 
     @Test func bothFilesAreWrittenBesideTheFrames() throws {
@@ -42,6 +42,6 @@ struct NativeStreamDumpTests {
         dump.packet(Data([0x80, 0x63, 0, 1, 0, 0, 0, 2, 1, 2, 3, 4, 0x02, 0x01]))
         try dump.write(to: directory)
         #expect(try Data(contentsOf: directory.appendingPathComponent(NativeStreamDump.streamName)) == Self.start + Data([0x02, 0x01]))
-        #expect(try String(contentsOf: directory.appendingPathComponent(NativeStreamDump.packetsName), encoding: .utf8) == "1 2 0 2 -\n")
+        #expect(try String(contentsOf: directory.appendingPathComponent(NativeStreamDump.packetsName), encoding: .utf8) == "1 2 0 2 - 99 0201 0201\n")
     }
 }
