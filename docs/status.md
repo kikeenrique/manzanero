@@ -73,7 +73,7 @@ A release is one command, `mise run release <version>`, whenever the human owner
 
 ## Done on 2026-11-24
 
-- **Apple TV, afternoon**: the pairing held across a restart of the device; `remote sleep` worked from a screen saver; `wake` woke it after 12 minutes asleep (no 25004 this time). Before that the awake device's services had stopped answering until the restart.
+- **Apple TV, afternoon**: the pairing held across a restart of the device and through a ten-minute MCP session; `remote sleep` worked from a screen saver; `wake` woke it after 12 minutes asleep (no 25004 this time). Before that the awake device's services had stopped answering until the restart.
 - **A protected picture without DRM**: the tvOS probe's `-ProbeVideoProtected YES` shows its silent movie in a layer that prevents capture; a simulator ignores that in screenshots and recordings, so the Apple TV is where a black capture is checked.
 - **Face ID on a simulator**: `settings --biometrics on|off|state`, and on a simulator `match|nomatch` for the prompt on screen; the iOS probe raises a real Face ID prompt, which was answered, failed, and its alert cancelled by identifier.
 - **Black frames**: `frames` marks and counts entirely black frames in its receipt.

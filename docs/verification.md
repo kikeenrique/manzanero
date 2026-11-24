@@ -2113,6 +2113,8 @@ Then the device was left idle on the Home Screen with nothing sent for 20 minute
 
 After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wake` pressed Home once and ended `awake`, `verified: true`, `hidWaits: 0`, in 6 s: the screenshot before it was refused as asleep (25005), so error 25004 did not come back and its branch is checked by unit tests only. A `remote sleep` then left the device asleep.
 
+Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
+
 ### Scrub on a simulator and on the Apple TV 4K
 
 **2026-11-24.** `scrub --to` against the tvOS probe's silent video (`-ProbeVideo YES`, Apple's player), on `manzanero-research-tv-4k` (tvOS 27.2) and on the Apple TV 4K (tvOS 27.2, the tool's own pairing).
