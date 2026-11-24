@@ -2156,6 +2156,8 @@ So on a real watch the tree, `press`, `tap` and `scroll --search` work inside th
 
 So on a physical watch `type` taps the on-screen keys, read from a tree before each key, as on a simulator; the keyboard's autocorrection applies to what it is given, as it would to a person's taps.
 
+The watchOS probe was uninstalled from the watch afterwards at the human owner's request; the app list no longer has it.
+
 ### First run on a physical iPad: the iPad mini (6th generation)
 
 **2026-11-24, evening**, an iPad mini (6th generation) (iPadOS 27.2.1), on its cable, with the human owner's word for each step: the device has top privacy restrictions, so everything ran inside the probe app, every capture was deleted after reading, and nothing else on it is recorded here.
