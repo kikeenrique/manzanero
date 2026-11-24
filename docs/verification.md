@@ -2090,6 +2090,18 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote left --report-focus` | `focus.label` Settings |
 | `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
 
+### A protected layer on a simulator
+
+**2026-11-24**, `manzanero-research-tv-4k` (Apple TV 4K (4th generation), tvOS 27.2), the tvOS probe launched with `-ProbeVideoProtected YES` ([protected video](probe-app.md#a-protected-video)): the probe's silent movie in an `AVSampleBufferDisplayLayer` with `preventsCapture` on, read back from the tree as `probe.tv.video.protected` = `preventsCapture`.
+
+| Capture | Observed |
+| --- | --- |
+| `screenshot` | The protected picture whole (00:00.5 and its bar), with the readouts below it |
+| `tree` | `probe.tv.video.time` 12.5, advancing |
+| `record` of 3 s, its middle frame read with AVFoundation | The protected picture whole (03:34.8, the readout at 215.0 s) |
+
+So a simulator does not honour `preventsCapture` in its screenshots or its recordings, and a black capture of protected content cannot be produced on one. A simulator plays no FairPlay video either.
+
 ### Element handles on a simulator
 
 **2026-11-23**, `manzanero-research-phone` (iOS 27.2), the iOS probe in front.

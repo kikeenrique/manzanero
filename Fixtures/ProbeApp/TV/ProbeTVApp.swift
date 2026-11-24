@@ -11,7 +11,8 @@ struct ProbeTVApp: App {
         WindowGroup {
             // `-ProbeVideo YES`: Apple's player on a silent movie of the
             // probe's own (ProbeTVVideo.swift).
-            if UserDefaults.standard.bool(forKey: "ProbeVideo") { ProbeTVVideoView() } else { ProbeTVView() }
+            if UserDefaults.standard.bool(forKey: "ProbeVideoProtected") { ProbeTVProtectedVideoView() }
+            else if UserDefaults.standard.bool(forKey: "ProbeVideo") { ProbeTVVideoView() } else { ProbeTVView() }
         }
     }
 }

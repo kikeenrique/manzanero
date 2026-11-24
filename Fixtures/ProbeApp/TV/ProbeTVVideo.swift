@@ -172,3 +172,125 @@ private struct PlayerController: UIViewControllerRepresentable {
         if let observer = coordinator.observer { controller.player?.removeTimeObserver(observer) }
     }
 }
+
+/// `-ProbeVideoProtected YES`: the same silent movie drawn by an
+/// `AVSampleBufferDisplayLayer` whose `preventsCapture` is on, Apple's public
+/// way for an app to keep a layer out of screen captures (tvOS 13 and later),
+/// so that a capture of protected content can be checked without FairPlay,
+/// a streaming app or sound (docs/probe-app.md#a-protected-video). The
+/// position is shown and kept as `probe.tv.video.time` outside the protected
+/// layer, and `probe.tv.video.protected` says that the layer prevents capture.
+@MainActor
+final class ProtectedPlayback {
+    let synchronizer = AVSampleBufferRenderSynchronizer()
+    let layer: AVSampleBufferDisplayLayer
+    private var feeder: SampleFeeder?
+
+    init(layer: AVSampleBufferDisplayLayer) {
+        self.layer = layer
+        layer.preventsCapture = true
+        layer.videoGravity = .resizeAspect
+        synchronizer.addRenderer(layer.sampleBufferRenderer)
+    }
+
+    var preventsCapture: Bool { layer.preventsCapture }
+    var seconds: Double { synchronizer.currentTime().seconds }
+
+    func start(_ url: URL) async throws {
+        let asset = AVURLAsset(url: url)
+        guard let track = try await asset.loadTracks(withMediaType: .video).first else { throw CocoaError(.fileReadCorruptFile) }
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
+        reader.add(output)
+        guard reader.startReading() else { throw reader.error ?? CocoaError(.fileReadUnknown) }
+        let feeder = SampleFeeder(renderer: layer.sampleBufferRenderer, reader: reader, output: output)
+        self.feeder = feeder
+        synchronizer.setRate(1, time: .zero)
+        feeder.start()
+    }
+}
+
+/// Hands the movie's samples to the renderer on a queue of its own; the
+/// renderer's enqueue is made for that.
+final class SampleFeeder: @unchecked Sendable {
+    private let renderer: AVSampleBufferVideoRenderer
+    private let reader: AVAssetReader
+    private let output: AVAssetReaderTrackOutput
+    private let queue = DispatchQueue(label: "probe.tv.protected")
+
+    init(renderer: AVSampleBufferVideoRenderer, reader: AVAssetReader, output: AVAssetReaderTrackOutput) {
+        self.renderer = renderer
+        self.reader = reader
+        self.output = output
+    }
+
+    func start() {
+        renderer.requestMediaDataWhenReady(on: queue) { [self] in
+            while renderer.isReadyForMoreMediaData {
+                guard let sample = output.copyNextSampleBuffer() else {
+                    renderer.stopRequestingMediaData()
+                    return
+                }
+                renderer.enqueue(sample)
+            }
+        }
+    }
+}
+
+struct ProbeTVProtectedVideoView: View {
+    @State private var playback: ProtectedPlayback?
+    @State private var failed: String?
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            ProtectedLayerView { playback = $0 }
+                .ignoresSafeArea()
+            TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                let reading = failed ?? playback.map { String(format: "%.1f", $0.seconds) } ?? "loading"
+                VStack(spacing: 8) {
+                    Text("Protected: preventsCapture \(playback?.preventsCapture == true ? "on" : "off")")
+                        .accessibilityElement()
+                        .accessibilityLabel("Protected")
+                        .accessibilityValue(playback?.preventsCapture == true ? "preventsCapture" : "off")
+                        .accessibilityIdentifier("probe.tv.video.protected")
+                    Text("Time: \(reading)")
+                        .accessibilityElement()
+                        .accessibilityLabel("Video time")
+                        .accessibilityValue(reading)
+                        .accessibilityIdentifier("probe.tv.video.time")
+                }
+                .padding(24)
+                .background(.black.opacity(0.6))
+            }
+        }
+        .task(id: playback == nil) {
+            guard let playback else { return }
+            do { try await playback.start(ProbeTVVideo.movie()) }
+            catch {
+                failed = "failed"
+                ProbeTVVideo.logger.error("protected video failed \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+}
+
+/// A view whose own layer is the sample-buffer display layer.
+private struct ProtectedLayerView: UIViewRepresentable {
+    let ready: (ProtectedPlayback) -> Void
+
+    final class LayerView: UIView {
+        override class var layerClass: AnyClass { AVSampleBufferDisplayLayer.self }
+    }
+
+    func makeUIView(context: Context) -> LayerView {
+        let view = LayerView()
+        view.backgroundColor = .black
+        if let layer = view.layer as? AVSampleBufferDisplayLayer {
+            let playback = ProtectedPlayback(layer: layer)
+            DispatchQueue.main.async { ready(playback) }
+        }
+        return view
+    }
+
+    func updateUIView(_ view: LayerView, context: Context) {}
+}
