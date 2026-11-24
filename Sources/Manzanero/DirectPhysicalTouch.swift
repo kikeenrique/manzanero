@@ -38,8 +38,13 @@ struct DirectTouchDisplay: Equatable {
               let displays = result["displays"] as? [[String: Any]], (1...16).contains(displays.count) else {
             throw CommandFailure(.transportFailed, "Cannot read bounded Apple display metadata; no touch or capture started.", inputSent: .none)
         }
+        // Without a requested display, the one the interface is on: the
+        // primary one, or an unfolded iPhone Duo's inner display
+        // (`DeviceUIReadiness.interfaceDisplay`).
+        let interface = requested == nil ? DeviceUIReadiness.interfaceDisplay(displays) : nil
         let primary = try displays.filter { display in
             guard let value = display["primary"] as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else { throw invalid() }
+            if let interface { return (display["displayId"] as? NSNumber) == (interface["displayId"] as? NSNumber) }
             return requested.map { (display["displayId"] as? NSNumber)?.intValue == $0 } ?? value.boolValue
         }
         let rotations = ["rot0": 0, "rot90": 90, "rot180": 180, "rot270": 270]

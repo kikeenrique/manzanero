@@ -72,11 +72,10 @@ struct AccessibilityDisplay: Equatable, Encodable {
               (root["info"] as? [String: Any])?["outcome"] as? String == "success",
               let result = root["result"] as? [String: Any], let displays = result["displays"] as? [[String: Any]],
               !displays.isEmpty, displays.count <= 16 else { throw invalid() }
-        let primary = displays.filter {
-            guard let value = $0["primary"] as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else { return false }
-            return value.boolValue
-        }
-        guard primary.count == 1 else { throw invalid() }
+        // The display the interface is on: the primary one, or an unfolded
+        // iPhone Duo's inner display (`DeviceUIReadiness.interfaceDisplay`).
+        guard let chosen = DeviceUIReadiness.interfaceDisplay(displays) else { throw invalid() }
+        let primary = [chosen]
         // An external display (an Apple TV's television) has no backlight to read.
         external = DeviceUIReadiness.isExternal(primary[0])
         focusDriven = external

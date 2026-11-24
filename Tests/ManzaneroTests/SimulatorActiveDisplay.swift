@@ -77,11 +77,11 @@ struct SimulatorActiveDisplayTests {
         #expect(failure.code == .displayOff)
     }
 
-    @Test func physicalTouchDisplayIsUnchangedWithoutADisplayID() throws {
+    @Test func physicalTouchDisplayFollowsTheInterfaceWithoutADisplayID() throws {
         let data = Self.duo(unfolded: true)
-        // Without an ID the primary display is required to be awake, as on a phone.
-        let failure = try #require(throws: CommandFailure.self) { try DirectTouchDisplay(data) }
-        #expect(failure.code == .displayOff && failure.description.contains("Primary display is off."))
+        // Without an ID the display the interface is on, as on a physical
+        // Duo unfolded (2026-11-25): the inner display.
+        #expect(try DirectTouchDisplay(data).id == 3)
         #expect(try DirectTouchDisplay(data, displayId: 3).rotation == 90)
         let off = try #require(throws: CommandFailure.self) { try DirectTouchDisplay(Self.duo(unfolded: false), displayId: 3) }
         #expect(off.code == .displayOff && off.description.contains("Display is off."))

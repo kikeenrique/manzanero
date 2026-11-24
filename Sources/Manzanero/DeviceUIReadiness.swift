@@ -80,16 +80,40 @@ struct DeviceUIReadiness: Encodable, Sendable {
         (display["type"] as? [String: Any])?["external"] is [String: Any]
     }
 
+    /// The display the interface is on, from a `devicectl device info
+    /// displays` list: the one primary display, unless it is not awake and
+    /// exactly one other integrated display with a framebuffer (a
+    /// `nativeSize`; a simulator's Resizable display has none) is
+    /// (`activeOn`). An unfolded
+    /// iPhone Duo keeps the primary flag on its outer `LCD`, off, while the
+    /// interface is on the inner `LCD-1`: seen on a simulator on 2026-11-17
+    /// and on the device on 2026-11-25. The same rule as
+    /// `SimulatorDisplays.interface`. Nil without exactly one primary.
+    static func interfaceDisplay(_ displays: [[String: Any]]) -> [String: Any]? {
+        let primaries = displays.filter { boolean($0["primary"]) == true }
+        guard primaries.count == 1 else { return nil }
+        let primary = primaries[0]
+        guard !isExternal(primary), primary["backlightState"] as? String != "activeOn" else { return primary }
+        func framebuffer(_ display: [String: Any]) -> Bool {
+            let size = (display["nativeSize"] as? [Any])?.compactMap { ($0 as? NSNumber)?.doubleValue } ?? []
+            return size.count == 2 && size.allSatisfy { $0.isFinite && $0 > 0 }
+        }
+        let others = displays.filter {
+            boolean($0["primary"]) == false && ($0["type"] as? [String: Any])?["integrated"] is [String: Any]
+                && $0["backlightState"] as? String == "activeOn" && framebuffer($0)
+        }
+        return others.count == 1 ? others[0] : primary
+    }
+
     /// on, off, external or unknown, from a `devicectl device info displays`
-    /// result: the backlight of the one primary display, or `external` when
-    /// that display has none.
+    /// result: the backlight of the display the interface is on
+    /// (`interfaceDisplay`), or `external` when that display has none.
     static func displayPower(_ output: [String: Any]) -> String {
         guard let displays = output["displays"] as? [[String: Any]], (1...16).contains(displays.count),
-              displays.allSatisfy({ boolean($0["primary"]) != nil }) else { return "unknown" }
-        let primary = displays.filter { boolean($0["primary"]) == true }
-        guard primary.count == 1 else { return "unknown" }
-        if isExternal(primary[0]) { return externalPower }
-        switch primary[0]["backlightState"] as? String {
+              displays.allSatisfy({ boolean($0["primary"]) != nil }),
+              let display = interfaceDisplay(displays) else { return "unknown" }
+        if isExternal(display) { return externalPower }
+        switch display["backlightState"] as? String {
         case "activeOn": return "on"
         case "off": return "off"
         default: return "unknown"
