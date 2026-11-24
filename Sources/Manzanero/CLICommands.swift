@@ -191,17 +191,14 @@ extension ManzaneroCLI {
     }
 
     struct Crown: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "crown", abstract: "Turn the Digital Crown (Apple Watch simulators).",
-            discussion: "Units are the simulator's integer scroll deltas; positive scrolls toward later content. They are sent as events 1 s apart, slow enough that watchOS does not accelerate them: 200 units moved a SwiftUI digitalCrownRotation value by 1 at low sensitivity. Lists move by rows per event (Watch Settings: one row for each event of 100 units or more, none below 100), so use --events to scroll several rows. \(receiptCaveat)")
+        static let configuration = CommandConfiguration(commandName: "crown", abstract: "Turn the Digital Crown of an Apple Watch, simulated or physical.",
+            discussion: "Units are integer scroll deltas, the same on a simulator and on a watch's own scroll service; positive scrolls toward later content. They are sent as events 1 s apart, slow enough that watchOS does not accelerate them: 200 units moved a SwiftUI digitalCrownRotation value by 1 at low sensitivity. Lists move by rows per event (Watch Settings: one row for each event of 100 units or more, none below 100), so use --events to scroll several rows. \(receiptCaveat)")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
         @Argument(help: ArgumentHelp("Non-zero integer units, -10000...10000; put -- before a negative amount.", valueName: "units")) var units: String
         @Option(help: ArgumentHelp("Split the units evenly over 1...20 events (default: the fewest of at most 1000 units).", valueName: "n")) var events: String?
         func request(_ target: Target) throws -> CommandRequest {
-            guard target.platform == .simulator else {
-                throw CommandFailure.unsupported("crown is implemented for Apple Watch simulators only; no device was contacted.")
-            }
-            return try .input(target, "crown", [units] + (events.map { [$0] } ?? []))
+            try .input(target, "crown", [units] + (events.map { [$0] } ?? []))
         }
     }
 
@@ -228,7 +225,7 @@ extension ManzaneroCLI {
             types, use set-value, which replaces a named element's whole value, or paste (physical), which replaces the \
             clipboard.
 
-            An Apple Watch simulator takes no keyboard events, so there type taps the keys of the keyboard watchOS shows \
+            An Apple Watch, simulated or physical, takes no keyboard events, so there type taps the keys of the keyboard watchOS shows \
             for a text field (press the field first): ASCII letters, digits, space and the numbers and symbols pages' \
             characters, switching case and page as needed, then Done, which hands the text to the app. Accented letters \
             and emoji are refused. --layout does not apply. \

@@ -2143,6 +2143,19 @@ Later the same night, on the human owner's "try again", with the watch reachable
 
 So on a real watch the tree, `press`, `tap` and `scroll --search` work inside the probe; `type` and `crown` are built for simulators only.
 
+`type` and `crown` were then built for a physical watch the same night and run inside the probe:
+
+| Step | Observed |
+| --- | --- |
+| `crown 200` with the probe in front | `probe.watch.crown` 0.000 → 1.000, as on a simulator: the same `IndigoScrollEvent` steps on the watch's own `hid.scroll` service, which its capability list names (`ADCRotateCrown`, `DirectPhysicalCrown`) |
+| `crown 300 --events 3` | 1.000 → 2.500 |
+| An earlier `crown 200` sent while the probe was not in front (the relaunch had not taken) | Went to whatever was in front; that screen was not read, to keep the watch face private. Check the app is in front before input |
+| `press` the field, `type 'Hi 42'` | 7 key taps and Done in 41 s (`route: watch-on-screen-keyboard`); the field read `Yo 42` |
+| The keyboard's tree against one screenshot (deleted) | Every key's frame matched where it was drawn; the keyboard is Spanish (Ñ, `ESPACIO`, suggestions `El` and `La`) and labels its letter keys in capitals. So the taps were right and the keyboard's autocorrection turned "Hi", not a Spanish word, into the nearest one, "Yo", at the space |
+| The probe relaunched, `type 'Hola 42'` | 9 key taps and Done; the field read `Hola 42` |
+
+So on a physical watch `type` taps the on-screen keys, read from a tree before each key, as on a simulator; the keyboard's autocorrection applies to what it is given, as it would to a person's taps.
+
 ### First run on a physical iPad: the iPad mini (6th generation)
 
 **2026-11-24, evening**, an iPad mini (6th generation) (iPadOS 27.2.1), on its cable, with the human owner's word for each step: the device has top privacy restrictions, so everything ran inside the probe app, every capture was deleted after reading, and nothing else on it is recorded here.

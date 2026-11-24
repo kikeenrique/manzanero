@@ -513,6 +513,28 @@ xpc_object_t ADCButtonEvent(uint64_t usage, uint64_t state, BOOL barrier) {
     return event;
 }
 
+/// A Digital Crown step on the scroll service, as on a watchOS simulator
+/// (AppleSimulatorBridge.m): point {0, delta, 0}, phase 0, momentum 0,
+/// target 0 (the crown). A barrier carries no payload.
+static xpc_object_t ADCCrownEvent(double delta, BOOL barrier) {
+    xpc_object_t event = xpc_dictionary_create_empty();
+    xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.scroll");
+    xpc_dictionary_set_string(event, "messageType", "IndigoScrollEvent");
+    xpc_dictionary_set_bool(event, "isBarrier", barrier);
+    if (!barrier) {
+        xpc_object_t payload = xpc_dictionary_create_empty(), point = xpc_dictionary_create_empty();
+        xpc_dictionary_set_double(point, "x", 0);
+        xpc_dictionary_set_double(point, "y", delta);
+        xpc_dictionary_set_double(point, "z", 0);
+        xpc_dictionary_set_value(payload, "point", point);
+        xpc_dictionary_set_uint64(payload, "phase", 0);
+        xpc_dictionary_set_uint64(payload, "momentum", 0);
+        xpc_dictionary_set_uint64(payload, "target", 0);
+        xpc_dictionary_set_value(event, "payload", payload);
+    }
+    return event;
+}
+
 xpc_object_t ADCKeyboardEvent(uint64_t usage, uint64_t state, BOOL barrier) {
     xpc_object_t event = xpc_dictionary_create_empty();
     xpc_dictionary_set_string(event, "featureIdentifier", "com.apple.coredevice.feature.remote.hid.keyboard");
@@ -908,7 +930,7 @@ static const uint64_t ADCInputDrainNanoseconds = 200 * NSEC_PER_MSEC;
 static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys,
                    const uint64_t *reportTimes, const uint8_t *reports, uint64_t *resolvedSurface, size_t count,
-                   ADCDigitizerProvider provider, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+                   ADCDigitizerProvider provider, const double *crown, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     @autoreleasepool {
         // A finite schedule and a live stream both go to the Universal HID
         // touchscreen; they differ only in where the reports come from.
@@ -918,6 +940,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
             return ADCFail(error, capacity, @"Invalid direct input identity.");
         }
         const char *feature = universal ? "com.apple.coredevice.feature.remote.universalhidservice" :
+            crown ? "com.apple.coredevice.feature.remote.hid.scroll" :
             (samples ? "com.apple.coredevice.feature.remote.hid.digitizer" : "com.apple.coredevice.feature.remote.hid.button");
         // Button and keyboard events share Apple's Indigo HID service. Open its
         // registered button feature rather than inventing a standalone keyboard
@@ -938,7 +961,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         xpc_connection_resume(connection);
         xpc_object_t input = xpc_dictionary_create_empty();
         xpc_dictionary_set_string(input, "featureIdentifier", feature);
-        if (samples || keyboard) xpc_dictionary_set_string(input, "serviceName", "com.apple.coredevice.hid.indigo");
+        if (samples || keyboard || crown) xpc_dictionary_set_string(input, "serviceName", "com.apple.coredevice.hid.indigo");
         ADCReplyState *socketReply = [ADCReplyState new];
         xpc_connection_send_message_with_reply(connection, ADCEnvelope(uuid, version, input), queue, ^(xpc_object_t reply) {
             socketReply.reply = reply;
@@ -1012,7 +1035,8 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         // alone does not establish that the remote HID service is ready.
         {
             ADCReplyState *ready = [ADCReplyState new];
-            xpc_object_t barrier = universal ? ADCUniversalBarrier() : (samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES));
+            xpc_object_t barrier = universal ? ADCUniversalBarrier() : crown ? ADCCrownEvent(0, YES) :
+                (samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES));
             request(remote, barrier, queue, ^(xpc_object_t response) {
                 ready.reply = response;
                 dispatch_semaphore_signal(ready.semaphore);
@@ -1030,6 +1054,19 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
                 ^(const uint8_t *bytes) { send(remote, ADCUniversalReport(bytes, surface)); });
             invalidBeforeInput = live == 2;
             scheduleStopped = live == 1 || live == 3;
+        } else if (crown) {
+            // One step every `hold` microseconds, the first at once.
+            uint64_t start = clock_gettime_nsec_np(CLOCK_MONOTONIC);
+            for (size_t i = 0; i < count && !scheduleStopped; i++) {
+                uint64_t due = start + (uint64_t)i * (uint64_t)hold * NSEC_PER_USEC;
+                while (clock_gettime_nsec_np(CLOCK_MONOTONIC) < due) {
+                    if (status.failed || (shouldCancel && shouldCancel())) { scheduleStopped = YES; break; }
+                    struct timespec slice = { 0, 10 * NSEC_PER_MSEC };
+                    nanosleep(&slice, NULL);
+                }
+                if (scheduleStopped) break;
+                send(remote, ADCCrownEvent(crown[i], NO));
+            }
         } else if (reports) {
             scheduleStopped = ADCRunDigitizerSchedule(reportTimes, reports, count,
                 ^int { return status.failed || (shouldCancel && shouldCancel()); },
@@ -1049,7 +1086,8 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
                 ^int { return status.failed || (shouldCancel && shouldCancel()); },
                 ^(uint64_t code, uint64_t state) { send(remote, scalarEvent(code, state, NO)); }) != 0;
         }
-        xpc_object_t barrier = universal ? ADCUniversalBarrier() : (samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES));
+        xpc_object_t barrier = universal ? ADCUniversalBarrier() : crown ? ADCCrownEvent(0, YES) :
+            (samples ? ADCTouchEvent(0, 0, NULL, 0, YES) : scalarEvent(usage, 0, YES));
         request(remote, barrier, queue, ^(xpc_object_t response) {
             status.reply = response;
             dispatch_semaphore_signal(status.semaphore);
@@ -1085,19 +1123,30 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
     // Home Screen appeared (docs/other-families.md).
     if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
         return ADCFail(error, capacity, @"Invalid direct button request.");
-    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, shouldCancel, error, capacity);
+    return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, shouldCancel, error, capacity);
+}
+
+int ADCRotateCrown(const char *uuid, const char *version, const double *deltas, size_t count, uint64_t intervalNanoseconds,
+                   ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    if (!deltas || count < 1 || count > 1000 || intervalNanoseconds < NSEC_PER_MSEC || intervalNanoseconds > 1000 * NSEC_PER_MSEC)
+        return ADCFail(error, capacity, @"Invalid Digital Crown schedule; no input sent.");
+    for (size_t i = 0; i < count; i++)
+        if (!isfinite(deltas[i]) || deltas[i] != floor(deltas[i]) || deltas[i] == 0 || fabs(deltas[i]) > 1000)
+            return ADCFail(error, capacity, @"Invalid Digital Crown step; no input sent.");
+    return ADCPerformInput(uuid, version, 0, (unsigned)(intervalNanoseconds / NSEC_PER_USEC), NO, NULL, NULL, NULL, NULL, NULL, NULL, count, NULL,
+                           deltas, shouldCancel, error, capacity);
 }
 
 int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     if (!((usage >= 40 && usage <= 44) || (usage >= 79 && usage <= 82)))
         return ADCFail(error, capacity, @"Unsupported direct keyboard usage; no input sent.");
-    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, shouldCancel, error, capacity);
+    return ADCPerformInput(uuid, version, usage, 80000, YES, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, shouldCancel, error, capacity);
 }
 
 int ADCPerformKeyboard(const char *uuid, const char *version, const ADCKeyboardSample *samples,
                        size_t count, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     if (ADCValidateKeyboardSchedule(samples, count, error, capacity)) return 1;
-    return ADCPerformInput(uuid, version, 0, 0, YES, NULL, NULL, samples, NULL, NULL, NULL, count, NULL, shouldCancel, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, YES, NULL, NULL, samples, NULL, NULL, NULL, count, NULL, NULL, shouldCancel, error, capacity);
 }
 
 int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t count, char *error, size_t capacity) {
@@ -1127,14 +1176,14 @@ int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version,
                               uint64_t *surface, char *error, size_t capacity) {
     if (surface) *surface = 0;
     if (ADCValidateDigitizerSchedule(times, reports, count, error, capacity)) return 1;
-    return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, times, reports, surface, count, NULL, shouldCancel, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, times, reports, surface, count, NULL, NULL, shouldCancel, error, capacity);
 }
 
 int ADCPerformLiveDigitizerReports(const char *uuid, const char *version, ADCDigitizerProvider next,
                                    ADCInputShouldStop shouldCancel, uint64_t *surface, char *error, size_t capacity) {
     if (surface) *surface = 0;
     if (!next) return ADCFail(error, capacity, @"A live digitizer stream needs a report provider; no input sent.");
-    return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, NULL, NULL, surface, 0, next, shouldCancel, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, NULL, NULL, surface, 0, next, NULL, shouldCancel, error, capacity);
 }
 
 int ADCPerformCancellableRemoteTouch(const char *uuid, const char *version, const uint64_t *times,
@@ -1142,7 +1191,7 @@ int ADCPerformCancellableRemoteTouch(const char *uuid, const char *version, cons
                                      char *error, size_t capacity) {
     if (ADCValidateDigitizerSchedule(times, reports, count, error, capacity)) return 1;
     // The usage names the touch-pad service to create for the call.
-    return ADCPerformInput(uuid, version, ADCRemoteTouchServiceID, 0, NO, NULL, NULL, NULL, times, reports, NULL, count, NULL, shouldCancel, error, capacity);
+    return ADCPerformInput(uuid, version, ADCRemoteTouchServiceID, 0, NO, NULL, NULL, NULL, times, reports, NULL, count, NULL, NULL, shouldCancel, error, capacity);
 }
 
 BOOL ADCDigitizerReportActive(const uint8_t *bytes) {
@@ -1187,7 +1236,7 @@ int ADCValidateDigitizerSchedule(const uint64_t *times, const uint8_t *reports,
 static int ADCValidateAndPerformTouch(const char *uuid, const char *version, const ADCTouchSample *samples,
                     const ADCTouchPoint *secondPoints, size_t count, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     if (ADCValidateTouchSchedule(samples, secondPoints, count, error, capacity)) return 1;
-    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, NULL, NULL, NULL, NULL, count, NULL, shouldCancel, error, capacity);
+    return ADCPerformInput(uuid, version, 0, 0, NO, samples, secondPoints, NULL, NULL, NULL, NULL, count, NULL, NULL, shouldCancel, error, capacity);
 }
 
 int ADCValidateTouchSchedule(const ADCTouchSample *samples, const ADCTouchPoint *secondPoints,

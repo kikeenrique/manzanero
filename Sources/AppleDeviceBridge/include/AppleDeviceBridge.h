@@ -220,6 +220,13 @@ int ADCPerformLiveDigitizerReports(const char *uuid, const char *version, ADCDig
 /// This is transport dispatch, never verification of device UI or key release.
 int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
                    unsigned holdMicroseconds, ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
+/// Digital Crown rotation on a physical Apple Watch: the simulator's
+/// IndigoScrollEvent steps on the device's hid.scroll service, between the
+/// shared barriers and followed by the shared drain. 1...1000 steps, each a
+/// non-zero integer of at most 1000 units, `intervalNanoseconds` apart
+/// (1...1000 ms). Same status contract as ADCPressButton.
+int ADCRotateCrown(const char *uuid, const char *version, const double *deltas, size_t count, uint64_t intervalNanoseconds,
+                   ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 int ADCPressKeyboardKey(const char *uuid, const char *version, uint64_t usage,
                        ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 typedef struct {

@@ -614,6 +614,13 @@ actor CommandService {
                     return try json(plan)
                 }
                 if native.operation == "remote" { return try json(AppleTVRemote.plan(native)) }
+                if native.operation == "crown" {
+                    let units = try DigitalCrown.units(native.operands[0])
+                    let events = try DigitalCrown.events(native.operands.count == 2 ? native.operands[1] : nil, units: units)
+                    return try json(["backend": "coredevice-direct", "operation": "crown", "identityArguments": identity.arguments,
+                        "crown": DigitalCrown.describe(units, events: events),
+                        "execution": "Read the device's details; only if they say it is an Apple Watch, send the steps to its hid.scroll service in process. No helper executable or automatic replay."])
+                }
                 guard (["button", "key"] + DirectPhysicalTouch.operations).contains(native.operation) else {
                     throw CommandFailure.unsupported("Unsupported native physical operation: \(native.operation).")
                 }
@@ -716,8 +723,15 @@ actor CommandService {
             if native.operation == "remote" {
                 return sent(try AppleTVRemote.execute(native, query: query))
             }
+            if native.operation == "crown" {
+                return sent(try DirectPhysicalCrown.execute(native, query: query))
+            }
             if DirectPhysicalGesture.handles(native) {
                 return sent(try DirectPhysicalGesture.execute(native, query: query))
+            }
+            if native.operation == "type", AppleTVRemote.deviceType(try query(identity)) == "appleWatch" {
+                // Keyboard events do not reach watchOS: the on-screen keys are tapped.
+                return sent(try await PhysicalWatchTyping.execute(native, query: query))
             }
             if native.operation == "type" {
                 return sent(try DirectPhysicalTyping.execute(native, query: query))

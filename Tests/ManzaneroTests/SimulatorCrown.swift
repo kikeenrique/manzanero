@@ -75,8 +75,9 @@ struct SimulatorCrownTests {
             }
         }
         #expect(turned.crowns.isEmpty && turned.consumer.isEmpty)
-        let physical = try #require(throws: CommandFailure.self) { try request(["crown", "100", "--device", "watch"]) }
-        #expect(physical.code == .unsupportedOperation)
+        // A device is no longer refused here: it takes the physical route,
+        // which refuses anything but an Apple Watch from its details.
+        #expect(try request(["crown", "100", "--device", "watch"]) == .physicalInput(try CoreDeviceInput.validated(device: "watch", operation: "crown", operands: ["100"])))
     }
 
     /// detect-layout types its probe, so a watch refuses it as it refuses

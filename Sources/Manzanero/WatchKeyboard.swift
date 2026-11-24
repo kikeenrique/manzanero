@@ -103,26 +103,69 @@ enum WatchKeyboard {
     /// and the rightmost bar button as `Done`. Labels fill in what those
     /// leave out, so an English keyboard's own words still name its keys.
     static func keys(_ nodes: [AccessibilitySnapshot.Node], bounds: AccessibilityDisplay.Bounds) -> [String: Key] {
+        func text(_ scalar: AccessibilitySnapshot.Scalar?) -> String? { if case .string(let value)? = scalar { value } else { nil } }
+        return keys(nodes.map { Entry(label: text($0.label), identifier: text($0.identifier), frame: $0.frame, visible: $0.visible,
+                                      className: $0.nativeAttributes?["5003"]) }, bounds: bounds)
+    }
+
+    /// What `keys` reads of a tree node: from a live snapshot (a simulator)
+    /// or from a tree command's JSON (a physical watch).
+    struct Entry: Equatable {
+        let label: String?
+        let identifier: String?
+        let frame: AccessibilitySnapshot.Frame?
+        let visible: Bool?
+        let className: String?
+    }
+
+    /// A tree command's result as entries, with the display's bounds.
+    static func entries(tree: Data) throws -> (entries: [Entry], bounds: AccessibilityDisplay.Bounds) {
+        guard let root = try JSONSerialization.jsonObject(with: tree) as? [String: Any],
+              let display = (root["display"] as? [String: Any])?["bounds"] as? [String: Any],
+              let width = (display["width"] as? NSNumber)?.doubleValue, let height = (display["height"] as? NSNumber)?.doubleValue,
+              width > 0, height > 0, let nodes = root["nodes"] as? [[String: Any]] else {
+            throw CommandFailure(.transportFailed, "The watch's accessibility tree could not be read for its keyboard. No input sent.", inputSent: .none)
+        }
+        let bounds = AccessibilityDisplay.Bounds(x: (display["x"] as? NSNumber)?.doubleValue ?? 0, y: (display["y"] as? NSNumber)?.doubleValue ?? 0,
+                                                 width: width, height: height)
+        let entries = nodes.map { node -> Entry in
+            let frame = (node["frame"] as? [String: Any]).flatMap { f -> AccessibilitySnapshot.Frame? in
+                guard let x = (f["x"] as? NSNumber)?.doubleValue, let y = (f["y"] as? NSNumber)?.doubleValue,
+                      let w = (f["width"] as? NSNumber)?.doubleValue, let h = (f["height"] as? NSNumber)?.doubleValue else { return nil }
+                return AccessibilitySnapshot.Frame(x: x, y: y, width: w, height: h)
+            }
+            return Entry(label: node["label"] as? String, identifier: node["identifier"] as? String, frame: frame,
+                         visible: node["visible"] as? Bool, className: (node["nativeAttributes"] as? [String: String])?["5003"])
+        }
+        return (entries, bounds)
+    }
+
+    /// Whether entries show a keyboard: at least one key of the keyboard's
+    /// own class. An app's button labelled `A` is not a key.
+    static func showsKeyboard(_ entries: [Entry]) -> Bool {
+        entries.contains { $0.className == keyClass && $0.visible == true }
+    }
+
+    static func keys(_ entries: [Entry], bounds: AccessibilityDisplay.Bounds) -> [String: Key] {
         func centre(_ frame: AccessibilitySnapshot.Frame, _ name: String) -> Key {
             Key(label: name, x: (frame.x + frame.width / 2 - bounds.x) / bounds.width, y: (frame.y + frame.height / 2 - bounds.y) / bounds.height)
         }
-        let shown = nodes.filter { $0.visible == true && ($0.frame?.width ?? 0) > 0 && ($0.frame?.height ?? 0) > 0 }
-        func text(_ scalar: AccessibilitySnapshot.Scalar?) -> String? { if case .string(let value)? = scalar { value } else { nil } }
-        let page = page(labels: Set(shown.compactMap { text($0.label) }))
+        let shown = entries.filter { $0.visible == true && ($0.frame?.width ?? 0) > 0 && ($0.frame?.height ?? 0) > 0 }
+        let page = page(labels: Set(shown.compactMap(\.label)))
         var keys: [String: Key] = [:]
-        for node in shown {
-            guard let frame = node.frame, let identifier = text(node.identifier),
+        for entry in shown {
+            guard let frame = entry.frame, let identifier = entry.identifier,
                   let name = functionKey(identifier: identifier, page: page), keys[name] == nil else { continue }
             keys[name] = centre(frame, name)
         }
-        let worded = shown.filter { $0.nativeAttributes?["5003"] == keyClass && text($0.identifier) == nil && (text($0.label)?.count ?? 0) > 1 }
+        let worded = shown.filter { $0.className == keyClass && $0.identifier == nil && ($0.label?.count ?? 0) > 1 }
         if worded.count == 1, let frame = worded[0].frame, keys["ampersand"] == nil { keys["ampersand"] = centre(frame, "ampersand") }
-        if let done = shown.filter({ $0.nativeAttributes?["5003"] == barButtonClass }).max(by: { ($0.frame?.x ?? 0) < ($1.frame?.x ?? 0) }),
+        if let done = shown.filter({ $0.className == barButtonClass }).max(by: { ($0.frame?.x ?? 0) < ($1.frame?.x ?? 0) }),
            let frame = done.frame, keys["Done"] == nil {
             keys["Done"] = centre(frame, "Done")
         }
-        for node in shown {
-            guard let label = text(node.label), let frame = node.frame, keys[label] == nil else { continue }
+        for entry in shown {
+            guard let label = entry.label, let frame = entry.frame, keys[label] == nil else { continue }
             keys[label] = centre(frame, label)
         }
         return keys
@@ -132,29 +175,56 @@ enum WatchKeyboard {
     /// `tap` taps one key. Returns the number of taps.
     static func type(_ text: String, read: () throws -> [String: Key], tap: (Key) throws -> Void) throws -> (taps: Int, submitted: Bool) {
         var taps = 0
-        func refuse(_ reason: String) -> CommandFailure {
-            CommandFailure(.targetUnresolved, "\(reason) \(taps == 0 ? "No input sent." : "\(taps) key(s) were tapped before it: inspect the field before retrying.")",
-                           inputSent: taps == 0 ? .none : .possible)
-        }
         for (offset, character) in text.enumerated() {
             try Task.checkCancellation()
-            let wanted = label(for: character)
             var keys = try read()
             var switches = 0
-            while keys[wanted] == nil {
-                guard switches < 3, let name = switchKey(for: character, showing: Set(keys.keys)), let key = keys[name] else {
-                    throw refuse("The watch keyboard shows no key for '\(character)' (character \(offset + 1)).")
-                }
+            while true {
+                let (key, done) = try next(character, offset: offset, keys: keys, switches: switches, taps: taps)
                 try tap(key)
                 taps += 1
+                if done { break }
                 switches += 1
                 keys = try read()
             }
-            try tap(keys[wanted]!)
-            taps += 1
         }
         guard let done = try read()["Done"] else { return (taps, false) }
         try tap(done)
         return (taps + 1, true)
+    }
+
+    /// The same, for reads and taps that suspend (a physical watch).
+    static func type(_ text: String, read: () async throws -> [String: Key], tap: (Key) async throws -> Void,
+                     isolation: isolated (any Actor)? = #isolation) async throws -> (taps: Int, submitted: Bool) {
+        var taps = 0
+        for (offset, character) in text.enumerated() {
+            try Task.checkCancellation()
+            var keys = try await read()
+            var switches = 0
+            while true {
+                let (key, done) = try next(character, offset: offset, keys: keys, switches: switches, taps: taps)
+                try await tap(key)
+                taps += 1
+                if done { break }
+                switches += 1
+                keys = try await read()
+            }
+        }
+        guard let done = try await read()["Done"] else { return (taps, false) }
+        try await tap(done)
+        return (taps + 1, true)
+    }
+
+    /// The next key to tap for `character`: the character's own key (done)
+    /// or a page switch, at most three switches.
+    static func next(_ character: Character, offset: Int, keys: [String: Key], switches: Int, taps: Int) throws -> (key: Key, done: Bool) {
+        let wanted = label(for: character)
+        if let key = keys[wanted] { return (key, true) }
+        guard switches < 3, let name = switchKey(for: character, showing: Set(keys.keys)), let key = keys[name] else {
+            throw CommandFailure(.targetUnresolved,
+                "The watch keyboard shows no key for '\(character)' (character \(offset + 1)). \(taps == 0 ? "No input sent." : "\(taps) key(s) were tapped before it: inspect the field before retrying.")",
+                inputSent: taps == 0 ? .none : .possible)
+        }
+        return (key, false)
     }
 }
