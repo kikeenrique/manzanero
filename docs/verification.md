@@ -2115,6 +2115,25 @@ After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wa
 
 Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
 
+### First run on a physical iPad: the iPad mini (6th generation)
+
+**2026-11-24, evening**, an iPad mini (6th generation) (iPadOS 27.2.1), on its cable, with the human owner's word for each step: the device has top privacy restrictions, so everything ran inside the probe app, every capture was deleted after reading, and nothing else on it is recorded here.
+
+| Step | Observed |
+| --- | --- |
+| `details`, `readiness`, `devicectl device info displays` | Developer mode on, display on, no passcode required. The panel is mounted natively landscape: `nativeOrientation: rot270`, `currentOrientation: rot90`, bounds 2266 × 1488 pixels while held in portrait |
+| `tree` | Refused before reading anything: "Invalid, ambiguous or unsupported primary display geometry", since accessibility took every panel as natively portrait. Fixed the same day: the interface's turn is the sum of the two orientations, as touch already took it, and a sideways panel's bounds are read the other way round |
+| `tree` of the probe after the fix | On the tool's own tunnel over the cable (`ownTunnelLink: cable`); display 744 × 1133 points, `rot0`; the probe's elements with their frames |
+| `press --id probe.touch.reset` | Accepted: the hit-test mapping is right |
+| `test:probe-touch` (`--no-pull`, readouts only) | All 14 actions of the built-in plan delivered: taps, a long press, a swipe, a drag, a pinch, two to five simultaneous contacts, sequences; worst start error 0.0003 of the screen |
+| A four-path `multi-drag` | iPadOS cancelled all four contacts after 0.095 s, as on the iPad simulators |
+| `type 'Hola iPad 123'`, `set-value 'añadido ñ €'` in the probe's field | Both exact |
+| The probe relaunched with `-ProbeAllowRotation YES`, `rotate landscape-left` | `tree`: 1133 × 744 points, `rot270`; `press --id probe.touch.reset` accepted; a tap at (0.25, 0.4) recorded at (0.250, 0.400) |
+| `record` 5 s, `frames --count 1` (deleted at once) | 94 frames, no restart; the frame 2266 × 1488, not black |
+| `rotate portrait`, the probe closed | |
+
+The probe app stays installed on the iPad (an interrupted install put it there before the human owner set the rule of asking first).
+
 ### Biometrics on the phone: no type to control
 
 **2026-11-24, 19:45**, the iPhone 13 mini (iOS 27.2.1), on the human owner's word, unlocked, with no Face ID enrolled.

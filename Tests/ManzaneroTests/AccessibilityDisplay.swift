@@ -5,9 +5,9 @@ import Testing
 struct AccessibilityDisplayTests {
     static func data(scale: Any = 3, orientation: String = "rot0", primary: Any = true,
                      bounds: Any = [[0, 0], [1125, 2436]], id: Any = 1, duplicates: Bool = false,
-                     outcome: String = "success", backlight: String = "activeOn") throws -> Data {
+                     outcome: String = "success", backlight: String = "activeOn", native: String = "rot0") throws -> Data {
         let display: [String: Any] = ["primary": primary, "displayId": id, "pointScale": scale,
-            "bounds": bounds, "currentOrientation": orientation, "nativeOrientation": "rot0", "backlightState": backlight]
+            "bounds": bounds, "currentOrientation": orientation, "nativeOrientation": native, "backlightState": backlight]
         return try JSONSerialization.data(withJSONObject: ["info": ["outcome": outcome],
             "result": ["displays": duplicates ? [display, display] : [display]]])
     }
@@ -28,6 +28,19 @@ struct AccessibilityDisplayTests {
                      try Self.data(backlight: "unknown"), Data(count: 1_048_577)] {
             #expect(throws: (any Error).self) { try AccessibilityDisplay(data) }
         }
+    }
+
+    /// An iPad mini (6th generation): a panel mounted natively landscape.
+    /// Held in portrait devicectl reported `nativeOrientation: rot270`,
+    /// `currentOrientation: rot90` and 2266 × 1488 pixels (2026-11-24): the
+    /// interface is unturned portrait, 744 × 1133 points.
+    @Test func aLandscapePanelHeldInPortraitIsAnUnturnedPortraitInterface() throws {
+        let display = try AccessibilityDisplay(Self.data(scale: 2, orientation: "rot90", bounds: [[0, 0], [2266, 1488]], native: "rot270"))
+        #expect(display.orientation == "rot0" && display.bounds.width == 744 && display.bounds.height == 1133)
+        #expect(display.native(100, 200) == (100, 200))
+        // The same iPad turned a quarter: a landscape interface.
+        let turned = try AccessibilityDisplay(Self.data(scale: 2, orientation: "rot0", bounds: [[0, 0], [2266, 1488]], native: "rot270"))
+        #expect(turned.orientation == "rot270" && turned.bounds.width == 1133 && turned.bounds.height == 744)
     }
 
     /// A turned phone: interface bounds the other way round, and hit points

@@ -85,10 +85,17 @@ struct AccessibilityDisplay: Equatable, Encodable {
         }
         // A phone's display is native portrait; its interface may be turned.
         // An Apple TV's television is taken as it is.
+        // An iPad mini (6th generation) has a panel mounted natively
+        // landscape (`nativeOrientation: rot270`, bounds 2266 × 1488 while
+        // held in portrait, 2026-11-24): the interface's turn from the
+        // device's portrait is the sum, as touch takes it
+        // (`DirectTouchDisplay`), and the panel's bounds are read the other
+        // way round.
         let rotations = ["rot0": 0, "rot90": 90, "rot180": 180, "rot270": 270]
         guard primary.count == 1, let display = primary.first,
-              display["nativeOrientation"] as? String == "rot0",
-              let turn = rotations[display["currentOrientation"] as? String ?? ""], turn == 0 || !external,
+              let nativeTurn = rotations[display["nativeOrientation"] as? String ?? ""], nativeTurn == 0 || !external,
+              let current = rotations[display["currentOrientation"] as? String ?? ""],
+              case let turn = (nativeTurn + current) % 360, turn == 0 || !external,
               let id = display["displayId"] as? NSNumber, CFGetTypeID(id) != CFBooleanGetTypeID(),
               ["c", "C", "s", "S", "i", "I", "l", "L", "q", "Q"].contains(String(cString: id.objCType)),
               id.doubleValue >= 0, id.doubleValue < Double(Int64.max),
@@ -106,7 +113,9 @@ struct AccessibilityDisplay: Equatable, Encodable {
         // scale 1 while its tree's frames filled 1920 × 1080.
         if external, let pixels = try? number(rawBounds[1][0]), pixels >= 1920 { scale = pixels / 1920 }
         let x = try number(rawBounds[0][0]) / scale, y = try number(rawBounds[0][1]) / scale
-        let width = try number(rawBounds[1][0]) / scale, height = try number(rawBounds[1][1]) / scale
+        let panelWidth = try number(rawBounds[1][0]) / scale, panelHeight = try number(rawBounds[1][1]) / scale
+        let sideways = nativeTurn == 90 || nativeTurn == 270
+        let width = sideways ? panelHeight : panelWidth, height = sideways ? panelWidth : panelHeight
         guard width > 0, height > 0, [x, y, width, height].allSatisfy({ $0.isFinite && abs($0) <= 10_000_000 }) else { throw invalid() }
         if turn == 0 {
             bounds = Bounds(x: x, y: y, width: width, height: height)
