@@ -2115,6 +2115,24 @@ After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wa
 
 Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
 
+### `remote sleep` on an Apple TV in Spanish
+
+**2026-11-24, about 17:30**, the Apple TV 4K (tvOS 27.2), on the human owner's word: the device's language changed to Spanish and back, all by the tool over its own pairing.
+
+| Step | Observed |
+| --- | --- |
+| Settings › General › Apple TV Languages | `devicectl device settings` has no language subcommand. Selecting Español in the list changed nothing; Edit, then the row's reorder handle (`Reorder Español, Spanish`), select, two `remote up`, select, and Done pressed by its label put Español first, and the interface was in Spanish ("Idiomas del Apple TV") |
+| `remote home`, `remote sleep` | `lock`, `power-off`, `status: asleep`, `verified: true`, 16 s: Power Off is pressed by its identifier, which does not change with the language |
+| Back to English | `wake`; in Spanish the same way (`Editar`, `Reordenar Español`, `OK` by label); the list again English, English (US), Español, the interface in English; `remote sleep` |
+
+What the run taught about driving such a screen:
+
+- The tree lists Settings' rows bottom to top; the screen has About at the top. Read the direction from a screenshot or from `--report-focus`, not from node order.
+- Labels can hold a non-breaking space (`Apple\u00a0TV Languages`): compare them as the tool's `--match contains` does, not byte for byte in a script.
+- `press --label` refused `Apple TV Languages` (no match in the bounded snapshot) where arrows with `--report-focus` and a select reached it.
+- In edit mode a press can land the focus on a row's trash button: every select there was preceded by a focus report, and Done and OK were pressed by label, which moves no focus.
+- A reorder sometimes moved a row one place for two arrows, or none: look after each drop.
+
 ### Sound across a pulled Ethernet cable on the Apple TV 4K
 
 **2026-11-24, 17:08**, the Apple TV 4K (tvOS 27.2) on Ethernet, the tvOS probe's [tone](probe-app.md#a-tone) playing (`probe.tv.tone` read `playing`), with the human owner's word and at the television: `record tmp/tone-loss.mp4 60 --backend coredevice --audio`; the human owner pulled the Ethernet cable a few seconds in and plugged it back about ten seconds later.
