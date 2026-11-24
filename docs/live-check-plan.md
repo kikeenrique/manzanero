@@ -32,7 +32,7 @@ If every query to a connected device times out, read the state of Apple's device
 
 ## Not yet run on Apple TV, Apple Watch or iPhone Duo hardware
 
-One Apple TV 4K has been driven; everything else in [other families](other-families.md) has run on simulators only, and on those real devices nothing is known, including whether the commands apply at all:
+One Apple TV 4K has been driven fully, and one Apple Watch inside the watchOS probe; the iPhone Duo has run on a simulator only, and on that device nothing is known, including whether the commands apply at all:
 
 - Duo: `displays`, `screenshot` with and without `--display`, `record --display`. `fold`, `unfold` and `hinge` are simulator-only (a physical device's hinge is moved by hand); on hardware, check what the display information reports in each fold state.
 - Apple TV 4K, where every command family has run ([guide](other-families.md#a-physical-apple-tv)). Tell the human owner before the first command: a sleeping Apple TV and its television can come on, and the room it is in stays quiet (no audio, no volume key; the tvOS probe in front for a video check). Still to run there:
@@ -47,7 +47,8 @@ One Apple TV 4K has been driven; everything else in [other families](other-famil
   - The error a query gives in the stale state, which was built after the last stale period and has only run in unit tests.
   - Recording and `frames` work since 2026-11-20 ([record](verification.md#the-apple-tvs-video-fixed-an-offer-without-resolution-adaptation)). A minute with the focus moving and three quiet minutes with sound (2026-11-22) ran. Sound with something playing ran on 2026-11-24: the tvOS probe's tone came through whole and Apple Music's protected audio was silent ([record](verification.md#music-playing-aloud-and-a-silent-sound-track-on-the-apple-tv-4k)). A recording with sound across a pulled Ethernet cable recovered on 2026-11-24 ([record](verification.md#sound-across-a-pulled-ethernet-cable-on-the-apple-tv-4k)).
   - Not the Apple TV HD paired with the same Mac: it runs tvOS 26.6, cannot take 27, and the human owner discarded it for this tool on 2026-11-18.
-- Apple Watch: `crown` against a list and a crown-bound value (scale, one row per event), `button side`, `button action` on an Apple Watch Ultra, and `type` by the on-screen keyboard's keys, which ran on a simulator only.
+- Apple Watch, where on 2026-11-24 the tree, `press`, `tap`, `scroll --search`, `crown` against the probe's crown-bound value and `type` by the on-screen keys ran inside the watchOS probe ([record](verification.md#first-run-on-a-physical-apple-watch)). Still to run there: `crown` against a list (one row per event, as on a simulator), `button side`, `button action` (the watch is a `Watch8,1`), screenshots and `record`, and a session with the watch kept awake so its link does not drop between commands. Everything there runs inside the probe, which is installed for the run and uninstalled after it.
+- Duo: when the human owner names the paired iPhone Duo, read its display information first: the iPad mini's and the watch's panels were mounted sideways, which needed fixes in accessibility and touch.
 
 ## Not yet run on simulators
 

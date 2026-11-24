@@ -76,6 +76,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | Input sent to a locked phone | [Lock state in receipts](docs/native-input.md#receipts-and-partial-effects) |
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
 | Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown, typing on a watch's on-screen keyboard | [Other families](docs/other-families.md) |
+| A physical Apple Watch: Digital Crown and typing by the on-screen keys, checked inside the project's watchOS probe | [Other families](docs/other-families.md#digital-crown-and-side-button-apple-watch), [watchOS probe](docs/probe-app.md#watchos-probe) |
 | A new simulator of a named type and runtime | `manzanero create-simulator --help` |
 | A physical Apple TV: trees with focus, the Siri Remote and its swipes, recording, `remote sleep` and `remote wake` | [A physical Apple TV](docs/other-families.md#a-physical-apple-tv), [sleep and wake](docs/other-families.md#sleep-and-wake) |
 | Seeking in Apple's player on an Apple TV: arrows, swipes and `scrub --to <time>` | [Seeking](docs/other-families.md#seeking-in-apples-player) |

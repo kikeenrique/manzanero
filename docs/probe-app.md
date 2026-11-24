@@ -495,7 +495,7 @@ manzanero install tmp/probe-app/DerivedData/Build/Products/Debug-watchsimulator/
 manzanero launch com.lemambo.manzanero.probewatch --simulator <UUID>
 ```
 
-Checked on `manzanero-research-watch-ultra` (watchOS 27.2) on 2026-11-24: `press` on button A and on row 25, `crown 200` read 1.000, taps aimed at a quarter and three quarters across the pad read 0.249 and 0.751 (before the insets were removed, 0.208 and 0.792: the frame was the wider row), `scroll --search` reached row 25, the pad and the field, and `type 'Hi 42'` arrived exactly.
+Checked on `manzanero-research-watch-ultra` (watchOS 27.2) on 2026-11-24: `press` on button A and on row 25, `crown 200` read 1.000, taps aimed at a quarter and three quarters across the pad read 0.249 and 0.751 (before the insets were removed, 0.208 and 0.792: the frame was the wider row), `scroll --search` reached row 25, the pad and the field, and `type 'Hi 42'` arrived exactly. On an Apple Watch (`Watch8,1`, watchOS 27.2.1) the same night, installed by `build-run` with what the Mac had for signing: `press`, a pad tap read as `0.249,0.300` for (0.25, 0.3), `scroll --search` to row 25, `crown 200` as 1.000 and `type 'Hola 42'` exact; then uninstalled at the human owner's request ([record](verification.md#first-run-on-a-physical-apple-watch)). Launch it again before each run: an input sent while the probe was not in front went to the watch face.
 
 ## Verification status
 

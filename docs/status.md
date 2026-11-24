@@ -18,28 +18,30 @@ One table of what works where, for a reader who wants the answer before the deta
 
 ## Commands by platform
 
-| Commands | iPhone, device | iPhone and iPad, simulator | Apple TV, device | Apple TV, simulator | Apple Watch, simulator | iPhone Duo, simulator |
-| --- | --- | --- | --- | --- | --- | --- |
-| **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown`, `create-simulator` (simulators) | works | works | works | works | works | works |
-| **Touch**: `tap`, `double-tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts; `tap` in landscape too; a contact held across `batch` steps (`hold`, `release`) | works; on an iPad four moving contacts are cancelled by iPadOS, even with its gesture settings off | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works |
-| **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: `home`, `side` and the Ultra's `action` work, `lock` does nothing, `key` refused | works; `wake` refused |
-| **Text**: `type`, `detect-layout`, `paste`, `set-value` | works, a SwiftUI field's `set-value` too | works, a SwiftUI field's `set-value` too; `paste` refused | works (`type`, `set-value`) | works | partly: `type` taps the on-screen keyboard in any keyboard language (ASCII letters, digits, the numbers and symbols pages; no accents); `detect-layout` refused; `set-value` does not reach the app | works; `paste` refused |
-| **Apple TV remote**: `remote`, `scrub` | — | — | works: all eight buttons, held keys, swipes (0.4 s by default), `sleep` and `wake`, `scrub` in Apple's player; a held Home is refused | works, with holds, swipes and `scrub`; `sleep` and `wake` refused | — | — |
-| **Watch crown**: `crown` | — | — | — | — | works | — |
-| **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
-| **Accessibility, read**: `tree`, `wait` | works, portrait and landscape | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
-| **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait and landscape; web pages in Chrome, Safari and an app's own web view, frames and `scroll` included (`set-value` does not change a web input); Control Centre by identifier | works; a Safari page or an app's web view by `--pid <page>` | works, see the routes below | works | works | works, a letterboxed app and Settings' two columns too |
-| **Accessibility, search a long list**: `scroll --search` | works in four directions; downward in landscape too; rows that share no edge too. Upward takes four times the steps of downward through a table | works in four directions (iPhone, iPad), rows that share no edge too | works in four directions | works in four directions | works, up and down (Series 12 and Ultra) | works in four directions |
-| **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | works | works, with `--display` |
-| **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`, in step and to the end; both recover across a pulled cable, `record` with its sound in step too since 2026-11-22; landscape gives sideways portrait pictures; an interrupt stops the device's stream and keeps the movie so far; another viewer ends a recording (`stopCause: another-viewer`); 1000 frames in one run; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, with sound by `--audio` (three quiet minutes on 2026-11-22; recovery with sound not run here); a still screen sends no picture after five seconds, which no longer restarts a recording | `record` works | `record` works | works, with `--display` |
-| **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | works (Ultra) | works |
-| **Files and reports**: `files`, `reports` | works | — | works | — | — | — |
-| **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | works; `status-bar` refused (a device does not support it) | works (iPhone, 2026-11-21) | not run | not run | not run | not run |
-| **Build and run**: `build-run` | works | works | works | not run | not run | not run |
-| **App output**: `console`, `last-crash`, `logs` | works | works | works (`logs` on the paired tunnel) | not run | works | works |
-| **A person's step**: `handoff` | works | works | works | works | works (`--until`) | works (`--until`) |
-| **Several commands at once**: `batch` | works, `hold` and `release` too | works, touch steps too, `hold` and `release` too (iPhone, 2026-11-23) | works | works | works | works |
-| **From an AI agent**: `mcp` | works | works | works | works | not run | works |
+| Commands | iPhone, device | iPhone and iPad, simulator | Apple TV, device | Apple TV, simulator | Apple Watch, simulator | Apple Watch, device | iPhone Duo, simulator |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown`, `create-simulator` (simulators) | works | works | works | works | works | works (`details`, `readiness`) | works |
+| **Touch**: `tap`, `double-tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts; `tap` in landscape too; a contact held across `batch` steps (`hold`, `release`) | works; on an iPad four moving contacts are cancelled by iPadOS, even with its gesture settings off | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works (`tap`, in the probe) | works |
+| **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: `home`, `side` and the Ultra's `action` work, `lock` does nothing, `key` refused | not run | works; `wake` refused |
+| **Text**: `type`, `detect-layout`, `paste`, `set-value` | works, a SwiftUI field's `set-value` too | works, a SwiftUI field's `set-value` too; `paste` refused | works (`type`, `set-value`) | works | partly: `type` taps the on-screen keyboard in any keyboard language (ASCII letters, digits, the numbers and symbols pages; no accents); `detect-layout` refused; `set-value` does not reach the app | works: `type` by the on-screen keys; the keyboard's autocorrection applies | works; `paste` refused |
+| **Apple TV remote**: `remote`, `scrub` | — | — | works: all eight buttons, held keys, swipes (0.4 s by default), `sleep` and `wake`, `scrub` in Apple's player; a held Home is refused | works, with holds, swipes and `scrub`; `sleep` and `wake` refused | — | — | — |
+| **Watch crown**: `crown` | — | — | — | — | works | works, as on a simulator | — |
+| **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | — | works |
+| **Accessibility, read**: `tree`, `wait` | works, portrait and landscape | works | works, see the routes below | works | works | works, over Apple's tunnel | partly: Home Screen tree is empty |
+| **Accessibility, act**: `press`, `scroll`, `set-value` | works, portrait and landscape; web pages in Chrome, Safari and an app's own web view, frames and `scroll` included (`set-value` does not change a web input); Control Centre by identifier | works; a Safari page or an app's web view by `--pid <page>` | works, see the routes below | works | works | works (`press`, `scroll`) | works, a letterboxed app and Settings' two columns too |
+| **Accessibility, search a long list**: `scroll --search` | works in four directions; downward in landscape too; rows that share no edge too. Upward takes four times the steps of downward through a table | works in four directions (iPhone, iPad), rows that share no edge too | works in four directions | works in four directions | works, up and down (Series 12 and Ultra) | works | works in four directions |
+| **Pictures**: `screenshot`, `screen`, `ocr` | works | works | works | works | works | not run | works, with `--display` |
+| **Video**: `record`, `frames` | works with `--backend coredevice`, with sound by `--audio`, in step and to the end; both recover across a pulled cable, `record` with its sound in step too since 2026-11-22; landscape gives sideways portrait pictures; an interrupt stops the device's stream and keeps the movie so far; another viewer ends a recording (`stopCause: another-viewer`); 1000 frames in one run; the default backend fails on this phone | `record` works; `frames` is for devices | works since 2026-11-20, with sound by `--audio` (three quiet minutes on 2026-11-22; recovery with sound not run here); a still screen sends no picture after five seconds, which no longer restarts a recording | `record` works | `record` works | not run | works, with `--display` |
+| **Apps**: `apps`, `launch`, `terminate`, `install`, `uninstall`, `open-url` | works | works | works | works | works (Ultra) | works (`install` by `build-run`, `launch`, `uninstall`) | works |
+| **Files and reports**: `files`, `reports` | works | — | works | — | — | not run | — |
+| **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | works; `status-bar` refused (a device does not support it) | works (iPhone, 2026-11-21) | not run | not run | not run | not run | not run |
+| **Build and run**: `build-run` | works | works | works | not run | not run | works | not run |
+| **App output**: `console`, `last-crash`, `logs` | works | works | works (`logs` on the paired tunnel) | not run | works | not run | works |
+| **A person's step**: `handoff` | works | works | works | works | works (`--until`) | not run | works (`--until`) |
+| **Several commands at once**: `batch` | works, `hold` and `release` too | works, touch steps too, `hold` and `release` too (iPhone, 2026-11-23) | works | works | works | not run | works |
+| **From an AI agent**: `mcp` | works | works | works | works | not run | not run | works |
+
+An iPad mini (6th generation) ran on 2026-11-24 inside the probe app only (its owner's privacy rule): `tree` and `press` in both orientations after a fix for its landscape-native panel, the whole touch plan, `type` and `set-value`, `rotate` and a recording; iPadOS cancels a four-path `multi-drag` there as on simulators. The Apple Watch column is the same night's run inside the watchOS probe.
 
 ## The routes
 
@@ -62,17 +64,18 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **`wake` on error 25004**: built on 2026-11-24 by the human owner's decision. When the Apple TV refuses `wake`'s screenshot with 25004 instead of the 25005 that means asleep, `wake` presses Home once, as for a sleeping device. Left: a run on the device.
-2. **Phone checks**: done; biometrics and StandBy do not apply to this phone (no biometric type for `devicectl`, no StandBy capability). Left: a real biometric prompt on the phone.
-3. **Apple TV, loose ends**: the awake device whose services stopped answering on 2026-11-24 until a restart, cause unknown. The pairing after a restart and `remote sleep` from a screen saver are done.
-4. **A real Apple Watch**: inside the watchOS probe, tree, press, tap, scroll, `type` (by the on-screen keys; the keyboard's autocorrection applies) and `crown` work; accents will not be built (the human owner's decision).
-5. **Hardware never used**: a second iPhone, an iPhone Duo. An iPad mini (6th generation) ran inside the probe on 2026-11-24 (accessibility fixed for its landscape-native panel).
-6. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
+1. **A release**: a lot changed since v0.1.0-beta.3 (new commands and options, `crown` and `type` on a real watch, fixes for an iPad's and a watch's panels); one command from the human owner's terminal.
+2. **An iPhone Duo**: paired, never used; fold, hinge and displays ran on a simulator only.
+3. **A second iPhone**: an iPhone 17 Pro Max is paired; touch timing was measured on the iPhone 13 mini only.
+4. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
+5. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 
 ## Done on 2026-11-24
 
+- **The phone's last checks**: StandBy and biometrics do not apply to the iPhone 13 mini; `--symbols` on a stripped build after a fix for an archive's `dSYMs` folder.
+- **Watch `type` and `crown`**: built for a real watch and run there inside the watchOS probe; both probes were uninstalled from the iPad and the watch afterwards.
 - **First physical Apple Watch**: a watchOS probe of the project's own; inside it tree, press, tap (after a fix), scroll, `type` and `crown` (both built that night for a physical watch) work on the watch.
 - **First physical iPad** (iPad mini 6th generation, inside the probe only): accessibility after a fix for its landscape-native panel, the touch plan whole, typing, both orientations, a recording; iPadOS cancels a four-path drag on hardware too.
 - **Apple TV sound**: a recording with sound recovered across a pulled Ethernet cable, the gap written as silence; the tvOS probe has a tone (`-ProbeTone YES`); recorded with `--audio`, the beeps came through whole, while Apple's Music app, playing aloud, gave a silent track: protected audio is left out of the device's sound stream.
