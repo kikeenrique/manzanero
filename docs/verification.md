@@ -2115,6 +2115,17 @@ After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wa
 
 Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
 
+### Sound across a pulled Ethernet cable on the Apple TV 4K
+
+**2026-11-24, 17:08**, the Apple TV 4K (tvOS 27.2) on Ethernet, the tvOS probe's [tone](probe-app.md#a-tone) playing (`probe.tv.tone` read `playing`), with the human owner's word and at the television: `record tmp/tone-loss.mp4 60 --backend coredevice --audio`; the human owner pulled the Ethernet cable a few seconds in and plugged it back about ten seconds later.
+
+| Observed | |
+| --- | --- |
+| Result | `status: recorded`, 60 s; `recovery.restarts: 2`, one gap `{atSeconds: 2.318, seconds: 17.778, reason: stream-ended}`; `audioTrack.restarts: 1`, 4262 sound packets, none lost or refused, 42.62 s of received sound |
+| The track, its level every two seconds | The beeps from 0 to 2 s, digital silence from 4 to 16 s, the beeps again from 18 s to the end (RMS about 7400 to 8400); 59.92 s in all |
+
+So a recording with sound recovers on the Apple TV as on the phone: the sound stream starts again with the session, and the gap is written as silence, so the sound after it keeps its place. How close the sound after the gap is to the picture was not measured (the probe flashes on each round's first beep, as the iOS probe does, for that measurement). The probe was closed twenty seconds after the recording ended and the device put to sleep.
+
 ### The tool's host removed on the Apple TV, and paired again
 
 **2026-11-24, about 17:00**, the Apple TV 4K (tvOS 27.2), the human owner at the television.
