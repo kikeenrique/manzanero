@@ -2090,6 +2090,29 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote left --report-focus` | `focus.label` Settings |
 | `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
 
+### An Apple TV whose services stopped answering, awake
+
+**2026-11-24, afternoon**, the Apple TV 4K (tvOS 27.2), some hours after the morning's session ended with a `remote sleep`; the human owner saw the television on, showing a picture, throughout.
+
+| Step | Observed |
+| --- | --- |
+| `readiness` | `prerequisitesPresent`; the display, lock and passcode queries all failed (`displaysUnavailable`, `lockStateUnavailable`) |
+| `wake` | 12 waits of 5 s for the HID service, refused each time before any input; `deviceNotReady`, nothing sent, 2 min 48 s |
+| The device services' log and samples (`diagnose:device-services`) | `remotepairingd`'s RSD heartbeats for the device answered every 30 s, in 0.7 to 3.7 s (the phone's in 5 to 11 ms); service sockets were created; no failure line for the device |
+| `wake` four minutes later | Its first screenshot timed out (52 s); nothing pressed |
+| `remote home` | Refused: "Apple HID service did not become ready; no input sent" (25 s) |
+| `remotectl dumpstate` | The device's connection `connected (connectable)`, not the stale state |
+| `screenshot` | `devicectl`'s own 60-second timeout ("Assuming command got stuck and aborting") |
+| The log over those calls | Each command's usage assertion granted and later invalidated by the device with an error the log keeps private; a `devicefs-browse` assertion of CoreDevice's DeviceFS extension held throughout |
+
+So the device was awake and reachable, and its services took the connection and gave no answer: not sleep, and not the stale connection of 2026-11-18. `wake` waited and sent nothing, as designed; a screenshot that times out before a wake fails it with nothing pressed.
+
+With the human owner's word laia-LLM restarted the device (`devicectl device reboot`, accepted in 91 s). Two minutes later `readiness` answered in 6.6 s with `asleep: false` and `displayPower: external`, and a `tree` ran on the tool's own pairing (`serviceDirectory: own-tunnel`, `ownTunnelLink: paired`): 179 nodes of the Home Screen. The pairing holds across a restart of the Apple TV.
+
+Then the device was left idle on the Home Screen with nothing sent for 20 minutes: a screen saver had started (a still frame of an animated scene in the screenshot, `blankImage: false`). `remote sleep` from it pressed `lock` and Power Off and ended `asleep`, `verified: true`, in 13 s: from a screen saver the power button opened Control Centre as from the Home Screen.
+
+After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wake` pressed Home once and ended `awake`, `verified: true`, `hidWaits: 0`, in 6 s: the screenshot before it was refused as asleep (25005), so error 25004 did not come back and its branch is checked by unit tests only. A `remote sleep` then left the device asleep.
+
 ### Scrub on a simulator and on the Apple TV 4K
 
 **2026-11-24.** `scrub --to` against the tvOS probe's silent video (`-ProbeVideo YES`, Apple's player), on `manzanero-research-tv-4k` (tvOS 27.2) and on the Apple TV 4K (tvOS 27.2, the tool's own pairing).
