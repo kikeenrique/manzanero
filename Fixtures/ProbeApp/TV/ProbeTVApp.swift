@@ -10,8 +10,10 @@ struct ProbeTVApp: App {
     var body: some Scene {
         WindowGroup {
             // `-ProbeVideo YES`: Apple's player on a silent movie of the
-            // probe's own (ProbeTVVideo.swift).
-            if UserDefaults.standard.bool(forKey: "ProbeVideoProtected") { ProbeTVProtectedVideoView() }
+            // probe's own (ProbeTVVideo.swift). `-ProbeTone YES`: beeps with
+            // no DRM, for a recording with sound (ProbeTVTone.swift).
+            if ProbeTVTone.isRequested { ProbeTVToneView() }
+            else if UserDefaults.standard.bool(forKey: "ProbeVideoProtected") { ProbeTVProtectedVideoView() }
             else if UserDefaults.standard.bool(forKey: "ProbeVideo") { ProbeTVVideoView() } else { ProbeTVView() }
         }
     }
