@@ -2130,6 +2130,19 @@ Then a long session on the tool's own pairing, through the MCP server connected 
 
 So the probe installs and its tree reads on a real watch, but the watch's network link does not stay up between commands, presumably while its screen sleeps or it is off its charger, and nothing that acts was completed. Next time: the watch on its charger with its screen on, and the steps close together. A physical watch's crown is not built.
 
+Later the same night, on the human owner's "try again", with the watch reachable:
+
+| Step | Observed |
+| --- | --- |
+| `readiness`, `launch --relaunch` of the probe | Connected, developer image services available |
+| `scroll --id probe.watch.pad --search 4`, `press --id probe.watch.button.a` | `postcondition-verified`, `accepted` |
+| `tap` on the pad | Refused before sending: "Device and display orientation disagree". The watch's panel is mounted sideways (`nativeOrientation: rot90`, `currentOrientation: rot270`, 514 × 422 pixels) and the result has no orientation sensor, which touch required for such a panel. Fixed the same night: with no sensor, an upright interface (the two turns adding to 0) is taken |
+| `tap` aimed at (0.25, 0.3) of the pad, after the fix | The probe read `0.249,0.300` |
+| `scroll --search` to row 25, `press`, `scroll --toward up` | Both scrolls `postcondition-verified`, the press `accepted`; the probe read `last: row:25`, `count: 3` (button A, the pad, row 25) |
+| `press --id probe.watch.text.field`, `type 'Hi 42'` | The system keyboard (`QuickboardViewService`) opened; `type` was dispatched as keyboard events, which watchOS ignores, and nothing was typed. On a physical watch `type` does not yet tap the on-screen keys as it does on a simulator. The sheet was closed with `press --label Cancelar` (the watch is in Spanish) |
+
+So on a real watch the tree, `press`, `tap` and `scroll --search` work inside the probe; `type` and `crown` are built for simulators only.
+
 ### First run on a physical iPad: the iPad mini (6th generation)
 
 **2026-11-24, evening**, an iPad mini (6th generation) (iPadOS 27.2.1), on its cable, with the human owner's word for each step: the device has top privacy restrictions, so everything ran inside the probe app, every capture was deleted after reading, and nothing else on it is recorded here.

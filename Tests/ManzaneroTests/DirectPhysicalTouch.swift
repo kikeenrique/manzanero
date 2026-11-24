@@ -22,6 +22,21 @@ struct DirectPhysicalTouchTests {
         }
     }
 
+    /// An Apple Watch: a panel mounted sideways (native rot90, current rot270)
+    /// and no orientation sensor in the result (2026-11-24). Upright is taken;
+    /// a turn with no sensor to confirm it is still refused.
+    @Test func aSidewaysPanelWithNoSensorIsTakenOnlyUpright() throws {
+        func watch(current: String) throws -> Data {
+            let value: [String: Any] = ["primary": true, "type": ["integrated": [:]], "displayId": 1,
+                "bounds": [[0, 0], [514, 422]], "pointScale": 2, "nativeOrientation": "rot90",
+                "currentOrientation": current, "backlightState": "activeOn"]
+            return try JSONSerialization.data(withJSONObject: ["info": ["outcome": "success"], "result": ["displays": [value]]])
+        }
+        let upright = try DirectTouchDisplay(watch(current: "rot270"))
+        #expect(upright.rotation == 0 && upright.portrait(0.25, 0.4) == (0.25, 0.4))
+        #expect(throws: CommandFailure.self) { try DirectTouchDisplay(watch(current: "rot0")) }
+    }
+
     @Test(arguments: ["off", "unknown", "inactive"])
     func reportsDisplayReadinessWithoutDispatch(_ light: String) throws {
         let input = try CoreDeviceInputTests().input(["tap", "0.5", "0.5"])

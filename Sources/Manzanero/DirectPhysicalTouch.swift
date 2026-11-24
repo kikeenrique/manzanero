@@ -70,9 +70,13 @@ struct DirectTouchDisplay: Equatable {
         self.id = id.intValue; self.width = width; self.height = height; self.scale = scale; self.native = native
         rotation = (native + current) % 360
         if native != 0 {
+            // A device that reports its orientation must agree with the
+            // display. An Apple Watch reports none (2026-11-24: native rot90,
+            // current rot270, no `orientation`): with no sensor, only an
+            // upright interface is taken, which a watch's always is.
             let sensor = (result["orientation"] as? [String: Any])?["currentDeviceNonFlatOrientation"] as? String
             let reported = ["portrait": 0, "landscapeRight": 90, "portraitUpsideDown": 180, "landscapeLeft": 270]
-            guard let sensor, reported[sensor] == rotation else {
+            guard sensor.map({ reported[$0] == rotation }) ?? (rotation == 0) else {
                 throw CommandFailure(.preconditionChanged, "Device and display orientation disagree; no touch or capture started.", inputSent: .none)
             }
         }
