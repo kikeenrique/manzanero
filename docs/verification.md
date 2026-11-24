@@ -2090,6 +2090,27 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote left --report-focus` | `focus.label` Settings |
 | `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
 
+### Apple TV session of 2026-11-24: wake, the focus, a protected picture and seeking
+
+**2026-11-24, morning**, the Apple TV 4K (`AppleTV14,1`, tvOS 27.2), on the tool's own pairing (`ownTunnel: paired`), on the human owner's word to go on with the Apple TV checks; the room kept quiet (the probe's movies have no sound track, its player is muted, and no recording took sound).
+
+| Step | Observed |
+| --- | --- |
+| `readiness` on the sleeping device | `asleep: true`, with the advice to wake it |
+| `wake` | `operation: wake`, Home pressed once, `status: awake`, `verified: true`, `hidWaits: 0`, 13 s; then `readiness` `asleep: false`; a screenshot showed the Home Screen |
+| `remote right --report-focus` on the Home Screen | `focus.label` `JustWatchTV`, `identifier` `AppCell`; the screenshot afterwards showed JustWatchTV focused |
+| `build-run` of the tvOS probe | Built, installed and launched |
+| `-ProbeVideoProtected YES`: the tree | `probe.tv.video.protected` `preventsCapture`, `probe.tv.video.time` advancing (0.0, then 5.0) |
+| `screenshot` over it | Entirely black, the readouts outside the protected layer too; `blankImage: true`, the Apple TV `blankNote`, `playerOnScreen: false` (it is not Apple's player view, as expected) |
+| `frames --count 3` and a 5-second `record --backend coredevice` over it | The picture whole in every frame and in the movie (00:22.8 and 00:27.2 with the readouts), `blankFrames: 0`: the device's video stream does not honour `preventsCapture`, where its screenshot does |
+| `-ProbeVideo YES` (Apple's player), one `remote right` while playing | 13.5 s, then 29.5 s six seconds later: a 10-second skip |
+| One `remote left` while playing | 42.0 s, then 38.0 s five seconds later: a 10-second skip back |
+| `remote play-pause`, `remote swipe-right --travel 0.8 --seconds 0.6`, `remote select` | Paused at 45.9 s; the swipe moved `Media Controls` to 1:10 with the video still at 45.9; the select resumed at about 73 s |
+| `remote right --hold 3` while playing, then `remote play-pause` | Scanning (rate 0, the bar at 2:16, the picture at 90.5 s); the play-pause resumed at 155.5 s |
+| `remote sleep` | `lock`, `power-off`, `status: asleep`; `readiness` `asleep: true` |
+
+So the screenshot's black is the device's screenshot alone: the stream `record` and `frames` read shows what a layer that prevents capture hides. FairPlay video is a separate mechanism and was not tried. Seeking on the device is as on the simulator.
+
 ### Phone session of 2026-11-24: handles, the cost of a tree, symbols and VoiceOver
 
 **2026-11-24, morning**, the iPhone 13 mini (iOS 27.2.1) on its cable, display on and unlocked, the probe in front; every accessibility command ran on the tool's own tunnel (`serviceDirectory: own-tunnel`), on the human owner's word to go on with the owed phone checks.

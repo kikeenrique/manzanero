@@ -62,7 +62,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **Apple TV, from an agent's first use**: a `wake` that wakes it (built on 2026-11-23, not yet run on the device), the focus in a remote press's receipt (built, run on a simulator), a black capture that says so (built for screenshots, with whether Apple's player is in front), seeking in a player (measured on a simulator: swipe while paused, then select).
+1. **Apple TV, from an agent's first use**: done on the device on 2026-11-24 (`wake`, `--report-focus`, a black screenshot that says so, seeking). Left: FairPlay video, and whether to build a `scrub` command.
 2. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
 3. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
 4. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
@@ -75,6 +75,8 @@ A release is one command, `mise run release <version>`, whenever the human owner
 - **A protected picture without DRM**: the tvOS probe's `-ProbeVideoProtected YES` shows its silent movie in a layer that prevents capture; a simulator ignores that in screenshots and recordings, so the Apple TV is where a black capture is checked.
 - **Face ID on a simulator**: `settings --biometrics on|off|state`, and on a simulator `match|nomatch` for the prompt on screen; the iOS probe raises a real Face ID prompt, which was answered, failed, and its alert cancelled by identifier.
 - **Black frames**: `frames` marks and counts entirely black frames in its receipt.
+- **On the iPhone**: element handles, a tree's cost measured (a kept session would save a fifth; not to be built for now), `--symbols` on a Release build's crash, VoiceOver on and off.
+- **On the Apple TV**: `wake` and `readiness`'s `asleep`, `--report-focus`, seeking as on the simulator; over a layer that prevents capture the screenshot was black but `frames` and `record` showed it whole.
 
 ## Done on 2026-11-23
 

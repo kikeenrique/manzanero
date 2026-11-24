@@ -18,7 +18,7 @@ enum ScreenshotBlank {
     /// A pixel is dark when none of its channels is above this (of 255).
     static let darkLimit: UInt8 = 12
 
-    static let externalNote = "The picture is entirely black. The Apple TV gave a picture, so it is not asleep: the screen is black, or protected video (FairPlay) is on screen, which the device leaves out of captures, interface and all. Read the tree to see what is in front."
+    static let externalNote = "The picture is entirely black. The Apple TV gave a picture, so it is not asleep: the screen is black, or protected content is on screen, which the device leaves out of screenshots, interface and all. Read the tree to see what is in front, and try frames --count 1: the device's video stream showed a layer that prevents capture whole on 2026-11-24 (FairPlay video untested)."
     static let displayNote = "The picture is entirely black while the display was not reported off: the screen is black, or protected video is on screen, which the device leaves out of captures. Read the tree to see what is in front."
 
     /// True when every pixel of the image's thumbnail is dark, false when
@@ -66,7 +66,7 @@ enum ScreenshotBlank {
         }
     }
 
-    static let playerNote = "Apple's video player is in front, so protected video (FairPlay) is the likely cause: the device leaves it out of captures, interface and all. The tree still reads the player's controls while they show (Media Controls has the position)."
+    static let playerNote = "Apple's video player is in front, so protected video is the likely cause: the device leaves it out of screenshots, interface and all. The tree still reads the player's controls while they show (Media Controls has the position), and frames --count 1 may show the picture: the device's video stream showed a layer that prevents capture whole on 2026-11-24 (FairPlay video untested)."
 
     /// Adds `playerOnScreen` after a blank Apple TV picture, from one tree
     /// read by `readTree`; a failed read adds `playerCheckUnavailable`
