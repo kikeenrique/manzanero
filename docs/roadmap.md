@@ -383,6 +383,8 @@ What was decided is in the [decision tables](#owner-decisions-2026-11-17) below.
 
 Decided on 2026-11-24: `wake` presses Home once on error 25004 too (item 1, built); durable sessions are not to be built for now, only if speed becomes a real problem (item 24); VoiceOver's notification prompt on the phone was answered "No permitir".
 
+Decided on 2026-11-25: the paired iPhone Duo has the iPad mini's privacy restrictions: ask before every action, the probe app only, captures deleted after reading, nothing it showed in the docs (item 9).
+
 ### Dependable physical testing
 
 1. **Phone runs owed for the changes of 2026-11-17: done.** `press` on a web field zoomed wider than the display (the probe's `-ProbeWebZoom YES` page), `--with-value` on the Settings search field and the masked receipt of a secure field ran on the phone on 2026-11-22 ([record](verification.md#selector-by-value-detect-layout-index-masked-read-back-and-the-display-note)); a selector action on the browser's own controls with `--pid` on 2026-11-21 (Safari's address bar).
