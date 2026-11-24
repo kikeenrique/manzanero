@@ -36,7 +36,7 @@ enum DirectPhysicalAccessibility {
     /// Why an Apple TV's accessibility command was not run: its only route
     /// is the tool's own tunnel, which needs `manzanero pair`.
     static func appleTVTunnelRefusal(_ reason: String?) -> String {
-        "An Apple TV's accessibility commands run only on the tool's own tunnel, and it was not available\(reason.map { ": \($0)" } ?? ""). The route over Apple's tunnel is not used for an Apple TV: it leaves the Mac's connection to the device stale. Pair the tool with the Apple TV (manzanero pair, with the PIN the television shows) or check that the pairing still holds. remote, key and button still work. Nothing was sent."
+        "An Apple TV's accessibility commands run only on the tool's own tunnel, and it was not available\(reason.map { ": \($0.hasSuffix(".") ? String($0.dropLast()) : $0)" } ?? ""). The route over Apple's tunnel is not used for an Apple TV: it leaves the Mac's connection to the device stale. Pair the tool with the Apple TV (manzanero pair, with the PIN the television shows) or check that the pairing still holds. remote, key and button still work. Nothing was sent."
     }
 
     /// `ownTunnelOnly`: run on the tool's own tunnel or not at all, throwing
@@ -115,6 +115,10 @@ enum DirectPhysicalAccessibility {
         /// Why the tool's own tunnel was asked for and not used.
         var tunnelNote: String?
         var tunnelLink: String?
+        /// Whether any accessibility connection was made: a failure before
+        /// one (an Apple TV refused for want of its own tunnel) names the
+        /// route `none`, not `opened`.
+        var madeConnection = false
         defer { if let openedTunnel { ownTunnel.release(openedTunnel, tunnelHealthy) } }
         // Classifies a failure of an action: before it nothing was sent, it
         // classifies its own failures, and after it the input has been sent.
@@ -194,6 +198,7 @@ enum DirectPhysicalAccessibility {
                 }
             }
             guard let (directory, transport) = connected else { throw CancellationError() }
+            madeConnection = true
             defer { directory?.close() }
             let session = AccessibilitySession(transport: transport, limits: wait?.sessionLimits ?? action?.sessionLimits ?? .standard)
             let display = {
@@ -235,7 +240,7 @@ enum DirectPhysicalAccessibility {
                 if !release.confirmed { FileHandle.standardError.write(Data("\(release.diagnostic ?? "Native tunnel release unconfirmed")\n".utf8)) }
                 throw CancellationError()
             }
-            let route = routeNote(serviceDirectory: reused ?? "opened", ownTunnelLink: tunnelLink, ownTunnelUnavailable: tunnelNote)
+            let route = routeNote(serviceDirectory: reused ?? (madeConnection ? "opened" : "none"), ownTunnelLink: tunnelLink, ownTunnelUnavailable: tunnelNote)
             let again = retriedAfter.map { " This was the second attempt, on a new connection; the first failed: \($0)" } ?? ""
             let failure = CommandFailure("\(error) \(route) Tunnel assertion release: \(release.status); confirmed=\(release.confirmed). \(release.diagnostic ?? "")\(again)", wrapping: error)
             if retriedAfter == nil, retriesOnce(sendsInput: action != nil || setValue != nil, serviceDirectory: reused, error: error) {

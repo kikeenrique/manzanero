@@ -162,6 +162,10 @@ struct StaleDeviceConnectionTests {
             == "Route: serviceDirectory=own-tunnel, ownTunnelLink=network.")
         #expect(DirectPhysicalAccessibility.routeNote(serviceDirectory: "reused-saved-port", ownTunnelLink: nil, ownTunnelUnavailable: "Locked.")
             == "Route: serviceDirectory=reused-saved-port. The tool's own tunnel was asked for and not used: Locked.")
+        // An Apple TV refused before any connection: the reason's own full
+        // stop is not doubled (seen on 2026-11-24 after the host was removed).
+        let unpaired = DirectPhysicalAccessibility.appleTVTunnelRefusal("The device no longer knows the tool's pairing; pair again with manzanero pair. No tunnel was opened.")
+        #expect(!unpaired.contains("..") && unpaired.contains("No tunnel was opened. The route over Apple's tunnel"))
     }
 
     @Test func aQueryTimeoutIsNamedWhenTheStateIsListed() {

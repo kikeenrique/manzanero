@@ -2115,6 +2115,20 @@ After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wa
 
 Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
 
+### The tool's host removed on the Apple TV, and paired again
+
+**2026-11-24, about 17:00**, the Apple TV 4K (tvOS 27.2), the human owner at the television.
+
+| Step | Observed |
+| --- | --- |
+| `tree` before | On the tool's own pairing (`ownTunnelLink: paired`) |
+| The human owner removed the host `manzanero` in Settings › Remotes and Devices › Remote App and Devices | |
+| `tree` | Refused, exit 1, nothing sent: "An Apple TV's accessibility commands run only on the tool's own tunnel, and it was not available: The device no longer knows the tool's pairing; pair again with manzanero pair. No tunnel was opened." No route over Apple's tunnel was tried. The message first said `serviceDirectory=opened`, although no connection had been made, and doubled a full stop; both fixed the same day (`serviceDirectory=none`) |
+| `wait --label Settings` | Refused the same way |
+| `devices` | Still listed the Apple TV as `paired`: it reads this Mac's identity, not the device's list |
+| `pair --pin-file`, the Remote App and Devices screen still open | The television showed a PIN; the human owner wrote it to the file; `status: paired`, with this Mac's existing identity: no `--forget` was needed |
+| `tree` | On the new pairing (`ownTunnelLink: paired`, `serviceDirectory: own-tunnel`) |
+
 ### Music playing aloud, and a silent sound track, on the Apple TV 4K
 
 **2026-11-24, about 16:30 to 16:50**, the Apple TV 4K (tvOS 27.2), Apple's Music app (`com.apple.TVMusic`) playing an Apple Music radio station, on the human owner's word, at the volume as it was; `record … --backend coredevice --audio`, the position read from the Now Playing progress bar's value (`TVMusic.nowPlaying.progressBar`, "1:45 elapsed, 6:05 remaining"), the human owner listening in the room.
