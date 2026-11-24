@@ -6,10 +6,18 @@ import Foundation
 /// on an iPhone simulator for each of these on 2026-11-21). Each changes the
 /// target's state except `clipboard`, which reads it.
 enum DeviceSettings {
-    static let operations = ["rotate", "settings", "settings-read", "location", "status-bar", "clipboard", biometricsReadOperation]
+    static let operations = ["rotate", "settings", "settings-read", "location", "status-bar", "clipboard", biometricsReadOperation, biometricsSendOperation]
     /// `settings --biometrics state`: Face ID or Touch ID enrolment, read-only
     /// (`devicectl device settings biometrics` without a switch).
     static let biometricsReadOperation = "biometrics-read"
+    /// `settings --biometrics match|nomatch` on a simulator: a matching or a
+    /// non-matching face (and finger) for the biometric prompt on screen,
+    /// posted inside the simulator as the notifications its BiometricKit
+    /// listens for. Simulators only: a device's sensor cannot be fed.
+    static let biometricsSendOperation = "biometrics-send"
+    static func biometricNotifications(_ outcome: String) -> [String] {
+        ["fingerTouch", "pearl"].map { "com.apple.BiometricKit_Sim.\($0).\(outcome)" }
+    }
     /// `settings` without options: the current values, read-only
     /// (`devicectl device info appearance`).
     static let readOperation = "settings-read"
@@ -55,6 +63,12 @@ enum DeviceSettings {
         case biometricsReadOperation:
             guard operands.isEmpty else { throw CommandFailure.usage("Reading the biometric enrolment takes no operands.") }
             return json(["settings", "biometrics"])
+        case biometricsSendOperation:
+            guard operands.count == 1, ["match", "nomatch"].contains(operands[0]) else {
+                throw CommandFailure.usage("settings --biometrics takes match or nomatch for the prompt on a simulator's screen.")
+            }
+            return DeviceCommand(arguments: ["simctl", "spawn", device, "notifyutil"]
+                + biometricNotifications(operands[0]).flatMap { ["-p", $0] }, jsonOutput: false)
         case "settings":
             // VoiceOver and StandBy are devicectl subcommands of their own,
             // so each is one call, alone.

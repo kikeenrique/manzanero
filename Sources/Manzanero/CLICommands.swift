@@ -556,8 +556,8 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("on or off; alone, in a call of its own. VoiceOver changes how every touch is taken, so turn it off again.", valueName: "state")) var voiceover: String?
         @Option(help: ArgumentHelp("show or hide; alone, in a call of its own. StandBy shows only from the lock screen.", valueName: "state")) var standby: String?
         @Option(help: ArgumentHelp("With --standby show: keep StandBy up this long, 1...600 seconds, and wait for it.", valueName: "seconds")) var standbySeconds: String?
-        @Option(help: ArgumentHelp("on or off enrols or removes Face ID (Touch ID) biometrics, so an app's biometric prompt can appear; state reads the enrolment, read-only. Alone, in a call of its own.", valueName: "state"),
-                completion: .list(["on", "off", "state"])) var biometrics: String?
+        @Option(help: ArgumentHelp("on or off enrols or removes Face ID (Touch ID) biometrics, so an app's biometric prompt can appear; state reads the enrolment, read-only; match or nomatch answers the prompt on a simulator's screen with a matching or a non-matching face (simulators only). Alone, in a call of its own.", valueName: "state"),
+                completion: .list(["on", "off", "state", "match", "nomatch"])) var biometrics: String?
         func request(_ target: Target) throws -> CommandRequest {
             let own = [("--voiceover", voiceover), ("--standby", standby), ("--standby-seconds", standbySeconds), ("--biometrics", biometrics)]
                 .flatMap { name, value in value.map { [name, $0] } ?? [] }
@@ -571,6 +571,15 @@ extension ManzaneroCLI {
                     throw CommandFailure.usage("settings --biometrics state reads the enrolment alone, in a call of its own.")
                 }
                 return .tool(try DeviceOperation(target, DeviceSettings.biometricsReadOperation))
+            }
+            if let outcome = biometrics, ["match", "nomatch"].contains(outcome) {
+                guard own.count == 2 else {
+                    throw CommandFailure.usage("settings --biometrics \(outcome) answers the prompt alone, in a call of its own.")
+                }
+                guard target.platform == .simulator else {
+                    throw CommandFailure.unsupported("settings --biometrics \(outcome) is for a simulator: a device's sensor takes only a real face or finger. No device was contacted.")
+                }
+                return .tool(try DeviceOperation(target, DeviceSettings.biometricsSendOperation, [outcome]))
             }
             let pairs = own + appearancePairs
             return .tool(try DeviceOperation(target, pairs.isEmpty ? DeviceSettings.readOperation : "settings", pairs))

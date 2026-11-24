@@ -325,6 +325,16 @@ Activating it (`manzanero press --id probe.permission.request (--device <UDID> |
 
 On the iPhone 13 mini on 2026-11-17 the press raised "Probe quiere enviarte notificaciones", which the tree read with both buttons, and after the owner's choice the value read `denied` ([verification](verification.md#handoff-with-an-app-permission-prompt)). On an iPhone 17e simulator the same press raised "“Probe” Would Like to Send You Notifications" a few seconds later, and `press --label Allow` from a second process answered it while a handoff watched ([verification](verification.md#handoff-watch-a-timeout-on-the-phone-and-runs-on-a-simulator)).
 
+## Biometric probe
+
+Raises the system's own Face ID (or Touch ID) prompt when asked, so a biometric prompt can be raised, answered and dismissed by the tool. `App/BiometricProbeRequester.swift`; the app's Info.plist carries `NSFaceIDUsageDescription`. It authenticates nothing else and shares nothing with the other probes.
+
+| Identifier | Label | Value | Frame |
+| --- | --- | --- | --- |
+| `probe.biometrics.request` | `Request biometrics` | `<outcome> requests=<n> biometry=<kind>`: outcome `none`, `waiting`, `success` or `failed:<code>` (LocalAuthentication's error code: −2 is the user's cancel); biometry `faceID`, `touchID`, `opticID`, `none`, or `unavailable:<code>` when nothing is enrolled | x 16, y 504, 343×44 points, below `probe.url`; a button-trait accessibility element |
+
+Activating it (`press --id probe.biometrics.request`) calls `evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics)`. On a simulator enrol Face ID first (`settings --biometrics on`) and answer with `settings --biometrics match` or `nomatch` ([device settings](device-settings.md)). While the prompt is up the tree's foreground process is not the probe; the prompt and the alert after a failed match are in `LocalAuthenticationUIService` (read with `tree --pid`). Run on `manzanero-research-phone` on 2026-11-24 ([record](verification.md#a-face-id-prompt-on-a-simulator)).
+
 ## URL probe
 
 Both probes register a URL scheme, so `open-url` can be checked against an app of the project's own instead of someone's website or app. Each shows what it was opened with.

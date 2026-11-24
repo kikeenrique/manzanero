@@ -61,6 +61,8 @@ let project = Project(
                                                      "UIInterfaceOrientationLandscapeRight"],
                 "UISupportedInterfaceOrientations~ipad": ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
                                                           "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"],
+                // The biometric probe (probe.biometrics.request) asks for Face ID.
+                "NSFaceIDUsageDescription": "The probe checks that a Face ID prompt can be raised and answered.",
                 // Lets the Documents directory (and touch-log.jsonl) be browsed and copied.
                 "UIFileSharingEnabled": true,
                 // The URL probe: `open-url manzanero-probe://…` reaches the app.

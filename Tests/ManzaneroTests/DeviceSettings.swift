@@ -54,6 +54,13 @@ struct DeviceSettingsTests {
             #expect(try request(["settings", "--biometrics", "state", target, id]).isReadOnly)
             #expect(try !request(["settings", "--biometrics", "on", target, id]).isReadOnly)
         }
+        // A face for the prompt on screen: a simulator's own notifications, inside it.
+        #expect(try arguments(["settings", "--biometrics", "nomatch", "--simulator", simulator])
+            == ["simctl", "spawn", simulator, "notifyutil", "-p", "com.apple.BiometricKit_Sim.fingerTouch.nomatch",
+                "-p", "com.apple.BiometricKit_Sim.pearl.nomatch"])
+        #expect(try !request(["settings", "--biometrics", "match", "--simulator", simulator]).isReadOnly)
+        let refused = #expect(throws: CommandFailure.self) { try request(["settings", "--biometrics", "match", "--device", device]) }
+        #expect(refused?.code == .unsupportedOperation)
         let reader = try #require(MCPTools.definitions.first { $0.name == "read_settings" })
         #expect(try reader.command(["device": .string(simulator), "platform": "simulator", "biometrics": true]).contains("--biometrics=state"))
         let tool = try #require(MCPTools.definitions.first { $0.name == "device_settings" })

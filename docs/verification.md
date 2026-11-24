@@ -2090,6 +2090,22 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote left --report-focus` | `focus.label` Settings |
 | `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
 
+### A Face ID prompt on a simulator
+
+**2026-11-24**, `manzanero-research-phone` (iOS 27.2), the iOS probe with its new [biometric button](probe-app.md#biometric-probe). Face ID was disabled on the simulator at the start (`settings --biometrics state`).
+
+| Step | Observed |
+| --- | --- |
+| `settings --biometrics on`, then the probe's value | `biometry=faceID`: the app sees Face ID enrolled |
+| `press --id probe.biometrics.request` | Accepted; the screenshot showed the probe with no prompt drawn, the tree's foreground process changed, and the probe's value was not readable until it ended |
+| `simctl spawn … notifyutil -p com.apple.BiometricKit_Sim.pearl.match`, later `settings --biometrics match` | The probe's value `success` |
+| A press and `pearl.nomatch` | The "Face Not Recognized / Try Again" alert with Try Face ID Again and Cancel, drawn in the screenshot. Not in the default tree (SpringBoard's, two labels); in `LocalAuthenticationUIService`'s (`tree --pid`): `com.apple.localauthentication.ax.authentication.alert`, `….button.cancel`, `….button.try-again` |
+| `press --id com.apple.localauthentication.ax.authentication.button.cancel --pid <that process>` | Accepted; the probe's value `failed:-2` (user cancel) |
+| The same through the tool: press, `settings --biometrics nomatch`, `wait --id ….button.cancel --pid … --until visible`, `press` it | `posted`, `condition-met`, `accepted`; `failed:-2` |
+| Press, `settings --biometrics match` | `success` |
+| `settings --biometrics match --device <UDID>` | Refused, `unsupported-operation`, nothing contacted |
+| `settings --biometrics off` | `enabled: false`, as the simulator was found |
+
 ### A protected layer on a simulator
 
 **2026-11-24**, `manzanero-research-tv-4k` (Apple TV 4K (4th generation), tvOS 27.2), the tvOS probe launched with `-ProbeVideoProtected YES` ([protected video](probe-app.md#a-protected-video)): the probe's silent movie in an `AVSampleBufferDisplayLayer` with `preventsCapture` on, read back from the tree as `probe.tv.video.protected` = `preventsCapture`.

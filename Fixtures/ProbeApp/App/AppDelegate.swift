@@ -9,6 +9,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     let logProbe = LogProbeEmitter()
     /// The permission probe (docs/probe-app.md#permission-probe).
     let permissionProbe = PermissionProbeRequester()
+    let biometricProbe = BiometricProbeRequester()
     /// The URL probe (docs/probe-app.md#url-probe).
     let urlProbe = URLProbeReceiver()
     /// The tone probe (docs/probe-app.md#tone-probe), silent unless asked for.
@@ -48,6 +49,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             (UIApplication.shared.delegate as? AppDelegate)?.logProbe.attach(to: surface)
             (UIApplication.shared.delegate as? AppDelegate)?.permissionProbe.attach(to: surface)
             (UIApplication.shared.delegate as? AppDelegate)?.urlProbe.attach(to: surface)
+            (UIApplication.shared.delegate as? AppDelegate)?.biometricProbe.attach(to: surface)
         }
         // A URL that launched the app arrives here, not in `openURLContexts`.
         self.scene(scene, openURLContexts: connectionOptions.urlContexts)

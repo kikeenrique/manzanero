@@ -262,6 +262,14 @@ actor CommandService {
                 let text = try runner.run(arguments.map { $0 == DeviceSettings.resultPlaceholder ? file.path : $0 }, executable: command.executable)
                 return try json(DeviceSettings.clipboardResult(stdout: text, resultFile: Data(contentsOf: file)))
             }
+            if tool.operation == DeviceSettings.biometricsSendOperation {
+                // notifyutil prints nothing: the receipt says what was posted.
+                _ = try runner.run(arguments, executable: command.executable)
+                return try json(["operation": "settings", "biometrics": arguments.contains { $0.hasSuffix(".nomatch") } ? "nomatch" : "match",
+                                 "platform": "simulator", "device": tool.device, "status": "posted", "verified": false,
+                                 "notifications": arguments.filter { $0.hasPrefix("com.apple.BiometricKit_Sim.") },
+                                 "note": "Posted inside the simulator for the biometric prompt on its screen; with none showing it does nothing. Read the app, or the prompt's process (LocalAuthenticationUIService), to see the outcome."])
+            }
             let data = try runner.run(arguments, executable: command.executable, environment: command.environment)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
             if tool.platform == .physical, tool.operation == "screenshot" {
