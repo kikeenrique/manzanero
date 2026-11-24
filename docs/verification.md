@@ -2115,6 +2115,18 @@ After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wa
 
 Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
 
+### Music playing aloud, and a silent sound track, on the Apple TV 4K
+
+**2026-11-24, about 16:30 to 16:50**, the Apple TV 4K (tvOS 27.2), Apple's Music app (`com.apple.TVMusic`) playing an Apple Music radio station, on the human owner's word, at the volume as it was; `record … --backend coredevice --audio`, the position read from the Now Playing progress bar's value (`TVMusic.nowPlaying.progressBar`, "1:45 elapsed, 6:05 remaining"), the human owner listening in the room.
+
+| Run | Observed |
+| --- | --- |
+| 30 s, the station started by `press --id` on its tile | `status: recorded`, 3021 sound packets, none lost, 30.21 s written; every sample of the track zero. The human owner heard nothing in the room, so the run proved nothing |
+| 20 s after blind `play-pause` presses | The presses were out of step with the player: the music was paused during the recording and started at the "pause" afterwards, as the human owner heard. Track all zeros, as it should be |
+| 20 s with the playback checked first: two reads of the progress bar 3 s apart (1:48, then 1:55), then the recording, then a `play-pause` checked the same way (2:38 twice) | The human owner heard the music before, during and after the recording; the player advanced 51 s in 51 s, through the recording. 2008 sound packets, none lost; every sample of the track zero |
+
+So a recording does not silence the Apple TV's own output (the human owner's question): the music went on aloud while the stream carried digital silence. Either Apple Music's protected audio is left out of the system audio the device streams, as FairPlay video is left out of its pictures, or the Apple TV's sound stream has never carried sound: every earlier Apple TV recording with `--audio` was made with nothing playing. The phone's stream carried the iOS probe's tone. To tell the two apart, an unprotected sound on the Apple TV is needed, such as a tone in the tvOS probe like the iOS probe's `-ProbeTone YES`. Toggle a player only after reading its state: a blind `play-pause` started the music instead of pausing it.
+
 ### Scrub on a simulator and on the Apple TV 4K
 
 **2026-11-24.** `scrub --to` against the tvOS probe's silent video (`-ProbeVideo YES`, Apple's player), on `manzanero-research-tv-4k` (tvOS 27.2) and on the Apple TV 4K (tvOS 27.2, the tool's own pairing).

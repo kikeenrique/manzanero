@@ -64,7 +64,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 
 1. **`wake` on error 25004**: built on 2026-11-24 by the human owner's decision. When the Apple TV refuses `wake`'s screenshot with 25004 instead of the 25005 that means asleep, `wake` presses Home once, as for a sleeping device. Left: a run on the device.
 2. **Phone checks still owed**: StandBy and biometric enrolment on the phone (biometrics on the human owner's word), `last-crash --symbols` on a stripped build, a real biometric prompt on the phone.
-3. **Apple TV, loose ends**: a recording with sound playing (on the human owner's word); a recording with sound across a loss; the awake device whose services stopped answering on 2026-11-24 until a restart, cause unknown. The pairing after a restart and `remote sleep` from a screen saver are done.
+3. **Apple TV, loose ends**: real sound in a recording (Music played aloud and the track was silent on 2026-11-24; a tone from the tvOS probe would tell protected audio from a stream that carries nothing); a recording with sound across a loss; the awake device whose services stopped answering on 2026-11-24 until a restart, cause unknown. The pairing after a restart and `remote sleep` from a screen saver are done.
 4. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
 5. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
 6. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
