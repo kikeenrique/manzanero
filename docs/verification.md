@@ -2115,6 +2115,18 @@ After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wa
 
 Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
 
+### StandBy on the phone, refused by the device
+
+**2026-11-24, 19:25**, the iPhone 13 mini (iOS 27.2.1), on its cable and charging.
+
+| Step | Observed |
+| --- | --- |
+| `button lock`, then `wake --no-dismiss` | `awake-locked`: the lock screen, display on |
+| `settings --standby show --standby-seconds 10` | Refused by `devicectl`: "The capability 'StandBy' is not supported by this device" (CoreDevice error 1001, `CapabilityFeatureIdentifier = com.apple.coredevice.feature.standby`); the phone's `details` list no such capability |
+| `button home` afterwards | The receipt's `lockNote`: a passcode is required. The phone has one set, so locking it left it locked until the human owner unlocked it by hand |
+
+So `settings --standby` does not apply to this phone; a device whose capabilities include `com.apple.coredevice.feature.standby` is needed to see it work. Before locking a phone, read `readiness`'s `passcodeRequired` and the lock state: the tool does not enter passcodes.
+
 ### Crash symbols for a stripped build on the phone
 
 **2026-11-24, 18:30**, the iPhone 13 mini (iOS 27.2.1), display on and unlocked.
