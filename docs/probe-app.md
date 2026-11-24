@@ -485,6 +485,8 @@ A third app in the same Tuist project, added on 2026-11-24 so that checks on the
 | `probe.watch.text.value` | The field's text | value |
 | `probe.watch.row.1` … `probe.watch.row.30` | Thirty rows, more than fit | A press records `row:<n>` |
 
+Launched with `-ProbeCrownList YES` it shows instead forty rows (`probe.watch.crownlist.row.<n>`) with nothing bound to the crown, so the crown scrolls the list as it scrolls any app's; which rows moved is read from their frames in the tree. On `manzanero-research-watch-ultra` on 2026-11-25 one `crown 100` moved the list 24 points, `crown 300 --events 3` three rows of 64 points, and one `crown -400` one row back: one row per event, as in Watch Settings.
+
 Each event also goes to the unified log, category `watch`. The list does not scroll with the crown on the watchOS 27.2 simulator, where Watch Settings' list does, so the crown is read as a value and rows are reached with `scroll --search`. A list row reports its whole cell as an element's frame; the pad's row has no insets, so the frame and the pad's own fractions agree.
 
 ```sh

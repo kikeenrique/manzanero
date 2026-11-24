@@ -27,6 +27,23 @@ struct PhysicalWatchTests {
         #expect(throws: CommandFailure.self) { try CoreDeviceInput.validated(device: Self.uuid, operation: "crown", operands: ["0"]) }
     }
 
+    @Test func theWatchButtonsPressAWatchOnTheirOwnPagesAndNothingElse() throws {
+        var presses: [DirectPhysicalInput.Button] = []
+        for (name, page, usage) in [("side", UInt64(12), UInt64(0x95)), ("action", 0xFF01, 0x200)] {
+            let input = try CoreDeviceInput.validated(device: Self.uuid, operation: "button", operands: [name])
+            let data = try DirectPhysicalInput.execute(input, query: { _ in try Self.details(type: "appleWatch") }, send: { presses.append($0) })
+            #expect(presses.last == DirectPhysicalInput.Button(uuid: Self.uuid, version: "651.32", usage: usage,
+                                                                holdMicroseconds: 80_000, usagePage: page))
+            let result = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            #expect(result["button"] as? String == name && result["usagePage"] as? UInt64 == page)
+            let phone = #expect(throws: CommandFailure.self) {
+                _ = try DirectPhysicalInput.execute(input, query: { _ in try Self.details(type: "iPhone") }, send: { presses.append($0) })
+            }
+            #expect(phone?.code == .unsupportedOperation)
+        }
+        #expect(presses.count == 2)
+    }
+
     /// A tree result with the given nodes on a 211 × 257 display.
     static func tree(_ nodes: [[String: Any]]) throws -> Data {
         try JSONSerialization.data(withJSONObject: ["display": ["bounds": ["x": 0, "y": 0, "width": 211, "height": 257]], "nodes": nodes])

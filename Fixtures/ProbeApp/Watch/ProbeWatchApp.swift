@@ -8,7 +8,30 @@ import SwiftUI
 @main
 struct ProbeWatchApp: App {
     var body: some Scene {
-        WindowGroup { ProbeWatchView() }
+        WindowGroup {
+            if ProbeCrownListView.isRequested {
+                ProbeCrownListView()
+            } else {
+                ProbeWatchView()
+            }
+        }
+    }
+}
+
+/// `-ProbeCrownList YES`: forty rows and nothing bound to the crown, so the
+/// crown scrolls the list as it scrolls any app's. Which rows moved is read
+/// from the rows' frames in the tree (docs/probe-app.md#watchos-probe).
+struct ProbeCrownListView: View {
+    static var isRequested: Bool { UserDefaults.standard.bool(forKey: "ProbeCrownList") }
+
+    var body: some View {
+        List {
+            ForEach(1...40, id: \.self) { row in
+                Text("Row \(row)")
+                    .accessibilityIdentifier("probe.watch.crownlist.row.\(row)")
+            }
+        }
+        .navigationTitle("Crown list")
     }
 }
 

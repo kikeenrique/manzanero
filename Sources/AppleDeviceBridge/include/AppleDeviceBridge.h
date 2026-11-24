@@ -220,6 +220,12 @@ int ADCPerformLiveDigitizerReports(const char *uuid, const char *version, ADCDig
 /// This is transport dispatch, never verification of device UI or key release.
 int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
                    unsigned holdMicroseconds, ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
+/// An Apple Watch's own buttons on a physical watch's button service, with
+/// the usage pages a watch simulator takes: the side button (consumer page
+/// 12, usage 0x95) and the Ultra's Action button (page 0xFF01, usage 0x200).
+/// An 80 ms press. Same status contract as ADCPressButton.
+int ADCPressWatchButton(const char *uuid, const char *version, uint64_t usagePage, uint64_t usage,
+                        ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 /// Digital Crown rotation on a physical Apple Watch: the simulator's
 /// IndigoScrollEvent steps on the device's hid.scroll service, between the
 /// shared barriers and followed by the shared drain. 1...1000 steps, each a

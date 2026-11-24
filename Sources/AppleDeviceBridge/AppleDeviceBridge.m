@@ -513,6 +513,20 @@ xpc_object_t ADCButtonEvent(uint64_t usage, uint64_t state, BOOL barrier) {
     return event;
 }
 
+/// A watch button's page and usage packed into one code, so the shared press
+/// (ADCRunPress) and barrier carry it: the page in the upper 32 bits.
+#define ADCWatchSideButton ((12ULL << 32) | 0x95)
+#define ADCWatchActionButton ((0xFF01ULL << 32) | 0x200)
+
+/// ADCButtonEvent with the page taken from a packed code; a plain usage stays
+/// on the consumer page.
+static xpc_object_t ADCPagedButtonEvent(uint64_t code, uint64_t state, BOOL barrier) {
+    xpc_object_t event = ADCButtonEvent(code & 0xFFFFFFFF, state, barrier);
+    if (!barrier && code >> 32)
+        xpc_dictionary_set_uint64(xpc_dictionary_get_value(event, "payload"), "usagePage", code >> 32);
+    return event;
+}
+
 /// A Digital Crown step on the scroll service, as on a watchOS simulator
 /// (AppleSimulatorBridge.m): point {0, delta, 0}, phase 0, momentum 0,
 /// target 0 (the crown). A barrier carries no payload.
@@ -630,6 +644,7 @@ int ADCRunKeyboardSchedule(const ADCKeyboardSample *samples, size_t count,
 
 int ADCRunPress(uint64_t usage, unsigned hold, ADCInputShouldStop shouldStop, ADCKeySink sendKey) {
     BOOL supported = usage == 64 || usage == 48 || usage == 233 || usage == 234 ||
+        usage == ADCWatchSideButton || usage == ADCWatchActionButton ||
         (usage >= 40 && usage <= 44) || (usage >= 79 && usage <= 82);
     if (!sendKey || !supported || hold > 400000) return 2;
     if (shouldStop && shouldStop()) return 1;
@@ -945,7 +960,7 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
         // Button and keyboard events share Apple's Indigo HID service. Open its
         // registered button feature rather than inventing a standalone keyboard
         // feature socket; keyboard messages carry their own feature identifier.
-        xpc_object_t (*scalarEvent)(uint64_t, uint64_t, BOOL) = keyboard ? ADCKeyboardEvent : ADCButtonEvent;
+        xpc_object_t (*scalarEvent)(uint64_t, uint64_t, BOOL) = keyboard ? ADCKeyboardEvent : ADCPagedButtonEvent;
         if (ADCPrepareCoreDevice(error, capacity)) return 1;
         ADCCreate create = dlsym(RTLD_DEFAULT, "xpc_remote_connection_create_with_connected_fd");
         ADCHandler handler = dlsym(RTLD_DEFAULT, "xpc_remote_connection_set_event_handler");
@@ -1124,6 +1139,14 @@ int ADCPressButton(const char *uuid, const char *version, uint64_t usage,
     if ((usage != 64 && usage != 48 && usage != 233 && usage != 234) || hold > 400000)
         return ADCFail(error, capacity, @"Invalid direct button request.");
     return ADCPerformInput(uuid, version, usage, hold, NO, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, shouldCancel, error, capacity);
+}
+
+int ADCPressWatchButton(const char *uuid, const char *version, uint64_t page, uint64_t usage,
+                        ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    uint64_t code = (page << 32) | usage;
+    if (page > 0xFFFF || usage > 0xFFFF || (code != ADCWatchSideButton && code != ADCWatchActionButton))
+        return ADCFail(error, capacity, @"Invalid watch button request; no input sent.");
+    return ADCPerformInput(uuid, version, code, 80000, NO, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, shouldCancel, error, capacity);
 }
 
 int ADCRotateCrown(const char *uuid, const char *version, const double *deltas, size_t count, uint64_t intervalNanoseconds,

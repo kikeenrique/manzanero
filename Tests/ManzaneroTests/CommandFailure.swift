@@ -172,7 +172,7 @@ struct CommandFailureTests {
 
     @Test(arguments: [
         (["tap", "2", "0.5", "--device", "U"], "Physical input coordinates must be normalized numbers from 0 to 1.", "usage"),
-        (["button", "power", "--device", "U"], "Supported physical buttons: home, lock, volume-up, volume-down.", "usage"),
+        (["button", "power", "--device", "U"], "Supported physical buttons: home, lock, volume-up, volume-down, and side and action on an Apple Watch.", "usage"),
         (["tap", "0.5", "0.5", "--simulator", "U"], "Simulator tap requires the simulator's UUID (see devices --simulators); names and 'booted' are not accepted.", "usage"),
         (["wake", "--simulator", "11111111-2222-3333-4444-555555555555"], "Simulator wake is not implemented yet; simulator input covers touch with one to five contacts, gesture sequences, button, key and type. Wake remains physical-only. No input sent.", "unsupported-operation"),
         (["boot", "--device", "U"], "Unsupported physical-device operation: boot.", "unsupported-operation"),

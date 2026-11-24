@@ -57,8 +57,8 @@ enum PhysicalInputOperands {
             }
         case "button":
             try require(1)
-            guard ["home", "lock", "volume-up", "volume-down"].contains(operands[0]) else {
-                throw CommandFailure.usage("Supported physical buttons: home, lock, volume-up, volume-down.")
+            guard ["home", "lock", "volume-up", "volume-down", "side", "action"].contains(operands[0]) else {
+                throw CommandFailure.usage("Supported physical buttons: home, lock, volume-up, volume-down, and side and action on an Apple Watch.")
             }
         case "key":
             try require(1)
