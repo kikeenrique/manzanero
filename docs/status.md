@@ -62,7 +62,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **`wake` refused with error 25004**: ten minutes after a sleep the Apple TV answered `wake`'s screenshot with 25004, not the 25005 that means asleep, so nothing was pressed; `remote home` woke it. Whether `wake` should press then too is the human owner's decision.
+1. **`wake` on error 25004**: built on 2026-11-24 by the human owner's decision. When the Apple TV refuses `wake`'s screenshot with 25004 instead of the 25005 that means asleep, `wake` presses Home once, as for a sleeping device. Left: a run on the device.
 2. **Phone checks still owed**: StandBy and biometric enrolment on the phone (biometrics on the human owner's word), `last-crash --symbols` on a stripped build, a real biometric prompt on the phone.
 3. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
 4. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).

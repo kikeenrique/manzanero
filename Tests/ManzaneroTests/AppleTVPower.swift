@@ -150,6 +150,42 @@ struct AppleTVPowerTests {
         }
     }
 
+    private static let captureFailed = CommandFailure(.toolFailed, "xcrun failed (1): ERROR: The screen capture operation failed (com.apple.dt.CoreDeviceError error 25004 (0x61AC))", inputSent: .none)
+
+    /// Error 25004 before a wake: Home is pressed once, as on a sleeping
+    /// device, and 25004 while waiting means not awake yet.
+    @Test func wakePressesHomeOnceWhenTheScreenshotIsRefusedWith25004() async throws {
+        let device = Device(awake: [false])
+        var environment = device.environment()
+        var answers: [Bool?] = [nil, nil, true]  // nil: refused with 25004
+        environment.capture = {
+            device.captures += 1
+            let next = answers.count > 1 ? answers.removeFirst() : answers[0]
+            guard let awake = next else { throw Self.captureFailed }
+            return awake ? URL(fileURLWithPath: "/nonexistent/power.png") : nil
+        }
+        let result = try await Self.run("wake", environment)
+        #expect(device.pressed == ["home"] && result["status"] as? String == "awake" && result["exitCode"] as? Int == 0)
+        #expect((result["screenshotRefused"] as? String)?.contains("25004") == true)
+        // Still refused after the press: said, and Home not pressed again.
+        let stubborn = Device(awake: [false])
+        var refusing = stubborn.environment()
+        refusing.capture = { stubborn.captures += 1; throw Self.captureFailed }
+        let second = try await Self.run("wake", refusing)
+        #expect(stubborn.pressed == ["home"] && second["status"] as? String == "not-awake" && second["exitCode"] as? Int == 1)
+        #expect(stubborn.captures == 1 + AppleTVPower.checks)
+    }
+
+    /// `sleep` does not take 25004 for sleep or for awake: it presses nothing.
+    @Test func sleepPressesNothingWhenTheScreenshotIsRefusedWith25004() async throws {
+        let device = Device(awake: [true])
+        var environment = device.environment()
+        environment.capture = { throw Self.captureFailed }
+        _ = await #expect(throws: CommandFailure.self) { _ = try await Self.run("sleep", environment) }
+        #expect(device.pressed.isEmpty)
+        #expect(AppleTVPower.captureRefused(Self.captureFailed) && !AppleTVPower.isAsleep(Self.captureFailed))
+    }
+
     @Test func aSleepingDeviceIsToldByItsRefusedScreenshot() {
         #expect(AppleTVPower.isAsleep(CommandFailure(.toolFailed, "xcrun failed (1): ERROR: Display reports zero-sized native size (com.apple.dt.CoreDeviceError error 25005 (0x61AD))", inputSent: .none)))
         #expect(!AppleTVPower.isAsleep(CommandFailure(.timeout, "devicectl timed out.", inputSent: .none)))

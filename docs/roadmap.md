@@ -332,7 +332,7 @@ The owed runs of the day before on the iPhone 13 mini and the Apple TV 4K, the r
 
 The order is laia-LLM's suggestion, not one the human owner set.
 
-1. **A `wake` refused with error 25004.** Ten minutes after a `remote sleep` on 2026-11-24 the screenshot `wake` reads first was refused with CoreDevice error 25004 instead of the 25005 of a zero-sized display, so `wake` pressed nothing and `readiness` said `sleepStateUnknown`; one `remote home` woke the device. Whether `wake` should press on that error too is the human owner's decision (below); `remote home` is the way meanwhile.
+1. **A `wake` refused with error 25004: built.** Ten minutes after a `remote sleep` on 2026-11-24 the screenshot `wake` reads first was refused with CoreDevice error 25004 instead of the 25005 of a zero-sized display, so `wake` pressed nothing. Since the human owner's decision that day `wake` presses Home once on 25004 too and says so in `screenshotRefused` ([guide](other-families.md#sleep-and-wake)); unit-tested. Left: a run on the device, which needs it asleep long enough to answer that way.
 2. **Phone checks still owed** (items 8, 24 and 27): StandBy and biometric enrolment on the phone, the latter on the human owner's word; `last-crash --symbols` on a stripped (archived) build's report; a real biometric prompt on the phone, which has no Face ID set up.
 3. **The Apple TV's loose ends** (items 16 and 22): the pairing after a restart of the device; `remote sleep` from a screen saver, which did not start in 20 idle minutes on 2026-11-22; a recording with sound playing, now allowed; and a recording with sound across a loss.
 4. **A physical Apple Watch** (items 16 and 18): watch typing and the crown have run on simulators only.
@@ -347,10 +347,9 @@ The numbered lists below follow the standing priorities of this page: dependable
 
 What was decided is in the [decision tables](#owner-decisions-2026-11-17) below. Open on 2026-11-24:
 
-- **`wake` on error 25004.** Press Home when the screenshot is refused with 25004 too, as `remote home` would, or keep `wake` pressing only on the zero-sized display's 25005 that is known to mean sleep (item 1 above).
 - **Biometrics on the phone.** Whether `settings --biometrics` may be run on the iPhone 13 mini, which has no Face ID set up.
 
-Decided on 2026-11-24: durable sessions are not to be built for now, only if speed becomes a real problem (item 24); VoiceOver's notification prompt on the phone was answered "No permitir".
+Decided on 2026-11-24: `wake` presses Home once on error 25004 too (item 1, built); durable sessions are not to be built for now, only if speed becomes a real problem (item 24); VoiceOver's notification prompt on the phone was answered "No permitir".
 
 ### Dependable physical testing
 
@@ -552,6 +551,7 @@ On 2026-11-23 an agent with no knowledge of this project drove the Apple TV 4K w
 | Protected video without DRM | The simulator plays no DRM video, so another approach | The tvOS probe's layer that prevents capture; the device, not a simulator, shows its effect |
 | VoiceOver's notification prompt on the phone | "No permitir" | Answered so on 2026-11-24 |
 | FairPlay video | A third-party streaming app and a series, chosen by the human owner, with its sound | Run on 2026-11-24 ([record](verification.md#fairplay-video-on-the-apple-tv-4k)) |
+| `wake` on error 25004 | "Ok", on laia-LLM's recommendation: press Home once, as on a sleeping device | Built and unit-tested; a run on the device is owed |
 | A command to seek | "Yes, try it", then in the same streaming app | `scrub` built and run on a simulator, the Apple TV 4K and that app |
 
 ## Architecture constraints

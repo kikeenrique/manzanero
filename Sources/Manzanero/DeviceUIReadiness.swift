@@ -115,7 +115,9 @@ struct DeviceUIReadiness: Encodable, Sendable {
             }
         } catch {
             if error is CancellationError || Task.isCancelled { throw CancellationError() }
-            observed.diagnostics.append("sleepStateUnknown: the screenshot that tells an Apple TV's sleep failed for another reason.")
+            observed.diagnostics.append(AppleTVPower.captureRefused(error)
+                ? "sleepStateUnknown: the screenshot that tells an Apple TV's sleep was refused with error 25004, seen once on a device asleep for ten minutes; wake presses Home once in this case."
+                : "sleepStateUnknown: the screenshot that tells an Apple TV's sleep failed for another reason.")
         }
         return observed
     }

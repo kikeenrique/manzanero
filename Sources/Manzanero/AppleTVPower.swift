@@ -44,7 +44,7 @@ enum AppleTVPower {
             "liveVerification": "one Apple TV 4K (3rd generation), tvOS 27.2",
             "execution": sleep
                 ? "Read the device's details; only if they say it is an Apple TV, take a screenshot. If it fails with a zero-sized display the device is asleep already and nothing is sent. Otherwise press the power button once (button lock), which opens Control Centre, find the system UI process among the device's processes, and press Power Off there by accessibility, by its identifier sleep: the element must be in that process's tree and visible, and it is activated once (a connection to the device's service directory, as every accessibility command on an Apple TV). No remote select is sent. Then take screenshots until one fails. No press is repeated."
-                : "Read the device's details; only if they say it is an Apple TV, take a screenshot. If it succeeds the device is awake already and nothing is sent. Otherwise press Home once, then take screenshots until one succeeds. While the device's HID service refuses the press before any input (\"did not become ready\"), wait \(hidWaitInterval.components.seconds) s and ask again, at most \(hidWaits) times. The television connected to the device may come on. No press is repeated."]
+                : "Read the device's details; only if they say it is an Apple TV, take a screenshot. If it succeeds the device is awake already and nothing is sent. Otherwise (a zero-sized display, or a capture refused with error 25004) press Home once, then take screenshots until one succeeds. While the device's HID service refuses the press before any input (\"did not become ready\"), wait \(hidWaitInterval.components.seconds) s and ask again, at most \(hidWaits) times. The television connected to the device may come on. No press is repeated."]
     }
 
     /// The system UI process among a device's running processes.
@@ -108,6 +108,17 @@ enum AppleTVPower {
     static func isAsleep(_ error: any Error) -> Bool {
         let text = String(describing: error)
         return text.contains("zero-sized") || text.contains("25005")
+    }
+
+    /// A screenshot refused with "The screen capture operation failed"
+    /// (CoreDevice error 25004). Seen once, ten minutes after a `remote
+    /// sleep` (2026-11-24): the device was asleep and one Home press woke it.
+    /// It is not proof of sleep, so only `wake` acts on it, by the human
+    /// owner's decision of 2026-11-24: one Home press, as on a sleeping
+    /// device; `sleep` and `readiness` still read it as unknown.
+    static func captureRefused(_ error: any Error) -> Bool {
+        let text = String(describing: error)
+        return text.contains("25004") || text.contains("screen capture operation failed")
     }
 
     /// One screenshot into `image`: its file, or nil when the device refuses
@@ -175,17 +186,34 @@ enum AppleTVPower {
             result["exitCode"] = Int(exitCode)
             return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         }
+        /// Whether a screenshot shows the device awake. For a wake, a
+        /// screenshot refused with 25004 counts as not awake yet.
+        func givesPicture() async throws -> Bool {
+            try await guarded {
+                do {
+                    return try environment.capture() != nil
+                } catch where name == "wake" && captureRefused(error) {
+                    return false
+                }
+            }
+        }
         /// Screenshots until one says `asleep`, a few seconds apart.
         func becomes(asleep: Bool) async throws -> Bool {
             for _ in 0..<checks {
                 try await guarded { try await environment.settle(checkInterval) }
-                if try await guarded({ try environment.capture() == nil }) == asleep { return true }
+                if try await givesPicture() != asleep { return true }
             }
             return false
         }
 
-        let before = try environment.capture()
         if name == "wake" {
+            let before: URL?
+            do {
+                before = try environment.capture()
+            } catch where captureRefused(error) {
+                before = nil
+                result["screenshotRefused"] = "The screenshot before the press was refused with CoreDevice error 25004, not the zero-sized display of a sleeping device; Home is pressed once all the same, as for a sleeping one."
+            }
             guard before == nil else { return try finish("already-awake") }
             var waits = 0
             while true {
@@ -205,7 +233,7 @@ enum AppleTVPower {
                 ? finish("awake")
                 : finish("not-awake", action: "Home was pressed once and the device still gives no screenshot. It is not pressed again automatically; an Apple TV asleep for hours can take a minute to answer.", exitCode: 1)
         }
-        guard before != nil else { return try finish("already-asleep") }
+        guard try environment.capture() != nil else { return try finish("already-asleep") }
         try await press("lock")
         try await guarded { try await environment.settle(controlCentreSettle) }
         guard try await guarded({ try await environment.pressPowerOff() }) else {
