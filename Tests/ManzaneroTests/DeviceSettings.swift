@@ -47,7 +47,15 @@ struct DeviceSettingsTests {
             #expect(try arguments(["settings", "--standby", "show", "--standby-seconds", "60", target, id])
                 == ["devicectl", "device", "settings", "standby", "--show", "--duration", "60", "--device", id, "--timeout", "90", "--json-output", "-"])
             #expect(try !request(["settings", "--voiceover", "on", target, id]).isReadOnly)
+            #expect(try arguments(["settings", "--biometrics", "on", target, id]) == ["devicectl", "device", "settings", "biometrics", "--enable", "--device", id] + tail)
+            #expect(try arguments(["settings", "--biometrics", "off", target, id]) == ["devicectl", "device", "settings", "biometrics", "--disable", "--device", id] + tail)
+            // Reading the enrolment is the same subcommand without a switch, and read-only.
+            #expect(try arguments(["settings", "--biometrics", "state", target, id]) == ["devicectl", "device", "settings", "biometrics", "--device", id] + tail)
+            #expect(try request(["settings", "--biometrics", "state", target, id]).isReadOnly)
+            #expect(try !request(["settings", "--biometrics", "on", target, id]).isReadOnly)
         }
+        let reader = try #require(MCPTools.definitions.first { $0.name == "read_settings" })
+        #expect(try reader.command(["device": .string(simulator), "platform": "simulator", "biometrics": true]).contains("--biometrics=state"))
         let tool = try #require(MCPTools.definitions.first { $0.name == "device_settings" })
         #expect(try tool.command(["device": .string(simulator), "platform": "simulator", "operation": "settings", "voiceover": "off"])
             .contains { $0.hasPrefix("--voiceover") })
@@ -56,7 +64,8 @@ struct DeviceSettingsTests {
     @Test(arguments: [["settings", "--voiceover", "on", "--appearance", "dark"], ["settings", "--voiceover", "on", "--standby", "hide"],
                       ["settings", "--voiceover", "yes"], ["settings", "--standby", "hide", "--standby-seconds", "5"],
                       ["settings", "--standby-seconds", "5"], ["settings", "--standby", "show", "--standby-seconds", "0"],
-                      ["settings", "--standby", "show", "--standby-seconds", "601"]])
+                      ["settings", "--standby", "show", "--standby-seconds", "601"], ["settings", "--biometrics", "maybe"],
+                      ["settings", "--biometrics", "state", "--voiceover", "off"], ["settings", "--biometrics", "on", "--appearance", "dark"]])
     func voiceOverAndStandByMisuseIsAUsageError(_ cli: [String]) {
         let failure = #expect(throws: CommandFailure.self) { try request(cli + ["--simulator", simulator]) }
         #expect(failure?.code == .usage)

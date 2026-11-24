@@ -6,7 +6,10 @@ import Foundation
 /// on an iPhone simulator for each of these on 2026-11-21). Each changes the
 /// target's state except `clipboard`, which reads it.
 enum DeviceSettings {
-    static let operations = ["rotate", "settings", "settings-read", "location", "status-bar", "clipboard"]
+    static let operations = ["rotate", "settings", "settings-read", "location", "status-bar", "clipboard", biometricsReadOperation]
+    /// `settings --biometrics state`: Face ID or Touch ID enrolment, read-only
+    /// (`devicectl device settings biometrics` without a switch).
+    static let biometricsReadOperation = "biometrics-read"
     /// `settings` without options: the current values, read-only
     /// (`devicectl device info appearance`).
     static let readOperation = "settings-read"
@@ -23,7 +26,7 @@ enum DeviceSettings {
     static let batteryStates = ["draining", "charging", "charged"]
     static let clear = "--clear"
     /// `settings` options that are devicectl subcommands of their own.
-    static let ownSubcommands = ["--voiceover", "--standby", "--standby-seconds"]
+    static let ownSubcommands = ["--voiceover", "--standby", "--standby-seconds", "--biometrics"]
     static let standbySeconds = 1...600
     /// Stands for the result file a clipboard read writes, named per run.
     static let resultPlaceholder = "<result file>"
@@ -49,20 +52,26 @@ enum DeviceSettings {
         case readOperation:
             guard operands.isEmpty else { throw CommandFailure.usage("Reading the settings takes no operands.") }
             return json(["info", "appearance"])
+        case biometricsReadOperation:
+            guard operands.isEmpty else { throw CommandFailure.usage("Reading the biometric enrolment takes no operands.") }
+            return json(["settings", "biometrics"])
         case "settings":
             // VoiceOver and StandBy are devicectl subcommands of their own,
             // so each is one call, alone.
             if let own = operands.first, ownSubcommands.contains(own) {
                 let pairs = try Self.pairs(operands, allowed: [
-                    "--voiceover": ["on", "off"], "--standby": ["show", "hide"], "--standby-seconds": nil,
+                    "--voiceover": ["on", "off"], "--standby": ["show", "hide"], "--standby-seconds": nil, "--biometrics": ["on", "off"],
                 ], subject: "settings")
                 let names = Set(pairs.map(\.0))
                 guard names.count == 1 || names == ["--standby", "--standby-seconds"] else {
-                    throw CommandFailure.usage("settings takes --voiceover or --standby alone, in a call of its own: each is a devicectl subcommand of its own.")
+                    throw CommandFailure.usage("settings takes --voiceover, --standby or --biometrics alone, in a call of its own: each is a devicectl subcommand of its own.")
                 }
                 let values = Dictionary(uniqueKeysWithValues: pairs)
                 if let voiceover = values["--voiceover"] {
                     return json(["settings", "voiceover", voiceover == "on" ? "--enable" : "--disable"])
+                }
+                if let biometrics = values["--biometrics"] {
+                    return json(["settings", "biometrics", biometrics == "on" ? "--enable" : "--disable"])
                 }
                 guard let standby = values["--standby"] else { throw CommandFailure.usage("--standby-seconds goes with --standby show.") }
                 guard let seconds = values["--standby-seconds"] else { return json(["settings", "standby", "--\(standby)"]) }

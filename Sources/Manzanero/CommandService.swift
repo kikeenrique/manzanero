@@ -937,7 +937,7 @@ actor CommandService {
     static let nativeObservations = ["tree"] + AccessibilityWait.operations
 
     /// Device operations that only read: not paused by a pending handoff.
-    static let observationOperations = ["readiness", "details", "apps", "processes", "screen", "screenshot", "files", "pull", "reports", "report", "clipboard", DeviceSettings.readOperation]
+    static let observationOperations = ["readiness", "details", "apps", "processes", "screen", "screenshot", "files", "pull", "reports", "report", "clipboard", DeviceSettings.readOperation, DeviceSettings.biometricsReadOperation]
         + nativeObservations + AppDiagnosticsCommand.observations + ["displays", SimulatorHinge.angleOperation]
 
     /// `logs`, `console` and `last-crash` (docs/app-logs.md). The handoff

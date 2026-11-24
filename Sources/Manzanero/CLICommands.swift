@@ -544,7 +544,7 @@ extension ManzaneroCLI {
     }
 
     struct Settings: TargetedCommand {
-        static let configuration = CommandConfiguration(commandName: "settings", abstract: "Read, or set, appearance, text size, contrast, reduced motion, VoiceOver or StandBy.",
+        static let configuration = CommandConfiguration(commandName: "settings", abstract: "Read, or set, appearance, text size, contrast, reduced motion, VoiceOver, StandBy or biometric enrolment.",
             discussion: "Without options it reads the current values (devicectl device info appearance: userInterfaceStyle, textSize, increaseContrast, reduceMotion and others), read-only, so a change can be put back as it was. With options it changes them: \(settingsCaveat) An accessibility text size also turns Larger Accessibility Sizes on.")
         @OptionGroup var target: TargetOptions
         @OptionGroup var common: CommonOptions
@@ -556,13 +556,21 @@ extension ManzaneroCLI {
         @Option(help: ArgumentHelp("on or off; alone, in a call of its own. VoiceOver changes how every touch is taken, so turn it off again.", valueName: "state")) var voiceover: String?
         @Option(help: ArgumentHelp("show or hide; alone, in a call of its own. StandBy shows only from the lock screen.", valueName: "state")) var standby: String?
         @Option(help: ArgumentHelp("With --standby show: keep StandBy up this long, 1...600 seconds, and wait for it.", valueName: "seconds")) var standbySeconds: String?
+        @Option(help: ArgumentHelp("on or off enrols or removes Face ID (Touch ID) biometrics, so an app's biometric prompt can appear; state reads the enrolment, read-only. Alone, in a call of its own.", valueName: "state"),
+                completion: .list(["on", "off", "state"])) var biometrics: String?
         func request(_ target: Target) throws -> CommandRequest {
-            let own = [("--voiceover", voiceover), ("--standby", standby), ("--standby-seconds", standbySeconds)]
+            let own = [("--voiceover", voiceover), ("--standby", standby), ("--standby-seconds", standbySeconds), ("--biometrics", biometrics)]
                 .flatMap { name, value in value.map { [name, $0] } ?? [] }
             let appearancePairs = [("--appearance", appearance), ("--text-size", textSize), ("--increase-contrast", increaseContrast), ("--reduce-motion", reduceMotion)]
                 .flatMap { name, value in value.map { [name, $0] } ?? [] }
             if !own.isEmpty, !appearancePairs.isEmpty {
-                throw CommandFailure.usage("settings takes --voiceover or --standby alone, in a call of its own: each is a devicectl subcommand of its own.")
+                throw CommandFailure.usage("settings takes --voiceover, --standby or --biometrics alone, in a call of its own: each is a devicectl subcommand of its own.")
+            }
+            if biometrics == "state" {
+                guard own.count == 2 else {
+                    throw CommandFailure.usage("settings --biometrics state reads the enrolment alone, in a call of its own.")
+                }
+                return .tool(try DeviceOperation(target, DeviceSettings.biometricsReadOperation))
             }
             let pairs = own + appearancePairs
             return .tool(try DeviceOperation(target, pairs.isEmpty ? DeviceSettings.readOperation : "settings", pairs))
