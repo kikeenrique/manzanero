@@ -2132,7 +2132,7 @@ Then a long session on the tool's own pairing, through the MCP server connected 
 | `record` 5 s, `frames --count 1` (deleted at once) | 94 frames, no restart; the frame 2266 × 1488, not black |
 | `rotate portrait`, the probe closed | |
 
-The probe app stays installed on the iPad (an interrupted install put it there before the human owner set the rule of asking first).
+The probe app, put there by an install interrupted before the human owner set the rule of asking first, was uninstalled afterwards at the human owner's request; the app list no longer has it.
 
 ### Biometrics on the phone: no type to control
 
