@@ -2115,6 +2115,21 @@ After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wa
 
 Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
 
+### First run on a physical Apple Watch
+
+**2026-11-24, night**, an Apple Watch (`Watch8,1`, watchOS 27.2.1), developer mode on, reached over the local network; on the human owner's word, everything inside the new [watchOS probe](probe-app.md#watchos-probe).
+
+| Step | Observed |
+| --- | --- |
+| `details`, `readiness` | Paired, connected over `localNetwork`, developer mode on, display state `unknown` |
+| `build-run … ProbeWatch` | Built, installed and launched with what the Mac already had for signing; no provisioning change was needed |
+| `tree` | The probe's readouts and controls; the tool's own tunnel is not available for a watch ("Apple's MobileDevice framework does not list the device"), so it went over Apple's tunnel (`serviceDirectory: opened`); display 211 × 257 points |
+| `press --id probe.watch.button.a` | Refused before sending at the hit test (error 8); the button was drawn small at the bottom edge by the watch's list |
+| Then | The watch dropped from `remoted`'s list and showed `connecting`; later `available`, and after a reconnection the tree was refused for want of developer image services, then a scroll for want of an established `remoted` port for the watch's tunnel. Sending stopped there |
+| `crown 200 --device` | Refused before contacting anything: `crown` is built for watch simulators only |
+
+So the probe installs and its tree reads on a real watch, but the watch's network link does not stay up between commands, presumably while its screen sleeps or it is off its charger, and nothing that acts was completed. Next time: the watch on its charger with its screen on, and the steps close together. A physical watch's crown is not built.
+
 ### First run on a physical iPad: the iPad mini (6th generation)
 
 **2026-11-24, evening**, an iPad mini (6th generation) (iPadOS 27.2.1), on its cable, with the human owner's word for each step: the device has top privacy restrictions, so everything ran inside the probe app, every capture was deleted after reading, and nothing else on it is recorded here.

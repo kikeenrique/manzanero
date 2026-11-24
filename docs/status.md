@@ -65,7 +65,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 1. **`wake` on error 25004**: built on 2026-11-24 by the human owner's decision. When the Apple TV refuses `wake`'s screenshot with 25004 instead of the 25005 that means asleep, `wake` presses Home once, as for a sleeping device. Left: a run on the device.
 2. **Phone checks**: done; biometrics and StandBy do not apply to this phone (no biometric type for `devicectl`, no StandBy capability). Left: a real biometric prompt on the phone.
 3. **Apple TV, loose ends**: the awake device whose services stopped answering on 2026-11-24 until a restart, cause unknown. The pairing after a restart and `remote sleep` from a screen saver are done.
-4. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
+4. **A real Apple Watch**: the watchOS probe installs and its tree reads, but the watch's link dropped between commands; next with the watch on its charger, screen on. A physical watch's `crown` is not built; accents will not be built (the human owner's decision).
 5. **Hardware never used**: a second iPhone, an iPhone Duo. An iPad mini (6th generation) ran inside the probe on 2026-11-24 (accessibility fixed for its landscape-native panel).
 6. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
 
@@ -73,6 +73,7 @@ A release is one command, `mise run release <version>`, whenever the human owner
 
 ## Done on 2026-11-24
 
+- **First physical Apple Watch**: a watchOS probe of the project's own, installed on it, its tree read; the watch's link dropped between commands before a press completed, and a physical watch's `crown` is not built.
 - **First physical iPad** (iPad mini 6th generation, inside the probe only): accessibility after a fix for its landscape-native panel, the touch plan whole, typing, both orientations, a recording; iPadOS cancels a four-path drag on hardware too.
 - **Apple TV sound**: a recording with sound recovered across a pulled Ethernet cable, the gap written as silence; the tvOS probe has a tone (`-ProbeTone YES`); recorded with `--audio`, the beeps came through whole, while Apple's Music app, playing aloud, gave a silent track: protected audio is left out of the device's sound stream.
 - **Apple TV, afternoon**: `remote sleep` worked with the device in Spanish; with the tool's host removed on the device, accessibility commands are refused with the reason and `pair` restores it; the pairing held across a restart of the device and through MCP sessions of ten and thirty minutes; `remote sleep` worked from a screen saver; `wake` woke it after 12 minutes asleep (no 25004 this time). Before that the awake device's services had stopped answering until the restart.
