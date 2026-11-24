@@ -62,7 +62,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **Apple TV, from an agent's first use**: done on the device on 2026-11-24 (`wake`, `--report-focus`, a black screenshot that says so, seeking). FairPlay video checked in a third-party streaming app the same day, and `scrub --to <time>` built and run on the device. Left: `scrub` in a third-party app's player.
+1. **Apple TV, from an agent's first use**: done on the device on 2026-11-24 (`wake`, `--report-focus`, a black screenshot that says so, seeking). FairPlay video checked in a third-party streaming app the same day, and `scrub --to <time>` built and run on the device and in a third-party streaming app. Left: `wake` when the sleeping device answers screenshots with error 25004.
 2. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
 3. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
 4. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.

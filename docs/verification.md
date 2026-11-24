@@ -2104,6 +2104,9 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | Apple TV, 1:00 from 7:36, first loop | Not reached: 71 s after 11 swipes; 0.1 s swipes moved the preview 27, 209 and 0 s, swinging around the target. Fixed: slower swipes near the end and after an overshoot |
 | Apple TV, 50 % | Reached 296 s in 41 s |
 | Apple TV after the fix: 1:00, 8:30, 2:15 | Reached 60, 509 and 137 s, in 46, 65 and 51 s |
+| Apple TV, a third-party streaming app, a 1311-second episode under FairPlay, on the human owner's word: 15:00, 5:00, 90 % | Reached 900, 298 and 1183 s (target 1181), in 52, 63 and 57 s, each after pausing the playing video itself; the picture was black to every capture and the times came from the player's controls |
+
+Before that run, ten minutes after a `remote sleep`, `wake` failed: its screenshot was refused with CoreDevice error 25004 ("The screen capture operation failed"), not the 25005 of a zero-sized display that marks sleep, so it pressed nothing, and `readiness` said `sleepStateUnknown`. One `remote home` woke the device, and the next screenshot was black once before the Home Screen came. The active profile could not be read from the app's tree (its avatar is labelled generically); when the profile screen's countdown ran out, the app most likely took the one used last.
 
 ### FairPlay video on the Apple TV 4K
 
