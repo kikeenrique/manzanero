@@ -64,7 +64,7 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 
 1. **`wake` on error 25004**: built on 2026-11-24 by the human owner's decision. When the Apple TV refuses `wake`'s screenshot with 25004 instead of the 25005 that means asleep, `wake` presses Home once, as for a sleeping device. Left: a run on the device.
 2. **Phone checks still owed**: StandBy and biometric enrolment on the phone (biometrics on the human owner's word), `last-crash --symbols` on a stripped build, a real biometric prompt on the phone.
-3. **Apple TV, loose ends**: real sound in a recording (Music played aloud and the track was silent on 2026-11-24; a tone from the tvOS probe would tell protected audio from a stream that carries nothing); a recording with sound across a loss; the awake device whose services stopped answering on 2026-11-24 until a restart, cause unknown. The pairing after a restart and `remote sleep` from a screen saver are done.
+3. **Apple TV, loose ends**: a recording with sound across a loss; the awake device whose services stopped answering on 2026-11-24 until a restart, cause unknown. The pairing after a restart and `remote sleep` from a screen saver are done.
 4. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
 5. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
 6. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
@@ -73,6 +73,7 @@ A release is one command, `mise run release <version>`, whenever the human owner
 
 ## Done on 2026-11-24
 
+- **Apple TV sound**: the tvOS probe has a tone (`-ProbeTone YES`); recorded with `--audio`, the beeps came through whole, while Apple's Music app, playing aloud, gave a silent track: protected audio is left out of the device's sound stream.
 - **Apple TV, afternoon**: the pairing held across a restart of the device and through a ten-minute MCP session; `remote sleep` worked from a screen saver; `wake` woke it after 12 minutes asleep (no 25004 this time). Before that the awake device's services had stopped answering until the restart.
 - **A protected picture without DRM**: the tvOS probe's `-ProbeVideoProtected YES` shows its silent movie in a layer that prevents capture; a simulator ignores that in screenshots and recordings, so the Apple TV is where a black capture is checked.
 - **Face ID on a simulator**: `settings --biometrics on|off|state`, and on a simulator `match|nomatch` for the prompt on screen; the iOS probe raises a real Face ID prompt, which was answered, failed, and its alert cancelled by identifier.
