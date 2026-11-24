@@ -26,6 +26,8 @@ let signingConfig: Path = .relativeToManifest("\(fixture)/Config/ProbeApp.xcconf
 
 let tvSigningConfig: Path = .relativeToManifest("\(fixture)/Config/ProbeTV.xcconfig")
 
+let watchSigningConfig: Path = .relativeToManifest("\(fixture)/Config/ProbeWatch.xcconfig")
+
 let project = Project(
     name: "ProbeApp",
     options: .options(automaticSchemesOptions: .disabled),
@@ -114,6 +116,34 @@ let project = Project(
                 .release(name: "Release", xcconfig: tvSigningConfig),
             ])
         ),
+        // The watchOS probe (docs/probe-app.md#watchos-probe): a standalone
+        // watch app with its own sources, so checks on a watch run inside an
+        // app of this project's and show nothing of the wearer's.
+        .target(
+            name: "ProbeWatch",
+            destinations: [.appleWatch],
+            product: .app,
+            bundleId: "$(PROBE_WATCH_BUNDLE_ID)",
+            deploymentTargets: .watchOS("11.0"),
+            infoPlist: .dictionary([
+                "CFBundleDevelopmentRegion": "en",
+                "CFBundleDisplayName": "Probe Watch",
+                "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+                "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+                "CFBundleInfoDictionaryVersion": "6.0",
+                "CFBundleName": "$(PRODUCT_NAME)",
+                "CFBundlePackageType": "APPL",
+                "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+                "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
+                "WKApplication": true,
+                "WKWatchOnly": true,
+            ]),
+            sources: [.glob(.relativeToManifest("\(fixture)/Watch/**/*.swift"))],
+            settings: .settings(configurations: [
+                .debug(name: "Debug", xcconfig: watchSigningConfig),
+                .release(name: "Release", xcconfig: watchSigningConfig),
+            ])
+        ),
     ],
     schemes: [
         .scheme(
@@ -126,6 +156,11 @@ let project = Project(
             name: "ProbeTV",
             buildAction: .buildAction(targets: ["ProbeTV"]),
             runAction: .runAction(executable: "ProbeTV")
+        ),
+        .scheme(
+            name: "ProbeWatch",
+            buildAction: .buildAction(targets: ["ProbeWatch"]),
+            runAction: .runAction(executable: "ProbeWatch")
         ),
     ]
 )

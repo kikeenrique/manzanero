@@ -1,0 +1,13 @@
+// Tracked defaults for the watchOS probe target. Account values never go here.
+//
+// Simulator builds need nothing else. For a physical Apple Watch, the team
+// comes from the same untracked tmp/probe-app/Signing.xcconfig the iOS probe
+// uses; add PROBE_WATCH_BUNDLE_ID there only if your team cannot sign the
+// default.
+
+PROBE_WATCH_BUNDLE_ID = com.lemambo.manzanero.probewatch
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+
+// Optional include: a missing file is not an error. The path is relative to this file.
+#include? "../../../tmp/probe-app/Signing.xcconfig"

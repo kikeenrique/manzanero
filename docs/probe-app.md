@@ -469,6 +469,34 @@ Launched with `-ProbeTone YES` (`launch com.lemambo.manzanero.probetv --relaunch
 
 Checked on one tvOS 27.2 simulator on 2026-11-18: each of the seven `remote` buttons was recorded once, and the keys Space, Escape and Return were recorded as `play-pause`, `menu` and `select`. The same day the owner ran it from Xcode onto an Apple TV 4K (3rd generation, tvOS 27.2), where it recorded `play-pause`, `select:b`, `menu`, `up`, `left` twice and `right` as `remote` sent them, and its text field took `set-value` ([record](verification.md#first-look-at-a-physical-apple-tv)). The app starts with focus on the text field, so move up to the buttons before `select`.
 
+## watchOS probe
+
+A third app in the same Tuist project, added on 2026-11-24 so that checks on the human owner's Apple Watch run inside an app of this project's and show nothing of the wearer's: target and scheme `ProbeWatch`, sources in `Fixtures/ProbeApp/Watch/`, bundle identifier `com.lemambo.manzanero.probewatch` (`Config/ProbeWatch.xcconfig`; `PROBE_WATCH_BUNDLE_ID` in the untracked signing file replaces it), a standalone watch app (`WKWatchOnly`), watchOS 11.0 or later. It shares nothing with the other probes.
+
+| Identifier | Element | Reads as |
+| --- | --- | --- |
+| `probe.watch.last` | The last event | value: `button:a`, `button:b`, `touch:<x>,<y>`, `row:<n>` or `none` |
+| `probe.watch.count` | How many events arrived | value |
+| `probe.watch.crown` | The Digital Crown's value, low sensitivity, continuous | value with three decimals; `crown 200` adds 1.000 |
+| `probe.watch.button.a`, `.b` | Two buttons in one row | A press records `button:a` or `button:b` |
+| `probe.watch.pad` | A touch pad 80 points high filling its row | A tap records where it landed, as fractions of the pad |
+| `probe.watch.touch` | The last tap on the pad | value `x,y`, three decimals |
+| `probe.watch.text.field` | A text field | Opens the system keyboard, which `type` taps |
+| `probe.watch.text.value` | The field's text | value |
+| `probe.watch.row.1` … `probe.watch.row.30` | Thirty rows, more than fit | A press records `row:<n>` |
+
+Each event also goes to the unified log, category `watch`. The list does not scroll with the crown on the watchOS 27.2 simulator, where Watch Settings' list does, so the crown is read as a value and rows are reached with `scroll --search`. A list row reports its whole cell as an element's frame; the pad's row has no insets, so the frame and the pad's own fractions agree.
+
+```sh
+mise run probe-app:generate
+xcodebuild build -workspace tmp/probe-app/generated/ProbeApp.xcworkspace -scheme ProbeWatch \
+  -destination 'generic/platform=watchOS Simulator' -derivedDataPath tmp/probe-app/DerivedData 2>&1 | xcsift -f toon --warnings
+manzanero install tmp/probe-app/DerivedData/Build/Products/Debug-watchsimulator/ProbeWatch.app --simulator <UUID>
+manzanero launch com.lemambo.manzanero.probewatch --simulator <UUID>
+```
+
+Checked on `manzanero-research-watch-ultra` (watchOS 27.2) on 2026-11-24: `press` on button A and on row 25, `crown 200` read 1.000, taps aimed at a quarter and three quarters across the pad read 0.249 and 0.751 (before the insets were removed, 0.208 and 0.792: the frame was the wider row), `scroll --search` reached row 25, the pad and the field, and `type 'Hi 42'` arrived exactly.
+
 ## Verification status
 
 The records below are dated; those before 2026-11-16 spell commands in the earlier grammar (`simulator <UUID> build-run`, `press-id`).
