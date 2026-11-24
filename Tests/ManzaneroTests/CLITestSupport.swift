@@ -119,6 +119,8 @@ func summary(_ request: CommandRequest) -> [String] {
         return [target.platform.rawValue, target.identifier, HoldStep.releaseOperation]
     case .reportingFocus(let press, _):
         return summary(press) + [RemoteFocusReport.flag]
+    case .scrub(let scrub):
+        return [scrub.target.platform.rawValue, scrub.target.identifier, ScrubCommand.operation]
     }
 }
 

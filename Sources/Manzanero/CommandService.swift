@@ -124,6 +124,18 @@ actor CommandService {
             return CommandOutput(data: try KeyedArchiveInspector.inspectFile(path))
         case .physicalInput(let native):
             return try await executePhysical(native, dryRun: dryRun)
+        case .scrub(let scrub):
+            if dryRun { return try json(scrub.plan) }
+            try checkHandoffPause(request)
+            let target = scrub.target
+            let result = try await PlayerScrub.run(scrub, read: {
+                PlayerPosition(tree: try await self.perform(.tree(platform: target.platform.rawValue, device: target.identifier),
+                                                            dryRun: false, allowInteractive: false, handoffConfirmation: nil).data)
+            }, press: { words in
+                _ = try await self.perform(.input(target, "remote", words), dryRun: false, allowInteractive: false, handoffConfirmation: nil)
+            })
+            return CommandOutput(data: try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]),
+                                 exitCode: result["status"] as? String == "reached" ? 0 : 1)
         case .reportingFocus(let press, let tree):
             let pressed = try await perform(press, dryRun: dryRun, allowInteractive: allowInteractive, handoffConfirmation: handoffConfirmation)
             if dryRun {

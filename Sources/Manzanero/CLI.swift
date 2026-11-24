@@ -219,7 +219,7 @@ struct ManzaneroCLI: ParsableCommand {
         groupedSubcommands: [
             CommandGroup(name: "Touch and keys", subcommands: [
                 Tap.self, LongPress.self, Swipe.self, Drag.self, Pinch.self, MultiTap.self, MultiDrag.self,
-                Gesture.self, DoubleTap.self, Hold.self, Release.self, Button.self, Key.self, TypeText.self, DetectLayout.self, Paste.self, Wake.self, Remote.self, Crown.self,
+                Gesture.self, DoubleTap.self, Hold.self, Release.self, Button.self, Key.self, TypeText.self, DetectLayout.self, Paste.self, Wake.self, Remote.self, Scrub.self, Crown.self,
                 Fold.self, Unfold.self, Hinge.self]),
             CommandGroup(name: "Accessibility", subcommands: [Tree.self, Press.self, Scroll.self, Wait.self, SetValue.self]),
             CommandGroup(name: "Screen", subcommands: [Screenshot.self, Screen.self, Record.self, Frames.self, Displays.self]),

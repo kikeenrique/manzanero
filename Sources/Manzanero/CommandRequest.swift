@@ -45,6 +45,8 @@ enum CommandRequest: Sendable, Equatable {
     /// `remote <button> --report-focus`: the press, then a fresh tree whose
     /// focused node goes into the press's receipt (`RemoteFocusReport`).
     indirect case reportingFocus(press: CommandRequest, tree: CommandRequest)
+    /// `scrub --to <time>`: Apple's player moved to a time (`PlayerScrub`).
+    case scrub(ScrubCommand)
 }
 
 /// A wrapped Apple tool invocation and the operation it implements.
@@ -115,6 +117,7 @@ extension CommandRequest {
         case .hold(let hold): (hold.simulator ? "simulator" : "physical", hold.device, HoldStep.operation)
         case .release(let target): (target.platform.rawValue, target.identifier, HoldStep.releaseOperation)
         case .reportingFocus(let press, _): press.addressed
+        case .scrub(let scrub): (scrub.target.platform.rawValue, scrub.target.identifier, ScrubCommand.operation)
         case .decodeArchive, .ocr, .devices, .createSimulator, .doctor, .keyboardLayouts: nil
         }
     }
@@ -148,6 +151,7 @@ extension CommandRequest {
         case .detectLayout: "layout detection"
         case .batch(let batch): batch.requests.contains { $0.signalContext != nil } ? "batch" : nil
         case .reportingFocus(let press, _): press.signalContext
+        case .scrub(let scrub): scrub.target.platform == .simulator ? "simulator input" : "physical input"
         default: nil
         }
     }

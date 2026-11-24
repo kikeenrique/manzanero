@@ -170,6 +170,26 @@ extension ManzaneroCLI {
         }
     }
 
+    struct Scrub: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "scrub", abstract: "Move Apple's video player to a time (Apple TV).",
+            discussion: """
+            Reads the player's own times from the accessibility tree (AXElapsedTime, AXRemainingTime and the preview's \
+            marker, in any language), presses play-pause once if its controls are hidden (which pauses and shows them), \
+            swipes the paused preview toward the time, reading it after every swipe and sizing each swipe from the last, \
+            at most \(ScrubCommand.maximumSwipes) swipes (quicker ones go further), then presses select, which commits and \
+            plays from there. The \
+            receipt gives the target, where it started and where it landed (status reached or not-reached, exit 1). \
+            For Apple's player (AVPlayerViewController), in an app or the tvOS probe's -ProbeVideo; on a physical \
+            Apple TV the reads need the tool's own pairing. Protected video still scrubs: the times come from the \
+            controls, not the picture. \(receiptCaveat)
+            """)
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        @Option(help: ArgumentHelp("Seconds (95), mm:ss (1:35), h:mm:ss (1:02:03) or a share of the length (40%).", valueName: "time")) var to: String
+        @Option(help: ArgumentHelp("How close counts as there, 1...120 seconds (default \(ScrubCommand.defaultTolerance)).", valueName: "seconds")) var tolerance: String?
+        func request(_ target: Target) throws -> CommandRequest { .scrub(try ScrubCommand(target, to: to, tolerance: tolerance)) }
+    }
+
     struct Crown: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "crown", abstract: "Turn the Digital Crown (Apple Watch simulators).",
             discussion: "Units are the simulator's integer scroll deltas; positive scrolls toward later content. They are sent as events 1 s apart, slow enough that watchOS does not accelerate them: 200 units moved a SwiftUI digitalCrownRotation value by 1 at low sensitivity. Lists move by rows per event (Watch Settings: one row for each event of 100 units or more, none below 100), so use --events to scroll several rows. \(receiptCaveat)")

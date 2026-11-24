@@ -2090,6 +2090,21 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote left --report-focus` | `focus.label` Settings |
 | `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
 
+### Scrub on a simulator and on the Apple TV 4K
+
+**2026-11-24.** `scrub --to` against the tvOS probe's silent video (`-ProbeVideo YES`, Apple's player), on `manzanero-research-tv-4k` (tvOS 27.2) and on the Apple TV 4K (tvOS 27.2, the tool's own pairing).
+
+| Where, goal | Observed |
+| --- | --- |
+| Simulator, first build, 5:00 | 12 swipes moved nothing but playback: the controls were showing after the launch while the video played. Fixed: two readings 1.5 s apart tell playing from paused |
+| Simulator, then 5:00 from 0:36 paused | Reached 297 s in 17 s: 10 swipes, each full 0.6 s swipe about 30 s of preview |
+| Simulator, one paused swipe at full travel | 0.6 s: +30 s; 0.2 s: +71 s; 0.1 s: +132 s. The speed became a second knob |
+| Simulator, 9:00, 40 %, 2:00 (playing, controls hidden), 3:00 and 1:00 back to back | Reached 535, 243, 117, 176 and 65 s, in 8 to 17 s; one earlier run right after another failed once and was not reproduced in three tries |
+| Apple TV, 7:30 from 0:09 | Reached 449 s in 65 s: play-pause, then swipes of 0.6, 0.3, 0.2 and 0.1 s; one 0.1 s swipe moved nothing |
+| Apple TV, 1:00 from 7:36, first loop | Not reached: 71 s after 11 swipes; 0.1 s swipes moved the preview 27, 209 and 0 s, swinging around the target. Fixed: slower swipes near the end and after an overshoot |
+| Apple TV, 50 % | Reached 296 s in 41 s |
+| Apple TV after the fix: 1:00, 8:30, 2:15 | Reached 60, 509 and 137 s, in 46, 65 and 51 s |
+
 ### FairPlay video on the Apple TV 4K
 
 **2026-11-24, morning**, in a third-party streaming app with FairPlay-protected video and a series, both chosen by the human owner; the episodes played with sound, which the human owner had asked for, and were paused after each capture.

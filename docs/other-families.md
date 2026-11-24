@@ -161,6 +161,18 @@ On an Apple TV simulator, `tree` (and `screen`'s tree) asks the application for 
 
 How the attributes were found: the snapshot's attributes and the traits of the focused and unfocused buttons were identical. `-[AXPMacPlatformElement _attributeTypeForMacAttribute:]` in AccessibilityPlatformTranslation maps `AXFocused` to attribute 28 and `AXFocusedUIElement` to 19 (`AXFrame` 21, `AXIdentifier` 25, `AXEnabled` 27 and `AXValue` 53 match the attributes Manzanero already used). On the tvOS probe, 28 answered true for the focused button and false for the others, and 19 on the application answered the focused button's element.
 
+### Seeking in Apple's player
+
+How Apple's player (`AVPlayerViewController`) seeks, measured on a tvOS simulator and on the Apple TV 4K ([simulator](verification.md#seeking-in-apples-player-on-a-simulator), [device](verification.md#apple-tv-session-of-2026-11-24-wake-the-focus-a-protected-picture-and-seeking)): one arrow press while playing skips 10 s; a held arrow scans until `play-pause`; `play-pause` pauses and shows the controls; a swipe while paused moves only a preview, which `select` commits and plays from. The controls carry identifiers that do not depend on the language: `AXElapsedTime` and `AXRemainingTime` (`mm:ss`), the preview's `Elapsed Time Scrubbing Marker`; `Media Controls` has the same in words, in the device's language.
+
+```sh
+manzanero scrub --to 7:30 --device <UDID>      # or 450, 1:02:03, 40% of the length; --tolerance 1...120 s (default 10)
+```
+
+`scrub` (MCP `scrub_video`, since 2026-11-24) does it as one command, each press after a fresh reading: it reads those times; if the controls are hidden, or a second reading 1.5 s later shows the time moving, it presses `play-pause` once; it swipes the paused preview toward the target and reads it after every swipe, at most 20 swipes; then `select`. A quicker swipe moves the preview further (on a simulator a full swipe moved it 30 s in 0.6 s, 71 s in 0.2 s and 132 s in 0.1 s), so the speed is chosen too: quicker while a full swipe covers less than a third of the way, slower near the end and after an overshoot, and a speed that moved nothing is not used again; the Apple TV's 0.1 s swipes were erratic (27, 209 and 0 s). The receipt gives the target, the start, where it landed, the length, every step and `status` `reached` or `not-reached` (exit 1). It works over protected video, since the times come from the controls and not the picture.
+
+On the Apple TV 4K over the tvOS probe's silent video: 7:30 from 0:09 reached 449 s; 1:00 from 7:36 reached 60 s, 8:30 reached 509 s and 2:15 reached 137 s, in 41 to 65 s each, once the loop had learnt to finish on slower swipes (a first run to 1:00 ended at 71 s, swinging on 0.1 s swipes). On a simulator, the same targets in 8 to 17 s. Not yet run in a third-party app's player.
+
 ### Remote touch surface
 
 `remote swipe-up`, `swipe-down`, `swipe-left` and `swipe-right` (the same names in MCP `press_remote`) draw one finger across the Siri Remote's touch surface, on Apple TV simulators and, since 2026-11-20, on a physical Apple TV ([record](verification.md#the-remotes-swipes-on-the-apple-tv-4k)).

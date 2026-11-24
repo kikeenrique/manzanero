@@ -24,7 +24,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Touch**: `tap`, `double-tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts; `tap` in landscape too; a contact held across `batch` steps (`hold`, `release`) | works; on an iPad four moving contacts are cancelled by iPadOS, even with its gesture settings off | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works |
 | **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: `home`, `side` and the Ultra's `action` work, `lock` does nothing, `key` refused | works; `wake` refused |
 | **Text**: `type`, `detect-layout`, `paste`, `set-value` | works, a SwiftUI field's `set-value` too | works, a SwiftUI field's `set-value` too; `paste` refused | works (`type`, `set-value`) | works | partly: `type` taps the on-screen keyboard in any keyboard language (ASCII letters, digits, the numbers and symbols pages; no accents); `detect-layout` refused; `set-value` does not reach the app | works; `paste` refused |
-| **Apple TV remote**: `remote` | — | — | works: all eight buttons, held keys, swipes (0.4 s by default), `sleep` and `wake`; a held Home is refused | works, with holds and swipes; `sleep` and `wake` refused | — | — |
+| **Apple TV remote**: `remote`, `scrub` | — | — | works: all eight buttons, held keys, swipes (0.4 s by default), `sleep` and `wake`, `scrub` in Apple's player; a held Home is refused | works, with holds, swipes and `scrub`; `sleep` and `wake` refused | — | — |
 | **Watch crown**: `crown` | — | — | — | — | works | — |
 | **Fold**: `fold`, `unfold`, `hinge`, `displays` | — | — | — | — | — | works |
 | **Accessibility, read**: `tree`, `wait` | works, portrait and landscape | works | works, see the routes below | works | works | partly: Home Screen tree is empty |
@@ -62,7 +62,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
-1. **Apple TV, from an agent's first use**: done on the device on 2026-11-24 (`wake`, `--report-focus`, a black screenshot that says so, seeking). FairPlay video checked in a third-party streaming app the same day. Left: whether to build a `scrub` command.
+1. **Apple TV, from an agent's first use**: done on the device on 2026-11-24 (`wake`, `--report-focus`, a black screenshot that says so, seeking). FairPlay video checked in a third-party streaming app the same day, and `scrub --to <time>` built and run on the device. Left: `scrub` in a third-party app's player.
 2. **Apple TV, loose ends**: the pairing after a restart; `remote sleep` from a screen saver (none started in 20 idle minutes on 2026-11-22); a recording with sound playing, now allowed; a recording with sound across a loss.
 3. **A real Apple Watch**: watch typing and the crown have run on simulators only; accents will not be built (the human owner's decision).
 4. **Hardware never used**: a second iPhone, an iPad, an iPhone Duo.
