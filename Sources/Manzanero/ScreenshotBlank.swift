@@ -87,6 +87,28 @@ enum ScreenshotBlank {
         return (try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])) ?? receipt
     }
 
+    static let framesNote = "Some saved frames are entirely black: the screen was black then, or protected content (FairPlay, or a layer that prevents capture) was on screen, which the device leaves out of its stream."
+
+    /// `frames`' receipt with `blank: true` on each saved frame that is
+    /// entirely black, `blankFrames` (how many), and `blankNote` when there
+    /// are any. A frame that cannot be read is left unmarked.
+    static func annotateFrames(_ receipt: [String: Any], directory: URL) -> [String: Any] {
+        guard let frames = receipt["frames"] as? [[String: Any]] else { return receipt }
+        var count = 0
+        var marked = frames
+        for index in marked.indices {
+            guard let file = marked[index]["file"] as? String,
+                  isBlank(directory.appendingPathComponent(file)) == true else { continue }
+            marked[index]["blank"] = true
+            count += 1
+        }
+        var receipt = receipt
+        receipt["frames"] = marked
+        receipt["blankFrames"] = count
+        if count > 0 { receipt["blankNote"] = framesNote }
+        return receipt
+    }
+
     /// The `--destination` of a planned `devicectl` screenshot.
     static func destination(_ arguments: [String]) -> URL? {
         guard let index = arguments.firstIndex(of: "--destination"), arguments.indices.contains(index + 1) else { return nil }

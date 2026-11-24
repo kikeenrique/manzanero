@@ -93,6 +93,22 @@ struct ScreenshotBlankTests {
         }
     }
 
+    /// `frames`: each saved frame is checked; black ones are marked and
+    /// counted, and a file that cannot be read is left alone.
+    @Test func blackFramesAreMarkedAndCounted() throws {
+        let black = try Self.png("frame-black"), drawn = try Self.png("frame-drawn", bright: CGRect(x: 0, y: 0, width: 1920, height: 540))
+        let directory = black.deletingLastPathComponent()
+        defer { try? FileManager.default.removeItem(at: black); try? FileManager.default.removeItem(at: drawn) }
+        let receipt: [String: Any] = ["status": "completed", "frames": [["file": black.lastPathComponent], ["file": drawn.lastPathComponent],
+                                                                       ["file": "missing.jpg"], ["file": black.lastPathComponent]]]
+        let annotated = ScreenshotBlank.annotateFrames(receipt, directory: directory)
+        let frames = try #require(annotated["frames"] as? [[String: Any]])
+        #expect(frames.map { $0["blank"] as? Bool } == [true, nil, nil, true])
+        #expect(annotated["blankFrames"] as? Int == 2 && annotated["blankNote"] as? String == ScreenshotBlank.framesNote)
+        let none = ScreenshotBlank.annotateFrames(["frames": [["file": drawn.lastPathComponent]]], directory: directory)
+        #expect(none["blankFrames"] as? Int == 0 && none["blankNote"] == nil)
+    }
+
     @Test func theDestinationIsReadFromThePlannedArguments() {
         #expect(ScreenshotBlank.destination(["devicectl", "device", "capture", "screenshot", "--destination", "tmp/a.png", "--device", "x"])?.path.hasSuffix("tmp/a.png") == true)
         #expect(ScreenshotBlank.destination(["devicectl", "--destination"]) == nil)

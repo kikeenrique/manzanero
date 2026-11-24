@@ -28,7 +28,8 @@ import Foundation
             result.stream["displayRotation"] = display.rotation
             result.json["stream"] = result.stream
             result.json["setupMilliseconds"] = FrameRun.decimal(Double(result.started - begun) / 1_000_000)
-            return try JSONSerialization.data(withJSONObject: result.json, options: [.prettyPrinted, .sortedKeys])
+            let receipt = ScreenshotBlank.annotateFrames(result.json, directory: command.directory)
+            return try JSONSerialization.data(withJSONObject: receipt, options: [.prettyPrinted, .sortedKeys])
         } catch {
             await NativeRecordingSessions.shared.end(reserved)
             throw error
