@@ -2115,6 +2115,19 @@ After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wa
 
 Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
 
+### A thirty-minute session on the Apple TV's own pairing
+
+**2026-11-24, about 17:45 to 18:15**, the Apple TV 4K (tvOS 27.2), through the MCP server connected to Claude Code (one process), nothing played: `wake_device`, then eight rounds four to five minutes apart of `press_remote` arrows and swipes with `report_focus` and `wait_for_element` `until: focused`, by label and by handle; then `press_remote sleep`.
+
+| Observed | |
+| --- | --- |
+| Every call | On the tool's own pairing (`serviceDirectory: own-tunnel`, `ownTunnelLink: paired`); none failed |
+| A handle | The TV icon's handle read at about 14 minutes (`ax:<pid>:<object>`) met a focus wait at about 26 minutes |
+| The screen saver | It started within four to five idle minutes (the device's own setting) and twice took the front: the reported focus was then one full-screen element of another process, an arrow did not end it, Home did; the last round found it again, and `remote sleep` from it ended `asleep`, `verified: true` |
+| Afterwards | `remotectl dumpstate`: the device's connection `connected (connectable)`, not stale |
+
+So the tool's own pairing holds a half-hour session of presses, focus reports and waits with no fault, and a screen saver shows in a focus report as a full-screen element with no label.
+
 ### `remote sleep` on an Apple TV in Spanish
 
 **2026-11-24, about 17:30**, the Apple TV 4K (tvOS 27.2), on the human owner's word: the device's language changed to Spanish and back, all by the tool over its own pairing.
