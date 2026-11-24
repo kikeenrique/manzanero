@@ -2115,6 +2115,20 @@ After 12 minutes asleep, as long as the gap before the 25004 of the morning, `wa
 
 Then a long session on the tool's own pairing, through the MCP server connected to Claude Code (one process for the whole session): `wake_device` (`awake`, `hidWaits: 0`), `get_ui_tree` (227 nodes, `serviceDirectory: own-tunnel`, `ownTunnelLink: paired`), then over about ten minutes, with pauses of 1.5 to 2.5 minutes, `press_remote` `right`, `left`, `swipe-right` and `swipe-left` with `report_focus` (each receipt named the Home Screen icon the screenshot-free focus landed on; a swipe moved it four icons), `wait_for_element` `until: focused` on the icon the last press reported (`condition-met`, one poll) and a final `wait_for_element` with `index`, each on the paired tunnel. The first icon's handle was the same seven minutes apart (`ax:<pid>:<object>` unchanged). `remotectl dumpstate` afterwards: the device's connection `connected (connectable)`, not stale. `press_remote sleep` ended it `asleep`, `verified: true`.
 
+### Crash symbols for a stripped build on the phone
+
+**2026-11-24, 18:30**, the iPhone 13 mini (iOS 27.2.1), display on and unlocked.
+
+| Step | Observed |
+| --- | --- |
+| `xcodebuild archive` of the iOS probe, Release, generic iOS | An `.xcarchive` with `ProbeApp.app` and `dSYMs/ProbeApp.app.dSYM`; the executable stripped (no local text symbols in `nm`), its UUID the dSYM's |
+| `install` of the archived `.app`, then `console … -- -probeCrash trap` | The probe crashed with `fatalError` (`exited(1)`) |
+| `last-crash --process ProbeApp` | `SIGTRAP`; the first frame `_assertionFailure` in libswiftCore, then two `ProbeApp` frames with an offset and no symbol |
+| `--symbols <archive>/dSYMs` | First failed: the folder went to `dwarfdump` whole ("Is a directory"). Fixed the same day: a folder gives the DWARF files of each `.dSYM` in it, an `.xcarchive` those of its `dSYMs` |
+| `--symbols <archive>/dSYMs`, then `--symbols <archive>` | Each: the UUID matched the `ProbeApp` image, 2 frames resolved, named `closure #1 in LogProbeEmitter.launched(arguments:)` and `thunk for @escaping @callee_guaranteed @Sendable () -> ()`, `<compiler-generated>:0` |
+
+The archived Release probe stayed installed on the phone in place of the development build.
+
 ### A thirty-minute session on the Apple TV's own pairing
 
 **2026-11-24, about 17:45 to 18:15**, the Apple TV 4K (tvOS 27.2), through the MCP server connected to Claude Code (one process), nothing played: `wake_device`, then eight rounds four to five minutes apart of `press_remote` arrows and swipes with `report_focus` and `wait_for_element` `until: focused`, by label and by handle; then `press_remote sleep`.

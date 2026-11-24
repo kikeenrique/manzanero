@@ -17,11 +17,21 @@ enum CrashSymbolication {
     }
 
     /// The Mach-O files a path offers: a `.dSYM`'s DWARF files; an `.app`'s
-    /// executable, its `*.debug.dylib` and its frameworks' executables; or
-    /// the path itself.
+    /// executable, its `*.debug.dylib` and its frameworks' executables; an
+    /// `.xcarchive`'s dSYMs; a folder's `.dSYM` bundles (an archive's `dSYMs`
+    /// folder: on 2026-11-24 it was handed to `dwarfdump` whole and failed
+    /// as a directory); or the path itself.
     static func files(_ path: String) -> [String] {
         let url = URL(fileURLWithPath: path)
         let manager = FileManager.default
+        var isFolder: ObjCBool = false
+        let exists = manager.fileExists(atPath: path, isDirectory: &isFolder)
+        if url.pathExtension == "xcarchive" { return files(url.appendingPathComponent("dSYMs").path) }
+        if exists, isFolder.boolValue, !["dSYM", "app"].contains(url.pathExtension) {
+            return ((try? manager.contentsOfDirectory(atPath: path)) ?? []).sorted()
+                .filter { $0.hasSuffix(".dSYM") }
+                .flatMap { files(url.appendingPathComponent($0).path) }
+        }
         switch url.pathExtension {
         case "dSYM":
             let dwarf = url.appendingPathComponent("Contents/Resources/DWARF")

@@ -23,6 +23,23 @@ struct CrashSymbolicationTests {
         return try IPSReport(header + Data("\n".utf8) + body)
     }
 
+    /// An archive's `dSYMs` folder and the archive itself give the DWARF
+    /// files of each `.dSYM` inside, not the folder.
+    @Test func aFolderOfDSYMsAndAnArchiveGiveTheirDWARFFiles() throws {
+        let root = URL(fileURLWithPath: "tmp/symbolication-\(UUID().uuidString)/App.xcarchive")
+        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        let folder = root.appendingPathComponent("dSYMs")
+        for name in ["App.app.dSYM", "Kit.framework.dSYM"] {
+            let dwarf = folder.appendingPathComponent(name).appendingPathComponent("Contents/Resources/DWARF")
+            try FileManager.default.createDirectory(at: dwarf, withIntermediateDirectories: true)
+            try Data().write(to: dwarf.appendingPathComponent((name as NSString).deletingPathExtension.replacingOccurrences(of: ".app", with: "").replacingOccurrences(of: ".framework", with: "")))
+        }
+        try Data().write(to: folder.appendingPathComponent("notes.txt"))
+        let fromFolder = CrashSymbolication.files(folder.path)
+        #expect(fromFolder.count == 2 && fromFolder.allSatisfy { $0.contains(".dSYM/Contents/Resources/DWARF/") })
+        #expect(CrashSymbolication.files(root.path) == fromFolder)
+    }
+
     @Test func dwarfdumpAndAtosLinesAreRead() {
         let binaries = CrashSymbolication.parseUUIDs("UUID: \(Self.appUUID.lowercased()) (arm64) /x/App.app/App\nnot a line\nUUID: bad (arm64) /y")
         #expect(binaries == [.init(uuid: Self.appUUID, arch: "arm64", path: "/x/App.app/App")])

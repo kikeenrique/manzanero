@@ -12,7 +12,7 @@ If every query to a connected device times out, read the state of Apple's device
 
 ## Not yet run on hardware
 
-- Still owed on the phone after the session of 2026-11-24 ([record](verification.md#phone-session-of-2026-11-24-handles-the-cost-of-a-tree-symbols-and-voiceover)): `settings --standby show` from the lock screen; `settings --biometrics` (it would change the phone's own Face ID enrolment, so only on the human owner's word); `last-crash --symbols` on a stripped (archived) build's crash.
+- Still owed on the phone after the session of 2026-11-24 ([record](verification.md#phone-session-of-2026-11-24-handles-the-cost-of-a-tree-symbols-and-voiceover)): `settings --standby show` from the lock screen; `settings --biometrics` (it would change the phone's own Face ID enrolment, so only on the human owner's word). `last-crash --symbols` on a stripped build ran on 2026-11-24 ([record](verification.md#crash-symbols-for-a-stripped-build-on-the-phone)).
 
 - A recording of several minutes with sound on the phone (the longest so far is 75 s). Recording recovery with sound on the Apple TV 4K ran on 2026-11-24 ([record](verification.md#sound-across-a-pulled-ethernet-cable-on-the-apple-tv-4k)).
 - With the passcode now set on the test phone: `wake` and `readiness` after a restart before the first unlock, and whether setting or removing a passcode always drops the pairing (it did once: [record](verification.md#a-passcode-on-the-phone-pairing-handoff-and-the-lock-screen)). The passcode keypad is in the tree ([record](verification.md#the-last-handoff-runs-on-the-phone)).
