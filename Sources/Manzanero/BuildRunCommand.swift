@@ -68,6 +68,8 @@ struct BuildRunCommand: Sendable, Equatable {
                              "CompileStoryboard", "CompileXIB", "Ld", "CodeSign", "PhaseScriptExecution", "ProcessInfoPlistFile",
                              "CopySwiftLibs", "ProcessProductPackaging", "GenerateDSYMFile", "Touch", "Validate", "RegisterWithLaunchServices"]
 
+    static let sourceExtensions: Set<String> = ["swift", "m", "mm", "c", "cc", "cpp", "metal", "storyboard", "xib", "xcassets", "strings", "intentdefinition"]
+
     /// One line for stderr while the build runs: the time so far, how many
     /// steps the log names, and the latest one with its file's name, such as
     /// `build-run: 40 s, 12 steps, now SwiftCompile ProbeTVVideo.swift`.
@@ -78,8 +80,12 @@ struct BuildRunCommand: Sendable, Equatable {
             steps += 1
             // The last path in the line names the file; a target name is
             // in parentheses after it.
-            let words = line.split(separator: " ").map(String.init)
-            let file = words.last { $0.contains("/") }.map { URL(fileURLWithPath: $0).lastPathComponent }
+            // A source file's name when the line has one: a compile line can
+            // end with its dependency or output file (seen on 2026-11-24:
+            // "now SwiftCompile ProbeApp-dependencies-1.json").
+            let paths = line.split(separator: " ").map(String.init).filter { $0.contains("/") }
+            let source = paths.last { Self.sourceExtensions.contains(URL(fileURLWithPath: $0).pathExtension) }
+            let file = (source ?? paths.last).map { URL(fileURLWithPath: $0).lastPathComponent }
             latest = [String(first), file].compactMap { $0 }.joined(separator: " ")
         }
         return "build-run: \(Int(elapsed)) s, \(steps) steps" + (latest.map { ", now \($0)" } ?? ", xcodebuild preparing")

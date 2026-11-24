@@ -344,6 +344,9 @@ struct BuildRunDeadlineTests {
         """.utf8)
         #expect(BuildRunCommand.progressLine(log: log, elapsed: 40.7) == "build-run: 40 s, 2 steps, now SwiftCompile ProbeTVVideo.swift")
         #expect(BuildRunCommand.progressLine(log: Data("Prepare packages\n".utf8), elapsed: 10) == "build-run: 10 s, 0 steps, xcodebuild preparing")
+        // A line that ends with a build file still names the source.
+        let driver = Data("SwiftCompile normal arm64 /work/A.swift /work/Build/A-dependencies-1.json\n".utf8)
+        #expect(BuildRunCommand.progressLine(log: driver, elapsed: 3) == "build-run: 3 s, 1 steps, now SwiftCompile A.swift")
     }
 
     @Test func theDeadlineIsCheckedBeforeAnyBuildAndReachesMCP() throws {

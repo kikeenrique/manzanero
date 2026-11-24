@@ -2090,6 +2090,24 @@ The selector, duplicate-match rule and press guards in `DirectAccessibilityActio
 | `remote left --report-focus` | `focus.label` Settings |
 | `remote swipe-right --report-focus` | `focus.label` Probe TV; a screenshot afterwards showed Probe TV focused |
 
+### Phone session of 2026-11-24: handles, the cost of a tree, symbols and VoiceOver
+
+**2026-11-24, morning**, the iPhone 13 mini (iOS 27.2.1) on its cable, display on and unlocked, the probe in front; every accessibility command ran on the tool's own tunnel (`serviceDirectory: own-tunnel`), on the human owner's word to go on with the owed phone checks.
+
+| Step | Observed |
+| --- | --- |
+| Two `tree` reads | The same 14 handles in both |
+| `press --handle <reset button>` | Accepted, `by: handle`; the probe's session changed from `2b29b2dddced17f5` to `8e7c92be603a45a8` |
+| `launch --relaunch`, then `press --handle` with the old handle | Refused, `ambiguous-or-missing-target`, `inputSent: none` |
+| `wait --handle <new> --until visible`, `wait --handle <old> --until gone` | `condition-met`, `visible` and `absent` |
+| `set-value --handle <text field> "handle ok"` | Acknowledged; `probe.text.value` read `"text":"handle ok"` |
+| Three `tree` reads timed, with stage timings added for the run and removed after | 2.6 to 3.8 s each: opening (identity query, tunnel, accessibility connection) 0.43 to 0.49 s, the subscription 0.30 to 0.52 s, the snapshot 0.09 to 0.35 s, the unsubscription under 0.01 s, and about 1 to 1.5 s for the rest of the work, the two display queries and the foreground checks; one `devicectl` query 0.2 to 0.25 s |
+| `build-run … --configuration Release --build-timeout 900` | Built, installed and launched the probe; one progress line, "build-run: 10 s, 9 steps, now SwiftCompile ProbeApp-dependencies-1.json", which named a dependency file instead of the source (fixed the same day: a source file's name is preferred) |
+| `console … -- -probeCrash trap`, then `last-crash --symbols <the build's .dSYM>` | The first read found nothing: the device wrote the report a few seconds later. The second found it (`SIGTRAP`), matched the dSYM's UUID to the `ProbeApp` image, resolved 2 frames, `symbolicated: true`. The report itself already named both frames (a closure and a thunk), since the Release build is not stripped, and `atos` gave no file or line for them (`<compiler-generated>:0`): on this crash `--symbols` added nothing a person could use. A stripped build (an archive) is where it would |
+| `settings --voiceover on`, `tree`, `settings --voiceover off`, `tree` | Each answered success; the Home Screen's tree (the probe had crashed) read 166 nodes with VoiceOver on and 158 after. A first switch-on left VoiceOver's "Gestos de VoiceOver" explanation on the screen, dismissed with `press --label Aceptar`, and then its "VoiceOver quiere enviarte notificaciones" permission prompt, left for the human owner to decide |
+
+So for durable sessions a kept accessibility session would spare a tree the connection and the subscription, about 0.5 to 0.7 s of 2.6 to 3.8 s, a fifth.
+
 ### A Face ID prompt on a simulator
 
 **2026-11-24**, `manzanero-research-phone` (iOS 27.2), the iOS probe with its new [biometric button](probe-app.md#biometric-probe). Face ID was disabled on the simulator at the start (`settings --biometrics state`).
