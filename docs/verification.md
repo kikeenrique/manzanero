@@ -2207,7 +2207,17 @@ Later the same night, still unfolded and inside the probe:
 | `record … 5 --backend coredevice`, `frames --count 1`, before a fix | Both failed at the decoder: "coded dimensions 1408x2016 differ from negotiated 1408x2048". The kept stream (`MANZANERO_KEEP_STREAM=1`) decoded with ffmpeg at 1408 × 2016: the inner display, sideways, fitted into the middle of the frame with black bands above and below; 1408 × 2048 is the outer display's size, padded. Fixed: a coded size up to a sixteenth smaller than the negotiated one is accepted |
 | The same after the fix | `record`: 5.0 s, 80 frames, 1408 × 2016, no restart. `frames`: one picture, not black or flat. Both show the inner display sideways at about half its resolution, as the device sends it (deleted after reading) |
 
-What has not run on the device: folded, a fold or unfold by hand during a command, the probe in landscape with `-ProbeAllowRotation YES`, `hold` (not built for a device with two touchscreens; the bridge refuses it), and the other command families.
+Folded by hand, the probe in front on the outer display, with the fixes in:
+
+| Step | Observed |
+| --- | --- |
+| `devicectl device info displays`, `readiness` | `LCD` `activeOn`, `LCD-1` off; `displayPower: on` |
+| `tree` | The probe, display 1, 466 × 678 points, `rot0`, on the tool's own tunnel |
+| `press --id probe.touch.reset`, `test:probe-touch --no-pull` | 14 of 14 actions and 29 of 29 contacts delivered, worst start error 0.0004, through the outer display's own touchscreen (the device has two, so touch names one) |
+| `type 'Plegado 42'` | Exact |
+| `screenshot`, `frames --count 1` | Both 1398 × 2034, upright, the probe whole, not black (deleted after reading); the stream negotiated 1408 × 2048 and the frame was cropped to the display |
+
+What has not run on the device: a fold or unfold by hand during a command, the probe in landscape with `-ProbeAllowRotation YES`, `hold` (not built for a device with two touchscreens; the bridge refuses it), and the other command families.
 
 ### First run on a physical iPad: the iPad mini (6th generation)
 
