@@ -14,7 +14,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **not run** | Built, never tried there |
 | — | Does not apply |
 
-"Device" is real hardware and "simulator" is Xcode's simulator. The hardware used so far is one iPhone 13 mini (iOS 27.2.1), one Apple TV 4K (tvOS 27.2), and, inside the project's probes only, one iPad mini (6th generation) and one Apple Watch Ultra (watchOS 27.2.1). No iPhone Duo hardware has been used, so it has a simulator column only.
+"Device" is real hardware and "simulator" is Xcode's simulator. The hardware used so far is one iPhone 13 mini (iOS 27.2.1), one Apple TV 4K (tvOS 27.2), and, inside the project's probes only, one iPad mini (6th generation) and one Apple Watch Ultra (watchOS 27.2.1). One iPhone Duo (iOS 27.2.1) ran on 2026-11-25, unfolded and inside the probe only: `readiness`, `tree`, `press`, `tap` and `screenshot` work on its inner display after fixes; it has no device column yet, as the rest has not run.
 
 ## Commands by platform
 
@@ -65,7 +65,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **A release**: a lot changed since v0.1.0-beta.3 (new commands and options, the watch's crown, typing, buttons and video, fixes for an iPad's and a watch's panels); one command from the human owner's terminal.
-2. **An iPhone Duo**: paired, never used; fold, hinge and displays ran on a simulator only.
+2. **An iPhone Duo**: first run on 2026-11-25, unfolded, inside the probe: readiness, a tree, a press, a tap and a screenshot work on the inner display. Left: folded, several contacts and gestures, typing, recording, the rest of the commands, and a hold (not built for two touchscreens).
 3. **A second iPhone**: an iPhone 17 Pro Max is paired; touch timing was measured on the iPhone 13 mini only.
 4. **`logs` on an Apple Watch**: the watch's log relay sends nothing; the cause is unknown.
 5. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
@@ -74,6 +74,8 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 
 ## Done on 2026-11-25
+
+- **The first physical iPhone Duo**, unfolded, inside the probe: its displays match the simulator's (the outer one primary and off, the interface on the inner one); readiness, trees, presses, taps and screenshots now follow the inner display, after fixes to each.
 
 - **The physical Apple Watch's remaining commands**, inside the probe: `crown` scrolls a list one row per event; `button side` and `button action` built for a real watch and run there; `screenshot`; `record` and `frames` after H.264 was added (the watch's video is H.264 with its parameters in a sample description, not HEVC); `console`, `last-crash`, `reports`, `files`, `batch`, `handoff --until` and MCP. `logs` receives nothing from the watch, and the watch refuses `settings`.
 

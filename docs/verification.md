@@ -2182,6 +2182,23 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 
 So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
 
+### First run on a physical iPhone Duo
+
+**2026-11-25, around 01:00**, the iPhone Duo paired with the Mac (`iPhone19,4`, iOS 27.2.1, build `24B91034`) over the local network, unfolded, with the human owner's word for each step. The device has the iPad mini's privacy restrictions, so everything ran inside the probe app (`build-run` installed it), every capture was deleted after reading, and nothing else on it is recorded here. `xcodebuild` logged that it could not parse the build string `24B91034`; the build, signing and install went through.
+
+| Step | Observed |
+| --- | --- |
+| `devicectl device info displays` | Two integrated displays, as on the Duo simulator: the outer `LCD` (id 1, `primary: true`, 1398 × 2034 pixels, 466 × 678 points at 3×, `backlightState: off`) and the inner `LCD-1` (id 2, `primary: false`, `activeOn`, bounds 2007 × 2853, `nativeSize` 1878 × 2670, `nativeOrientation: rot0`, `currentOrientation: rot90`); the device `landscapeRight`. Each has its own `uniqueId`. Both panels are native portrait: no sideways panel, unlike the iPad and the watch |
+| `readiness`, before a fix | `displayPower: off`: it read the primary display only. Fixed the same night: every physical display read takes the display the interface is on (`DeviceUIReadiness.interfaceDisplay`, the simulator's rule); `readiness` then said `on` |
+| `tree`, twice, before a fix | The application selected by the centre hit test was a system process of the outer display, not the probe, both times (the probe was in front): physical hit tests always named display 0. Both trees were deleted unread. Fixed: hit tests carry the inner display's ID when the interface is there (`AccessibilityDisplay.hitDisplayId`) |
+| `tree` after the fix | The probe, on the tool's own tunnel over the network (`ownTunnelLink: network`); display id 2, 669 × 951 points, `rot0`: by then the inner display read upright, the probe being portrait only, and it filled the display with no letterbox |
+| `press --id probe.touch.reset` | Accepted |
+| `tap 0.5 0.5`, before a fix | Dispatched, and the probe counted no touch: Indigo digitizer samples go to the primary display, as on the simulator |
+| `screenshot`, before a fix | 1398 × 2034 and black (`blankImage: true`): `devicectl` captures the primary display unless given `--display-unique-id`. Fixed: a physical screenshot names the interface display when it is not the primary one; then 2007 × 2853, the probe whole and upright |
+| `tap 0.5 0.5` after the fix | `route: universal-hid`, six reports to the inner display's own touchscreen (`CoreDevice touchscreen(<unique ID>)`, surface 258): the probe recorded one contact, began and ended at (0.50025, 0.50018), 0.12 s |
+
+What has not run on the device: folded, a fold or unfold by hand during a command, several contacts, gestures, `hold` (not built for a device with two touchscreens; the bridge refuses it), typing, recording and `frames` (whose display is now the interface display; the stream itself was not tried), and every other command family.
+
 ### First run on a physical iPad: the iPad mini (6th generation)
 
 **2026-11-24, evening**, an iPad mini (6th generation) (iPadOS 27.2.1), on its cable, with the human owner's word for each step: the device has top privacy restrictions, so everything ran inside the probe app, every capture was deleted after reading, and nothing else on it is recorded here.
