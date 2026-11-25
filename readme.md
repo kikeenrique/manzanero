@@ -6,7 +6,7 @@ The project is in beta.
 
 Physical iPhone control is the current priority, and reliable unattended testing is still unfinished. iPhone, iPad, Apple Watch, Apple TV and iPhone Duo are in scope, with support varying by device and operation.
 
-Most live evidence comes from one iPhone 13 mini; one Apple TV 4K runs almost every command too. One iPad and one Apple Watch have run inside the project's own probe apps (the watch every command family); the iPhone Duo has run on a simulator only. See [status at a glance](docs/status.md) for one table of what works where, [feature status](docs/feature-status.md) before relying on another device or operation, and the [roadmap](docs/roadmap.md) for what is achieved and what is pending.
+Most live evidence comes from one iPhone 13 mini; one Apple TV 4K runs almost every command too. One iPad, one Apple Watch and one iPhone Duo have run inside the project's own probe apps (the watch and the Duo every command family that stays in the probe; the Duo folded and unfolded). See [status at a glance](docs/status.md) for one table of what works where, [feature status](docs/feature-status.md) before relying on another device or operation, and the [roadmap](docs/roadmap.md) for what is achieved and what is pending.
 
 <img src="docs/assets/manzanero-clay.png" alt="A cheerful orchard worker biting an apple beside a tree growing a phone, a foldable iPhone Duo, a tablet, a watch and an Apple TV with its remote." width="560">
 
@@ -77,6 +77,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | The same on a booted simulator | [Simulator input and accessibility](docs/simulator-input.md) |
 | Apple TV, Apple Watch and iPhone Duo simulators: displays, fold, remote, Digital Crown, typing on a watch's on-screen keyboard | [Other families](docs/other-families.md) |
 | A physical Apple Watch: Digital Crown, side and Action buttons, typing by the on-screen keys, and recording its H.264 screen, checked inside the project's watchOS probe | [Other families](docs/other-families.md#digital-crown-and-side-button-apple-watch), [watchOS probe](docs/probe-app.md#watchos-probe) |
+| A physical iPhone Duo: every command follows the display in use, folded or unfolded, with touch on each display's own touchscreen | [Other families](docs/other-families.md#a-physical-iphone-duo) |
 | A new simulator of a named type and runtime | `manzanero create-simulator --help` |
 | A physical Apple TV: trees with focus, the Siri Remote and its swipes, recording, `remote sleep` and `remote wake` | [A physical Apple TV](docs/other-families.md#a-physical-apple-tv), [sleep and wake](docs/other-families.md#sleep-and-wake) |
 | Seeking in Apple's player on an Apple TV: arrows, swipes and `scrub --to <time>` | [Seeking](docs/other-families.md#seeking-in-apples-player) |

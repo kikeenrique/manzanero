@@ -45,13 +45,13 @@ Before touch, the implementation:
 
 1. Validates all coordinates and timing.
 2. Resolves fresh CoreDevice identity and Developer Mode.
-3. Requires one awake integrated primary display with bounded, typed geometry and known orientation.
+3. Requires one awake integrated display with bounded, typed geometry and known orientation: the display the interface is on, which is the primary one except on an unfolded iPhone Duo, whose interface is on the inner display while the outer one stays primary and off (`DeviceUIReadiness.interfaceDisplay`).
 4. Rechecks display metadata before dispatch and discovers the relevant native service/surface.
 5. Sends one bounded schedule, then attempts release and a completion barrier.
 
-An off display produces wake/unlock guidance; unknown power or invalid geometry is reported separately. These checks do not prove current UI unlock. Current-interface coordinates are rotated into portrait digitizer space. Nonzero native display orientation also requires agreeing device-orientation metadata. Rotation during an action is not monitored.
+An off display produces wake/unlock guidance; unknown power or invalid geometry is reported separately. These checks do not prove current UI unlock. Current-interface coordinates are rotated into portrait digitizer space. Nonzero native display orientation also requires agreeing device-orientation metadata. Rotation during an action is not monitored, but the display is read once more after a touch or gesture: the receipt's `displayAfter` is `unchanged`, `changed` (another display, turn or size, or the display off; with `displayAfterNote`) or `unknown`. An iPhone Duo folded during a long press had its contact cancelled by iOS after a second ([record](verification.md#first-run-on-a-physical-iphone-duo)).
 
-Single-contact touch and two-contact movement use Indigo digitizer events. Timed schedules, simultaneous multi-taps and three-to-five-path movement use Universal HID. See [multitouch](multitouch.md) and [complete-state schedules](gesture-sequences.md) for their contracts.
+Single-contact touch and two-contact movement use Indigo digitizer events. Timed schedules, simultaneous multi-taps and three-to-five-path movement use Universal HID. See [multitouch](multitouch.md) and [complete-state schedules](gesture-sequences.md) for their contracts. On a device with more than one integrated display (an iPhone Duo) Indigo events reach only the primary display, so every touch, gesture and batch `hold` goes as Universal HID reports to the interface display's own touchscreen, `CoreDevice touchscreen(<uniqueId>)` (`DirectTouchDisplay.touchscreen`), with `route: universal-hid` in the receipt ([other families](other-families.md#a-physical-iphone-duo)).
 
 ### Long-press
 

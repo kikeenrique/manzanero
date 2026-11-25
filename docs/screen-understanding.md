@@ -10,7 +10,7 @@ manzanero screen auto --simulator <UUID>
 manzanero ocr tmp/existing.png
 ```
 
-Simulator screen inspection requires an explicit UUID. Physical capture uses Xcode and its preparation checks. The hierarchy comes from native Apple AX on both platforms: over the device's accessibility session on a phone, and through CoreSimulator on a simulator ([simulator input](simulator-input.md)). On a simulator with several displays (iPhone Duo), `--display` chooses the captured display; the tree describes only the display the interface is on, so with another display `auto` uses OCR and `tree` is refused before capture ([other families](other-families.md#displays-iphone-duo)).
+Simulator screen inspection requires an explicit UUID. Physical capture uses Xcode and its preparation checks. The hierarchy comes from native Apple AX on both platforms: over the device's accessibility session on a phone, and through CoreSimulator on a simulator ([simulator input](simulator-input.md)). On a simulator with several displays (iPhone Duo), `--display` chooses the captured display; the tree describes only the display the interface is on, so with another display `auto` uses OCR and `tree` is refused before capture ([other families](other-families.md#displays-iphone-duo)). A physical iPhone Duo takes no `--display`: its screenshot is of the display the interface is on, which unfolded is the inner one, named to `devicectl` by its unique ID ([physical Duo](other-families.md#a-physical-iphone-duo)).
 
 ## Choosing a method
 

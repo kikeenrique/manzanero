@@ -1,6 +1,6 @@
 # Apple TV, Apple Watch and iPhone Duo
 
-The simulator commands in [simulator input](simulator-input.md) also run on tvOS, watchOS and the foldable iPhone Duo; [the research](other-families-research.md) recorded what worked unchanged. One physical device of these families has been driven, [an Apple TV 4K](#a-physical-apple-tv); the watch and the Duo are simulators only. This page covers what was added for those families and what each addition was checked against. Evidence is in [verification](verification.md#other-simulator-families).
+The simulator commands in [simulator input](simulator-input.md) also run on tvOS, watchOS and the foldable iPhone Duo; [the research](other-families-research.md) recorded what worked unchanged. Physical devices of these families have been driven too: [an Apple TV 4K](#a-physical-apple-tv) fully, and an Apple Watch and [an iPhone Duo](#a-physical-iphone-duo) inside the project's probes. This page covers what was added for those families and what each addition was checked against. Evidence is in [verification](verification.md#other-simulator-families).
 
 ## Displays (iPhone Duo)
 
@@ -63,6 +63,18 @@ Not working or not tried:
 - The hit-test fallback for a simulator that reports no frontmost application was not run on `LCD-1`. Only `rot90` was seen; whether `LCD-1` turns to other orientations, and whether the mapping holds then, is unknown.
 
 The [touch runner](probe-touch-runner.md)'s built-in plan later ran once on `LCD-1`, with `gesture` and a three-path `multi-drag` among its 14 actions: all 14 and 29 of 29 contacts were delivered, one to five at once ([record](verification.md#the-duos-inner-display)). Four- and five-path `multi-drag` ran afterwards, and every contact inside the app's window arrived.
+
+### A physical iPhone Duo
+
+One iPhone Duo (iOS 27.2.1) ran on the night of 2026-11-25, inside the probe app only, by the device's privacy rule ([record](verification.md#first-run-on-a-physical-iphone-duo)). `devicectl device info displays` gives the same two integrated displays as the simulator, both panels native portrait: the outer `LCD` (id 1, primary, 1398 × 2034 pixels) and the inner `LCD-1` (id 2, 2007 × 2853, `rot90` when held in landscape), each with its own `uniqueId`. Unfolded, `LCD` stays primary and off. What a physical command does with that:
+
+- **Every display read takes the interface display** (`DeviceUIReadiness.interfaceDisplay`, the simulator's rule): the primary display, unless it is off and exactly one other integrated display with a framebuffer is on. `readiness`, accessibility, touch, captures and `wake`'s checks follow it, folded or unfolded, with no option.
+- **Hit tests name the inner display** (`AccessibilityDisplay.hitDisplayId`, its `devicectl` id; 0 for a primary display): with 0, the centre hit was answered by a system process of the outer display.
+- **Touch goes to the display's own touchscreen.** On a device with more than one integrated display, taps, gestures and a batch `hold` are Universal HID reports to `CoreDevice touchscreen(<uniqueId>)` (`DirectTouchDisplay.touchscreen`, the bridge's `touchscreen` argument); Indigo samples reach only the primary display. The receipt says `route: universal-hid` and the surface. The touch plan delivered 29 of 29 contacts on each display.
+- **A screenshot names the inner display** to `devicectl` (`--display-unique-id`); without it the outer display, off, came back black.
+- **The inner display's video** comes sideways, fitted into a frame of the outer display's negotiated size (1408 × 2048 negotiated, 1408 × 2016 coded): about half the inner display's resolution. The decoder accepts a coded picture up to a sixteenth smaller than negotiated. Folded, recording and `frames` are upright at the outer display's full size.
+- **A portrait-only app turns the inner display to portrait** (`rot0`) when the device is held in landscape, unlike the simulator, which letterboxes it; turned again, the app is letterboxed. Launch the probe with `-ProbeAllowRotation YES` for a landscape interface.
+- **A fold during input** cancels the contact in iOS. Touch receipts read the display once more after the input and say `displayAfter: changed` with a note; a `wait` stops at its display check.
 
 ## Siri Remote (Apple TV)
 

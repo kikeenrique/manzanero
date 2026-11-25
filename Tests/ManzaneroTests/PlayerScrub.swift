@@ -57,7 +57,7 @@ struct PlayerScrubTests {
         }
     }
 
-    static let simulator = Target(platform: .simulator, identifier: "8BF38603-7C3C-4FB3-BEB3-ABC9ED7C115E")
+    static let simulator = Target(platform: .simulator, identifier: "AAAAAAAA-0000-4000-8000-0000000000A1")
 
     static func scrub(_ player: Player, to text: String, tolerance: String? = nil,
                       isolation: isolated (any Actor)? = #isolation) async throws -> [String: Any] {
