@@ -678,7 +678,7 @@ struct AppDiagnosticsServiceTests {
         #expect((simConsole["arguments"] as? [String])?.prefix(3) == ["simctl", "launch", "--terminate-running-process"])
         let crash = try object(await service().run(["last-crash", "--process", "Example", "--device", "phone"], dryRun: true).data)
         #expect((crash["listing"] as? [String: Any])?["arguments"] as? [String] == ["devicectl", "device", "info", "files", "--domain-type", "systemCrashLogs",
-            "--subdirectory", ".", "--no-recurse", "--device", "phone", "--timeout", "60", "--json-output", "-"])
+            "--subdirectory", ".", "--no-recurse", "--device", "phone", "--timeout", "60", "--json-output", "-", "--quiet"])
     }
 
     @Test func readOnlyClassification() throws {

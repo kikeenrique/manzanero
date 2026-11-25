@@ -53,7 +53,15 @@ struct LastCrashQuery: Sendable, Equatable {
                   since: try options.date("--since"), download: options.values["--download"], symbols: options.values["--symbols"])
     }
 
-    var listingPlan: DeviceCommand? { try? DeviceCommand.plan(physical: true, device: device, operation: "reports", operands: ["."]) }
+    /// The device's report listing, read for candidates only. `--quiet`:
+    /// without it devicectl also writes the whole listing as a table to
+    /// stderr, which the runner passes on, so a `last-crash --bundle` printed
+    /// every report's name on an iPhone Duo on 2026-11-25.
+    var listingPlan: DeviceCommand? {
+        (try? DeviceCommand.plan(physical: true, device: device, operation: "reports", operands: ["."])).map {
+            DeviceCommand(arguments: $0.arguments.contains("--quiet") ? $0.arguments : $0.arguments + ["--quiet"], jsonOutput: $0.jsonOutput)
+        }
+    }
 
     func plan() -> [String: Any] {
         let sinceValue: Any = since.map { DiagnosticTime.iso8601($0) } ?? NSNull()
@@ -301,7 +309,9 @@ enum CrashReportSelection {
         for name in names.prefix(LastCrashQuery.maxDownloads) {
             considered += 1
             let local = directory.appendingPathComponent(name)
-            let plan = try DeviceCommand.plan(physical: true, device: query.device, operation: "report", operands: [name, local.path])
+            var plan = try DeviceCommand.plan(physical: true, device: query.device, operation: "report", operands: [name, local.path])
+            // Quiet, as the listing: a candidate may be another app's report.
+            if !plan.arguments.contains("--quiet") { plan.arguments.append("--quiet") }
             _ = try run(plan)
             guard let data = try? Data(contentsOf: local), let header = IPSReport.header(data),
                   IPSReport.bugType(header) == LastCrashQuery.crashBugType,
