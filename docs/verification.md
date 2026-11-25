@@ -2226,7 +2226,19 @@ Then unfolded again, in landscape, the probe relaunched with `-ProbeAllowRotatio
 | `screenshot` | 2853 × 2007, landscape, upright, the probe whole (deleted after reading) |
 | `wait --id probe.touch.reset --until gone --timeout 60`, the device folded by hand 10 s in | After 9 polls (16 s) the wait stopped with "display geometry/orientation changed during the wait; the condition is not reported", no input sent, the session closed and the tunnel released. Its last poll, after the fold, had found the element absent in process 37: without the display check it would have reported `gone` |
 
-What has not run on the device: `hold` (not built for a device with two touchscreens; the bridge refuses it), a fold during an input command, and the other command families.
+The other families, folded, inside the probe:
+
+| Step | Observed |
+| --- | --- |
+| `console` the probe, 5 s | Its stdout lines arrived; the launch ended at its bound with signal 2, which closes the probe: a command meant for the probe that follows needs a `launch` first |
+| `logs --bundle` the probe, 15 s, `debug`, with two presses of `probe.log.emit` | 370 entries, all the probe's, its two emitted lines among them, on the tool's own tunnel (`ownTunnelLink: network`), `stopReason: duration`. Unlike the watch's relay, the Duo's sends |
+| `last-crash --bundle` the probe | Printed the device's whole crash-report directory listing (54 entries) before its answer: it does not keep to the bundle while it lists. Nothing of it is recorded; on a device under a privacy rule it is not to be run |
+| `files list` of the probe's container | Its four directories |
+| `batch`: press, `tap 0.5 0.3`, `wait` | Three of three steps; the tap recorded at (0.500, 0.300) |
+| `handoff --until visible --id probe.touch.reset` | Ended by itself, `status: observed`, 5 s |
+| `test:mcp-press` (a real MCP session) on `probe.touch.reset` | Passed |
+
+What has not run on the device: `hold` (not built for a device with two touchscreens; the bridge refuses it), a fold during an input command, `apps`, `reports`, `settings` and `last-crash` beyond the listing above (each reads beyond the probe).
 
 ### First run on a physical iPad: the iPad mini (6th generation)
 

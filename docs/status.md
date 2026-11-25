@@ -65,7 +65,7 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **A release**: a lot changed since v0.1.0-beta.3 (new commands and options, the watch's crown, typing, buttons and video, fixes for an iPad's and a watch's panels); one command from the human owner's terminal.
-2. **An iPhone Duo**: first run on 2026-11-25, unfolded, inside the probe: readiness, trees, presses, the touch plan, typing, screenshots and recording work on the inner display, and folded on the outer one; landscape works, and a fold during a `wait` stops it safely. Left: the rest of the commands, and a hold (not built for two touchscreens).
+2. **An iPhone Duo**: first run on 2026-11-25, unfolded, inside the probe: readiness, trees, presses, the touch plan, typing, screenshots and recording work on the inner display, and folded on the outer one; landscape works, a fold during a `wait` stops it safely, and `console`, `logs`, `files`, `batch`, `handoff` and MCP work in the probe. Left: what reads beyond the probe (`apps`, `reports`, `settings`, `last-crash`, which listed every report), and a hold (not built for two touchscreens).
 3. **A second iPhone**: an iPhone 17 Pro Max is paired; touch timing was measured on the iPhone 13 mini only.
 4. **`logs` on an Apple Watch**: the watch's log relay sends nothing; the cause is unknown.
 5. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
