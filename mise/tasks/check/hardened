@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+#MISE dir = "{{ config_root }}"
+#MISE description = "Run a manzanero binary under the hardened runtime, as a release is signed: --version and doctor, which loads every private framework and class the commands use; optionally a simulator tap, tree and recording"
+#USAGE flag "--binary <path>" help="The binary to check (default: .build/debug/manzanero, signed ad hoc with the hardened runtime into a copy)"
+#USAGE flag "--signed" help="The binary is already signed with the hardened runtime (the release's): check it as it is"
+#USAGE flag "--simulator <uuid>" help="Also open Settings, then a tree, a tap and a two-second recording on this booted simulator (input is sent to it)"
+# A release is signed with the Developer ID and the hardened runtime and no
+# entitlements (release:notarize); development builds are signed ad hoc
+# without it. The hardened runtime decides what may be loaded at run time,
+# and the tool loads Apple's private frameworks, so a refusal would show only
+# in the signed binary. doctor opens every framework in its interface table
+# with the same flags as the operations (AppleInterfaceAvailability.m), and a
+# unit test keeps that table complete (InterfaceTableCoverageTests). CI runs
+# this on every commit; release:notarize runs it on the signed binary before
+# it publishes (docs/releasing.md#the-hardened-runtime).
+set -euo pipefail
+
+binary="${usage_binary:-.build/debug/manzanero}"
+[ -x "$binary" ] || { echo "No executable at $binary; run mise run build first." >&2; exit 1; }
+expected=$(sed -n 's/^let manzaneroVersion = "\(.*\)"$/\1/p' Sources/Manzanero/Version.swift)
+work=$(mktemp -d tmp/hardened.XXXXXX)
+trap 'rm -rf "$work"' EXIT
+
+if [ "${usage_signed:-false}" != "true" ]; then
+  cp "$binary" "$work/manzanero"
+  binary="$work/manzanero"
+  codesign --force --options runtime --sign - "$binary" 2>/dev/null
+fi
+codesign --verify --strict "$binary"
+# Read whole before matching: grep -q in a pipe can close it early, and with
+# pipefail codesign's broken pipe would fail the check.
+details=$(codesign -d --verbose=2 "$binary" 2>&1)
+grep -Eq '^CodeDirectory .*flags=0x[0-9a-f]*\(.*runtime' <<< "$details" \
+  || { echo "$binary is not signed with the hardened runtime." >&2; exit 1; }
+
+version=$("$binary" --version)
+version="${version#manzanero }"
+[ "$version" = "$expected" ] || { echo "$binary reports version $version; Version.swift says $expected." >&2; exit 1; }
+
+"$binary" doctor > "$work/doctor.json" 2> "$work/doctor.err" || { echo "doctor failed under the hardened runtime:" >&2; cat "$work/doctor.json" "$work/doctor.err" >&2; exit 1; }
+python3 -I - "$work/doctor.json" <<'EOF'
+import json, sys
+entries = json.load(open(sys.argv[1]))
+interfaces = [e for e in entries if e.get("kind") == "private-interface"]
+failed = [e for e in interfaces if e.get("missing") or e.get("status") not in ("available",)]
+if not interfaces:
+    sys.exit("doctor reported no private interfaces.")
+for entry in failed:
+    print(f"{entry.get('name')}: {entry.get('status')}, missing {entry.get('missing')}", file=sys.stderr)
+if failed:
+    sys.exit(f"{len(failed)} of {len(interfaces)} private-interface capabilities did not load under the hardened runtime.")
+print(f"doctor: {len(interfaces)} private-interface capabilities loaded under the hardened runtime.")
+EOF
+
+if [ -n "${usage_simulator:-}" ]; then
+  simulator="$usage_simulator"
+  # Settings, which every simulator has: a Home Screen's tree is too large to
+  # read (the same with an unsigned build), so it would test nothing here.
+  "$binary" launch com.apple.Preferences --relaunch --simulator "$simulator" > "$work/launch.json"
+  sleep 2
+  "$binary" tree --simulator "$simulator" > "$work/tree.json"
+  "$binary" tap 0.5 0.02 --simulator "$simulator" > "$work/tap.json"
+  "$binary" record "$work/smoke.mp4" 2 --simulator "$simulator" > "$work/record.json"
+  echo "simulator: tree, tap and a two-second recording ran under the hardened runtime."
+fi
+echo "Hardened runtime check passed for $version."

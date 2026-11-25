@@ -2182,6 +2182,19 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 
 So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
 
+### The hardened-runtime check
+
+**2026-11-25, night**, on the development Mac (macOS 27.2.1, Xcode 27.2), the new `check:hardened` task ([releasing](releasing.md#the-hardened-runtime)).
+
+| Step | Observed |
+| --- | --- |
+| `check:hardened` on the debug build (a copy signed ad hoc with `--options runtime`, `flags=0x10002(adhoc,runtime)`) | `--version` matched `Version.swift`; `doctor` loaded all 13 private-interface capabilities |
+| The same with `--simulator` on `manzanero-research-phone`, three runs | Settings opened, then a `tree`, a `tap` and a two-second `record`, each time. On the Home Screen the `tree` had been refused (error 8, and error 18 with an unsigned build too), so the smoke test opens Settings first |
+| `--signed` on a binary signed without the hardened runtime | Refused: "is not signed with the hardened runtime" |
+| The table with AVConference's entry taken out, then restored | `InterfaceTableCoverageTests` failed on it; and `check:hardened` on the build made from it reported `native-recording` missing (1 of 13 capabilities) and failed |
+
+A first version of the task failed now and then on a correct signature: `grep -q` in a pipe closed it early and, with `pipefail`, `codesign`'s broken pipe failed the check; the signature is now read whole before it is matched. The Developer ID path (`release:notarize` running `check:hardened --signed` on the notarized binary) has not run yet; it runs in the next release.
+
 ### The Duo simulator's inner display in other orientations
 
 **2026-11-25, evening**, a second simulator of the Duo runtime made with `create-simulator` (deleted afterwards: the project's `manzanero-research-duo` already existed), unfolded, the iOS probe installed by `build-run`, shut down afterwards.

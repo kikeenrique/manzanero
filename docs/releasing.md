@@ -41,7 +41,7 @@ The workflow selects Xcode 27.2 (`/Applications/Xcode_27.2.app`) on the `xcode-2
 
 ## CI and caching
 
-`.github/workflows/ci.yml` builds and tests pushes to `main` and pull requests, and validates mise tasks. A newer run for the same ref cancels an older CI run. Release runs for the same ref are serialized without cancellation to avoid interrupting publication.
+`.github/workflows/ci.yml` builds and tests pushes to `main` and pull requests, validates mise tasks, and runs the build under the hardened runtime ([the hardened runtime](#the-hardened-runtime)). A newer run for the same ref cancels an older CI run. Release runs for the same ref are serialized without cancellation to avoid interrupting publication.
 
 Both workflows use the same mise tasks and cache these generated paths:
 
@@ -74,7 +74,7 @@ It runs, in order, and stops at the first failure; running it again continues fr
 1. `check:secrets` and `check:identifiers` on everything since the previous release tag; a finding stops the release, and nothing is written;
 2. sets `Sources/Manzanero/Version.swift` to the version and commits it ("Set the version to <version>") unless it is set already, creates the tag (or reuses it at HEAD; a tag is never moved), and pushes `main` and the tag together in one atomic push;
 3. waits for the release workflow the tag started (`release:ci` in CI) and its draft prerelease; when no run comes within three minutes, runs `release:ci` here; a release that exists already is not waited for;
-4. `release:notarize`: Developer ID signing, notarization and publication ([notarization](#notarization)).
+4. `release:notarize`: Developer ID signing, notarization, the hardened-runtime check of the signed binary, and publication ([notarization](#notarization), [the hardened runtime](#the-hardened-runtime)).
 
 The Homebrew tap, [kikeenrique/homebrew-tap](https://github.com/kikeenrique/homebrew-tap), is another repository and follows a published release by its own means; no tap code lives here.
 
@@ -110,6 +110,16 @@ One-time setup:
 
 A bare executable cannot hold a stapled ticket (Apple: "it's not currently possible to staple tickets to them"), so `syspolicy_check distribution`, a local check of app bundles that demands one, always fails it; Gatekeeper fetches the ticket online the first time a downloaded copy runs. Through Homebrew the binary is not quarantined either way.
 
-After a change to what the tool loads at run time, check the signed binary on devices before the next release, as the trial did: the hardened runtime may refuse something the tool loads at run time (Apple's private frameworks). `mise run package`, then `mise run release:notarize <version> --local --no-publish` signs and notarizes that archive under `tmp/dist/<version>/` and changes no release; run `doctor`, a simulator tap and tree, and the phone's input, accessibility and recording with it.
+## The hardened runtime
+
+A release is signed with the Developer ID and the hardened runtime and asks for no entitlements; development builds are signed ad hoc without it. The hardened runtime decides what a program may load at run time, and the tool loads Apple's private frameworks, so a refusal would show only in the signed binary. What it can refuse is the loading; a call that loaded behaves the same, and the device does not see how the Mac's binary is signed. Three checks cover it, with no device and no step by hand:
+
+- **Every commit**, in CI: `mise run check:hardened` signs a copy of the build ad hoc with the hardened runtime (the same run-time restrictions, another signer), checks that it reports the source's version, and runs `doctor`, which opens every framework, class and method in its interface table (`AppleInterfaceAvailability.m`) with the flags the commands use. A capability with anything missing fails the run.
+- **The table stays complete**: `InterfaceTableCoverageTests` fails when the bridge opens a framework (`dlopen`) that the table does not list with the same flags, so a new private path cannot skip the check.
+- **Before publication**: `release:notarize` runs `check:hardened --signed` on the signed, notarized binary itself, the exact one the release ships. A failure stops the release with the draft unpublished. With `MANZANERO_RELEASE_SIMULATOR` naming a booted simulator in `.env.local`, it also opens Settings there and runs a `tree`, a `tap` and a two-second `record`.
+
+`check:hardened --simulator <UUID>` runs that simulator smoke on any build. A simulator's Home Screen is not used for it: its tree is too large to read, with any build.
+
+What none of these covers is a device-side service that judged the Mac binary's signer; none has been seen, and the binary's entitlements are the same, none, in development and in a release. Device behaviour is checked by the runs recorded in [verification](verification.md), not by the release. The hardened-runtime check replaced, on 2026-11-25, a manual trial before a release (package, sign and notarize locally, then run the signed binary on devices), which tested another build than the published one and needed the version set by hand.
 
 The [public-readiness review](public-readiness.md) was completed before the first publication. See [tester setup](beta-testing.md) for the installation experience.

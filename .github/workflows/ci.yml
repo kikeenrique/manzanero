@@ -50,4 +50,5 @@ jobs:
             swift-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.key }}-debug-
       - run: mise tasks validate
       - run: mise run build
+      - run: mise run check:hardened
       - run: mise run test

@@ -157,6 +157,15 @@ if [ ! -f "$state/gatekeeper-ok" ]; then
   [ -f "$state/gatekeeper-ok" ] || stopped "Apple accepted $identifier, but Gatekeeper did not report it notarized within 60 minutes."
 fi
 
+# 3b. The signed binary itself, before anything is published: under the
+# hardened runtime it must report this version and load every private
+# framework and class doctor's table lists (check:hardened). With
+# MANZANERO_RELEASE_SIMULATOR naming a booted simulator (in .env.local), it
+# also opens Settings there and runs a tree, a tap and a recording. A failure
+# leaves the draft unpublished.
+mise run check:hardened --binary "$binary" --signed ${MANZANERO_RELEASE_SIMULATOR:+--simulator "$MANZANERO_RELEASE_SIMULATOR"} \
+  || stopped "The signed binary failed the hardened-runtime check; nothing was published."
+
 # 4. The archive again, made as the package task makes it, with its checksum,
 # then the same checks as any archive. Cheap, so every run does it.
 COPYFILE_DISABLE=1 tar -cf "$state/payload.tar" -C "$payload" .
