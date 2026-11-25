@@ -20,6 +20,23 @@ struct DirectTouchDisplay: Equatable {
     /// device with one display.
     private(set) var touchscreen: String? = nil
 
+    /// One display read after the input, for its receipt: `displayAfter`
+    /// `unchanged`, `changed` (another display, turn or size, or the
+    /// display off) or `unknown` (the read failed otherwise). An iPhone Duo
+    /// folded during a 10-second long press on 2026-11-25: iOS cancelled the
+    /// contact after a second, while the rest of the press went to the inner
+    /// display's touchscreen, by then off, and the receipt said nothing.
+    static func afterInput(_ before: DirectTouchDisplay, reread: () throws -> DirectTouchDisplay) -> [String: Any] {
+        let state: String
+        do { state = try reread() == before ? "unchanged" : "changed" }
+        catch let failure as CommandFailure where failure.code == .displayOff { state = "changed" }
+        catch { state = "unknown" }
+        guard state != "unchanged" else { return ["displayAfter": state] }
+        return ["displayAfter": state, "displayAfterNote": state == "changed"
+            ? "The display changed during or right after the input (folded, turned or switched off): the system may have cancelled the contact. Look before relying on the effect."
+            : "The display could not be read after the input."]
+    }
+
     /// An unrotated portrait screen described by another source, such as
     /// CoreSimulator; `portrait` then leaves coordinates unchanged.
     init(portraitPoints width: Double, height: Double, scale: Double) {
@@ -222,6 +239,7 @@ enum DirectPhysicalTouch {
             "contactCount": samples.first?.second == nil ? 1 : 2,
             "coordinateSpace": "normalized-current-interface", "displayRotationDegrees": display.rotation]
         result.merge(route) { _, new in new }
+        result.merge(DirectTouchDisplay.afterInput(display, reread: { try DirectTouchDisplay(query(displayPlan)) })) { _, new in new }
         if input.operation == "long-press" { result["holdSeconds"] = Double(input.operands[2]) }
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
     }

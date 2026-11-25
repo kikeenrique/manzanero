@@ -61,12 +61,13 @@ enum DirectPhysicalGesture {
         }
         try Task.checkCancellation()
         let surface = try send(Request(uuid: identity.uuid, version: identity.version, sequence: sequence, touchscreen: display.touchscreen))
-        return try JSONSerialization.data(withJSONObject: ["backend": "coredevice-direct", "operation": input.operation,
+        let after = DirectTouchDisplay.afterInput(display, reread: { try DirectTouchDisplay(query(plan)) })
+        return try JSONSerialization.data(withJSONObject: after.merging(["backend": "coredevice-direct", "operation": input.operation,
             "status": "dispatched", "verified": false, "releaseVerified": false, "device": input.device,
             "resolvedCoreDeviceUUID": identity.uuid, "surfaceID": surface,
             "frameCount": sequence.times.count, "contactSlots": sequence.contactCount,
             "durationMilliseconds": sequence.times.last ?? 0,
-            "coordinateSpace": "normalized-current-interface", "displayRotationDegrees": display.rotation],
+            "coordinateSpace": "normalized-current-interface", "displayRotationDegrees": display.rotation]) { _, new in new },
             options: [.prettyPrinted, .sortedKeys])
     }
 

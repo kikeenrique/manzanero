@@ -90,6 +90,28 @@ struct DuoPhysicalDisplayTests {
         #expect(plain.run("a", "b", "ignored", { _, _ in ADCLiveDigitizerEnd }, { 1 }).message == "ab")
     }
 
+    /// A fold during a long press: the receipt says the display changed.
+    @Test func aReceiptSaysWhenTheDisplayChangedDuringInput() throws {
+        let unfolded = try DirectTouchDisplay(Self.displays())
+        #expect(DirectTouchDisplay.afterInput(unfolded) { unfolded }["displayAfter"] as? String == "unchanged")
+        let folded = try DirectTouchDisplay(Self.displays(outer: "activeOn", inner: "off"))
+        #expect(DirectTouchDisplay.afterInput(unfolded) { folded }["displayAfter"] as? String == "changed")
+        let off = DirectTouchDisplay.afterInput(unfolded) { try DirectTouchDisplay(Self.displays(outer: "off", inner: "off")) }
+        #expect(off["displayAfter"] as? String == "changed" && off["displayAfterNote"] != nil)
+        #expect(DirectTouchDisplay.afterInput(unfolded) { throw CancellationError() }["displayAfter"] as? String == "unknown")
+        // Through a tap's receipt, the second read showing the fold.
+        let input = try CoreDeviceInputTests().input(["tap", "0.5", "0.5"])
+        let details = try DirectPhysicalInputTests().details()
+        nonisolated(unsafe) var reads = 0
+        let receipt = try DirectPhysicalTouch.execute(input, query: { plan in
+            if plan.arguments.contains("details") { return details }
+            reads += 1
+            return try reads <= 2 ? Self.displays() : Self.displays(outer: "activeOn", inner: "off")
+        }, send: { _, _, _ in }, sendReports: { _, _, _, _, _ in 1 })
+        let json = try #require(try JSONSerialization.jsonObject(with: receipt) as? [String: Any])
+        #expect(json["displayAfter"] as? String == "changed" && reads == 3)
+    }
+
     /// A display asked for by ID is taken as asked, awake or not.
     @Test func aRequestedDisplayIsNotReplaced() throws {
         #expect(throws: (any Error).self) { try DirectTouchDisplay(Self.displays(), displayId: 1) }
