@@ -291,8 +291,16 @@ enum PhysicalLogCapture {
             }
         }
         let outcome = try await stream(connection, selection: selection, capture: capture, watch: watch)
-        return try result(capture, outcome: outcome, selection: selection, route: connection.route)
+        return try result(capture, outcome: outcome, selection: selection, route: connection.route,
+                          appleWatch: AppleTVRemote.deviceType(details) == "appleWatch")
     }
+
+    /// Said in the result when an Apple Watch's stream ends with nothing
+    /// received. The sources are in docs/app-logs.md#an-apple-watch.
+    static let silentWatchNote = "The Apple Watch accepted the stream and sent nothing. Logging is off by default on watchOS: "
+        + "its log streams only with Apple's watchOS logging profile installed (Apple staff, Apple Developer Forums thread 711833; "
+        + "Xcode's \"Acquiring crash reports and diagnostic logs\"). Apple's Console shows nothing either. "
+        + "console reads the app's own output without the profile."
 
     /// How a one-process capture learns that its process has ended.
     struct ProcessWatch: Sendable {
@@ -397,7 +405,8 @@ enum PhysicalLogCapture {
         return nil
     }
 
-    static func result(_ capture: LogCapture, outcome: Outcome, selection: Selection, route: [String: String]) throws -> Data {
+    static func result(_ capture: LogCapture, outcome: Outcome, selection: Selection, route: [String: String],
+                       appleWatch: Bool = false) throws -> Data {
         let reader = outcome.reader
         var inline = reader.entries
         if let output = capture.output {
@@ -421,6 +430,7 @@ enum PhysicalLogCapture {
         if let watch = outcome.processWatch { result["processWatch"] = watch }
         if let failure = reader.firstParseFailure { result["firstParseFailure"] = failure }
         if let output = capture.output { result["output"] = output; result["inlineEntryCount"] = inline.count }
+        if appleWatch, reader.receivedBytes == 0 { result["streamNote"] = silentWatchNote }
         result.merge(route) { $1 }
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
     }

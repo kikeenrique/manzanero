@@ -2171,7 +2171,7 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 | `button side` (new for a physical watch), twice | Control Centre came up over the probe (the system's `Carousel` process in front, its scroll view in the tree), and the second press closed it with the probe back in front |
 | `button action` (new for a physical watch), twice | The Action button is set to the flashlight: the first press lit it (a full-screen `flashlight-white` element in the tree), the second put it out and the probe was back in front |
 | `press` button A | Refused at the hit test before sending (error 8): the button sits at the display's bottom edge, its frame running past it. Button B beside it was pressed |
-| `logs --bundle` the probe, at `default`, `info` and `debug`, while buttons were pressed | Ended at its duration with nothing received: `receivedRecords: 0`, `receivedBytes: 0`, over Apple's tunnel (the tool's own is not available for a watch). The probe logs each press at `info`. Why the watch's relay sends nothing is open |
+| `logs --bundle` the probe, at `default`, `info` and `debug`, while buttons were pressed | Ended at its duration with nothing received: `receivedRecords: 0`, `receivedBytes: 0`, over Apple's tunnel (the tool's own is not available for a watch). The probe logs each press at `info`. Why the watch's relay sends nothing was open that night; see [the next section](#an-apple-watchs-log-relay-sends-nothing-and-why) |
 | `console` the probe, 5 s | The probe's own stderr line arrived; the launch ended at its bound (signal 2) |
 | `last-crash --process ProbeWatch`, `reports list` | No probe report; the list read (three entries, none the probe's) |
 | `settings` (read) | Refused by the device: it lacks CoreDevice's "Customize User Interface Style" capability (`com.apple.coredevice.feature.customizeuistyle`) |
@@ -2181,6 +2181,26 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 | MCP (the server of the current build over stdio): `press_element`, `rotate_crown` and `press_button side` with `platform: physical` | The press counted and the crown read 1.000 in the probe. An earlier session's crown and side presses were sent while the watch had locked and its display slept (`passcodeRequired: true` in their receipts); their effect is unknown. The MCP host's own server, started before the day's rebuild, refused the watch's display geometry, as the build before the fix for sideways panels did |
 
 So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
+
+### An Apple Watch's log relay sends nothing, and why
+
+**2026-11-25, midday**, the same Apple Watch (an Ultra, watchOS 27.2.1) on the human owner's wrist, over the local network and Apple's tunnel (the tool's own is not available for a watch), the watchOS probe installed by `build-run`. Each capture at `debug`, with presses of `probe.watch.button.b` from a second process meanwhile, the probe seen in front in a tree first.
+
+| Step | Observed |
+| --- | --- |
+| `logs --seconds 20 --bundle` the probe (the watch is asked for one PID), two presses, both `postcondition-verified` | `deviceStream: pid <n>`, `receivedBytes: 0`, `receivedRecords: 0`, `stopReason: duration`, `processWatch: devicectl`, `serviceDirectory: opened` |
+| `logs --seconds 20 --bundle` the probe `--process ProbeWatch` (a group: the watch is asked for every process and the Mac keeps the probe's), two presses | `deviceStream: every process`, `receivedBytes: 0`, `receivedRecords: 0` |
+| The same group for 60 seconds, five presses, all five taking effect | `receivedBytes: 0`, `receivedRecords: 0`, `stopReason: duration` |
+| Apple's Console on the Mac, the watch selected and streaming started by the human owner | Nothing shown. Meanwhile the Mac's `remoted` logged one request from Apple's MobileDevice helper (`MDRemoteServiceSupport`) for `com.apple.os_trace_relay.shim.remote`, the service `logs` opens, and no request from it for another log service; the line does not name the device |
+| Console again, with the watch's iPhone on a cable to the Mac and the watch on its charger (the human owner, the same afternoon) | Still nothing shown |
+
+So the relay accepts the check-in and the stream request (the tool reads nothing before `RequestSuccessful`) and then sends no byte, whichever processes are asked for and for a minute; neither the PID in the request nor a short window is the cause, and Apple's own client gets no more. Apple's sources give the reason, logging being off on watchOS without Apple's logging profile; they are quoted with their links in [app logs](app-logs.md#an-apple-watch). The cable and the charger that Apple's pages also name were not enough without it. With the profile installed nothing has been run. Since that day a watch's empty result says so (`streamNote`).
+
+What the run met on the way, for the next one on a watch:
+
+- The watch's link drops and its display sleeps between commands; a command then fails with CoreDevice error 4000, with "Primary display is off", or reports the probe as not installed although it is. Launching an app brings both back (the human owner's finding with Apple's Home app; the probe's `launch` does the same), so launch the probe and send the steps that follow in one `batch`.
+- The watch returns to the clock two minutes after an app was launched (Settings › General › Return to Clock, read there in Settings by the human owner's word and left as it was), so a tree taken later than that shows another screen and a press finds nothing.
+- Three longer captures failed that way before the 60-second one ran; an empty result on a watch is only a fact when the presses beside it took effect.
 
 ### First run on a physical iPhone Duo
 

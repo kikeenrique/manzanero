@@ -245,6 +245,27 @@ struct PhysicalLogCaptureTests {
         #expect(result["deviceStream"] as? String == "every process" && result["serviceDirectory"] as? String == "own-tunnel")
     }
 
+    /// A watch without Apple's logging profile accepts the stream and sends
+    /// nothing (2026-11-25); the result says why, and only then.
+    @Test(.timeLimit(.minutes(1)))
+    func aSilentAppleWatchStreamSaysWhy() async throws {
+        func result(records: [Data], appleWatch: Bool) async throws -> [String: Any] {
+            let (mine, device) = Self.socketPair()
+            Thread.detachNewThread { Self.fakeRelay(device, records: records, startedPid: Started()) }
+            let connection = PhysicalLogCapture.Connection(descriptor: mine, route: [:], close: { Darwin.close(mine) })
+            let capture = try Self.capture(["--seconds", "30", "--pid", "6"])
+            let selection = PhysicalLogCapture.Selection(pid: 6, pids: [6])
+            let outcome = try await PhysicalLogCapture.stream(connection, selection: selection, capture: capture)
+            return try #require(JSONSerialization.jsonObject(with: PhysicalLogCapture.result(capture, outcome: outcome,
+                selection: selection, route: connection.route, appleWatch: appleWatch)) as? [String: Any])
+        }
+        let silentWatch = try await result(records: [], appleWatch: true)
+        #expect(silentWatch["receivedBytes"] as? Int == 0)
+        #expect((silentWatch["streamNote"] as? String)?.contains("logging profile") == true)
+        #expect(try await result(records: [], appleWatch: false)["streamNote"] == nil)
+        #expect(try await result(records: [Self.packet(pid: 6)], appleWatch: true)["streamNote"] == nil)
+    }
+
     @Test(.timeLimit(.minutes(1)))
     func oneProcessEndsTheCaptureWhenTheDeviceNoLongerListsIt() async throws {
         let (mine, device) = Self.socketPair()
