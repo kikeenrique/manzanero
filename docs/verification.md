@@ -2184,13 +2184,15 @@ So on a physical watch every command family has now run inside the probe, except
 
 ### The Duo simulator's inner display in other orientations
 
-**2026-11-25, evening**, a new `manzanero-research-duo` (iOS 27.2 runtime, `create-simulator`), unfolded, the iOS probe installed by `build-run`, shut down afterwards.
+**2026-11-25, evening**, a second simulator of the Duo runtime made with `create-simulator` (deleted afterwards: the project's `manzanero-research-duo` already existed), unfolded, the iOS probe installed by `build-run`, shut down afterwards.
 
 | Step | Observed |
 | --- | --- |
 | `rotate` to `landscape-right`, `portrait`, `landscape-left` and `portrait-upside-down`, the probe allowing every orientation | Each accepted by `devicectl` (`deviceOrientation` as asked, orientation lock off), and each time `displays` read `LCD-1` at `rot90` and the tree `rot90`, 951 × 669 points: the inner display did not turn. `press --id probe.touch.reset` accepted and `tap 0.25 0.4` sent in all four |
 | The probe relaunched portrait only (`-ProbeAllowRotation NO`), the device in `portrait` and in `landscape-left` | `LCD-1` still `rot90`, 951 × 669 points: the app letterboxed, as recorded on 2026-11-21 |
 | `tap 0.25 0.4` at `rot90`, the probe reset first | The probe's last gesture: one contact from and to (0.24991, 0.4001), 0.086 s |
+
+The same evening the Home Screen was read again on `manzanero-research-duo` (the Duo runtime, iOS 27.2 24B91016s, the only one installed for it): folded, `tree` was refused (error 18); unfolded, the simulator returned no snapshot data at full depth or at depth 10 for 12 s; `screen` fell back to OCR both times. Unchanged since 2026-11-16; it waits for a later runtime.
 
 So on the simulator the unfolded inner display is always `rot90`, whatever the device orientation and whatever the app allows; its other orientations exist only on the device, where the inner display read `rot0` and `rot90` on 2026-11-25 with trees, presses and taps in both ([record](#first-run-on-a-physical-iphone-duo)).
 
