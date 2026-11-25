@@ -714,6 +714,34 @@ extension ManzaneroCLI {
         }
     }
 
+    struct Profile: ParsableCommand {
+        static let configuration = CommandConfiguration(commandName: "profile", abstract: "List or remove installed profiles (physical devices).",
+            discussion: "Through devicectl (device profile). There is no install: Apple's logging profiles go on through the paired iPhone.",
+            subcommands: [List.self, Remove.self])
+
+        struct List: TargetedCommand {
+            static let configuration = CommandConfiguration(commandName: "list", abstract: "List the device's configuration and provisioning profiles; read-only.")
+            @OptionGroup var target: TargetOptions
+            @OptionGroup var common: CommonOptions
+            func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, ProfileCommand.listOperation)) }
+        }
+
+        struct Remove: TargetedCommand {
+            static let configuration = CommandConfiguration(commandName: "remove", abstract: "Remove one profile by the identifier profile list shows.",
+                discussion: """
+                Removing Apple's watchOS logging profile switches the watch's unified-log streaming off again; Apple's \
+                instructions then restart the watch (reboot). A profile whose removal is disallowed is refused by the device.
+                """)
+            @OptionGroup var target: TargetOptions
+            @OptionGroup var common: CommonOptions
+            @Argument(help: "The profile's identifier, as profile list shows it.") var identifier: String
+            @Option(help: ArgumentHelp("configuration or provisioning; devicectl works it out when omitted.", valueName: "type")) var type: String?
+            func request(_ target: Target) throws -> CommandRequest {
+                .tool(try DeviceOperation(target, ProfileCommand.removeOperation, [identifier] + (type.map { [$0] } ?? [])))
+            }
+        }
+    }
+
     struct BuildRun: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "build-run", abstract: "Build an Xcode project or workspace, then install and launch its app.",
             discussion: """

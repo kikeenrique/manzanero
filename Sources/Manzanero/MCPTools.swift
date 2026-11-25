@@ -298,6 +298,12 @@ enum MCPTools {
                 operands: [$0.text("project"), $0.text("scheme")])
         },
         .init(name: "simulator_state", description: "Boot or shut down a selected simulator. Shutdown interrupts running apps; no erase or delete operation is exposed.", fields: [device, .init(name: "operation", choices: ["boot", "shutdown"])]) { $0.command([$0.text("operation")], platform: "simulator") },
+        .init(name: "list_profiles", description: "List a physical device's installed configuration and provisioning profiles through devicectl (device profile list), each with its identifier, name and whether its removal is disallowed. Read-only.", fields: [device], readOnly: true) {
+            $0.command(["profile", "list"], platform: "physical")
+        },
+        .init(name: "remove_profile", description: "Remove one installed profile from a physical device by the identifier list_profiles shows (devicectl device profile remove). type (configuration or provisioning) is optional. Removing Apple's watchOS logging profile switches the watch's log streaming off; Apple's instructions then restart the watch (reboot_device). Ask the user before removing a profile.", fields: [device, .init(name: "identifier"), .init(name: "type", required: false, choices: ProfileCommand.types)]) {
+            $0.command(["profile", "remove"], platform: "physical", options: $0.options([("type", "--type")]), operands: [$0.text("identifier")])
+        },
         .init(name: "reboot_device", description: "Restart a physical device (a full reboot through devicectl) or a simulator (shut down and booted again through simctl). Running apps are interrupted. On a device it returns once the device has accepted the reboot, not when it is back: follow it with device_readiness or list_devices. A device with a passcode is locked afterwards, and most input waits for someone to unlock it. Any call to a sleeping Apple TV may switch on its television. Ask the user before rebooting a device.", fields: [platform, device]) {
             $0.command(["reboot"])
         },

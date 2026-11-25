@@ -43,6 +43,13 @@ struct CommandFailureTests {
         #expect(CommandFailure.lockedDevice("ERROR: A connection to this device could not be established. (com.apple.dt.CoreDeviceError error 4000 (0xFA0))") == nil)
     }
 
+    @Test func aMissingProfileIsAMissingTargetWithNothingSent() throws {
+        let stderr = "ERROR: The configuration profile (Identifier: x) was not found. (com.apple.dt.CoreDeviceError error 22701 (0x58AD))"
+        let failure = try #require(CommandFailure.missingProfile(stderr))
+        #expect(failure.code == .targetUnresolved && failure.inputSent == .none && failure.description.contains("profile list"))
+        #expect(CommandFailure.missingProfile("ERROR: … (com.apple.dt.CoreDeviceError error 10003 (0x2713))") == nil)
+    }
+
     @Test func unclassifiedFailuresSayTheyAreUnclassified() {
         let failure = CommandFailure(description: "fixture")
         #expect(failure.description == "fixture")

@@ -2182,6 +2182,17 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 
 So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
 
+### `profile list` and `profile remove`
+
+**2026-11-25, evening**, the iPhone 13 mini (iOS 27.2.1), through `devicectl device profile`.
+
+| Step | Observed |
+| --- | --- |
+| `profile list` | Exit 0: 0 configuration and 11 provisioning profiles (only the counts were read) |
+| `profile remove manzanero.no-such-profile --type configuration` | Refused by the device, nothing removed: CoreDevice error 22701, "was not found". Reported first as `tool-failed` with `inputSent: unknown`; since then as `ambiguous-or-missing-target`, `inputSent: none`, with a message pointing at `profile list` (`CommandFailure.missingProfile`) |
+
+The same two `devicectl` requests, run by hand that afternoon, listed and removed the watchOS logging profile on the Apple Watch ([app logs](app-logs.md#an-apple-watch)); through the tool a real removal has not run yet.
+
 ### Upright pictures in landscape
 
 **2026-11-25, evening**, the iPhone 13 mini (iOS 27.2.1) on its cable, the iOS probe in front, the phone turned with `rotate`.

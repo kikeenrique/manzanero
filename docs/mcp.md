@@ -25,7 +25,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 
 ## Tool catalog
 
-`tools/list` is the exact schema reference: 53 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
+`tools/list` is the exact schema reference: 55 tools, enumerated operations and no unknown parameters. A listed tool does not imply that every platform combination is available.
 
 | Tools | Current purpose |
 | --- | --- |
@@ -52,6 +52,7 @@ Stdout contains newline-delimited JSON-RPC only. Diagnostics go to stderr. The h
 | `fold_device`, `set_hinge_angle`, `get_hinge_angle` | [Fold](other-families.md#fold-iphone-duo) an iPhone Duo simulator: fold or unfold and wait (bounded) for the matching display, set any hinge angle 0...180 without a display promise, or read the angle once (read-only); other simulators and physical devices are refused |
 | `wake_device` | [Guarded wake](native-input.md#waking-a-dark-display) of a dark display: one side-button press only when the display reads off twice |
 | `clear_quarantine` | Lift the [quarantine](native-input.md#quarantine-after-an-uncertain-release) that follows an input whose release is unknown, after inspecting the device; input tools fail with `device-quarantined` until then. Sends the device nothing |
+| `list_profiles`, `remove_profile` | A physical device's installed profiles through `devicectl device profile`: the list is read-only; a removal takes the identifier the list shows, as for Apple's watchOS [logging profile](app-logs.md#an-apple-watch) |
 | `reboot_device` | Restart a device (`devicectl device reboot`) or a simulator (`simctl reboot`); a device's answer comes when it accepts the reboot, not when it is back |
 | `app_action`, `app_data`, `simulator_state` | App lifecycle/URLs (launch takes `app_arguments`, `environment`, `language`, `locale` and `relaunch`; physical terminate takes a bundle identifier too), raw physical container files, simulator boot/shutdown |
 | `device_settings`, `read_settings`, `read_clipboard` | [Orientation, appearance and text size, VoiceOver, StandBy and biometric enrolment, a simulated location, status bar overrides](device-settings.md), and reading the current settings and the clipboard (both read-only), through devicectl on a device or a simulator |

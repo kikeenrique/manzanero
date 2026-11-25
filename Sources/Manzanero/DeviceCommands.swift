@@ -62,7 +62,8 @@ struct DeviceCommand: Sendable, Equatable {
         if let settings = try DeviceSettings.plan(device: device, operation: operation, operands: operands) { return settings }
         let command: [String]
         if physical {
-            if let dataCommand = try (AppDataCommand.plan(operation: operation, operands: operands) ?? ReportCommand.plan(operation: operation, operands: operands)) {
+            if let dataCommand = try (AppDataCommand.plan(operation: operation, operands: operands) ?? ReportCommand.plan(operation: operation, operands: operands)
+                ?? ProfileCommand.plan(operation: operation, operands: operands)) {
                 return Self(arguments: ["devicectl", "device"] + dataCommand + ["--device", device, "--timeout", "60", "--json-output", "-"], jsonOutput: true)
             }
             switch operation {

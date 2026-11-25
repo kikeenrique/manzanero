@@ -25,6 +25,7 @@ struct ToolRunner: Sendable {
         guard result.status == 0 else {
             let errors = String(decoding: result.errors, as: UTF8.self)
             if let locked = CommandFailure.lockedDevice(errors) { throw locked }
+            if let missing = CommandFailure.missingProfile(errors) { throw missing }
             // The tool ran; whether it changed the device depends on the
             // invocation, which only the caller knows.
             throw CommandFailure(.toolFailed, "\(URL(fileURLWithPath: executable).lastPathComponent) failed (\(result.status)): \(String(decoding: result.errors, as: UTF8.self))", inputSent: .unknown)

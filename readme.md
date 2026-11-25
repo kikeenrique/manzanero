@@ -80,6 +80,7 @@ Physical touch coordinates are normalized `0...1`, with the origin at the top le
 | A physical iPhone Duo: every command follows the display in use, folded or unfolded, with touch on each display's own touchscreen | [Other families](docs/other-families.md#a-physical-iphone-duo) |
 | A new simulator of a named type and runtime | `manzanero create-simulator --help` |
 | Restarting a device or a simulator | `manzanero reboot --help` (MCP `reboot_device`) |
+| A device's installed profiles, such as Apple's watchOS logging profile | `manzanero profile list --help`, `manzanero profile remove --help` |
 | A physical Apple TV: trees with focus, the Siri Remote and its swipes, recording, `remote sleep` and `remote wake` | [A physical Apple TV](docs/other-families.md#a-physical-apple-tv), [sleep and wake](docs/other-families.md#sleep-and-wake) |
 | Seeking in Apple's player on an Apple TV: arrows, swipes and `scrub --to <time>` | [Seeking](docs/other-families.md#seeking-in-apples-player) |
 | How a command reaches a device, and the tool's own tunnel | [Transport](docs/transport.md), [the services a device offers](docs/device-services.md) |
@@ -127,7 +128,7 @@ Configure your host to launch the executable by absolute path with argument `mcp
 }
 ```
 
-Host configuration formats vary. Set a suitable working directory: relative files and temporary artifacts are created there. The host controls approvals; the server has no approval UI of its own. The server has 53 tools; see [MCP tools and lifecycle](docs/mcp.md).
+Host configuration formats vary. Set a suitable working directory: relative files and temporary artifacts are created there. The host controls approvals; the server has no approval UI of its own. The server has 55 tools; see [MCP tools and lifecycle](docs/mcp.md).
 
 ## Limits that matter
 

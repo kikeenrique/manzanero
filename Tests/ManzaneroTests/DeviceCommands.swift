@@ -36,6 +36,37 @@ struct DeviceCommandsTests {
         #expect(!tool.readOnly)
     }
 
+    @Test func profilesAreListedAndRemovedThroughDevicectlOnDevicesOnly() async throws {
+        let device = "00008110-000A11112222801E"
+        let tail = ["--device", device, "--timeout", "60", "--json-output", "-"]
+        #expect(try DeviceCommand.plan(physical: true, device: device, operation: "profiles").arguments == ["devicectl", "device", "profile", "list"] + tail)
+        #expect(try DeviceCommand.plan(physical: true, device: device, operation: "profile-remove", operands: ["LoggingProfile", "configuration"]).arguments
+            == ["devicectl", "device", "profile", "remove", "LoggingProfile", "--type", "configuration"] + tail)
+        #expect(try DeviceCommand.plan(physical: true, device: device, operation: "profile-remove", operands: ["LoggingProfile"]).arguments
+            == ["devicectl", "device", "profile", "remove", "LoggingProfile"] + tail)
+        for bad in [["-x"], ["two words"], ["LoggingProfile", "managed"], [], ["a", "configuration", "extra"]] {
+            #expect(throws: CommandFailure.self) { try DeviceCommand.plan(physical: true, device: device, operation: "profile-remove", operands: bad) }
+        }
+        #expect(throws: CommandFailure.self) { try DeviceCommand.plan(physical: false, device: simulator, operation: "profiles") }
+
+        #expect(summary(try request(["profile", "list", "--device", device])) == ["physical", device, "profiles"])
+        func planned(_ words: [String]) throws -> [String] {
+            guard case .tool(let tool) = try request(words) else { return [] }
+            return tool.command.arguments
+        }
+        let removal = ["devicectl", "device", "profile", "remove", "LoggingProfile", "--type", "configuration"] + tail
+        #expect(try planned(["profile", "remove", "LoggingProfile", "--type", "configuration", "--device", device]) == removal)
+        #expect(try request(["profile", "list", "--device", device]).isReadOnly)
+        #expect(!(try request(["profile", "remove", "LoggingProfile", "--device", device]).isReadOnly))
+
+        let list = try #require(MCPTools.definitions.first { $0.name == "list_profiles" })
+        #expect(try list.command(["device": .string(device)]) == ["profile", "list", "--device=\(device)"] && list.readOnly)
+        let remove = try #require(MCPTools.definitions.first { $0.name == "remove_profile" })
+        let words = try remove.command(["device": .string(device), "identifier": .string("LoggingProfile"), "type": .string("configuration")])
+        #expect(words == ["profile", "remove", "--device=\(device)", "--type=configuration", "--", "LoggingProfile"] && !remove.readOnly)
+        #expect(try planned(words) == removal)
+    }
+
     @Test func launchOptionsReachDevicectlAndSimctl() throws {
         let options = try LaunchOptions(arguments: ["-ProbeList", "YES"], environment: ["A=1", "B=x=y"], language: "pt-BR", locale: "es_ES", relaunch: true)
         let physical = try DeviceCommand.launch(physical: true, device: "fixture-phone", bundle: "com.example.app", options: options)

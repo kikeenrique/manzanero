@@ -129,6 +129,15 @@ struct CommandFailure: Error, CustomStringConvertible {
             + "Unlock it with its passcode and retry; handoff --until unlocked waits for a person to do so.", inputSent: .none)
     }
 
+    /// `profile remove` of an identifier the device does not have: CoreDevice
+    /// error 22701 (seen on the iPhone 13 mini on 2026-11-25). Nothing was
+    /// removed.
+    static func missingProfile(_ errors: String) -> Self? {
+        guard errors.contains("com.apple.dt.CoreDeviceError error 22701") else { return nil }
+        return Self(.targetUnresolved, "The device has no profile with that identifier, so nothing was removed. profile list shows the identifiers.",
+                    inputSent: .none)
+    }
+
     /// An operation that does not exist here; nothing was sent.
     static func unsupported(_ description: String) -> Self { Self(.unsupportedOperation, description, inputSent: .none) }
 

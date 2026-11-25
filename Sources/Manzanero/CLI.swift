@@ -228,7 +228,7 @@ struct ManzaneroCLI: ParsableCommand {
                 Files.self, Reports.self, BuildRun.self]),
             CommandGroup(name: "Diagnostics", subcommands: [Logs.self, Console.self, LastCrash.self]),
             CommandGroup(name: "Device state", subcommands: [
-                Devices.self, CreateSimulator.self, Details.self, Processes.self, Readiness.self, MediaStatus.self, Boot.self, Shutdown.self, Reboot.self, Handoff.self, ClearQuarantine.self, Pair.self,
+                Devices.self, CreateSimulator.self, Details.self, Processes.self, Readiness.self, MediaStatus.self, Boot.self, Shutdown.self, Reboot.self, Profile.self, Handoff.self, ClearQuarantine.self, Pair.self,
                 Batch.self]),
             CommandGroup(name: "Settings", subcommands: [Rotate.self, Settings.self, Location.self, StatusBar.self, Clipboard.self]),
             CommandGroup(name: "Host", subcommands: [Doctor.self, KeyboardLayouts.self, OCR.self, DecodeAXArchive.self, MCPServe.self]),
