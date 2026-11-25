@@ -14,7 +14,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **not run** | Built, never tried there |
 | — | Does not apply |
 
-"Device" is real hardware and "simulator" is Xcode's simulator. The hardware used so far is one iPhone 13 mini (iOS 27.2.1), one Apple TV 4K (tvOS 27.2), and, inside the project's probes only, one iPad mini (6th generation) and one Apple Watch Ultra (watchOS 27.2.1). One iPhone Duo (iOS 27.2.1) ran on the night of 2026-11-25, inside the probe only, folded and unfolded: its column below.
+"Device" is real hardware and "simulator" is Xcode's simulator. The hardware used so far is one iPhone 13 mini (iOS 27.2.1), and inside the probe one iPhone 17 Pro Max (iOS 27.2.1), one Apple TV 4K (tvOS 27.2), and, inside the project's probes only, one iPad mini (6th generation) and one Apple Watch Ultra (watchOS 27.2.1). One iPhone Duo (iOS 27.2.1) ran on the night of 2026-11-25, inside the probe only, folded and unfolded: its column below.
 
 ## Commands by platform
 
@@ -65,14 +65,15 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **A release**: a lot changed since v0.1.0-beta.3 (new commands and options, `reboot`, the watch's crown, typing, buttons, video and `logs`, the iPhone Duo's two displays, fixes for an iPad's and a watch's panels); one command from the human owner's terminal.
-2. **A second iPhone**: an iPhone 17 Pro Max is paired; touch timing was measured on the iPhone 13 mini only.
-3. **The iPhone Duo's leftovers**, each the human owner's call because it reaches beyond the probe: `button lock` and `wake`, `paste`, `apps`, `reports`, `settings` (Claude Code's permission check refused them on 2026-11-25). Its inner display records sideways at half resolution, as the device sends it.
-4. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
-5. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
+2. **The iPhone Duo's leftovers**, each the human owner's call because it reaches beyond the probe: `button lock` and `wake`, `paste`, `apps`, `reports`, `settings` (Claude Code's permission check refused them on 2026-11-25). Its inner display records sideways at half resolution, as the device sends it.
+3. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
+4. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 
 ## Done on 2026-11-25
+
+- **A second iPhone**: the iPhone 17 Pro Max, inside the probe under the iPad's privacy rule: the touch plan 70 of 70 with the 200 ms drain, typing, `set-value`, a screenshot, a `batch` with a held contact, and a recording once the decoder accepted this phone's coded size ([record](verification.md#a-second-iphone-the-iphone-17-pro-max-inside-the-probe)).
 
 - **`reboot`** for devices and simulators (MCP `reboot_device`): `devicectl` and `simctl`'s own reboot; run on an iPhone simulator and on the iPhone 17 Pro Max, back in 60 s. A device that refuses a request because it is locked now says so, with nothing done.
 

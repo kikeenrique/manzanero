@@ -2182,6 +2182,21 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 
 So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
 
+### A second iPhone: the iPhone 17 Pro Max, inside the probe
+
+**2026-11-25, afternoon**, the iPhone 17 Pro Max (iOS 27.2.1) on its cable, named by the human owner for the second-iPhone run under the iPad's privacy rule: the iOS probe installed by `build-run` with the signing already on the Mac (no registration needed), every step inside the probe, captures deleted after reading, the probe uninstalled after the run. Accessibility went over the tool's own tunnel (`serviceDirectory: own-tunnel`, `ownTunnelLink: cable`).
+
+| Step | Observed |
+| --- | --- |
+| `test:probe-touch --repeat 5` (the built-in plan of 14 actions: taps at three points, a long press, a swipe, a drag, a pinch, two- to five-contact taps, a three-path drag and two gesture sequences), with the 200 ms input drain | 70 of 70 delivered, each with its contact count and the right number down at once; start positions within 0.0001 of the plan and hold times within −0.004 to +0.015 s; the probe counted 145 contacts began and 145 ended, none cancelled or unmatched, nothing dropped from its log; 380 s |
+| `press --id probe.text.field`, `type " hello 17"`, `set-value --id probe.text.field "Año ¿qué?"` | `set-value` gave the field exactly `Año ¿qué?`, and typing after it gave `Año ¿qué? hello 17` |
+| `screenshot` | 1320 × 2868, `blankImage: false`, the probe whole |
+| `record … 5 --backend coredevice`, before a fix | Failed at the first picture: the stream negotiated 1328 × 2880 and coded 1328 × 2896. 2880 rows are already on a 32-pixel boundary, and the decoder accepted only padding up to that boundary |
+| The same after the fix (a larger coded size is accepted when it is whole 16-pixel blocks and at most 32 pixels more, `NativeHEVCDecoder.acceptsCodedDimensions`) | `status: recorded`, 86 source pictures in 5 s, a movie of 1328 × 2896 showing the probe whole with nothing stray at the bottom |
+| `batch` `[["hold","0.3","0.6"],["tap","0.7","0.6"],["release"]]` | Completed; the probe's last gesture was two contacts, the held one at (0.300, 0.600) for 0.436 s and the tap at (0.700, 0.600) for 0.081 s inside it |
+
+So the 200 ms input drain chosen on the iPhone 13 mini delivers every planned touch on a second, newer phone too, and every command family tried there works inside the probe once the recording accepts this phone's coded size.
+
 ### Reboot on a simulator and on an iPhone
 
 **2026-11-25**, Xcode 27.2's `simctl`, an iPhone Air simulator (iOS 27.2) booted for the run and shut down after it.

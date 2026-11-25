@@ -189,10 +189,14 @@ final class NativeHEVCDecoder {
     /// 1408 × 2048, its outer display's size, and coded 1408 × 2016: the
     /// inner display fitted into that frame. So a coded size may also be
     /// smaller, by at most a sixteenth on each side; every later step takes
-    /// the decoded picture's own size.
+    /// the decoded picture's own size. The iPhone 17 Pro Max (2026-11-25)
+    /// negotiated 1328 × 2880, already on a 32-pixel boundary, and coded
+    /// 2896 rows: one more 16-pixel block. So a larger coded size is padding
+    /// when it is whole 16-pixel blocks and at most 32 pixels more.
     nonisolated static func acceptsCodedDimensions(_ width: Int, _ height: Int, negotiatedWidth: Int, negotiatedHeight: Int) -> Bool {
         func fits(_ coded: Int, _ negotiated: Int) -> Bool {
-            coded <= (negotiated + 31) / 32 * 32 && coded >= negotiated - negotiated / 16
+            let padded = coded <= (negotiated + 31) / 32 * 32 || (coded % 16 == 0 && coded <= negotiated + 32)
+            return padded && coded >= negotiated - negotiated / 16
         }
         return (1...8192).contains(width) && (1...8192).contains(height) && width * height <= 20_000_000 &&
             (1...8192).contains(negotiatedWidth) && (1...8192).contains(negotiatedHeight) &&
