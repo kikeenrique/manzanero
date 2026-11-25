@@ -2201,9 +2201,10 @@ So the relay accepts the check-in and the stream request (the tool reads nothing
 | Step | Observed |
 | --- | --- |
 | `logs --seconds 60 --bundle` the probe `--process ProbeWatch` (every process asked for, the probe's kept), the probe seen in front first, five presses of which three took effect (the display went off before the fourth) | `receivedBytes: 107079791`, `receivedRecords: 252330`, `parseFailures: 0`, `stopReason: duration`; 850 entries kept, all the probe's, the three presses among them (`watch 1 button:b` to `watch 3 button:b`, level `info`, category `watch`) |
-| `logs --seconds 20 --bundle` the probe (one PID asked for), twice | `receivedBytes: 0` both times, but neither counts: the display was off, both presses beside each were refused, and the second time the probe was not seen in front. Whether a watch honours a one-PID request is still open |
+| `logs --seconds 20 --bundle` the probe (one PID asked for), twice | `receivedBytes: 0` both times, but neither counts: the display was off, both presses beside each were refused, and the second time the probe was not seen in front. Whether a watch honours a one-PID request was left open |
+| The one-PID capture again, 20 s, the probe seen in front and all three presses taking effect | `deviceStream: pid <n>`, `receivedBytes: 330271`, `receivedRecords: 735`, every one the probe's, the three presses among them (`watch 4 button:b` to `watch 6 button:b`), `filteredOut: 0` |
 
-So the profile switches the relay's stream on, for the tool's request as for Apple's documented sysdiagnose, while Apple's Console on the same Mac stayed empty. A watch with the profile sends about 107 MB a minute for every process at debug, so the 256 MiB received bound ends such a capture after about two and a half minutes.
+So the profile switches the relay's stream on, for one process and for every process, while Apple's Console on the same Mac stayed empty. A watch with the profile sends about 107 MB a minute for every process at debug, so the 256 MiB received bound ends such a capture after about two and a half minutes.
 
 What the run met on the way, for the next one on a watch:
 
