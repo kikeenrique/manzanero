@@ -2182,6 +2182,21 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 
 So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
 
+### A web view embedded in native content
+
+**2026-11-25, evening**, the iOS probe's new `-ProbeWebEmbedded YES` screen: a label at the top, a native button at the screen's centre and a 220-point `WKWebView` along the bottom, as many apps embed one, so the app and not the page holds the display centre. On `manzanero-research-phone` (iOS 27.2) and on the iPhone 13 mini (iOS 27.2.1, the tool's own tunnel on the cable).
+
+| Step | Observed |
+| --- | --- |
+| `tree`, simulator and phone | The app's native elements and the web view as one opaque element. The first read on the simulator had no page yet; the second, and the first on the phone, had the web view's remote element naming the page's process (`externalProcessReference: true`) |
+| Simulator: `press --label "Top button" --pid <page>`, `press --label "Web field" --pid <page> --index 2` and `type hola` | Each accepted (`explicit-pid-shown-by-frontmost-or-centre-hit`); the probe read `web-top`, then `web-field:hola` |
+| Simulator: `scroll --label "Bottom button" --pid <page> --search 30`, then `press` | First `postcondition-failed` and a refused press: the keyboard the field had raised covered the whole web view. After `press --label Done` (the keyboard's bar, in the app's tree, not the page's): `postcondition-verified`, the press accepted, the probe read `web-bottom` |
+| Simulator and phone: `press --id probe.web.native` | Accepted; the probe read `native` |
+| Phone: `tree --pid <page>` | The page's tree, the "Top button" in it |
+| Phone: `press --label "Top button" --pid <page>` | Refused before anything was sent: "requested PID differs from display-centre process and does not host it". On a phone `--pid` may name only the display-centre process or the one that hosts it, and an embedded page is neither |
+
+So on a simulator an embedded page is read and acted on like any page; on a phone it can be read and not acted on. The simulator's wider `--pid` rule (a process one of the foreground app's remote elements shows, with a frame) was the human owner's decision of 2026-11-21 for simulators only; a phone keeps the narrower one until the human owner decides otherwise.
+
 ### `profile list` and `profile remove`
 
 **2026-11-25, evening**, the iPhone 13 mini (iOS 27.2.1), through `devicectl device profile`.

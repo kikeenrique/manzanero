@@ -426,6 +426,8 @@ On a phone the page holds the display centre, so a plain `tree` or `wait` reads 
 
 The touch, log and permission probes are not on this screen. Run on the iPhone 13 mini and an iPhone simulator on 2026-11-22 ([record](verification.md#web-content-in-an-apps-own-inset-web-view)); the framed page on the phone only.
 
+`-ProbeWebEmbedded YES` (since 2026-11-25) embeds the same page in native content, as many apps do: the label `probe.web.last` at the top, a native "Native button" (`probe.web.native`, which records `native`) at the screen's centre, and a 220-point web view along the bottom, inset 16 points. The app, not the page, then holds the display centre, so the page is reached only by `--pid <page>`, the process the web view's remote element names ([record](verification.md#a-web-view-embedded-in-native-content)). Typing in the field raises the keyboard over the web view; close it with `press --label Done` (in the app's tree) before acting on the page again.
+
 ## tvOS probe
 
 A second, separate app in the same Tuist project: target and scheme `ProbeTV`, sources in `Fixtures/ProbeApp/TV/`, bundle identifier `com.lemambo.manzanero.probetv` (`Config/ProbeTV.xcconfig`; `PROBE_TV_BUNDLE_ID` in the untracked signing file replaces it), tvOS 18.0 or later. It shares nothing with the iOS probe and does not use ProbeCore. It answers one question: which Siri Remote command did the app receive?

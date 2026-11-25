@@ -50,6 +50,17 @@ struct CommandFailureTests {
         #expect(CommandFailure.missingProfile("ERROR: … (com.apple.dt.CoreDeviceError error 10003 (0x2713))") == nil)
     }
 
+    /// devicectl's answers from an Apple Watch whose link had dropped (2026-11-25).
+    @Test func aDeviceThatCouldNotBeReachedGotNothing() throws {
+        for line in ["ERROR: A connection to this device could not be established. (com.apple.dt.CoreDeviceError error 4000 (0xFA0))",
+                     "ERROR: The device disconnected immediately after connecting. (com.apple.dt.CoreDeviceError error 4000 (0xFA0))"] {
+            let failure = try #require(CommandFailure.connectionNotEstablished(line))
+            #expect(failure.code == .transportFailed && failure.inputSent == .none && failure.retry == .safe)
+        }
+        // Error 4000 with another message says nothing about what was done.
+        #expect(CommandFailure.connectionNotEstablished("ERROR: The operation failed. (com.apple.dt.CoreDeviceError error 4000 (0xFA0))") == nil)
+    }
+
     @Test func unclassifiedFailuresSayTheyAreUnclassified() {
         let failure = CommandFailure(description: "fixture")
         #expect(failure.description == "fixture")

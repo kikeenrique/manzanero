@@ -10,7 +10,15 @@ import WebKit
 /// a second button far below the web view's height, for `scroll`. What the
 /// page receives is recorded in `probe.web.last`.
 final class ProbeWebViewController: UIViewController, WKScriptMessageHandler {
-    static var isRequested: Bool { UserDefaults.standard.bool(forKey: "ProbeWeb") || zooms || framed }
+    static var isRequested: Bool { UserDefaults.standard.bool(forKey: "ProbeWeb") || zooms || framed || embedded }
+    /// `-ProbeWebEmbedded YES`: a small web view embedded in native content,
+    /// as many apps show one, with a native button at the screen's centre:
+    /// the app, not the page, holds the display centre, so the page is a
+    /// process the tree reaches only through the app's remote element.
+    static var embedded: Bool { UserDefaults.standard.bool(forKey: "ProbeWebEmbedded") }
+    static let nativeIdentifier = "probe.web.native"
+    /// The embedded web view's height.
+    static let embeddedHeight: CGFloat = 220
     /// `-ProbeWebFrame YES`: a page whose button and field are inside an
     /// iframe, below a button of the page itself, for pages with frames.
     static var framed: Bool { UserDefaults.standard.bool(forKey: "ProbeWebFrame") }
@@ -40,11 +48,16 @@ final class ProbeWebViewController: UIViewController, WKScriptMessageHandler {
         web.accessibilityIdentifier = Self.webIdentifier
         web.isInspectable = true
         self.web = web
+        let guide = view.safeAreaLayoutGuide
+        if Self.embedded {
+            layOutEmbedded(web, guide: guide)
+            web.loadHTMLString(Self.page, baseURL: nil)
+            return
+        }
         for subview in [last, web] as [UIView] {
             subview.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(subview)
         }
-        let guide = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
             last.topAnchor.constraint(equalTo: guide.topAnchor, constant: 8),
             last.leadingAnchor.constraint(equalTo: guide.leadingAnchor), last.trailingAnchor.constraint(equalTo: guide.trailingAnchor),
@@ -55,6 +68,34 @@ final class ProbeWebViewController: UIViewController, WKScriptMessageHandler {
             web.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -Self.inset),
         ])
         web.loadHTMLString(Self.framed ? Self.framedPage : Self.zooms ? Self.zoomingPage : Self.page, baseURL: nil)
+    }
+
+    /// The label at the top, a native button at the centre of the screen,
+    /// and the web view in the lower part, inset by 16 points.
+    private func layOutEmbedded(_ web: WKWebView, guide: UILayoutGuide) {
+        view.backgroundColor = .systemBackground
+        var native = UIButton.Configuration.filled()
+        native.title = "Native button"
+        let button = UIButton(configuration: native, primaryAction: UIAction { [weak self] _ in
+            self?.last.text = "Last: native"
+            self?.last.accessibilityValue = "native"
+        })
+        button.accessibilityIdentifier = Self.nativeIdentifier
+        for subview in [last, button, web] as [UIView] {
+            subview.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(subview)
+        }
+        NSLayoutConstraint.activate([
+            last.topAnchor.constraint(equalTo: guide.topAnchor, constant: 8),
+            last.leadingAnchor.constraint(equalTo: guide.leadingAnchor), last.trailingAnchor.constraint(equalTo: guide.trailingAnchor),
+            last.heightAnchor.constraint(equalToConstant: 44),
+            button.centerXAnchor.constraint(equalTo: view.centerXAnchor), button.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            button.widthAnchor.constraint(equalToConstant: 220), button.heightAnchor.constraint(equalToConstant: 60),
+            web.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
+            web.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
+            web.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -16),
+            web.heightAnchor.constraint(equalToConstant: Self.embeddedHeight),
+        ])
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {

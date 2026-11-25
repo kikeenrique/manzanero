@@ -138,6 +138,17 @@ struct CommandFailure: Error, CustomStringConvertible {
                     inputSent: .none)
     }
 
+    /// devicectl could not reach the device at all: CoreDevice error 4000
+    /// with "could not be established" or "disconnected immediately after
+    /// connecting", both seen from an Apple Watch on 2026-11-25. No request
+    /// reached the device.
+    static func connectionNotEstablished(_ errors: String) -> Self? {
+        guard errors.contains("com.apple.dt.CoreDeviceError error 4000"),
+              errors.contains("could not be established") || errors.contains("disconnected immediately after connecting") else { return nil }
+        return Self(.transportFailed, "The Mac could not connect to the device, so nothing was done on it. Wake it and keep it close "
+            + "(on an Apple Watch, launching an app brings the link back), then retry.", inputSent: .none)
+    }
+
     /// An operation that does not exist here; nothing was sent.
     static func unsupported(_ description: String) -> Self { Self(.unsupportedOperation, description, inputSent: .none) }
 

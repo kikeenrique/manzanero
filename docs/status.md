@@ -65,8 +65,9 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **A release**: a lot changed since v0.1.0-beta.3 (new commands and options, `reboot`, the watch's crown, typing, buttons, video and `logs`, the iPhone Duo's two displays, fixes for an iPad's and a watch's panels); one command from the human owner's terminal.
-2. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
-3. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
+2. **An app's embedded web view on a phone**: readable, but actions are refused by the device's `--pid` rule; the human owner's decision.
+3. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
+4. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 
