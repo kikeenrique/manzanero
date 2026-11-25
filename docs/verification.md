@@ -2243,7 +2243,8 @@ After the hold was built for a device with two touchscreens (its stream names th
 | Step | Observed |
 | --- | --- |
 | `batch` `hold 0.3 0.3`, `tap 0.7 0.7`, `release`, folded (outer display, surface 257) | Completed; the tap was merged into the hold's stream as contact 1 (six reports, nine in all). The probe recorded one contact only, the held one, at (0.300, 0.300) for 0.80 s; the tap did not arrive |
-| The same unfolded (inner display, surface 258; the probe letterboxed) | The same: the held contact for 0.84 s (at 0.095 of the probe's 469-point window, the display's 0.3), and no tap. On the iPhone 13 mini the same batch gave two contacts. Cause not known: contacts added one after the other in a `gesture` reached the Duo in the touch plan, through the same touchscreen |
+| The same unfolded (inner display, surface 258; the probe letterboxed) | The same: the held contact for 0.84 s (at 0.095 of the probe's 469-point window, the display's 0.3), and no tap. On the iPhone 13 mini the same batch gave two contacts |
+| The same shape as one finished `gesture` (contact 0 at (0.3, 0.3) for 0.8 s, contact 1 at (0.7, 0.7) from 0.30 s to 0.38 s), unfolded | The probe again recorded contact 0 alone (0.90 s). So it is not the hold's live stream: on the Duo's touchscreens a second contact that begins and ends while the first stays down did not arrive, while the touch plan's staggered pair (the first lifting while the second is down) did. Not explained; a longer second contact is the next thing to try |
 
 What has not run on the device: a fold during an input command, `apps`, `reports`, `settings` and `last-crash` beyond the listing above (each reads beyond the probe).
 
