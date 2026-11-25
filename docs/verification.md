@@ -2256,7 +2256,18 @@ A fold during input, in the probe, the human owner folding by hand about 3 s int
 | A tap, folded, after the change | `displayAfter: unchanged` |
 | Unfolded during the press, after the change | `displayAfter: changed` with its note; the probe recorded the contact `cancelled` after 1.51 s. The device was not quarantined: the contact ended by the system's cancel, and the tool's release went to the touchscreen it was sent on |
 
-What has not run on the device: `apps`, `reports`, `settings` and `last-crash` beyond the listing above (each reads beyond the probe).
+The remaining commands that stay in the probe, unfolded:
+
+| Step | Observed |
+| --- | --- |
+| `screen` | `method: accessibility`, the probe's elements |
+| `key backspace` after `set-value abc` | The field read `ab` |
+| `detect-layout --id probe.text.field` | Spanish – ISO (`com.apple.keylayout.Spanish-ISO`), the field restored by `set-value` |
+| The probe with `-ProbeList YES`: `scroll --search 20 --id probe.list.row.55`, then `--search 30 --toward up --id probe.list.row.2` | Row 55 found downward; row 2 found upward in 20 steps, `postcondition-verified`. A search sent right after `launch` found nothing: the list was not yet on screen |
+| `open-url manzanero-probe://duo-check` | `probe.url` read `1 manzanero-probe://duo-check`, with no prompt |
+| `terminate` the probe by bundle, `launch` | Both succeeded. A relaunch without `-ProbeAllowRotation YES` brings the probe back portrait only, and the inner display turns to portrait for it; with the argument it turned back to landscape a few seconds after the launch |
+
+Not run: `paste` (it replaces the device's clipboard, beyond the probe), `button lock` and `wake` (Claude Code's permission check refused the run), and `apps`, `reports`, `settings` and `last-crash` beyond the listing above (each reads beyond the probe; the permission check refused them too).
 
 ### First run on a physical iPad: the iPad mini (6th generation)
 
