@@ -70,7 +70,7 @@ struct DirectAccessibilitySetValue {
             try session.start()
             stage = "select-process"
             let selected = try session.foregroundProcess(geometry)
-            let (process, shown) = try guards.chooseProcess(selected: selected.pid, session: session)
+            let (process, shown) = try guards.chooseProcess(selected: selected.pid, session: session, focusDriven: geometry.focusDriven)
             stage = "application"
             let root = try session.application(pid: process)
             stage = "first-snapshot"

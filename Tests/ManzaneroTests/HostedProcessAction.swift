@@ -121,13 +121,28 @@ struct HostedProcessActionTests {
         #expect(json["selection"] as? String == "explicit-pid-shown-by-frontmost-or-centre-hit" && json["hostPid"] as? Int32 == session.browser)
     }
 
-    /// A device keeps the narrower rule; on a simulator a process that no
-    /// remote element shows, or one shown with no frame, is refused.
-    @Test func aShownProcessIsRefusedOnADeviceAndWithoutARemoteElementWithAFrame() throws {
-        let device = Browser(platform: .physical)
+    /// Since 2026-11-25 a phone accepts it too: an app's web view embedded in
+    /// native content shows its page, which is neither the display-centre
+    /// process nor its host. An Apple TV (focus-driven) keeps the narrow rule.
+    @Test func onAPhoneAShownProcessIsAcceptedAndOnAnAppleTVItIsNot() throws {
+        let phone = Browser(platform: .physical)
+        let chosen = try action(pid: phone.page).chooseProcess(selected: phone.browser, session: phone)
+        #expect(chosen.pid == phone.page && chosen.shown)
+        let failure = try #require(throws: CommandFailure.self) {
+            try action(pid: phone.page).chooseProcess(selected: phone.browser, session: phone, focusDriven: true)
+        }
+        #expect(failure.code == .targetUnresolved && !failure.description.contains("no remote element"))
+    }
+
+    /// A process that no remote element shows, or one shown with no frame,
+    /// is refused, on a simulator and on a phone.
+    @Test func aShownProcessIsRefusedWithoutARemoteElementWithAFrame() throws {
         let unframed = Browser(platform: .simulator)
         unframed.frame = nil
-        for (session, pid) in [(device, device.page), (Browser(platform: .simulator), Int32(77)), (unframed, unframed.page)] {
+        let unframedPhone = Browser(platform: .physical)
+        unframedPhone.frame = nil
+        for (session, pid) in [(Browser(platform: .physical), Int32(77)), (Browser(platform: .simulator), Int32(77)), (unframed, unframed.page),
+                               (unframedPhone, unframedPhone.page)] {
             let failure = try #require(throws: CommandFailure.self) { try action(pid: pid).actionProcess(selected: session.browser, session: session) }
             #expect(failure.code == .targetUnresolved && failure.inputSent == .none)
         }

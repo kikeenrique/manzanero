@@ -48,8 +48,11 @@ struct AccessibilityPlatform: Sendable {
     let cleanupLimitation: String
     /// Whether `--pid` may also name a process the foreground one shows in a
     /// remote element: a web page inside Safari on a simulator, where the
-    /// browser is the foreground application. A device keeps the narrower
-    /// rule, because there the page is the display-centre process already.
+    /// browser is the foreground application (the human owner's word of
+    /// 2026-11-21), and on a phone or iPad since the human owner's word of
+    /// 2026-11-25, for a web view embedded in native content, whose page is
+    /// neither the display-centre process nor its host. Not on an Apple TV
+    /// (a focus-driven display), where `--pid` stays as narrow as before.
     var acceptsShownProcess = false
 
     var capitalizedSelectionSubject: String { selectionSubject.prefix(1).uppercased() + selectionSubject.dropFirst() }
@@ -59,7 +62,8 @@ struct AccessibilityPlatform: Sendable {
         selectionSubject: "display-centre", selection: "centre-hit-test", failurePrefix: "Direct physical",
         treeSelectionLimitation: "Primary display-centre selection may identify an overlay or embedded process; this is not a combined display tree.",
         waitSelectionLimitation: "Every poll re-selects the primary display-centre process; an overlay or embedded process can be selected. The condition is evaluated in that poll's process.",
-        cleanupLimitation: "A disable acknowledgement is not independent verification of phone-side subscription teardown.")
+        cleanupLimitation: "A disable acknowledgement is not independent verification of phone-side subscription teardown.",
+        acceptsShownProcess: true)
 }
 
 extension AccessibilitySession: AccessibilityValueSetting {

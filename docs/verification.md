@@ -2195,7 +2195,9 @@ So on a physical watch every command family has now run inside the probe, except
 | Phone: `tree --pid <page>` | The page's tree, the "Top button" in it |
 | Phone: `press --label "Top button" --pid <page>` | Refused before anything was sent: "requested PID differs from display-centre process and does not host it". On a phone `--pid` may name only the display-centre process or the one that hosts it, and an embedded page is neither |
 
-So on a simulator an embedded page is read and acted on like any page; on a phone it can be read and not acted on. The simulator's wider `--pid` rule (a process one of the foreground app's remote elements shows, with a frame) was the human owner's decision of 2026-11-21 for simulators only; a phone keeps the narrower one until the human owner decides otherwise.
+So on a simulator an embedded page was read and acted on like any page, and on a phone it could be read and not acted on: the simulator's wider `--pid` rule (a process one of the foreground app's remote elements shows, with a frame) was the human owner's decision of 2026-11-21 for simulators only.
+
+**Later that evening the human owner extended that rule to phones and iPads** (not an Apple TV). On the iPhone 13 mini, the probe relaunched on the same screen: `press --label "Top button" --pid <page>` accepted with `selection: explicit-pid-shown-by-centre-hit-test` (`web-top`); `press --label "Web field" --pid <page> --index 2` and `type hola` (`web-field:hola`); `press --label Done` to close the keyboard; `scroll --label "Bottom button" --pid <page> --search 30` `postcondition-verified` and its press accepted (`web-bottom`); `press --id probe.web.native` (`native`). Every action on the page went through the same guards as before, the hit test at the target's centre included.
 
 ### `profile list` and `profile remove`
 
