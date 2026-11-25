@@ -2192,7 +2192,9 @@ So on a physical watch every command family has now run inside the probe, except
 | The same before that relaunch | The probe stayed portrait whatever the phone reported (`deviceOrientation: landscapeRight`, `currentOrientation: rot0`): it allowed landscape only with that option |
 | After the change, the probe rebuilt (it now turns by default), in `landscape-right`, `landscape-left` and `portrait` | `frames`: 2436 × 1125, 2436 × 1125 and 1125 × 2436, `pictureTurn` 90, 270 and 0, each the size of the `screenshot` beside it; `record … 3`: 2464 × 1136, 2464 × 1136 and 1136 × 2464, 47 to 51 source pictures, `pictureTurn` in each result. The landscape-right picture and the landscape-left movie were looked at: upright, as the screenshot |
 
-So `frames` and `record` now turn the panel's picture into the interface's orientation, as Apple's screenshot does, by the display's current orientation when the capture starts (`DirectTouchDisplay.pictureTurn`). A phone turned during a capture keeps the start's turn. The watch (a panel mounted sideways) and the Duo's inner display take the same rule, not yet run there.
+So `frames` and `record` now turn the panel's picture into the interface's orientation, as Apple's screenshot does, by the display's current orientation when the capture starts (`DirectTouchDisplay.pictureTurn`). A phone turned during a capture keeps the start's turn. The watch (a panel mounted sideways) and the Duo's inner display take the same rule.
+
+**Later that evening, the Apple Watch Ultra** (watchOS 27.2.1, over the network), the watchOS probe installed for the run, launched and captured in one `batch` (a first try met the display going dark after the launch, a second a stale connection; the third, minutes later, ran whole): `frames` 422 × 514 and `record … 5` 448 × 528 (62 source pictures), both `pictureTurn: 270` and upright, the probe's rows reading normally; the `screenshot` beside them 422 × 514. Before the change the watch's pictures were 514 × 422 and sideways. The captures were deleted after reading and the probe uninstalled.
 
 ### A second iPhone: the iPhone 17 Pro Max, inside the probe
 
