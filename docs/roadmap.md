@@ -359,6 +359,13 @@ The watch tasks left the night before, on the human owner's word, everything ins
 | A watch's video | `record` and `frames` failed with packets and no picture: the watch sends H.264, its SPS and PPS in a QuickTime `avc1` sample description in the first packet. `MediaVideoAssembler` and `MediaH264Assembler` read it; a clean `frames` picture (514 × 422, sideways) and a 5-second recording followed. The kept packet log now gives each packet's payload type and first bytes | [Guide](other-families.md#digital-crown-and-side-button-apple-watch), [record](verification.md#the-physical-apple-watchs-remaining-commands) |
 | The rest of the watch's commands | A screenshot, `console`, `last-crash`, `reports`, `files`, `batch`, `handoff --until` and MCP ran; `logs` received nothing from the watch's relay, and the watch refuses `settings` (no appearance capability) | [Record](verification.md#the-physical-apple-watchs-remaining-commands) |
 
+### Added on the afternoon of 2026-11-25: `logs` on an Apple Watch and `reboot`
+
+| Area | Result |
+| --- | --- |
+| `logs` on an Apple Watch | Empty without Apple's watchOS logging profile, which Apple's staff and documentation name; with it, one process and every process stream ([record](verification.md#an-apple-watchs-log-relay-sends-nothing-and-why), [sources](app-logs.md#an-apple-watch)). An empty watch capture says why (`streamNote`) |
+| `reboot` | A device by `devicectl device reboot`, a simulator by `simctl reboot`, with a dry-run plan and MCP `reboot_device`; run on an iPhone simulator ([record](verification.md#reboot-on-a-simulator)), on no device through the tool yet |
+
 ### Added on the night of 2026-11-25: the first physical iPhone Duo
 
 The human owner named the paired iPhone Duo and gave it the iPad mini's privacy rule; later that night work inside the probe app needed no question. Everything ran inside the iOS probe, over the network, folded and unfolded.
@@ -385,7 +392,7 @@ The order is laia-LLM's suggestion, not one the human owner set.
 4. **The Apple TV, only if it happens again** (item 16): error 25004 on `wake`; a `wake` that has to wait for the HID service; the services that stopped answering while awake (collect `mise run diagnose:device-services` first).
 5. **Waiting for something outside this repository**: the `.xcappdata` export, for a sample that Xcode's Devices window downloads (item 24); a press at a point of the first-generation remote's touch surface, for a case that needs it (item 17).
 
-Done since the last list: `logs` on an Apple Watch, empty without Apple's logging profile and working with it (2026-11-25, [record](verification.md#an-apple-watchs-log-relay-sends-nothing-and-why)). Before that: the first physical iPhone Duo, folded and unfolded, inside the probe, with five fixes for a device with two displays ([night of 2026-11-25](#added-on-the-night-of-2026-11-25-the-first-physical-iphone-duo)); the physical Apple Watch's remaining commands, with its buttons and its H.264 video built ([2026-11-25](#added-on-2026-11-25-the-physical-apple-watchs-remaining-commands)); the 25004 wake; every Apple TV check that could be run on purpose; the phone's last owed checks; a physical iPad and a physical Apple Watch ([night of 2026-11-24](#added-on-the-night-of-2026-11-24-the-apple-tvs-last-checks-the-first-ipad-and-watch)).
+Done since the last list: `reboot` for devices and simulators; `logs` on an Apple Watch, empty without Apple's logging profile and working with it (2026-11-25, [record](verification.md#an-apple-watchs-log-relay-sends-nothing-and-why)). Before that: the first physical iPhone Duo, folded and unfolded, inside the probe, with five fixes for a device with two displays ([night of 2026-11-25](#added-on-the-night-of-2026-11-25-the-first-physical-iphone-duo)); the physical Apple Watch's remaining commands, with its buttons and its H.264 video built ([2026-11-25](#added-on-2026-11-25-the-physical-apple-watchs-remaining-commands)); the 25004 wake; every Apple TV check that could be run on purpose; the phone's last owed checks; a physical iPad and a physical Apple Watch ([night of 2026-11-24](#added-on-the-night-of-2026-11-24-the-apple-tvs-last-checks-the-first-ipad-and-watch)).
 
 The numbered lists below follow the standing priorities of this page: dependable physical testing first, then coverage of more devices, then the gaps in other families, then what is not built, then commands to add, then delivery.
 

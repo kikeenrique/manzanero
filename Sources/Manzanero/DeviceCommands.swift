@@ -13,6 +13,9 @@ struct DeviceCommand: Sendable, Equatable {
     /// resolves just before it runs.
     static let resolvedPIDPlaceholder = "<resolved PID>"
 
+    /// Seconds `devicectl device reboot` may take to accept the request.
+    static let rebootTimeout = 180
+
     /// `launch` with its options. Language and locale become the app's
     /// `-AppleLanguages` and `-AppleLocale` arguments, ahead of the caller's.
     static func launch(physical: Bool, device: String, bundle: String, options: LaunchOptions) throws -> Self {
@@ -96,6 +99,13 @@ struct DeviceCommand: Sendable, Equatable {
             case "install", "uninstall":
                 try require(1)
                 command = [operation, "app"] + operands
+            case "reboot":
+                try require(0)
+                // A full reboot. devicectl returns once the device has taken
+                // the request; the Apple TV 4K took 91 s to (2026-11-24), so
+                // the usual 60 s bound is too short.
+                return Self(arguments: ["devicectl", "device", "reboot", "--device", device, "--timeout", String(Self.rebootTimeout),
+                                        "--json-output", "-"], jsonOutput: true)
             case "screenshot":
                 try require(1)
                 guard operands[0].lowercased().hasSuffix(".png") else {
@@ -111,7 +121,8 @@ struct DeviceCommand: Sendable, Equatable {
         case "apps":
             try require(0)
             command = ["listapps", device]
-        case "boot", "shutdown":
+        case "boot", "shutdown", "reboot":
+            // simctl's reboot shuts the simulator down and boots it again.
             try require(0)
             command = [operation, device]
         case "launch", "terminate", "install", "uninstall", "open-url":

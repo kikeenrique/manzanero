@@ -12,6 +12,30 @@ struct DeviceCommandsTests {
         #expect(plan.jsonOutput)
     }
 
+    @Test func rebootPlansDevicectlForADeviceAndSimctlForASimulator() async throws {
+        let device = "00008110-000A11112222801E"
+        let physical = try DeviceCommand.plan(physical: true, device: device, operation: "reboot")
+        #expect(physical.arguments == ["devicectl", "device", "reboot", "--device", device, "--timeout", "180", "--json-output", "-"])
+        #expect(physical.jsonOutput)
+        let simulated = try DeviceCommand.plan(physical: false, device: simulator, operation: "reboot")
+        #expect(simulated.arguments == ["simctl", "reboot", simulator] && !simulated.jsonOutput)
+        #expect(throws: CommandFailure.self) { try DeviceCommand.plan(physical: true, device: device, operation: "reboot", operands: ["now"]) }
+
+        #expect(summary(try request(["reboot", "--device", device])) == ["physical", device, "reboot"])
+        #expect(summary(try request(["reboot", "--simulator", simulator])) == ["simulator", simulator, "reboot"])
+        let rebooting = try request(["reboot", "--simulator", simulator])
+        #expect(!rebooting.isReadOnly && rebooting.addressed?.operation == "reboot")
+
+        let service = CommandService(readinessQuery: { _ in Issue.record("Dry run queried device"); return Data() })
+        let plan = try #require(try JSONSerialization.jsonObject(with: await service.run(["reboot", "--device", device], dryRun: true).data) as? [String: Any])
+        #expect(plan["arguments"] as? [String] == physical.arguments)
+
+        let tool = try #require(MCPTools.definitions.first { $0.name == "reboot_device" })
+        #expect(try tool.command(["platform": .string("physical"), "device": .string(device)]) == ["reboot", "--device=\(device)"])
+        #expect(try tool.command(["platform": .string("simulator"), "device": .string(simulator)]) == ["reboot", "--simulator=\(simulator)"])
+        #expect(!tool.readOnly)
+    }
+
     @Test func launchOptionsReachDevicectlAndSimctl() throws {
         let options = try LaunchOptions(arguments: ["-ProbeList", "YES"], environment: ["A=1", "B=x=y"], language: "pt-BR", locale: "es_ES", relaunch: true)
         let physical = try DeviceCommand.launch(physical: true, device: "fixture-phone", bundle: "com.example.app", options: options)

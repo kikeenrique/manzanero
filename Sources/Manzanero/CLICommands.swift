@@ -944,6 +944,19 @@ extension ManzaneroCLI {
         func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "shutdown")) }
     }
 
+    struct Reboot: TargetedCommand {
+        static let configuration = CommandConfiguration(commandName: "reboot", abstract: "Restart a device or a simulator; running apps are interrupted.",
+            discussion: """
+            A device gets a full reboot through devicectl (device reboot), which returns once the device has accepted it, \
+            not when it is back: follow it with readiness or devices. A device with a passcode is locked after it, and \
+            most input waits for someone to unlock it. Any call to a sleeping Apple TV may switch on its television. \
+            A simulator is shut down and booted again through simctl (reboot).
+            """)
+        @OptionGroup var target: TargetOptions
+        @OptionGroup var common: CommonOptions
+        func request(_ target: Target) throws -> CommandRequest { .tool(try DeviceOperation(target, "reboot")) }
+    }
+
     struct Handoff: TargetedCommand {
         static let configuration = CommandConfiguration(commandName: "handoff", abstract: "Ask a person to do a step on the device, then wait until it is done.",
             discussion: """

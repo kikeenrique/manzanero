@@ -298,6 +298,9 @@ enum MCPTools {
                 operands: [$0.text("project"), $0.text("scheme")])
         },
         .init(name: "simulator_state", description: "Boot or shut down a selected simulator. Shutdown interrupts running apps; no erase or delete operation is exposed.", fields: [device, .init(name: "operation", choices: ["boot", "shutdown"])]) { $0.command([$0.text("operation")], platform: "simulator") },
+        .init(name: "reboot_device", description: "Restart a physical device (a full reboot through devicectl) or a simulator (shut down and booted again through simctl). Running apps are interrupted. On a device it returns once the device has accepted the reboot, not when it is back: follow it with device_readiness or list_devices. A device with a passcode is locked afterwards, and most input waits for someone to unlock it. Any call to a sleeping Apple TV may switch on its television. Ask the user before rebooting a device.", fields: [platform, device]) {
+            $0.command(["reboot"])
+        },
         .init(name: "ocr_image", description: "Recognize text in a local image using Vision. Normalized top-left bounds. Recognition verified on one simulator fixture; broad accuracy remains unverified.", fields: [.init(name: "path")], readOnly: true) { ["ocr", "--", $0.text("path")] }
     ] + appDiagnostics + otherFamilies
 

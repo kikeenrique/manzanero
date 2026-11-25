@@ -27,7 +27,7 @@ struct MCPToolsTests {
     }
     @Test func catalogHasUniqueNamesAndClosedObjectSchemas() throws {
         let definitions = MCPTools.definitions
-        #expect(definitions.count == 44 + MCPTools.otherFamilies.count)
+        #expect(definitions.count == 45 + MCPTools.otherFamilies.count)
         #expect(Set(definitions.map(\.name)).count == definitions.count)
         for definition in definitions {
             let schema = try #require(definition.tool.inputSchema.objectValue)

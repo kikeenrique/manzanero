@@ -2182,6 +2182,17 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 
 So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
 
+### Reboot on a simulator
+
+**2026-11-25**, Xcode 27.2's `simctl`, an iPhone Air simulator (iOS 27.2) booted for the run and shut down after it.
+
+| Step | Observed |
+| --- | --- |
+| `reboot --simulator <UUID>` | Exit 0 after 4 s, the simulator `Booted` again |
+| The same, with SpringBoard's PID read from `launchctl list` in the simulator before and after | A new PID afterwards, so the simulator really restarted |
+
+A device's `reboot` is `devicectl device reboot`, the invocation that restarted the Apple TV 4K on 2026-11-24 and the Apple Watch on 2026-11-25 when run by hand; through the tool it has run on no device yet.
+
 ### An Apple Watch's log relay sends nothing, and why
 
 **2026-11-25, midday**, the same Apple Watch (an Ultra, watchOS 27.2.1) on the human owner's wrist, over the local network and Apple's tunnel (the tool's own is not available for a watch), the watchOS probe installed by `build-run`. Each capture at `debug`, with presses of `probe.watch.button.b` from a second process meanwhile, the probe seen in front in a tree first.
