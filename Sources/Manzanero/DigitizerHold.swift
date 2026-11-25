@@ -329,18 +329,27 @@ final class HoldStream: @unchecked Sendable {
 /// whole hold), so the batch's other steps run meanwhile.
 struct HoldTransport: Sendable {
     typealias Provider = (UnsafeMutablePointer<UInt8>?, UnsafeMutablePointer<UInt64>?) -> Int32
+    typealias Run = @Sendable (_ uuid: String, _ version: String, _ touchscreen: String?, _ next: @escaping Provider,
+                               _ shouldStop: @escaping () -> Int32) -> HoldStream.Outcome
     /// Runs the stream on the calling thread and returns when it has ended.
-    let run: @Sendable (_ uuid: String, _ version: String, _ next: @escaping Provider,
-                        _ shouldStop: @escaping () -> Int32) -> HoldStream.Outcome
+    /// `touchscreen`: the display's own touchscreen on a device with more
+    /// than one (an iPhone Duo, `DirectTouchDisplay.touchscreen`).
+    let run: Run
 
-    static let live = HoldTransport { uuid, version, next, shouldStop in
+    init(touchscreen run: @escaping Run) { self.run = run }
+
+    /// A transport that has no use for a named touchscreen.
+    init(_ run: @escaping @Sendable (_ uuid: String, _ version: String, _ next: @escaping Provider,
+                                     _ shouldStop: @escaping () -> Int32) -> HoldStream.Outcome) {
+        self.run = { uuid, version, _, next, shouldStop in run(uuid, version, next, shouldStop) }
+    }
+
+    static let live = HoldTransport(touchscreen: { uuid, version, touchscreen, next, shouldStop in
         var error = [CChar](repeating: 0, count: 1024), surface: UInt64 = 0
-        // A hold on an iPhone Duo's inner display would need its touchscreen
-        // named; not built, so the bridge refuses a device with two.
-        let status = ADCPerformLiveDigitizerReports(uuid, version, nil, next, shouldStop, &surface, &error, error.count)
+        let status = ADCPerformLiveDigitizerReports(uuid, version, touchscreen, next, shouldStop, &surface, &error, error.count)
         return HoldStream.Outcome(status: status, surface: surface,
                                   message: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
-    }
+    })
 
     /// A simulator's stream: `uuid` is the simulator's and `version` the
     /// unique identifier of the display whose touchscreen takes the reports.
@@ -373,11 +382,11 @@ struct HoldTransport: Sendable {
     }
 
     /// Starts the stream on a new thread; `stream.finish` is called when it ends.
-    func start(_ stream: HoldStream, uuid: String, version: String,
+    func start(_ stream: HoldStream, uuid: String, version: String, touchscreen: String? = nil,
                clock: @escaping @Sendable () -> UInt64 = { DispatchTime.now().uptimeNanoseconds }) {
         let run = run
         let thread = Thread {
-            let result = run(uuid, version, stream.provider(clock: clock), { stream.isStopping ? 1 : 0 })
+            let result = run(uuid, version, touchscreen, stream.provider(clock: clock), { stream.isStopping ? 1 : 0 })
             stream.finish(result)
         }
         thread.name = "manzanero.hold"

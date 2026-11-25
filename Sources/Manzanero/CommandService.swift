@@ -481,7 +481,7 @@ actor CommandService {
         let stream = HoldStream(slots: span.contactSlots, held: [point.0, point.1].map { Int((min(max($0, 0), 1) * 65535).rounded()) })
         let session = HoldSession(span: span, stream: stream, device: hold.device, uuid: identity.uuid, display: display, lease: lease)
         active.set(session)
-        holdTransport.start(stream, uuid: identity.uuid, version: identity.version)
+        holdTransport.start(stream, uuid: identity.uuid, version: identity.version, touchscreen: display.touchscreen)
         guard let early = stream.waitUntilHolding() else { return session }
         // The stream ended before the contact was down: nothing is held.
         active.set(nil)

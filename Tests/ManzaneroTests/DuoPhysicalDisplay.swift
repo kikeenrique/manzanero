@@ -1,4 +1,6 @@
+import AppleDeviceBridge
 import Foundation
+import Synchronization
 import Testing
 @testable import Manzanero
 
@@ -71,6 +73,21 @@ struct DuoPhysicalDisplayTests {
         let json = try #require(try JSONSerialization.jsonObject(with: receipt) as? [String: Any])
         #expect(named == "123-456-789" && !indigo)
         #expect(json["route"] as? String == "universal-hid" && json["surfaceID"] as? UInt64 == 7)
+    }
+
+    /// A hold's stream names the display's touchscreen to a transport that
+    /// takes one; a four-argument transport (a simulator's, a test's) keeps
+    /// working without it.
+    @Test func aHoldNamesTheDisplaysTouchscreen() {
+        let named = Mutex<String?>(nil)
+        let transport = HoldTransport(touchscreen: { _, _, touchscreen, _, _ in
+            named.withLock { $0 = touchscreen }
+            return HoldStream.Outcome(status: 1, surface: 0, message: "")
+        })
+        _ = transport.run("uuid", "version", "123-456-789", { _, _ in ADCLiveDigitizerEnd }, { 1 })
+        #expect(named.withLock { $0 } == "123-456-789")
+        let plain = HoldTransport { uuid, version, _, _ in HoldStream.Outcome(status: 1, surface: 0, message: uuid + version) }
+        #expect(plain.run("a", "b", "ignored", { _, _ in ADCLiveDigitizerEnd }, { 1 }).message == "ab")
     }
 
     /// A display asked for by ID is taken as asked, awake or not.
