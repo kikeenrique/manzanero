@@ -2238,7 +2238,14 @@ The other families, folded, inside the probe:
 | `handoff --until visible --id probe.touch.reset` | Ended by itself, `status: observed`, 5 s |
 | `test:mcp-press` (a real MCP session) on `probe.touch.reset` | Passed |
 
-What has not run on the device: `hold` (not built for a device with two touchscreens; the bridge refuses it), a fold during an input command, `apps`, `reports`, `settings` and `last-crash` beyond the listing above (each reads beyond the probe).
+After the hold was built for a device with two touchscreens (its stream names the display's own touchscreen):
+
+| Step | Observed |
+| --- | --- |
+| `batch` `hold 0.3 0.3`, `tap 0.7 0.7`, `release`, folded (outer display, surface 257) | Completed; the tap was merged into the hold's stream as contact 1 (six reports, nine in all). The probe recorded one contact only, the held one, at (0.300, 0.300) for 0.80 s; the tap did not arrive |
+| The same unfolded (inner display, surface 258; the probe letterboxed) | The same: the held contact for 0.84 s (at 0.095 of the probe's 469-point window, the display's 0.3), and no tap. On the iPhone 13 mini the same batch gave two contacts. Cause not known: contacts added one after the other in a `gesture` reached the Duo in the touch plan, through the same touchscreen |
+
+What has not run on the device: a fold during an input command, `apps`, `reports`, `settings` and `last-crash` beyond the listing above (each reads beyond the probe).
 
 ### First run on a physical iPad: the iPad mini (6th generation)
 
