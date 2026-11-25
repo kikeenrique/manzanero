@@ -244,7 +244,7 @@ struct LiveDigitizerSchedulerTests {
 
     @Test func thePerformFunctionRefusesBeforeAnyTransport() {
         var error = [CChar](repeating: 0, count: 256), surface: UInt64 = 9
-        #expect(ADCPerformLiveDigitizerReports("invalid", "1", { _, _ in ADCLiveDigitizerEnd }, { 1 }, &surface, &error, error.count) == 1)
+        #expect(ADCPerformLiveDigitizerReports("invalid", "1", nil, { _, _ in ADCLiveDigitizerEnd }, { 1 }, &surface, &error, error.count) == 1)
         let message = String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         #expect(surface == 0 && message.contains("cancelled before transport"))
     }

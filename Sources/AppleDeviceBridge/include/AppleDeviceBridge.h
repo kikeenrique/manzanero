@@ -181,7 +181,11 @@ int ADCPerformCancellableRemoteTouch(const char *uuid, const char *version,
                               const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
                               ADCInputShouldStop shouldCancel, char *error, size_t errorCapacity);
 /// Finite complete-state digitizer schedule; reports are count * 58 bytes.
-int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version,
+/// `touchscreen`, or NULL: the unique ID of the display whose touchscreen
+/// takes the reports (`CoreDevice touchscreen(<unique ID>)`), for a device
+/// with more than one display, such as an iPhone Duo. NULL takes the one
+/// touchscreen a device lists.
+int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version, const char *touchscreen,
                               const uint64_t *nanoseconds, const uint8_t *reports, size_t count,
                               ADCInputShouldStop shouldCancel, uint64_t *surface,
                               char *error, size_t errorCapacity);
@@ -212,7 +216,7 @@ int ADCRunLiveDigitizer(ADCDigitizerProvider next, ADCInputShouldStop shouldStop
 /// lasts as long as the provider keeps the stream going (a `hold` batch step).
 /// Same status contract: zero, ADCInputOutcomeUnknown once input was
 /// attempted and the end is not confirmed, any other value when nothing was sent.
-int ADCPerformLiveDigitizerReports(const char *uuid, const char *version, ADCDigitizerProvider next,
+int ADCPerformLiveDigitizerReports(const char *uuid, const char *version, const char *touchscreen, ADCDigitizerProvider next,
                                    ADCInputShouldStop shouldCancel, uint64_t *surface,
                                    char *error, size_t errorCapacity);
 

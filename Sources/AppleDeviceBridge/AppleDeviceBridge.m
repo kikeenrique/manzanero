@@ -942,10 +942,31 @@ int ADCInspectMedia(const char *uuid, const char *version, int (^shouldCancel)(v
 /// 30 of 80 actions; 100 ms, 200 ms and 400 ms lost none. 200 ms leaves a margin.
 static const uint64_t ADCInputDrainNanoseconds = 200 * NSEC_PER_MSEC;
 
+static int ADCPerformInputOnTouchscreen(const char *uuid, const char *version, uint64_t usage,
+                   unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys,
+                   const uint64_t *reportTimes, const uint8_t *reports, uint64_t *resolvedSurface, size_t count,
+                   ADCDigitizerProvider provider, const double *crown, const char *touchscreen,
+                   ADCInputShouldStop shouldCancel, char *error, size_t capacity);
+
+/// Every input but a digitizer schedule for a named display's touchscreen.
 static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage,
                    unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys,
                    const uint64_t *reportTimes, const uint8_t *reports, uint64_t *resolvedSurface, size_t count,
                    ADCDigitizerProvider provider, const double *crown, ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
+    return ADCPerformInputOnTouchscreen(uuid, version, usage, hold, keyboard, samples, secondPoints, keys, reportTimes, reports,
+                                        resolvedSurface, count, provider, crown, NULL, shouldCancel, error, capacity);
+}
+
+/// `touchscreen`, for a Universal HID schedule or stream only: the unique ID
+/// of the display whose touchscreen takes the reports, matched against the
+/// service's product name `CoreDevice touchscreen(<unique ID>)`. A device
+/// with one display lists one touchscreen and needs none; an iPhone Duo has
+/// one per display. NULL keeps the rule of exactly one touchscreen.
+static int ADCPerformInputOnTouchscreen(const char *uuid, const char *version, uint64_t usage,
+                   unsigned hold, BOOL keyboard, const ADCTouchSample *samples, const ADCTouchPoint *secondPoints, const ADCKeyboardSample *keys,
+                   const uint64_t *reportTimes, const uint8_t *reports, uint64_t *resolvedSurface, size_t count,
+                   ADCDigitizerProvider provider, const double *crown, const char *touchscreen,
+                   ADCInputShouldStop shouldCancel, char *error, size_t capacity) {
     @autoreleasepool {
         // A finite schedule and a live stream both go to the Universal HID
         // touchscreen; they differ only in where the reports come from.
@@ -1029,7 +1050,8 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
             });
             BOOL timeout = dispatch_semaphore_wait(discovery.semaphore, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC)) != 0;
             xpc_object_t services = ADCValidHIDReply(discovery.reply) ? xpc_dictionary_get_array(discovery.reply, "connectedServices") : NULL;
-            size_t matches = 0;
+            size_t matches = 0, touchscreens = 0;
+            NSString *wanted = touchscreen ? [NSString stringWithFormat:@"CoreDevice touchscreen(%s)", touchscreen] : nil;
             if (!timeout && !status.failed && services && xpc_array_get_count(services) <= 128) {
                 for (size_t i = 0; i < xpc_array_get_count(services); i++) {
                     xpc_object_t descriptor = xpc_array_get_value(services, i);
@@ -1037,12 +1059,17 @@ static int ADCPerformInput(const char *uuid, const char *version, uint64_t usage
                     const char *product = xpc_dictionary_get_string(descriptor, "Product");
                     xpc_object_t identifier = xpc_dictionary_get_value(descriptor, "_ServiceID");
                     uint64_t value = identifier && xpc_get_type(identifier) == XPC_TYPE_UINT64 ? xpc_uint64_get_value(identifier) : 0;
-                    if (product && strncmp(product, "CoreDevice touchscreen(", 23) == 0 && value) { surface = value; matches++; }
+                    if (!product || strncmp(product, "CoreDevice touchscreen(", 23) != 0 || !value) continue;
+                    touchscreens++;
+                    if (!wanted || strcmp(product, wanted.UTF8String) == 0) { surface = value; matches++; }
                 }
             }
             if (matches != 1) {
                 cancel(remote); xpc_connection_cancel(connection);
-                return ADCFail(error, capacity, @"Apple Universal HID did not identify exactly one touchscreen; no report sent.");
+                NSString *detail = wanted
+                    ? [NSString stringWithFormat:@"Apple Universal HID listed %zu touchscreens and %zu named %@; no report sent.", touchscreens, matches, wanted]
+                    : [NSString stringWithFormat:@"Apple Universal HID did not identify exactly one touchscreen (it listed %zu); no report sent.", touchscreens];
+                return ADCFail(error, capacity, detail);
             }
         }
         // Every input mode, including plain consumer buttons, must receive the
@@ -1194,19 +1221,33 @@ int ADCValidateKeyboardSchedule(const ADCKeyboardSample *samples, size_t count, 
     return 0;
 }
 
-int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version, const uint64_t *times,
+static BOOL ADCValidTouchscreenName(const char *touchscreen, char *error, size_t capacity) {
+    if (!touchscreen) return YES;
+    size_t length = strnlen(touchscreen, 129);
+    if (length == 0 || length > 128 || strchr(touchscreen, ')')) {
+        ADCFail(error, capacity, @"Invalid touchscreen display identifier; no input sent.");
+        return NO;
+    }
+    return YES;
+}
+
+int ADCPerformCancellableDigitizerReports(const char *uuid, const char *version, const char *touchscreen, const uint64_t *times,
                               const uint8_t *reports, size_t count, ADCInputShouldStop shouldCancel,
                               uint64_t *surface, char *error, size_t capacity) {
     if (surface) *surface = 0;
+    if (!ADCValidTouchscreenName(touchscreen, error, capacity)) return 1;
     if (ADCValidateDigitizerSchedule(times, reports, count, error, capacity)) return 1;
-    return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, times, reports, surface, count, NULL, NULL, shouldCancel, error, capacity);
+    return ADCPerformInputOnTouchscreen(uuid, version, 0, 0, NO, NULL, NULL, NULL, times, reports, surface, count, NULL, NULL,
+                                        touchscreen, shouldCancel, error, capacity);
 }
 
-int ADCPerformLiveDigitizerReports(const char *uuid, const char *version, ADCDigitizerProvider next,
+int ADCPerformLiveDigitizerReports(const char *uuid, const char *version, const char *touchscreen, ADCDigitizerProvider next,
                                    ADCInputShouldStop shouldCancel, uint64_t *surface, char *error, size_t capacity) {
     if (surface) *surface = 0;
+    if (!ADCValidTouchscreenName(touchscreen, error, capacity)) return 1;
     if (!next) return ADCFail(error, capacity, @"A live digitizer stream needs a report provider; no input sent.");
-    return ADCPerformInput(uuid, version, 0, 0, NO, NULL, NULL, NULL, NULL, NULL, surface, 0, next, NULL, shouldCancel, error, capacity);
+    return ADCPerformInputOnTouchscreen(uuid, version, 0, 0, NO, NULL, NULL, NULL, NULL, NULL, surface, 0, next, NULL,
+                                        touchscreen, shouldCancel, error, capacity);
 }
 
 int ADCPerformCancellableRemoteTouch(const char *uuid, const char *version, const uint64_t *times,

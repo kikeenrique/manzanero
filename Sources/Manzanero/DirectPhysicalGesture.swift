@@ -43,6 +43,9 @@ enum DirectPhysicalGesture {
         let uuid: String
         let version: String
         let sequence: NativeGestureSequence
+        /// The display's touchscreen on a device with more than one display
+        /// (`DirectTouchDisplay.touchscreen`); nil otherwise.
+        var touchscreen: String? = nil
     }
 
     static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
@@ -57,7 +60,7 @@ enum DirectPhysicalGesture {
             throw CommandFailure(.preconditionChanged, "Display changed before gesture dispatch; no input sent.", inputSent: .none)
         }
         try Task.checkCancellation()
-        let surface = try send(Request(uuid: identity.uuid, version: identity.version, sequence: sequence))
+        let surface = try send(Request(uuid: identity.uuid, version: identity.version, sequence: sequence, touchscreen: display.touchscreen))
         return try JSONSerialization.data(withJSONObject: ["backend": "coredevice-direct", "operation": input.operation,
             "status": "dispatched", "verified": false, "releaseVerified": false, "device": input.device,
             "resolvedCoreDeviceUUID": identity.uuid, "surfaceID": surface,
@@ -73,7 +76,7 @@ enum DirectPhysicalGesture {
         var error = [CChar](repeating: 0, count: 1024), surface: UInt64 = 0
         let status = times.withUnsafeBufferPointer { times in
             bytes.withUnsafeBufferPointer { reports in
-                ADCPerformCancellableDigitizerReports(request.uuid, request.version, times.baseAddress, reports.baseAddress,
+                ADCPerformCancellableDigitizerReports(request.uuid, request.version, request.touchscreen, times.baseAddress, reports.baseAddress,
                     times.count, { Task.isCancelled ? 1 : 0 }, &surface, &error, error.count)
             }
         }

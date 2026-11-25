@@ -130,7 +130,7 @@ struct DirectPhysicalGestureTests {
             var error = [CChar](repeating: 0, count: 512), surface: UInt64 = 999
             let status = schedule.withUnsafeBufferPointer { times in
                 data.withUnsafeBytes { bytes in
-                    ADCPerformCancellableDigitizerReports("invalid", "invalid", times.baseAddress,
+                    ADCPerformCancellableDigitizerReports("invalid", "invalid", nil, times.baseAddress,
                         bytes.bindMemory(to: UInt8.self).baseAddress, times.count, nil, &surface, &error, error.count)
                 }
             }
@@ -149,7 +149,7 @@ struct DirectPhysicalGestureTests {
             // The C boundary also accepts the derived-drag release at 10,001 ms.
             let result = [UInt64(0), 10_001_000_000].withUnsafeBufferPointer { times in
                 bytes.withUnsafeBufferPointer {
-                    ADCPerformCancellableDigitizerReports("invalid", "invalid", times.baseAddress, $0.baseAddress, 2, nil, &surface, &error, error.count)
+                    ADCPerformCancellableDigitizerReports("invalid", "invalid", nil, times.baseAddress, $0.baseAddress, 2, nil, &surface, &error, error.count)
                 }
             }
             #expect(result != 0 && surface == 0)

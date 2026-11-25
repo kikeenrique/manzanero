@@ -335,7 +335,9 @@ struct HoldTransport: Sendable {
 
     static let live = HoldTransport { uuid, version, next, shouldStop in
         var error = [CChar](repeating: 0, count: 1024), surface: UInt64 = 0
-        let status = ADCPerformLiveDigitizerReports(uuid, version, next, shouldStop, &surface, &error, error.count)
+        // A hold on an iPhone Duo's inner display would need its touchscreen
+        // named; not built, so the bridge refuses a device with two.
+        let status = ADCPerformLiveDigitizerReports(uuid, version, nil, next, shouldStop, &surface, &error, error.count)
         return HoldStream.Outcome(status: status, surface: surface,
                                   message: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
     }

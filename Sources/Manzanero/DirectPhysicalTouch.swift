@@ -12,6 +12,13 @@ struct DirectTouchDisplay: Equatable {
     let scale: Double
     let native: Int
     let rotation: Int
+    /// On a device with more than one integrated display (an iPhone Duo):
+    /// the unique ID of this display, whose own Universal HID touchscreen
+    /// takes its touches. Indigo digitizer events reach only the primary
+    /// display, on the Duo simulator and, on 2026-11-25, on the device: a
+    /// tap on the unfolded device's inner display reached no app. Nil on a
+    /// device with one display.
+    private(set) var touchscreen: String? = nil
 
     /// An unrotated portrait screen described by another source, such as
     /// CoreSimulator; `portrait` then leaves coordinates unchanged.
@@ -73,6 +80,11 @@ struct DirectTouchDisplay: Equatable {
         guard originX == 0, originY == 0, width > 0, height > 0, width <= 32768, height <= 32768,
               (0.1...10).contains(scale) else { throw invalid() }
         self.id = id.intValue; self.width = width; self.height = height; self.scale = scale; self.native = native
+        let integrated = displays.filter { ($0["type"] as? [String: Any])?["integrated"] is [String: Any] }
+        if !external, integrated.count > 1 {
+            guard let unique = display["uniqueId"] as? String, !unique.isEmpty, unique.count <= 128, !unique.contains(")") else { throw invalid() }
+            touchscreen = unique
+        }
         rotation = (native + current) % 360
         if native != 0 {
             // A device that reports its orientation must agree with the
@@ -181,7 +193,8 @@ enum DirectPhysicalTouch {
     }
 
     static func execute(_ input: CoreDeviceInput, query: (DeviceCommand) throws -> Data,
-                        send: (String, String, [Sample]) throws -> Void = dispatch) throws -> Data {
+                        send: (String, String, [Sample]) throws -> Void = dispatch,
+                        sendReports: (String, String, String, [UInt64], [UInt8]) throws -> UInt64 = dispatchReports) throws -> Data {
         try validateOperation(input)
         let identity = try DirectPhysicalInput.identity(input, query: query)
         let displayPlan = DeviceCommand(arguments: ["devicectl", "device", "info", "displays", "--device", identity.uuid,
@@ -192,14 +205,41 @@ enum DirectPhysicalTouch {
             throw CommandFailure(.preconditionChanged, "Display changed before touch dispatch; no input sent.", inputSent: .none)
         }
         try Task.checkCancellation()
-        try send(identity.uuid, identity.version, samples)
+        var route: [String: Any] = [:]
+        if let touchscreen = display.touchscreen {
+            // A device with more than one display (an iPhone Duo): the
+            // display's own touchscreen, as on the Duo simulator.
+            let frames = try DirectSimulatorInput.reportFrames(samples)
+            route["surfaceID"] = try sendReports(identity.uuid, identity.version, touchscreen, frames.times, frames.reports.flatMap { $0 })
+            route["route"] = "universal-hid"
+            route["frameCount"] = frames.times.count
+        } else {
+            try send(identity.uuid, identity.version, samples)
+        }
         var result: [String: Any] = ["backend": "coredevice-direct", "operation": input.operation,
             "status": "dispatched", "verified": false, "releaseVerified": false, "device": input.device,
             "resolvedCoreDeviceUUID": identity.uuid, "sampleCount": samples.count,
             "contactCount": samples.first?.second == nil ? 1 : 2,
             "coordinateSpace": "normalized-current-interface", "displayRotationDegrees": display.rotation]
+        result.merge(route) { _, new in new }
         if input.operation == "long-press" { result["holdSeconds"] = Double(input.operands[2]) }
         return try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    private static func dispatchReports(_ uuid: String, _ version: String, _ touchscreen: String,
+                                        _ times: [UInt64], _ reports: [UInt8]) throws -> UInt64 {
+        var error = [CChar](repeating: 0, count: 1024), surface: UInt64 = 0
+        let status = times.withUnsafeBufferPointer { times in
+            reports.withUnsafeBufferPointer { reports in
+                ADCPerformCancellableDigitizerReports(uuid, version, touchscreen, times.baseAddress, reports.baseAddress,
+                    times.count, { Task.isCancelled ? 1 : 0 }, &surface, &error, error.count)
+            }
+        }
+        try Task.checkCancellation()
+        guard status == 0 else {
+            throw CommandFailure.inputDispatch(status: status, message: String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+        }
+        return surface
     }
 
     private static func dispatch(_ uuid: String, _ version: String, _ samples: [Sample]) throws {

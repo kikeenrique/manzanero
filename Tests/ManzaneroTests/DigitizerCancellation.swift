@@ -31,7 +31,7 @@ struct DigitizerCancellationTests {
         var error = [CChar](repeating: 0, count: 512), surface: UInt64 = 999
         let status = times.withUnsafeBufferPointer { times in
             bytes.withUnsafeBufferPointer { reports in
-                ADCPerformCancellableDigitizerReports("invalid", "invalid", times.baseAddress, reports.baseAddress,
+                ADCPerformCancellableDigitizerReports("invalid", "invalid", nil, times.baseAddress, reports.baseAddress,
                     times.count, { 1 }, &surface, &error, error.count)
             }
         }
