@@ -93,9 +93,17 @@ A watch's log relay accepts the stream and sends nothing: `receivedBytes: 0`, fo
 | Console shows the watch and no message from it; the latest reply, of October 2026, says "Same issue, watchOS 27." | Other developers, no Apple reply, in the Apple Developer Forums thread [No console log from WatchOS10 in Xcode or console app](https://developer.apple.com/forums/thread/738859); read on 2026-11-25 |
 | Apple's Console on the Mac, streaming the same watch, showed nothing, and asked for the same service, `com.apple.os_trace_relay.shim.remote` | This project's run of 2026-11-25 ([record](verification.md#an-apple-watchs-log-relay-sends-nothing-and-why)) |
 | With the watch's iPhone on a cable to the Mac and the watch on its charger, and no profile, Console still showed nothing | The human owner, 2026-11-25 ([record](verification.md#an-apple-watchs-log-relay-sends-nothing-and-why)) |
-| The profile is the "Sysdiagnose" entry for watchOS on Apple's [Profiles and Logs](https://developer.apple.com/bug-reporting/profiles-and-logs/?platform=watchos) page | Apple; the page was found on 2026-11-25, its instructions need a developer sign-in and were not read |
+| The profile is the "Sysdiagnose" entry for watchOS on Apple's [Profiles and Logs](https://developer.apple.com/bug-reporting/profiles-and-logs/?platform=watchos) page | Apple; the page was found on 2026-11-25 |
 
 No source describes the relay's exact behaviour (a `RequestSuccessful` and then silence), so that the missing profile is its cause is an inference from the first two rows, not a statement of Apple's. With the profile installed nothing has been run: other developers report that Console then shows the watch's log, some only now and then, and that the profile expires.
+
+Apple's instructions for that profile ("Sysdiagnose Logs: Apple Watch", copyright 2023, a PDF behind a developer sign-in that the human owner downloaded and laia-LLM read on 2026-11-25) say:
+
+- **Enabling.** "The profile will expire after 3 days." Download the watchOS logging profile to the paired iPhone, tap it, choose "Apple Watch" when prompted, tap Install (the passcode if asked, and the consent form), then restart the device.
+- **Disabling.** In the iPhone's Apple Watch app, General › Profiles › Delete Profile, then restart the watch; then on the iPhone, Settings › General › VPN & Device Management, the logging profile, Delete Profile.
+- **What it is for.** A sysdiagnose: hold the side button and the Digital Crown for two seconds, put the watch on its charger with the iPhone in range, and wait up to 15 minutes for the file to reach the iPhone. The document says nothing about a live stream, Console or a cable to the Mac.
+
+So that the profile also switches on the live stream rests on the forum answer above and on other developers' reports, not on these instructions.
 
 What works on a watch without the profile is `console`, which reads the app's own standard output and error and not the log system.
 
