@@ -2248,7 +2248,15 @@ After the hold was built for a device with two touchscreens (its stream names th
 
 None of this is a fault of the Duo or of the hold. (0.7, 0.7) is on the probe's text field, which spans the width at about 0.66 to 0.72 of the height in a 466 × 678 or 469 × 669 portrait layout, and the field takes the touch itself, so the touch surface never counts it. The touch plan keeps its points between y 0.3 and 0.65 for that reason, and the phone's hold run used (0.7, 0.6). The point was chosen without a look at the layout; the human owner's question whether each screen was used properly led to the check. Rerun at once on the touch surface, unfolded: `hold 0.3 0.5`, `tap 0.7 0.5`, `release` gave one gesture of two contacts, the held one 0.99 s at (0.095, 0.500) of the probe's window and the tap 0.08 s at (0.905, 0.500) during it, `maxActive: 2` |
 
-What has not run on the device: a fold during an input command, `apps`, `reports`, `settings` and `last-crash` beyond the listing above (each reads beyond the probe).
+A fold during input, in the probe, the human owner folding by hand about 3 s into a 10-second `long-press 0.3 0.5 10`:
+
+| Step | Observed |
+| --- | --- |
+| Folded during the press, before a change | The receipt said `dispatched` (surface 258, the inner display's touchscreen) and nothing else, while the probe on the inner display recorded the contact `cancelled` after 1.02 s: iOS ended it at the fold, and the rest of the press went to a display that was off. Changed the same night: touch and gesture receipts read the display once more after the input and say `displayAfter` (`unchanged`, `changed`, `unknown`) |
+| A tap, folded, after the change | `displayAfter: unchanged` |
+| Unfolded during the press, after the change | `displayAfter: changed` with its note; the probe recorded the contact `cancelled` after 1.51 s. The device was not quarantined: the contact ended by the system's cancel, and the tool's release went to the touchscreen it was sent on |
+
+What has not run on the device: `apps`, `reports`, `settings` and `last-crash` beyond the listing above (each reads beyond the probe).
 
 ### First run on a physical iPad: the iPad mini (6th generation)
 
