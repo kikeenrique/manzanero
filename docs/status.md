@@ -20,7 +20,7 @@ One table of what works where, for a reader who wants the answer before the deta
 
 | Commands | iPhone, device | iPhone and iPad, simulator | Apple TV, device | Apple TV, simulator | Apple Watch, simulator | Apple Watch, device | iPhone Duo, simulator | iPhone Duo, device |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown`, `create-simulator` (simulators), `reboot` (devices and simulators; on a device not yet through the tool) | works | works | works | works | works | works (`details`, `readiness`) | works | works (`details`, `readiness`), folded and unfolded |
+| **Find and check**: `devices`, `details`, `readiness`, `processes`, `doctor`, `boot`, `shutdown`, `create-simulator` (simulators), `reboot` (devices and simulators) | works | works | works | works | works | works (`details`, `readiness`) | works | works (`details`, `readiness`), folded and unfolded |
 | **Touch**: `tap`, `double-tap`, `long-press`, `swipe`, `pinch`, `multi-tap`, `multi-drag`, `gesture` | works, one to five contacts; `tap` in landscape too; a contact held across `batch` steps (`hold`, `release`) | works; on an iPad four moving contacts are cancelled by iPadOS, even with its gesture settings off | refused: no touch screen | refused: no touch screen | works (contacts beyond one not countable) | works (`tap`, in the probe) | works | works on both displays, one to five contacts, landscape too; a fold during a touch is said in its receipt |
 | **Buttons and keys**: `button`, `key`, `wake` | works | works; `wake` refused | works (`key`, `button home`, `button lock`) | works | partly: `home`, `side` and the Ultra's `action` work, `lock` does nothing, `key` refused | works (`side` opens Control Centre, `action` runs its assigned action) | works; `wake` refused | partly: `key` works; `button` and `wake` not run |
 | **Text**: `type`, `detect-layout`, `paste`, `set-value` | works, a SwiftUI field's `set-value` too | works, a SwiftUI field's `set-value` too; `paste` refused | works (`type`, `set-value`) | works | partly: `type` taps the on-screen keyboard in any keyboard language (ASCII letters, digits, the numbers and symbols pages; no accents); `detect-layout` refused; `set-value` does not reach the app | works: `type` by the on-screen keys; the keyboard's autocorrection applies | works; `paste` refused | works (`type`, `detect-layout`, `set-value`); `paste` not run |
@@ -65,17 +65,16 @@ A result says which accessibility route a command took: `serviceDirectory: own-t
 The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggested).
 
 1. **A release**: a lot changed since v0.1.0-beta.3 (new commands and options, `reboot`, the watch's crown, typing, buttons, video and `logs`, the iPhone Duo's two displays, fixes for an iPad's and a watch's panels); one command from the human owner's terminal.
-2. **`reboot` on a device**: built and run on a simulator; through the tool no device has been restarted yet.
-3. **A second iPhone**: an iPhone 17 Pro Max is paired; touch timing was measured on the iPhone 13 mini only.
-4. **The iPhone Duo's leftovers**, each the human owner's call because it reaches beyond the probe: `button lock` and `wake`, `paste`, `apps`, `reports`, `settings` (Claude Code's permission check refused them on 2026-11-25). Its inner display records sideways at half resolution, as the device sends it.
-5. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
-6. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
+2. **A second iPhone**: an iPhone 17 Pro Max is paired; touch timing was measured on the iPhone 13 mini only.
+3. **The iPhone Duo's leftovers**, each the human owner's call because it reaches beyond the probe: `button lock` and `wake`, `paste`, `apps`, `reports`, `settings` (Claude Code's permission check refused them on 2026-11-25). Its inner display records sideways at half resolution, as the device sends it.
+4. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
+5. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 
 ## Done on 2026-11-25
 
-- **`reboot`** for devices and simulators (MCP `reboot_device`): `devicectl` and `simctl`'s own reboot; run on an iPhone simulator, not yet on a device through the tool.
+- **`reboot`** for devices and simulators (MCP `reboot_device`): `devicectl` and `simctl`'s own reboot; run on an iPhone simulator and on the iPhone 17 Pro Max, back in 60 s. A device that refuses a request because it is locked now says so, with nothing done.
 
 - **Why a watch's `logs` is empty**: the watch sends nothing for one process or for all, for a minute, and nothing to Apple's Console either; Apple's staff and documentation say logging is off on watchOS without Apple's logging profile ([sources](app-logs.md#an-apple-watch)), and the result now says so. With the profile installed, a minute of every process arrived, the probe's presses among them.
 

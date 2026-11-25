@@ -364,7 +364,7 @@ The watch tasks left the night before, on the human owner's word, everything ins
 | Area | Result |
 | --- | --- |
 | `logs` on an Apple Watch | Empty without Apple's watchOS logging profile, which Apple's staff and documentation name; with it, one process and every process stream ([record](verification.md#an-apple-watchs-log-relay-sends-nothing-and-why), [sources](app-logs.md#an-apple-watch)). An empty watch capture says why (`streamNote`) |
-| `reboot` | A device by `devicectl device reboot`, a simulator by `simctl reboot`, with a dry-run plan and MCP `reboot_device`; run on an iPhone simulator ([record](verification.md#reboot-on-a-simulator)), on no device through the tool yet |
+| `reboot` | A device by `devicectl device reboot`, a simulator by `simctl reboot`, with a dry-run plan and MCP `reboot_device`; run on an iPhone simulator and the iPhone 17 Pro Max ([record](verification.md#reboot-on-a-simulator-and-on-an-iphone)) |
 
 ### Added on the night of 2026-11-25: the first physical iPhone Duo
 
@@ -387,13 +387,12 @@ The human owner named the paired iPhone Duo and gave it the iPad mini's privacy 
 The order is laia-LLM's suggestion, not one the human owner set.
 
 1. **A release.** Since v0.1.0-beta.3 (2026-11-23) the tool gained `scrub`, `--report-focus`, `--handle`, black-capture notes, `hold` on a simulator, `--symbols`, `--build-timeout`, `crown`, `type`, `button side` and `button action` on a real watch, recording and `frames` of a watch's H.264 screen, a physical iPhone Duo's inner display (readiness, accessibility, touch, holds, screenshots and recording), `displayAfter` in touch receipts, a quiet `last-crash`, `reboot` for devices and simulators, a note that says why an Apple Watch's `logs` is empty, and fixes for an iPad's and a watch's panels, the 25004 wake, symbols from an archive and the biometrics result. One command from the human owner's terminal ([releasing](releasing.md#publish-a-beta)).
-2. **`reboot` on a device** (item 38): built and run on a simulator; through the tool it has restarted no device yet. One run on a device the human owner names, the Apple Watch for instance, with `readiness` afterwards.
-3. **A second iPhone** (item 9): an iPhone 17 Pro Max is paired; touch timing and the 200 ms drain were measured on the iPhone 13 mini only.
-4. **The iPhone Duo's leftovers** (item 19), each needing the human owner's word since they reach beyond the probe: `button lock` and `wake`, `paste` (it replaces the clipboard), `apps`, `reports` and `settings` (Claude Code's permission check refused the run on 2026-11-25). Smaller: the inner display's recording is sideways at about half resolution, as the device sends it; a crop to the picture or an upright turn is not built.
-5. **The Apple TV, only if it happens again** (item 16): error 25004 on `wake`; a `wake` that has to wait for the HID service; the services that stopped answering while awake (collect `mise run diagnose:device-services` first).
-6. **Waiting for something outside this repository**: the `.xcappdata` export, for a sample that Xcode's Devices window downloads (item 24); a press at a point of the first-generation remote's touch surface, for a case that needs it (item 17).
+2. **A second iPhone** (item 9): an iPhone 17 Pro Max is paired; touch timing and the 200 ms drain were measured on the iPhone 13 mini only.
+3. **The iPhone Duo's leftovers** (item 19), each needing the human owner's word since they reach beyond the probe: `button lock` and `wake`, `paste` (it replaces the clipboard), `apps`, `reports` and `settings` (Claude Code's permission check refused the run on 2026-11-25). Smaller: the inner display's recording is sideways at about half resolution, as the device sends it; a crop to the picture or an upright turn is not built.
+4. **The Apple TV, only if it happens again** (item 16): error 25004 on `wake`; a `wake` that has to wait for the HID service; the services that stopped answering while awake (collect `mise run diagnose:device-services` first).
+5. **Waiting for something outside this repository**: the `.xcappdata` export, for a sample that Xcode's Devices window downloads (item 24); a press at a point of the first-generation remote's touch surface, for a case that needs it (item 17).
 
-Done since the last list: `reboot` for devices and simulators; `logs` on an Apple Watch, empty without Apple's logging profile and working with it (2026-11-25, [record](verification.md#an-apple-watchs-log-relay-sends-nothing-and-why)). Before that: the first physical iPhone Duo, folded and unfolded, inside the probe, with five fixes for a device with two displays ([night of 2026-11-25](#added-on-the-night-of-2026-11-25-the-first-physical-iphone-duo)); the physical Apple Watch's remaining commands, with its buttons and its H.264 video built ([2026-11-25](#added-on-2026-11-25-the-physical-apple-watchs-remaining-commands)); the 25004 wake; every Apple TV check that could be run on purpose; the phone's last owed checks; a physical iPad and a physical Apple Watch ([night of 2026-11-24](#added-on-the-night-of-2026-11-24-the-apple-tvs-last-checks-the-first-ipad-and-watch)).
+Done since the last list: `reboot` for devices and simulators, run on the iPhone 17 Pro Max, and a clear refusal from a locked device; `logs` on an Apple Watch, empty without Apple's logging profile and working with it (2026-11-25, [record](verification.md#an-apple-watchs-log-relay-sends-nothing-and-why)). Before that: the first physical iPhone Duo, folded and unfolded, inside the probe, with five fixes for a device with two displays ([night of 2026-11-25](#added-on-the-night-of-2026-11-25-the-first-physical-iphone-duo)); the physical Apple Watch's remaining commands, with its buttons and its H.264 video built ([2026-11-25](#added-on-2026-11-25-the-physical-apple-watchs-remaining-commands)); the 25004 wake; every Apple TV check that could be run on purpose; the phone's last owed checks; a physical iPad and a physical Apple Watch ([night of 2026-11-24](#added-on-the-night-of-2026-11-24-the-apple-tvs-last-checks-the-first-ipad-and-watch)).
 
 The numbered lists below follow the standing priorities of this page: dependable physical testing first, then coverage of more devices, then the gaps in other families, then what is not built, then commands to add, then delivery.
 
@@ -401,7 +400,6 @@ The numbered lists below follow the standing priorities of this page: dependable
 
 What was decided is in the [decision tables](#owner-decisions-2026-11-17) below. Open on 2026-11-25:
 
-- Which device runs `reboot` through the tool first (item 38).
 - Whether to build `profile list` and `profile remove`, over `devicectl device profile` (item 39).
 - Whether the Duo's commands that reach beyond the probe (`button lock` and `wake`, `paste`, `apps`, `reports`, `settings`) are to run, and how: Claude Code's permission check refused them that night.
 - Which hardware comes next (a second iPhone) and when to release are the human owner's to name, as always.
@@ -489,7 +487,7 @@ On 2026-11-23 an agent with no knowledge of this project drove the Apple TV 4K w
 
 ### From the Apple Watch's logs, 2026-11-25
 
-38. **`reboot` on a device.** Built on 2026-11-25 for devices (`devicectl device reboot`, 180 s to accept it, since the Apple TV 4K took 91 s on 2026-11-24) and simulators (`simctl reboot`), with a dry-run plan and MCP `reboot_device`; run on an iPhone simulator, where SpringBoard came back under a new PID ([record](verification.md#reboot-on-a-simulator)). Left: a run through the tool on a device. `devicectl`'s `--wait-for-device` (cable only) is not offered, so a caller follows a reboot with `readiness`.
+38. **`reboot` on a device.** Built on 2026-11-25 for devices (`devicectl device reboot`, 180 s to accept it, since the Apple TV 4K took 91 s on 2026-11-24) and simulators (`simctl reboot`), with a dry-run plan and MCP `reboot_device`; run on an iPhone simulator, where SpringBoard came back under a new PID, and on the iPhone 17 Pro Max, back in 60 s ([record](verification.md#reboot-on-a-simulator-and-on-an-iphone)). A device that refuses a `devicectl` request because it has not been unlocked recently is `device-not-ready` with nothing sent since that day. Done. `devicectl`'s `--wait-for-device` (cable only) is not offered, so a caller follows a reboot with `readiness`.
 39. **Profiles: proposed, not decided.** `profile list` and `profile remove <identifier>` over `devicectl device profile`, which on 2026-11-25 listed and removed the watchOS logging profile from the Mac ([app logs](app-logs.md#an-apple-watch)). An install is not proposed: Apple's logging profiles go on through the paired iPhone.
 
 ## Owner decisions, 2026-11-16

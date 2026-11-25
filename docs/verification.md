@@ -2182,7 +2182,7 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 
 So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
 
-### Reboot on a simulator
+### Reboot on a simulator and on an iPhone
 
 **2026-11-25**, Xcode 27.2's `simctl`, an iPhone Air simulator (iOS 27.2) booted for the run and shut down after it.
 
@@ -2191,7 +2191,14 @@ So on a physical watch every command family has now run inside the probe, except
 | `reboot --simulator <UUID>` | Exit 0 after 4 s, the simulator `Booted` again |
 | The same, with SpringBoard's PID read from `launchctl list` in the simulator before and after | A new PID afterwards, so the simulator really restarted |
 
-A device's `reboot` is `devicectl device reboot`, the invocation that restarted the Apple TV 4K on 2026-11-24 and the Apple Watch on 2026-11-25 when run by hand; through the tool it has run on no device yet.
+The same day on the iPhone 17 Pro Max (iOS 27.2.1), over the network, named by the human owner:
+
+| Step | Observed |
+| --- | --- |
+| `reboot --device <UDID>` while the phone had not been unlocked for a while (`readiness`: `connection: disconnected`) | Refused at once, nothing done: `devicectl` answered CoreDevice error 10003, "the device was still locked", caused by RemotePairing error 1016, "The device has not been unlocked recently". The tool reported it as `tool-failed` with `inputSent: unknown`; since then such an answer is `device-not-ready`, `inputSent: none`, with a message that says to unlock the device (`CommandFailure.lockedDevice`) |
+| `reboot --device <UDID>` again, after the phone had been unlocked | Exit 0 at once, `devicectl`'s outcome `success`; `readiness` read `connection: unavailable` for 50 s and `connected` at 60 s |
+
+So `devicectl device reboot` returns when the device takes the request, and a phone that has not been unlocked recently refuses it, as it refuses every `devicectl` request.
 
 ### An Apple Watch's log relay sends nothing, and why
 

@@ -27,6 +27,22 @@ struct CommandFailureTests {
 
     // MARK: Model
 
+    /// devicectl's answer from a phone that had not been unlocked recently
+    /// (a reboot refused on 2026-11-25), and what is not that answer.
+    @Test func aLockedDeviceIsNotReadyWithNothingSent() throws {
+        let stderr = """
+            ERROR: The operation failed because the device was still locked. (com.apple.dt.CoreDeviceError error 10003 (0x2713))
+                   The device has not been unlocked recently (com.apple.dt.RemotePairingError error 1016 (0x3F8))
+            """
+        let failure = try #require(CommandFailure.lockedDevice(stderr))
+        #expect(failure.code == .deviceNotReady && failure.inputSent == .none)
+        #expect(failure.retry == .afterAction && failure.action == .human)
+        #expect(failure.description.contains("not been unlocked recently") && failure.description.contains("handoff --until unlocked"))
+        let lockedOnly = try #require(CommandFailure.lockedDevice("ERROR: … (com.apple.dt.CoreDeviceError error 10003 (0x2713))"))
+        #expect(lockedOnly.description.contains("because it is locked"))
+        #expect(CommandFailure.lockedDevice("ERROR: A connection to this device could not be established. (com.apple.dt.CoreDeviceError error 4000 (0xFA0))") == nil)
+    }
+
     @Test func unclassifiedFailuresSayTheyAreUnclassified() {
         let failure = CommandFailure(description: "fixture")
         #expect(failure.description == "fixture")

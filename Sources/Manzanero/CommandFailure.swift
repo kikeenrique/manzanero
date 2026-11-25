@@ -115,6 +115,20 @@ struct CommandFailure: Error, CustomStringConvertible {
         return failure
     }
 
+    /// A device that turned a devicectl request away because it is locked:
+    /// CoreDevice error 10003, "the device was still locked", whose cause
+    /// on the iPhone 17 Pro Max on 2026-11-25 was RemotePairing error 1016,
+    /// "The device has not been unlocked recently". The device did not act,
+    /// and only a person with the passcode can change that.
+    static func lockedDevice(_ errors: String) -> Self? {
+        let locked = errors.contains("com.apple.dt.CoreDeviceError error 10003")
+            || errors.contains("com.apple.dt.RemotePairingError error 1016")
+        guard locked else { return nil }
+        let reason = errors.contains("has not been unlocked recently") ? "it has not been unlocked recently" : "it is locked"
+        return Self(.deviceNotReady, "The device refused the request because \(reason), so nothing was done on it. "
+            + "Unlock it with its passcode and retry; handoff --until unlocked waits for a person to do so.", inputSent: .none)
+    }
+
     /// An operation that does not exist here; nothing was sent.
     static func unsupported(_ description: String) -> Self { Self(.unsupportedOperation, description, inputSent: .none) }
 
