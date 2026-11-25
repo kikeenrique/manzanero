@@ -36,7 +36,7 @@ One table of what works where, for a reader who wants the answer before the deta
 | **Files and reports**: `files`, `reports` | works | — | works | — | — | works | — | partly: `files` works; `reports` not run |
 | **Settings**: `rotate`, `settings`, `location`, `status-bar`, `clipboard` | works; `status-bar` refused (a device does not support it) | works (iPhone, 2026-11-21) | not run | not run | not run | refused: the watch lacks the appearance capability `settings` reads | not run | not run |
 | **Build and run**: `build-run` | works | works | works | not run | not run | works | not run | works |
-| **App output**: `console`, `last-crash`, `logs` | works | works | works (`logs` on the paired tunnel) | not run | works | partly: `console` and `last-crash` work; `logs` receives nothing, because watchOS streams its log only with Apple's logging profile installed | works | works (`console`, `logs`); `last-crash` not run beyond its listing |
+| **App output**: `console`, `last-crash`, `logs` | works | works | works (`logs` on the paired tunnel) | not run | works | partly: `console` and `last-crash` work; `logs` works with Apple's watchOS logging profile installed (three days at a time), and receives nothing without it | works | works (`console`, `logs`); `last-crash` not run beyond its listing |
 | **A person's step**: `handoff` | works | works | works | works | works (`--until`) | works (`--until`) | works (`--until`) | works (`--until`) |
 | **Several commands at once**: `batch` | works, `hold` and `release` too | works, touch steps too, `hold` and `release` too (iPhone, 2026-11-23) | works | works | works | works | works | works, `hold` and `release` too |
 | **From an AI agent**: `mcp` | works | works | works | works | not run | works | works | works |
@@ -68,13 +68,13 @@ The same order as the roadmap's [next list](roadmap.md#next-in-the-order-suggest
 2. **A second iPhone**: an iPhone 17 Pro Max is paired; touch timing was measured on the iPhone 13 mini only.
 3. **The iPhone Duo's leftovers**, each the human owner's call because it reaches beyond the probe: `button lock` and `wake`, `paste`, `apps`, `reports`, `settings` (Claude Code's permission check refused them on 2026-11-25). Its inner display records sideways at half resolution, as the device sends it.
 4. **Apple TV, only if it happens again**: error 25004 on `wake`; a `wake` that waits for the HID service; services that stop answering while awake (collect logs first).
-5. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; `logs` on an Apple Watch, for Apple's watchOS logging profile on the watch (the human owner's choice); a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
+5. **Waiting on something outside**: the `.xcappdata` export, for a sample from Xcode's Devices window; a press at a point of the first-generation remote's touch surface, for a case that needs it. Durable sessions are put off by the human owner's decision.
 
 A release is one command, `mise run release <version>`, whenever the human owner chooses; its binaries are signed with the Developer ID and notarized on the human owner's Mac ([releasing](releasing.md#publish-a-beta)).
 
 ## Done on 2026-11-25
 
-- **Why a watch's `logs` is empty**: the watch sends nothing for one process or for all, for a minute, and nothing to Apple's Console either; Apple's staff and documentation say logging is off on watchOS without Apple's logging profile ([sources](app-logs.md#an-apple-watch)). The result now says so.
+- **Why a watch's `logs` is empty**: the watch sends nothing for one process or for all, for a minute, and nothing to Apple's Console either; Apple's staff and documentation say logging is off on watchOS without Apple's logging profile ([sources](app-logs.md#an-apple-watch)), and the result now says so. With the profile installed, a minute of every process arrived, the probe's presses among them.
 
 - **The first physical iPhone Duo**, folded and unfolded, inside the probe: its displays match the simulator's (unfolded, the outer one stays primary and off and the interface is on the inner one). Readiness, trees, presses, touch and holds (each display's own touchscreen), typing, screenshots and recording follow the display in use, after fixes to each; every other command family that stays in the probe works. A touch receipt now says when the display changed during the input, and `last-crash` no longer prints the device's whole report listing.
 

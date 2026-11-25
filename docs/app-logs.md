@@ -95,7 +95,7 @@ A watch's log relay accepts the stream and sends nothing: `receivedBytes: 0`, fo
 | With the watch's iPhone on a cable to the Mac and the watch on its charger, and no profile, Console still showed nothing | The human owner, 2026-11-25 ([record](verification.md#an-apple-watchs-log-relay-sends-nothing-and-why)) |
 | The profile is the "Sysdiagnose" entry for watchOS on Apple's [Profiles and Logs](https://developer.apple.com/bug-reporting/profiles-and-logs/?platform=watchos) page | Apple; the page was found on 2026-11-25 |
 
-No source describes the relay's exact behaviour (a `RequestSuccessful` and then silence), so that the missing profile is its cause is an inference from the first two rows, not a statement of Apple's. With the profile installed nothing has been run: other developers report that Console then shows the watch's log, some only now and then, and that the profile expires.
+No source describes the relay's exact behaviour (a `RequestSuccessful` and then silence), so that the missing profile is its cause is an inference from the first two rows, not a statement of Apple's. With the profile installed the tool's stream works ([below](#an-apple-watch)); Apple's Console still showed nothing that day.
 
 Apple's instructions for that profile ("Sysdiagnose Logs: Apple Watch", copyright 2023, a PDF behind a developer sign-in that the human owner downloaded and laia-LLM read on 2026-11-25) say:
 
@@ -103,7 +103,7 @@ Apple's instructions for that profile ("Sysdiagnose Logs: Apple Watch", copyrigh
 - **Disabling.** In the iPhone's Apple Watch app, General › Profiles › Delete Profile, then restart the watch; then on the iPhone, Settings › General › VPN & Device Management, the logging profile, Delete Profile.
 - **What it is for.** A sysdiagnose: hold the side button and the Digital Crown for two seconds, put the watch on its charger with the iPhone in range, and wait up to 15 minutes for the file to reach the iPhone. The document says nothing about a live stream, Console or a cable to the Mac.
 
-So that the profile also switches on the live stream rests on the forum answer above and on other developers' reports, not on these instructions.
+That the profile also switches on the live stream is not in these instructions; it was seen on this project's watch on 2026-11-25 ([record](verification.md#an-apple-watchs-log-relay-sends-nothing-and-why)): with the profile installed and the watch restarted, a 60-second capture of every process received 107 MB, 252,330 records, the probe's presses among them, while Apple's Console on the same Mac still showed nothing. Whether a one-PID request (a single `--bundle` or `--process`) is honoured there is open: both tries ran with the watch's display off. Until it is, ask for a group (for example the app's `--bundle` and its `--process` together), which streams every process and keeps the app's on the Mac. At about 107 MB a minute, the 256 MiB received bound ends a watch's capture after some two and a half minutes. The profile expires after three days.
 
 What works on a watch without the profile is `console`, which reads the app's own standard output and error and not the log system.
 

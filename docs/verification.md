@@ -2196,6 +2196,15 @@ So on a physical watch every command family has now run inside the probe, except
 
 So the relay accepts the check-in and the stream request (the tool reads nothing before `RequestSuccessful`) and then sends no byte, whichever processes are asked for and for a minute; neither the PID in the request nor a short window is the cause, and Apple's own client gets no more. Apple's sources give the reason, logging being off on watchOS without Apple's logging profile; they are quoted with their links in [app logs](app-logs.md#an-apple-watch). The cable and the charger that Apple's pages also name were not enough without it. With the profile installed nothing has been run. Since that day a watch's empty result says so (`streamNote`).
 
+**Later that afternoon, with the profile.** The human owner installed Apple's watchOS logging profile through the iPhone, as Apple's instructions say, and restarted the watch. Console on the Mac still showed nothing. `logs` did not:
+
+| Step | Observed |
+| --- | --- |
+| `logs --seconds 60 --bundle` the probe `--process ProbeWatch` (every process asked for, the probe's kept), the probe seen in front first, five presses of which three took effect (the display went off before the fourth) | `receivedBytes: 107079791`, `receivedRecords: 252330`, `parseFailures: 0`, `stopReason: duration`; 850 entries kept, all the probe's, the three presses among them (`watch 1 button:b` to `watch 3 button:b`, level `info`, category `watch`) |
+| `logs --seconds 20 --bundle` the probe (one PID asked for), twice | `receivedBytes: 0` both times, but neither counts: the display was off, both presses beside each were refused, and the second time the probe was not seen in front. Whether a watch honours a one-PID request is still open |
+
+So the profile switches the relay's stream on, for the tool's request as for Apple's documented sysdiagnose, while Apple's Console on the same Mac stayed empty. A watch with the profile sends about 107 MB a minute for every process at debug, so the 256 MiB received bound ends such a capture after about two and a half minutes.
+
 What the run met on the way, for the next one on a watch:
 
 - The watch's link drops and its display sleeps between commands; a command then fails with CoreDevice error 4000, with "Primary display is off", or reports the probe as not installed although it is. Launching an app brings both back (the human owner's finding with Apple's Home app; the probe's `launch` does the same), so launch the probe and send the steps that follow in one `batch`.
