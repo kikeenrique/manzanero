@@ -147,10 +147,10 @@ import Testing
             picture = CVReadOnlyPixelBuffer(try CVMutablePixelBuffer(.init(pixelFormatType: .init(rawValue: kCVPixelFormatType_32BGRA),
                                                                          size: .init(width: 4, height: 2))))
         }
-        func decodePixels(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int)?) throws -> CVReadOnlyPixelBuffer? {
+        func decodePixels(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int)?, turn: Int) throws -> CVReadOnlyPixelBuffer? {
             emit ? picture : nil
         }
-        func decodeFrameJPEG(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int), quality: Double) throws -> Data? {
+        func decodeFrameJPEG(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int), turn: Int, quality: Double) throws -> Data? {
             emit ? NativeRecordingLoopTests.jpeg : nil
         }
         func close() {}

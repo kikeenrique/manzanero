@@ -28,8 +28,9 @@ public struct RunOptions: Sendable, Equatable {
     public var reset = true
     public var pull = true
     public var dryRun = false
-    /// Accept a landscape probe (launched with `-ProbeAllowRotation YES`) at
-    /// preflight. Off by default: a portrait-only run stops on a landscape size.
+    /// Accept a landscape probe at preflight. Off by default: a portrait run
+    /// stops on a landscape size; the probe turns with the device unless it
+    /// was launched with `-ProbeAllowRotation NO`.
     public var anyOrientation = false
 
     public init(device: String) { self.device = device }

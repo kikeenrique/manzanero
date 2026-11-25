@@ -111,6 +111,7 @@ struct RecordingCommand: Sendable, Equatable {
             if let nativeReceipt {
                 result["sourceFrames"] = nativeReceipt.frames
                 result["timeline"] = "host-pixel-delivery"
+                result["pictureTurn"] = nativeReceipt.pictureTurn
                 result["audio"] = nativeReceipt.audio != nil
                 if let sound = nativeReceipt.audio {
                     result["audioTrack"] = ["received": "AAC-ELD", "written": "AAC", "sampleRate": Int(NativeAudioDecoder.sampleRate),

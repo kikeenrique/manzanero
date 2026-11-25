@@ -20,12 +20,14 @@ import Foundation
         defer { _ = link.release() }
         try await NativeRecordingSessions.shared.begin(reserved)
         do {
-            var result = try await capture(command, displayID: Int64(display.id), link: link) {
+            // Turned into the interface's orientation, as Apple's screenshot is.
+            var result = try await capture(command, displayID: Int64(display.id), link: link, turn: display.pictureTurn) {
                 FramesCommand.visibleSize(display: display, stream: ($0, $1))
             }
             await NativeRecordingSessions.shared.end(reserved)
             // Identity, tunnel and display queries before the stream request.
             result.stream["displayRotation"] = display.rotation
+            result.stream["pictureTurn"] = display.pictureTurn
             result.json["stream"] = result.stream
             result.json["setupMilliseconds"] = FrameRun.decimal(Double(result.started - begun) / 1_000_000)
             let receipt = ScreenshotBlank.annotateFrames(result.json, directory: command.directory)
@@ -39,7 +41,7 @@ import Foundation
     /// The capture loop, every effect on the device and every reading of the
     /// clock through `link`. Returns the receipt without the display's
     /// rotation and the setup time, which `execute` adds.
-    static func capture(_ command: FramesCommand, displayID: Int64, link: NativeRecordingLink,
+    static func capture(_ command: FramesCommand, displayID: Int64, link: NativeRecordingLink, turn: Int = 0,
                         crop: (Int, Int) -> (width: Int, height: Int)) async throws
         -> (json: [String: Any], stream: [String: Any], started: UInt64)
     {
@@ -114,7 +116,7 @@ import Foundation
                 // Every unit is decoded to keep reference pictures; only a frame
                 // that will be saved is encoded as JPEG.
                 let wanted = run.wants(at: link.now())
-                guard let jpeg = try media.decoder?.decodeFrameJPEG(unit, emit: wanted, crop: size, quality: quality) else { continue }
+                guard let jpeg = try media.decoder?.decodeFrameJPEG(unit, emit: wanted, crop: size, turn: turn, quality: quality) else { continue }
                 reason = try run.save(jpeg, at: link.now())
             }
             // A stalled stream was lost for good; its cleanup is still checked.

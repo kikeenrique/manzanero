@@ -26,8 +26,8 @@ extension NativeMediaFrames: NativeRecordingSession {}
 /// What the capture loops use of a decoder: `NativeHEVCDecoder`, or one
 /// that makes a picture of every access unit in the tests.
 @MainActor protocol NativeRecordingDecoder: AnyObject {
-    func decodePixels(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int)?) throws -> CVReadOnlyPixelBuffer?
-    func decodeFrameJPEG(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int), quality: Double) throws -> Data?
+    func decodePixels(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int)?, turn: Int) throws -> CVReadOnlyPixelBuffer?
+    func decodeFrameJPEG(_ unit: MediaHEVCAccessUnit, emit: Bool, crop: (width: Int, height: Int), turn: Int, quality: Double) throws -> Data?
     func close()
 }
 
@@ -342,8 +342,11 @@ extension NativeVideoEncoder: NativeRecordingSink {}
             display.external ? FramesCommand.visibleSize(display: display, stream: (width, height)) : nil
         }
         do {
-            let receipt = try await record(seconds: command.seconds, audio: command.audio, displayID: Int64(display.id),
-                                           crop: crop, encoder: encoder, link: link)
+            // The panel's picture turned into the interface's orientation, as
+            // Apple's screenshot is; read once, when the recording starts.
+            var receipt = try await record(seconds: command.seconds, audio: command.audio, displayID: Int64(display.id),
+                                           crop: crop, turn: display.pictureTurn, encoder: encoder, link: link)
+            receipt.pictureTurn = display.pictureTurn
             await sessions.end(reserved)
             return receipt
         } catch {
@@ -356,7 +359,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
     /// endpoint, as recovery allows, written to `encoder` for `seconds` from
     /// the first picture. Every effect on the device and every reading of
     /// the clock goes through `link`.
-    static func record(seconds: Double, audio: Bool, displayID: Int64, crop: (Int, Int) -> (width: Int, height: Int)?,
+    static func record(seconds: Double, audio: Bool, displayID: Int64, crop: (Int, Int) -> (width: Int, height: Int)?, turn: Int = 0,
                        encoder: any NativeRecordingSink, link: NativeRecordingLink) async throws -> NativeRecordingReceipt {
         let media = NativeStreamSessions(link: link, displayID: displayID, audio: audio)
         var packetCount = 0
@@ -457,7 +460,7 @@ extension NativeVideoEncoder: NativeRecordingSink {}
                 if media.isNewVideoPacket(packet) { recovery?.packet(at: now) }
                 guard let unit = try media.assembler.accept(video) else { continue }
                 unitCount += 1
-                guard let pixels = try media.decoder?.decodePixels(unit, emit: firstPicture == nil || now - last >= 33_333_333, crop: cropped)
+                guard let pixels = try media.decoder?.decodePixels(unit, emit: firstPicture == nil || now - last >= 33_333_333, crop: cropped, turn: turn)
                 else { continue }
                 decodedCount += 1
                 let time = link.now()

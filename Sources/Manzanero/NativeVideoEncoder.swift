@@ -197,6 +197,9 @@ struct NativeRecordingReceipt: Sendable {
     /// or MCP cancellation), `another-viewer` (another client took the
     /// screen) or `failure`.
     var stopCause: String? = nil
+    /// Clockwise degrees the pictures were turned, into the interface's
+    /// orientation when the recording started (`DirectTouchDisplay.pictureTurn`).
+    var pictureTurn = 0
     var interrupted: Bool { stopCause == "interrupted" }
 }
 

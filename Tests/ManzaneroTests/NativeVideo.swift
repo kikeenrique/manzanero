@@ -45,6 +45,38 @@ struct NativeVideoTests {
         #expect(whole.size.width == 64 && whole.size.height == 64)
     }
 
+    /// The stream sends the panel as mounted. In landscape-right (`rot90`) the
+    /// interface's top-left corner is the panel picture's bottom-left
+    /// (seen on the iPhone 13 mini on 2026-11-25), and a turn of 90 degrees
+    /// clockwise puts it at the top left, as Apple's screenshot has it.
+    @available(macOS 26.0, *)
+    @Test func aTurnPutsTheInterfacesCornerWhereTheScreenshotHasIt() throws {
+        let context = CIContext()
+        let source = try CVMutablePixelBuffer(.init(pixelFormatType: .init(rawValue: kCVPixelFormatType_32BGRA), size: .init(width: 40, height: 80)))
+        // Red in the bottom-left corner (Core Image's origin), blue elsewhere.
+        let picture = CIImage(color: .init(red: 1, green: 0, blue: 0)).cropped(to: CGRect(x: 0, y: 0, width: 10, height: 10))
+            .composited(over: CIImage(color: .init(red: 0, green: 0, blue: 1)).cropped(to: CGRect(x: 0, y: 0, width: 40, height: 80)))
+        source.withUnsafeBuffer { context.render(picture, to: $0) }
+        func red(_ copy: CVReadOnlyPixelBuffer, _ x: Int, _ y: Int) -> Bool {
+            var pixel = [UInt8](repeating: 0, count: 4)
+            copy.withUnsafeBuffer { context.render(CIImage(cvPixelBuffer: $0), toBitmap: &pixel, rowBytes: 4,
+                bounds: CGRect(x: x, y: y, width: 1, height: 1), format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB()) }
+            return pixel[0] > 200 && pixel[2] < 40
+        }
+        // Core Image coordinates: (x, y) from the bottom left.
+        let right = try source.withUnsafeBuffer { try NativeVideoFrame.copy($0, context: context, turn: 90) }
+        #expect(right.size.width == 80 && right.size.height == 40)
+        #expect(red(right, 2, 37) && !red(right, 2, 2) && !red(right, 77, 37))
+        let upsideDown = try source.withUnsafeBuffer { try NativeVideoFrame.copy($0, context: context, turn: 180) }
+        #expect(upsideDown.size.width == 40 && upsideDown.size.height == 80)
+        #expect(red(upsideDown, 37, 77) && !red(upsideDown, 2, 2))
+        let left = try source.withUnsafeBuffer { try NativeVideoFrame.copy($0, context: context, turn: 270) }
+        #expect(left.size.width == 80 && left.size.height == 40)
+        #expect(red(left, 77, 2) && !red(left, 2, 37))
+        let none = try source.withUnsafeBuffer { try NativeVideoFrame.copy($0, context: context, turn: 0) }
+        #expect(none.size.width == 40 && red(none, 2, 2))
+    }
+
     @Test func recordingReservationsRejectDuplicateUUIDsAndReleaseForReuse() async throws {
         let sessions = NativeRecordingSessions()
         try await sessions.begin("ABCD")

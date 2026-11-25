@@ -35,7 +35,7 @@ mise run test:probe-touch <UDID> --plan <plan.json>   # your own plan
 mise run test:probe-touch <UDID> --readback end       # readback only before and after the whole plan
 ```
 
-Other flags: `--settle <seconds>` (pause before each readback, default 0.5), `--out <dir>`, `--no-reset`, `--no-pull`, `--platform physical|simulator` (default physical), `--any-orientation` (accept a landscape probe at preflight; launch the probe with `-ProbeAllowRotation YES` and turn the device first).
+Other flags: `--settle <seconds>` (pause before each readback, default 0.5), `--out <dir>`, `--no-reset`, `--no-pull`, `--platform physical|simulator` (default physical), `--any-orientation` (accept a landscape probe at preflight). The probe turns with the device by default since 2026-11-25: for the portrait plan keep the device in portrait or launch the probe with `-ProbeAllowRotation NO`; a landscape probe without `--any-orientation` stops at preflight and says so.
 
 Every Manzanero command the runner builds names the operation first and ends with the target: `--device <UDID>`, or with `--platform simulator` (where the device argument must be the simulator's UUID) `--simulator <UUID>`. Manzanero has no simulator app-data pull, so the pull is skipped and the recent-gestures and last-gesture readouts are the evidence. Every action kind of the built-in plan, including the two-to-five-contact ones, runs on a simulator ([results](#simulator-runs)). The pull uses `PROBE_APP_BUNDLE_ID` when it is set (for example in `.env.local`), else the tracked default. The UDID is required; there is no default device.
 

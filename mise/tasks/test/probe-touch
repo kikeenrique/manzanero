@@ -12,7 +12,7 @@
 #USAGE flag "--out <dir>" help="New run directory (default tmp/probe-touch/<timestamp>)"
 #USAGE flag "--no-reset" help="Do not press probe.touch.reset before the first action"
 #USAGE flag "--no-pull" help="Do not pull Documents/touch-log.jsonl at the end"
-#USAGE flag "--any-orientation" help="Accept a landscape probe (launched with -ProbeAllowRotation YES) at preflight"
+#USAGE flag "--any-orientation" help="Accept a landscape probe at preflight (the probe turns with the device unless launched with -ProbeAllowRotation NO)"
 
 # Builds the probe-touch runner from Fixtures/ProbeApp/ProbeCore and runs it against
 # the built .build/debug/manzanero. The pull uses PROBE_APP_BUNDLE_ID when set (for

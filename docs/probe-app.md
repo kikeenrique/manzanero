@@ -280,7 +280,7 @@ Cannot show:
 - hardware or digitizer timing. Timestamps are UIKit's, after any system processing, and the probe cannot tell transport latency apart from UIKit delivery;
 - whether a missing touch was dropped by Manzanero, by the transport or by iOS. Only that it did not arrive here;
 - coalesced sub-frame samples, which are not recorded;
-- behaviour in Split View or a windowed iPad app: the probe requires full screen. Landscape needs `-ProbeAllowRotation YES`; it was measured on simulators, not on a phone.
+- behaviour in Split View or a windowed iPad app: the probe requires full screen. The probe turns with the device into landscape by default since 2026-11-25; `-ProbeAllowRotation NO` keeps it portrait (before that day landscape needed `-ProbeAllowRotation YES`). Landscape ran on simulators and on the iPhone 13 mini.
 
 ## Log probe
 

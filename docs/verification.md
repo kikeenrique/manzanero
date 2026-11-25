@@ -2182,6 +2182,18 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 
 So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
 
+### Upright pictures in landscape
+
+**2026-11-25, evening**, the iPhone 13 mini (iOS 27.2.1) on its cable, the iOS probe in front, the phone turned with `rotate`.
+
+| Step | Observed |
+| --- | --- |
+| Before the change, the probe launched with `-ProbeAllowRotation YES`, `rotate landscape-right` (`rot90`) | `screenshot` (Apple's `devicectl`): 2436 × 1125, upright. `frames --count 1`: 1125 × 2436, the interface on its side, its top-left corner at the picture's bottom left. The two commands disagreed |
+| The same before that relaunch | The probe stayed portrait whatever the phone reported (`deviceOrientation: landscapeRight`, `currentOrientation: rot0`): it allowed landscape only with that option |
+| After the change, the probe rebuilt (it now turns by default), in `landscape-right`, `landscape-left` and `portrait` | `frames`: 2436 × 1125, 2436 × 1125 and 1125 × 2436, `pictureTurn` 90, 270 and 0, each the size of the `screenshot` beside it; `record … 3`: 2464 × 1136, 2464 × 1136 and 1136 × 2464, 47 to 51 source pictures, `pictureTurn` in each result. The landscape-right picture and the landscape-left movie were looked at: upright, as the screenshot |
+
+So `frames` and `record` now turn the panel's picture into the interface's orientation, as Apple's screenshot does, by the display's current orientation when the capture starts (`DirectTouchDisplay.pictureTurn`). A phone turned during a capture keeps the start's turn. The watch (a panel mounted sideways) and the Duo's inner display take the same rule, not yet run there.
+
 ### A second iPhone: the iPhone 17 Pro Max, inside the probe
 
 **2026-11-25, afternoon**, the iPhone 17 Pro Max (iOS 27.2.1) on its cable, named by the human owner for the second-iPhone run under the iPad's privacy rule: the iOS probe installed by `build-run` with the signing already on the Mac (no registration needed), every step inside the probe, captures deleted after reading, the probe uninstalled after the run. Accessibility went over the tool's own tunnel (`serviceDirectory: own-tunnel`, `ownTunnelLink: cable`).

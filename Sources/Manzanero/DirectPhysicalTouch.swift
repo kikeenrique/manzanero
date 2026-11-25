@@ -116,6 +116,14 @@ struct DirectTouchDisplay: Equatable {
         }
     }
 
+    /// Clockwise degrees that turn a picture of this display's panel, as the
+    /// media stream sends it, into the interface's own orientation: the
+    /// display's current orientation. Apple's screenshot is already turned so
+    /// (2026-11-25, the iPhone 13 mini in landscape-right: the screenshot
+    /// 2436 × 1125 and upright, the stream's picture 1125 × 2436 and on its
+    /// side). It is also what turns a watch's sideways panel upright.
+    var pictureTurn: Int { (rotation - native + 360) % 360 }
+
     func portrait(_ x: Double, _ y: Double) -> (Double, Double) {
         switch rotation {
         case 90: (y, 1 - x)

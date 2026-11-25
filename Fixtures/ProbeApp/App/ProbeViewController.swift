@@ -26,9 +26,13 @@ final class ProbeViewController: UIViewController {
     // probe records stays down (a network cut during input, 2026-11-22).
     static var systemEdges: Bool { UserDefaults.standard.bool(forKey: "ProbeSystemEdges") }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { Self.systemEdges ? [] : .all }
-    /// Portrait unless launched with `-ProbeAllowRotation YES`, which lets the
-    /// interface follow the device into landscape for rotation measurements.
-    static var allowsRotation: Bool { UserDefaults.standard.bool(forKey: "ProbeAllowRotation") }
+    /// The interface follows the device into landscape, as most apps do,
+    /// unless launched with `-ProbeAllowRotation NO`, which keeps it portrait
+    /// (for the touch runner's portrait plan, or a letterboxed app on a
+    /// foldable's inner display). Rotation was opt-in until 2026-11-25.
+    static var allowsRotation: Bool {
+        UserDefaults.standard.object(forKey: "ProbeAllowRotation") == nil || UserDefaults.standard.bool(forKey: "ProbeAllowRotation")
+    }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { Self.allowsRotation ? .all : .portrait }
 }
 

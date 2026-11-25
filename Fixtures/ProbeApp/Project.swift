@@ -57,8 +57,8 @@ let project = Project(
                 "UIStatusBarHidden": true,
                 // The probe normalizes by its window; keep that window the whole screen on iPad.
                 "UIRequiresFullScreen": true,
-                // The view controller allows only portrait unless the probe is
-                // launched with -ProbeAllowRotation YES (rotation measurements).
+                // The view controller follows the device into landscape unless
+                // the probe is launched with -ProbeAllowRotation NO (portrait only).
                 "UISupportedInterfaceOrientations": ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft",
                                                      "UIInterfaceOrientationLandscapeRight"],
                 "UISupportedInterfaceOrientations~ipad": ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
