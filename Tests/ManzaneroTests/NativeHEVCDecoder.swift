@@ -7,7 +7,12 @@ struct NativeHEVCDecoderTests {
         #expect(NativeHEVCDecoder.acceptsCodedDimensions(1136, 2464, negotiatedWidth: 1136, negotiatedHeight: 2448))
         #expect(NativeHEVCDecoder.acceptsCodedDimensions(1136, 2448, negotiatedWidth: 1136, negotiatedHeight: 2448))
         #expect(!NativeHEVCDecoder.acceptsCodedDimensions(1136, 2465, negotiatedWidth: 1136, negotiatedHeight: 2448))
-        #expect(!NativeHEVCDecoder.acceptsCodedDimensions(1135, 2448, negotiatedWidth: 1136, negotiatedHeight: 2448))
+        // An iPhone Duo's inner display, fitted into its outer display's
+        // negotiated frame (2026-11-25); no smaller than a sixteenth less.
+        #expect(NativeHEVCDecoder.acceptsCodedDimensions(1408, 2016, negotiatedWidth: 1408, negotiatedHeight: 2048))
+        #expect(NativeHEVCDecoder.acceptsCodedDimensions(1135, 2448, negotiatedWidth: 1136, negotiatedHeight: 2448))
+        #expect(!NativeHEVCDecoder.acceptsCodedDimensions(1408, 1919, negotiatedWidth: 1408, negotiatedHeight: 2048))
+        #expect(!NativeHEVCDecoder.acceptsCodedDimensions(1000, 2048, negotiatedWidth: 1408, negotiatedHeight: 2048))
         #expect(!NativeHEVCDecoder.acceptsCodedDimensions(8193, 1, negotiatedWidth: 8192, negotiatedHeight: 1))
         #expect(!NativeHEVCDecoder.acceptsCodedDimensions(5000, 5000, negotiatedWidth: 4999, negotiatedHeight: 4999))
     }

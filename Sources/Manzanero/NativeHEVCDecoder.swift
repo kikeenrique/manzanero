@@ -183,13 +183,20 @@ final class NativeHEVCDecoder {
         codedDimensions = (Int(dimensions.width), Int(dimensions.height))
     }
 
-    /// The tested device codes 2448 negotiated rows as 2464 rows. Permit only
-    /// bounded upward padding to a 32-pixel boundary, preserving actual pixels.
+    /// The tested device codes 2448 negotiated rows as 2464 rows: bounded
+    /// upward padding to a 32-pixel boundary, preserving actual pixels.
+    /// An iPhone Duo streaming its inner display (2026-11-25) negotiated
+    /// 1408 × 2048, its outer display's size, and coded 1408 × 2016: the
+    /// inner display fitted into that frame. So a coded size may also be
+    /// smaller, by at most a sixteenth on each side; every later step takes
+    /// the decoded picture's own size.
     nonisolated static func acceptsCodedDimensions(_ width: Int, _ height: Int, negotiatedWidth: Int, negotiatedHeight: Int) -> Bool {
-        (1...8192).contains(width) && (1...8192).contains(height) && width * height <= 20_000_000 &&
+        func fits(_ coded: Int, _ negotiated: Int) -> Bool {
+            coded <= (negotiated + 31) / 32 * 32 && coded >= negotiated - negotiated / 16
+        }
+        return (1...8192).contains(width) && (1...8192).contains(height) && width * height <= 20_000_000 &&
             (1...8192).contains(negotiatedWidth) && (1...8192).contains(negotiatedHeight) &&
-            width >= negotiatedWidth && width <= (negotiatedWidth + 31) / 32 * 32 &&
-            height >= negotiatedHeight && height <= (negotiatedHeight + 31) / 32 * 32
+            fits(width, negotiatedWidth) && fits(height, negotiatedHeight)
     }
 
     /// A VideoToolbox or Core Media step that failed is `tool-failed`; `stream`
