@@ -13,7 +13,7 @@ struct DuoPhysicalDisplayTests {
             "pointScale": 3, "primary": true, "type": ["integrated": [String: Any]()]]
         let innerDisplay: [String: Any] = ["active": inner == "activeOn", "backlightState": inner, "bounds": [[0, 0], [2007, 2853]],
             "currentOrientation": "rot90", "displayId": 2, "name": "LCD-1", "nativeOrientation": "rot0", "nativeSize": [1878, 2670],
-            "pointScale": 3, "primary": false, "type": innerIntegrated ? ["integrated": [String: Any]()] : ["external": [String: Any]()]]
+            "pointScale": 3, "primary": false, "uniqueId": "123-456-789", "type": innerIntegrated ? ["integrated": [String: Any]()] : ["external": [String: Any]()]]
         return try JSONSerialization.data(withJSONObject: ["info": ["outcome": "success"], "result": [
             "backlightState": "activeOn", "displays": [outerDisplay, innerDisplay],
             "orientation": ["currentDeviceNonFlatOrientation": "landscapeRight", "currentDeviceOrientation": "landscapeRight"]]])
@@ -27,16 +27,19 @@ struct DuoPhysicalDisplayTests {
         let data = try Self.displays()
         #expect(DeviceUIReadiness.displayPower(try Self.result(data)) == "on")
         let ax = try AccessibilityDisplay(data)
-        #expect(ax.displayId == 2 && ax.orientation == "rot90")
+        #expect(ax.displayId == 2 && ax.hitDisplayId == 2 && ax.orientation == "rot90")
         #expect(ax.bounds.width == 951 && ax.bounds.height == 669)
         let touch = try DirectTouchDisplay(data)
         #expect(touch.id == 2 && touch.rotation == 90)
+        #expect(DeviceUIReadiness.interfaceUniqueId(data) == "123-456-789")
+        #expect(DeviceUIReadiness.interfaceUniqueId(try Self.displays(outer: "activeOn", inner: "off")) == nil)
+        #expect(DeviceUIReadiness.interfaceUniqueId(nil) == nil)
     }
 
     @Test func foldedTheInterfaceIsThePrimaryDisplay() throws {
         let data = try Self.displays(outer: "activeOn", inner: "off")
         #expect(DeviceUIReadiness.displayPower(try Self.result(data)) == "on")
-        #expect(try AccessibilityDisplay(data).displayId == 1)
+        #expect(try AccessibilityDisplay(data).displayId == 1 && AccessibilityDisplay(data).hitDisplayId == 0)
         #expect(try DirectTouchDisplay(data).id == 1)
     }
 

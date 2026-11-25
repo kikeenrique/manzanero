@@ -92,7 +92,7 @@ final class AccessibilitySession {
 
     func hit(x: Double, y: Double) throws -> AccessibilityRequest.Token {
         let point = hitDisplay?.native(x, y) ?? (x: x, y: y)
-        let result = try exchange(AccessibilityRequest.hit(x: point.x, y: point.y), expected: .hit)
+        let result = try exchange(AccessibilityRequest.hit(x: point.x, y: point.y, displayId: hitDisplay?.hitDisplayId ?? 0), expected: .hit)
         return try AccessibilityResponse.token(result)
     }
 
@@ -108,7 +108,7 @@ final class AccessibilitySession {
             return try AccessibilityResponse.token(try exchange(AccessibilityRequest.frontmost(), expected: .frontmost))
         }
         let centre = display.native(display.center.x, display.center.y)
-        let result = try exchange(AccessibilityRequest.hit(x: centre.x, y: centre.y, container: true), expected: .hit)
+        let result = try exchange(AccessibilityRequest.hit(x: centre.x, y: centre.y, container: true, displayId: display.hitDisplayId), expected: .hit)
         return try AccessibilityResponse.token(result)
     }
 

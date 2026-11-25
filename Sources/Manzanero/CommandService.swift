@@ -282,6 +282,13 @@ actor CommandService {
                                  "notifications": arguments.filter { $0.hasPrefix("com.apple.BiometricKit_Sim.") },
                                  "note": "Posted inside the simulator for the biometric prompt on its screen; with none showing it does nothing. Read the app, or the prompt's process (LocalAuthenticationUIService), to see the outcome."])
             }
+            if tool.platform == .physical, tool.operation == "screenshot",
+               let unique = DeviceUIReadiness.interfaceUniqueId(try? uiReadinessQuery(AccessibilityDisplay.plan(device: tool.device))) {
+                // devicectl captures the primary display unless told
+                // otherwise; an unfolded iPhone Duo's interface is on its
+                // inner display.
+                arguments += ["--display-unique-id", unique]
+            }
             var data = try runner.run(arguments, executable: command.executable, environment: command.environment)
             if command.jsonOutput { _ = try JSONSerialization.jsonObject(with: data) }
             if arguments.contains("settings"), arguments.contains("biometrics") { data = DeviceSettings.annotateBiometrics(data) }

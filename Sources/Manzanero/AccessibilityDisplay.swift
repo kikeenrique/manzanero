@@ -19,6 +19,11 @@ struct AccessibilityDisplay: Equatable, Encodable {
     let orientation: String
     /// The same turn in degrees. Not printed.
     var rotation = 0
+    /// The display ID hit tests carry: 0 for the primary display, else the
+    /// interface display's own ID (an unfolded iPhone Duo's inner display,
+    /// whose hit tests at display 0 were answered by a process of the outer
+    /// display on 2026-11-25). Not printed.
+    var hitDisplayId = 0
     /// The display's native portrait size in points. Not printed.
     private var nativeSize: (width: Double, height: Double)? = nil
     /// An external primary display: an Apple TV's television. Not printed.
@@ -130,6 +135,7 @@ struct AccessibilityDisplay: Equatable, Encodable {
         }
         pointScale = scale
         displayId = id.int64Value
+        if (display["primary"] as? NSNumber)?.boolValue == false { hitDisplayId = id.intValue }
         orientation = "rot\(turn)"
         rotation = turn
     }

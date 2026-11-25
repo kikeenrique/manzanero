@@ -105,6 +105,18 @@ struct DeviceUIReadiness: Encodable, Sendable {
         return others.count == 1 ? others[0] : primary
     }
 
+    /// The unique ID of the interface display when it is not the primary
+    /// one (an unfolded iPhone Duo's inner display), from a `devicectl device
+    /// info displays` result; nil otherwise, or when the read failed.
+    static func interfaceUniqueId(_ data: Data?) -> String? {
+        guard let data, data.count <= 1_048_576,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let displays = (root["result"] as? [String: Any])?["displays"] as? [[String: Any]], (1...16).contains(displays.count),
+              let display = interfaceDisplay(displays), boolean(display["primary"]) == false,
+              let unique = display["uniqueId"] as? String, !unique.isEmpty, !unique.hasPrefix("-") else { return nil }
+        return unique
+    }
+
     /// on, off, external or unknown, from a `devicectl device info displays`
     /// result: the backlight of the display the interface is on
     /// (`interfaceDisplay`), or `external` when that display has none.
