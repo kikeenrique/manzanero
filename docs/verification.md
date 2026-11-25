@@ -2182,6 +2182,18 @@ The watchOS probe was uninstalled from the watch afterwards at the human owner's
 
 So on a physical watch every command family has now run inside the probe, except `logs`, which receives nothing, and `settings`, which the watch refuses. The watch's display sleeps and it locks once off the wrist: an input then goes to whatever is in front, so keep the steps close together and relaunch the probe before each group.
 
+### The Duo simulator's inner display in other orientations
+
+**2026-11-25, evening**, a new `manzanero-research-duo` (iOS 27.2 runtime, `create-simulator`), unfolded, the iOS probe installed by `build-run`, shut down afterwards.
+
+| Step | Observed |
+| --- | --- |
+| `rotate` to `landscape-right`, `portrait`, `landscape-left` and `portrait-upside-down`, the probe allowing every orientation | Each accepted by `devicectl` (`deviceOrientation` as asked, orientation lock off), and each time `displays` read `LCD-1` at `rot90` and the tree `rot90`, 951 × 669 points: the inner display did not turn. `press --id probe.touch.reset` accepted and `tap 0.25 0.4` sent in all four |
+| The probe relaunched portrait only (`-ProbeAllowRotation NO`), the device in `portrait` and in `landscape-left` | `LCD-1` still `rot90`, 951 × 669 points: the app letterboxed, as recorded on 2026-11-21 |
+| `tap 0.25 0.4` at `rot90`, the probe reset first | The probe's last gesture: one contact from and to (0.24991, 0.4001), 0.086 s |
+
+So on the simulator the unfolded inner display is always `rot90`, whatever the device orientation and whatever the app allows; its other orientations exist only on the device, where the inner display read `rot0` and `rot90` on 2026-11-25 with trees, presses and taps in both ([record](#first-run-on-a-physical-iphone-duo)).
+
 ### A web view embedded in native content
 
 **2026-11-25, evening**, the iOS probe's new `-ProbeWebEmbedded YES` screen: a label at the top, a native button at the screen's centre and a 220-point `WKWebView` along the bottom, as many apps embed one, so the app and not the page holds the display centre. On `manzanero-research-phone` (iOS 27.2) and on the iPhone 13 mini (iOS 27.2.1, the tool's own tunnel on the cable).
