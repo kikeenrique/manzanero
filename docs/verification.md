@@ -2242,10 +2242,11 @@ After the hold was built for a device with two touchscreens (its stream names th
 
 | Step | Observed |
 | --- | --- |
-| `batch` `hold 0.3 0.3`, `tap 0.7 0.7`, `release`, folded (outer display, surface 257) | Completed; the tap was merged into the hold's stream as contact 1 (six reports, nine in all). The probe recorded one contact only, the held one, at (0.300, 0.300) for 0.80 s; the tap did not arrive |
-| The same unfolded (inner display, surface 258; the probe letterboxed) | The same: the held contact for 0.84 s (at 0.095 of the probe's 469-point window, the display's 0.3), and no tap. On the iPhone 13 mini the same batch gave two contacts |
-| The same shape as one finished `gesture` (contact 0 at (0.3, 0.3) for 0.8 s, contact 1 at (0.7, 0.7) from 0.30 s to 0.38 s), unfolded | The probe again recorded contact 0 alone (0.90 s). So it is not the hold's live stream: on the Duo's touchscreens a second contact that begins and ends while the first stays down did not arrive, while the touch plan's staggered pair (the first lifting while the second is down) did. Not explained |
-| The same with contact 1 down for 0.3 s (0.30 s to 0.60 s) | Contact 0 alone again (0.98 s): the second contact's length is not the cause. Left to compare with the staggered pair that arrived: there the first contact lifted while the second was down, and the two lay side by side at one height, not diagonally apart |
+| `batch` `hold 0.3 0.3`, `tap 0.7 0.7`, `release`, folded (outer display, surface 257) | Completed; the tap was merged into the hold's stream as contact 1 (six reports, nine in all). The probe's touch surface recorded the held contact, at (0.300, 0.300) for 0.80 s, and not the tap |
+| The same unfolded (inner display, surface 258; the probe letterboxed) | The same: the held contact for 0.84 s (at 0.095 of the probe's 469-point window, the display's 0.3), and no tap |
+| The same shape as one finished `gesture` (contact 1 at (0.7, 0.7) for 0.08 s, then for 0.3 s), unfolded | Contact 0 alone, both times |
+
+None of this is a fault of the Duo or of the hold. (0.7, 0.7) is on the probe's text field, which spans the width at about 0.66 to 0.72 of the height in a 466 × 678 or 469 × 669 portrait layout, and the field takes the touch itself, so the touch surface never counts it. The touch plan keeps its points between y 0.3 and 0.65 for that reason, and the phone's hold run used (0.7, 0.6). The point was chosen without a look at the layout; the human owner's question whether each screen was used properly led to the check. A tap during a hold, aimed at the touch surface, has still to run on the Duo |
 
 What has not run on the device: a fold during an input command, `apps`, `reports`, `settings` and `last-crash` beyond the listing above (each reads beyond the probe).
 
