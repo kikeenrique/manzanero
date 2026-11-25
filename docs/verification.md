@@ -2217,7 +2217,16 @@ Folded by hand, the probe in front on the outer display, with the fixes in:
 | `type 'Plegado 42'` | Exact |
 | `screenshot`, `frames --count 1` | Both 1398 × 2034, upright, the probe whole, not black (deleted after reading); the stream negotiated 1408 × 2048 and the frame was cropped to the display |
 
-What has not run on the device: a fold or unfold by hand during a command, the probe in landscape with `-ProbeAllowRotation YES`, `hold` (not built for a device with two touchscreens; the bridge refuses it), and the other command families.
+Then unfolded again, in landscape, the probe relaunched with `-ProbeAllowRotation YES`:
+
+| Step | Observed |
+| --- | --- |
+| `tree` | The probe full screen on the inner display, 951 × 669 points, `rot90` |
+| `press --id probe.touch.reset`, `tap 0.25 0.4` | Accepted; the tap went to the inner display's touchscreen and the probe recorded it at (0.2499, 0.4001) |
+| `screenshot` | 2853 × 2007, landscape, upright, the probe whole (deleted after reading) |
+| `wait --id probe.touch.reset --until gone --timeout 60`, the device folded by hand 10 s in | After 9 polls (16 s) the wait stopped with "display geometry/orientation changed during the wait; the condition is not reported", no input sent, the session closed and the tunnel released. Its last poll, after the fold, had found the element absent in process 37: without the display check it would have reported `gone` |
+
+What has not run on the device: `hold` (not built for a device with two touchscreens; the bridge refuses it), a fold during an input command, and the other command families.
 
 ### First run on a physical iPad: the iPad mini (6th generation)
 
