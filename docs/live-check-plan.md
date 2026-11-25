@@ -15,18 +15,11 @@ If every query to a connected device times out, read the state of Apple's device
 - Still owed on the phone after the session of 2026-11-24 ([record](verification.md#phone-session-of-2026-11-24-handles-the-cost-of-a-tree-symbols-and-voiceover)): nothing of the settings. `last-crash --symbols` on a stripped build ran on 2026-11-24 ([record](verification.md#crash-symbols-for-a-stripped-build-on-the-phone)); `settings --standby` was refused by the phone, which lacks the capability ([record](verification.md#standby-on-the-phone-refused-by-the-device)), and `settings --biometrics` found no type to control ([record](verification.md#biometrics-on-the-phone-no-type-to-control)).
 
 - A recording of several minutes with sound on the phone (the longest so far is 75 s). Recording recovery with sound on the Apple TV 4K ran on 2026-11-24 ([record](verification.md#sound-across-a-pulled-ethernet-cable-on-the-apple-tv-4k)).
-- With the passcode now set on the test phone: `wake` and `readiness` after a restart before the first unlock, and whether setting or removing a passcode always drops the pairing (it did once: [record](verification.md#a-passcode-on-the-phone-pairing-handoff-and-the-lock-screen)). The passcode keypad is in the tree ([record](verification.md#the-last-handoff-runs-on-the-phone)).
-- `handoff` is finished on this phone and host ([record](verification.md#the-last-handoff-runs-on-the-phone)). What would need other equipment: a second MCP host, and a real Face ID or purchase prompt (the phone has no Face ID set up; the passcode gate of Settings › Face ID y código ran in its place). Reconnect an MCP server after a rebuild, or it keeps running the old binary.
+- With the passcode now set on the test phone: `wake` and `readiness` after a restart before the first unlock. Whether a passcode change always drops the pairing was closed by the triage of 2026-11-25 ([why](roadmap.md#closed-by-triage-2026-11-25)).
+- `handoff` is finished on this phone and host ([record](verification.md#the-last-handoff-runs-on-the-phone)); what would need other equipment was closed by the human owner's triage of 2026-11-25 ([why](roadmap.md#closed-by-triage-2026-11-25)).
 - The tool's own tunnel (the default since 2026-11-19, [state](transport.md#a-tunnel-of-the-tools-own)): more changes of link with `remoted`'s log read (one change of link in about twelve logged an interruption of `remoted`, recovered in two seconds, cause unknown), an MCP session across a change of link, and a second device.
 - A third-party app's web view; Chrome, Safari, the probe's own inset `WKWebView` and a page with frames have run ([record](verification.md#web-content-in-an-apps-own-inset-web-view)). Count how often the first read after a page load selects the browser instead of the page.
-- `detect-layout` on another phone or with another layout set on this one (it found Spanish – ISO on the iPhone 13 mini: [verification](verification.md#layout-detection)), in a field other than the probe's (one with autocorrection or auto-capitalisation on, to see `no-match` and the hints), and through MCP against a phone.
-- Typing in keyboard layouts other than Spanish – ISO, which the iPhone 13 mini uses on its own and which typed exactly ([verification](verification.md#keyboard-layouts-on-the-phone)). The runs below remain for other layouts, each needing the phone's layout changed by hand ([physical typing](physical-typing.md#layouts); simulator results in [verification](verification.md#keyboard-layouts-on-the-simulator)). Blocked for now: the phone's layout cannot be read, and its Settings › General › Keyboard shows no Hardware Keyboard section without a physical keyboard attached (looked at on 2026-11-21), so another layout cannot be set there. With a keyboard attached, set it by hand there first, then confirm it with `detect-layout --id probe.text.field --device <UDID>`, and focus `probe.text.field` (`set-value --id probe.text.field x --device <UDID>`, `key backspace`). Read the result from `probe.text.value` in `tree`. Suggested runs, each with its own layout set on the phone:
-  - `type 'Ab9!z;[ ~"<>? mañana café über ß €' --device <UDID>` with the phone on US: US ASCII plus Option dead keys, which were only seen on a simulator.
-  - `type --layout spanish-iso 'Año Ñandú ¿Qué? ¡Sí! €5 ç <º> @#' --device <UDID>`.
-  - `type --layout german 'Grüße, Straße! @ € ê ÄÖÜ y<z>' --device <UDID>`.
-  - `type --layout latin-american '<>≤ |°¬' --device <UDID>`, or another of the 13 layouts whose key left of 1 and key left of Z differ between the ISO and ANSI keyboard types: the simulator used ISO; whether a phone's Indigo keyboard does is the main open question.
-  - The same once through MCP: `mise run test:mcp-type <UDID> 'Año ¿qué?' spanish-iso`.
-  - Record whether the layout chosen there changes the result without relaunching the app.
+- `detect-layout` and typing in other keyboard layouts on a phone: closed by the triage of 2026-11-25, blocked until a physical keyboard is attached ([why](roadmap.md#closed-by-triage-2026-11-25)); Spanish – ISO typed and was detected exactly on the iPhone 13 mini ([verification](verification.md#keyboard-layouts-on-the-phone)).
 - An iPad, and anything on a second device. The simulator side of rotation and iPad is measured. On 2026-11-17 the Mac listed other iPhones, iPads and Apple TVs as paired and available; none has been used, and none is to be until the owner names it. An iPad mini (6th generation) ran inside the probe on 2026-11-24 ([record](verification.md#first-run-on-a-physical-ipad-the-ipad-mini-6th-generation)); outside the probe nothing runs there, by the human owner's rule.
 - The 200 ms input drain with the Mac under load: not to be run, by the human owner's decision of 2026-11-25. It delivered every planned touch on two phones with the Mac idle (on the iPhone 13 mini 50 ms lost short gestures and 100 ms did not).
 
@@ -59,18 +52,12 @@ These need no hardware and no owner decision; they were left out of the simulato
 
 ## Questions still open
 
-- Why did one tap on the Settings search field have no effect, when the next 36 taps there did?
 - What made Apple's device services stop answering for the phone on 2026-11-16?
-- Which keyboard type (ANSI or ISO) does a phone apply to Indigo keyboard events, and does a phone's iOS version ship the same layouts as the Mac?
-- Was the firewall also behind the earlier intermittent recording startup failures?
-- Why does a subscription stop sometimes go unconfirmed? Three of about thirty selector commands on 2026-11-17; each time the socket closed 2 to 3 ms into the stop exchange, after one cleanup frame.
 - Why does a phone report a contact it released by itself (after a killed owner or a pulled cable) at `[0,0]`, and does an app take that release as a touch at the top-left corner?
-- Does a web input ever take `set-value`, for example after it has focus?
-- Does setting or removing a passcode always drop the pairing?
 - What makes the Mac's connection to the Apple TV go stale, three times on 2026-11-18, and why does `remoted` not reconnect?
 - Why did observation alone switch a sleeping Apple TV on the first time? (One `remote home` wakes it.)
-- Why does an Apple Watch's log relay send nothing for a process's stream (2026-11-25), when the phone's and the Apple TV's send every level?
-- Does a host remove a form that the server withdraws? If it does, a watching handoff could keep a form up as its "I will not do it" button.
+
+Closed on 2026-11-25: the questions about the one Settings tap, the keyboard type a phone applies, the firewall and recording startup, the unconfirmed subscription stop, `set-value` on a web input, a passcode and the pairing, and a host withdrawing a form, by the human owner's triage ([why](roadmap.md#closed-by-triage-2026-11-25)); and why a watch's log relay sends nothing, answered that day ([app logs](app-logs.md#an-apple-watch)).
 
 ## Stop conditions
 
