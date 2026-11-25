@@ -2197,6 +2197,21 @@ So on a physical watch every command family has now run inside the probe, except
 
 So the 200 ms input drain chosen on the iPhone 13 mini delivers every planned touch on a second, newer phone too, and every command family tried there works inside the probe once the recording accepts this phone's coded size.
 
+### The iPhone Duo's commands beyond the probe
+
+**2026-11-25, afternoon**, the paired iPhone Duo (iOS 27.2.1), on the human owner's word for the six commands that reach beyond the probe, under its privacy rule: the iOS probe installed by `build-run` and in front, nothing of another app printed or kept, every output deleted after its counts were read, the probe uninstalled after the run.
+
+| Step | Observed |
+| --- | --- |
+| `paste "Pegado ¿sí? 🍎"` into the probe's field (it replaces the clipboard) | Exit 0, and iOS asked "“Probe” would like to paste from “dtpasteboardd”": the pasteboard's text came from the device's developer pasteboard service, another process. `press --label "Allow Paste"` answered it, and the field read exactly `Pegado ¿sí? 🍎` |
+| `settings` (read only) | Exit 0, the device's current settings read; nothing changed |
+| `apps` | Exit 0, 275 apps listed, the probe among them; only the count was read |
+| `reports list` | Exit 0, 18 entries in the top directory; only the count was read |
+| `button lock` | `dispatched`; `readiness` then read `displayPower: off` and `passcodeRequired: true` |
+| `wake` | Exit 1, `awake-locked`: the display came on (`displayPower: on`) and the lock screen stayed, because the Duo needs its passcode after a lock and `wake` never enters one; the human owner unlocks it |
+
+So every command family has now run on the physical Duo. A paste into an app asks the person once for that app, since the text comes from another process; answer it by its label, as above.
+
 ### Reboot on a simulator and on an iPhone
 
 **2026-11-25**, Xcode 27.2's `simctl`, an iPhone Air simulator (iOS 27.2) booted for the run and shut down after it.
