@@ -2197,7 +2197,17 @@ So on a physical watch every command family has now run inside the probe, except
 | `screenshot`, before a fix | 1398 × 2034 and black (`blankImage: true`): `devicectl` captures the primary display unless given `--display-unique-id`. Fixed: a physical screenshot names the interface display when it is not the primary one; then 2007 × 2853, the probe whole and upright |
 | `tap 0.5 0.5` after the fix | `route: universal-hid`, six reports to the inner display's own touchscreen (`CoreDevice touchscreen(<unique ID>)`, surface 258): the probe recorded one contact, began and ended at (0.50025, 0.50018), 0.12 s |
 
-What has not run on the device: folded, a fold or unfold by hand during a command, several contacts, gestures, `hold` (not built for a device with two touchscreens; the bridge refuses it), typing, recording and `frames` (whose display is now the interface display; the stream itself was not tried), and every other command family.
+Later the same night, still unfolded and inside the probe:
+
+| Step | Observed |
+| --- | --- |
+| The probe, portrait only, with the device held in landscape | The inner display turned to portrait for the probe (`rot0`), so the person holding the device saw it sideways; once the device was turned, the inner display read `rot90` (951 × 669 points) and the probe was letterboxed as on the simulator |
+| `test:probe-touch --no-pull` (built-in plan) | 14 of 14 actions and 29 of 29 contacts delivered, one to five at once, taps, a long press, a swipe, a drag, a pinch, multi-drags and two gesture sequences; worst start error 0.0003, all through the inner display's touchscreen |
+| `type 'Hola Duo 123'`, `set-value 'añadido ñ €'` in the probe's field | Both exact |
+| `record … 5 --backend coredevice`, `frames --count 1`, before a fix | Both failed at the decoder: "coded dimensions 1408x2016 differ from negotiated 1408x2048". The kept stream (`MANZANERO_KEEP_STREAM=1`) decoded with ffmpeg at 1408 × 2016: the inner display, sideways, fitted into the middle of the frame with black bands above and below; 1408 × 2048 is the outer display's size, padded. Fixed: a coded size up to a sixteenth smaller than the negotiated one is accepted |
+| The same after the fix | `record`: 5.0 s, 80 frames, 1408 × 2016, no restart. `frames`: one picture, not black or flat. Both show the inner display sideways at about half its resolution, as the device sends it (deleted after reading) |
+
+What has not run on the device: folded, a fold or unfold by hand during a command, the probe in landscape with `-ProbeAllowRotation YES`, `hold` (not built for a device with two touchscreens; the bridge refuses it), and the other command families.
 
 ### First run on a physical iPad: the iPad mini (6th generation)
 
